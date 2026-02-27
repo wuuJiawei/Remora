@@ -28,6 +28,7 @@ public final class MockShellSession: SSHShellSessionProtocol, @unchecked Sendabl
     private let host: Host
     private var pty: PTYSize
     private var isRunning = false
+    private var commandBuffer = ""
 
     public init(host: Host, pty: PTYSize) {
         self.host = host
@@ -37,8 +38,8 @@ public final class MockShellSession: SSHShellSessionProtocol, @unchecked Sendabl
     public func start() async throws {
         isRunning = true
         onStateChange?(.running)
-        emit("Connected to \(host.username)@\(host.address):\(host.port)\\r\\n")
-        emit("Type commands and press Enter.\\r\\n")
+        emit("Connected to \(host.username)@\(host.address):\(host.port)\r\n")
+        emit("Type commands and press Enter.\r\n")
         prompt()
     }
 
@@ -46,25 +47,38 @@ public final class MockShellSession: SSHShellSessionProtocol, @unchecked Sendabl
         guard isRunning else { return }
         guard let input = String(data: data, encoding: .utf8) else { return }
 
-        if input == "\u{3}" {
-            emit("^C\\r\\n")
-            prompt()
-            return
-        }
+        for character in input {
+            if character == "\u{3}" {
+                commandBuffer.removeAll(keepingCapacity: true)
+                emit("^C\r\n")
+                prompt()
+                continue
+            }
 
-        if input.contains("\r") || input.contains("\n") {
-            let command = input.trimmingCharacters(in: .whitespacesAndNewlines)
-            try await handle(command: command)
-            prompt()
-            return
-        }
+            if character == "\u{7F}" {
+                if !commandBuffer.isEmpty {
+                    commandBuffer.removeLast()
+                    emit("\u{8} \u{8}")
+                }
+                continue
+            }
 
-        emit(input)
+            if character == "\r" || character == "\n" {
+                let command = commandBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                commandBuffer.removeAll(keepingCapacity: true)
+                try await handle(command: command)
+                prompt()
+                continue
+            }
+
+            commandBuffer.append(character)
+            emit(String(character))
+        }
     }
 
     public func resize(_ size: PTYSize) async throws {
         pty = size
-        emit("\\r\\n[pty resized to \(size.columns)x\(size.rows)]\\r\\n")
+        emit("\r\n[pty resized to \(size.columns)x\(size.rows)]\r\n")
         prompt()
     }
 
@@ -78,15 +92,15 @@ public final class MockShellSession: SSHShellSessionProtocol, @unchecked Sendabl
         case "", "clear":
             emit("\u{001B}[2J\u{001B}[H")
         case "help":
-            emit("Available commands: help, date, whoami, ls, clear\\r\\n")
+            emit("Available commands: help, date, whoami, ls, clear\r\n")
         case "date":
-            emit("\(Date.now.formatted(date: .abbreviated, time: .standard))\\r\\n")
+            emit("\(Date.now.formatted(date: .abbreviated, time: .standard))\r\n")
         case "whoami":
-            emit("\(host.username)\\r\\n")
+            emit("\(host.username)\r\n")
         case "ls":
-            emit("app.log  releases  config.yml\\r\\n")
+            emit("app.log  releases  config.yml\r\n")
         default:
-            emit("zsh: command not found: \(command)\\r\\n")
+            emit("zsh: command not found: \(command)\r\n")
         }
     }
 

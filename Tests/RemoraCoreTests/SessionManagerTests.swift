@@ -24,4 +24,42 @@ struct SessionManagerTests {
         let empty = await manager.activeSessions()
         #expect(empty.isEmpty)
     }
+
+    @Test
+    func outputStreamEmitsInitialBanner() async throws {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let host = Host(
+            name: "demo",
+            address: "127.0.0.1",
+            username: "tester",
+            auth: HostAuth(method: .agent)
+        )
+
+        let descriptor = try await manager.startSession(for: host, pty: .init(columns: 100, rows: 30))
+        let stream = await manager.sessionOutputStream(sessionID: descriptor.id)
+
+        let firstChunk = await firstChunkWithinOneSecond(from: stream)
+        #expect(firstChunk != nil)
+        #expect(String(decoding: firstChunk ?? Data(), as: UTF8.self).contains("Connected to"))
+
+        await manager.stopSession(id: descriptor.id)
+    }
+
+    private func firstChunkWithinOneSecond(
+        from stream: AsyncStream<Data>
+    ) async -> Data? {
+        await withTaskGroup(of: Data?.self) { group in
+            group.addTask {
+                var iterator = stream.makeAsyncIterator()
+                return await iterator.next()
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                return nil
+            }
+            let result = await group.next() ?? nil
+            group.cancelAll()
+            return result
+        }
+    }
 }

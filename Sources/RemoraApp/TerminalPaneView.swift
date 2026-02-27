@@ -2,8 +2,16 @@ import SwiftUI
 
 struct TerminalPaneView: View {
     @ObservedObject var pane: TerminalPaneModel
+    @ObservedObject private var runtime: TerminalRuntime
     var isFocused: Bool
     var onSelect: () -> Void
+
+    init(pane: TerminalPaneModel, isFocused: Bool, onSelect: @escaping () -> Void) {
+        self.pane = pane
+        self._runtime = ObservedObject(wrappedValue: pane.runtime)
+        self.isFocused = isFocused
+        self.onSelect = onSelect
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -12,10 +20,19 @@ struct TerminalPaneView: View {
                     .fill(statusColor)
                     .frame(width: 8, height: 8)
 
-                Text(pane.runtime.connectionState)
+                Text(runtime.connectionState)
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(1)
                     .foregroundStyle(VisualStyle.textPrimary)
+
+                Text(runtime.transcriptSnapshot.isEmpty ? " " : runtime.transcriptSnapshot)
+                    .font(.system(size: 1))
+                    .foregroundStyle(.clear)
+                    .opacity(0.01)
+                    .frame(width: 12, height: 12)
+                    .accessibilityLabel(runtime.transcriptSnapshot.isEmpty ? " " : runtime.transcriptSnapshot)
+                    .accessibilityHidden(false)
+                    .accessibilityIdentifier("terminal-transcript")
 
                 Spacer()
 
@@ -30,7 +47,7 @@ struct TerminalPaneView: View {
             Divider()
                 .overlay(VisualStyle.borderSoft)
 
-            TerminalViewRepresentable(runtime: pane.runtime)
+            TerminalViewRepresentable(runtime: runtime, onFocus: onSelect)
                 .background(VisualStyle.terminalBackground)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -42,21 +59,18 @@ struct TerminalPaneView: View {
         )
         .padding(6)
         .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
         .animation(.spring(response: 0.24, dampingFraction: 0.85), value: isFocused)
-        .animation(.easeInOut(duration: 0.18), value: pane.runtime.connectionState)
+        .animation(.easeInOut(duration: 0.18), value: runtime.connectionState)
     }
 
     private var statusColor: Color {
-        if pane.runtime.connectionState.hasPrefix("Connected") {
+        if runtime.connectionState.hasPrefix("Connected") {
             return .green
         }
-        if pane.runtime.connectionState.hasPrefix("Failed") {
+        if runtime.connectionState.hasPrefix("Failed") {
             return .red
         }
-        if pane.runtime.connectionState == "Connecting" {
+        if runtime.connectionState == "Connecting" {
             return .orange
         }
         return .secondary

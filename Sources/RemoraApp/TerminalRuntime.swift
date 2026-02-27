@@ -21,6 +21,7 @@ struct TerminalConnectConfig: Sendable {
 final class TerminalRuntime: ObservableObject {
     @Published var connectionState: String = "Idle"
     @Published var connectionMode: ConnectionMode = .mock
+    @Published var transcriptSnapshot: String = ""
 
     private let mockSessionManager = SessionManager(sshClientFactory: { MockSSHClient() })
     private let sshSessionManager = SessionManager(sshClientFactory: { SystemSSHClient() })
@@ -30,6 +31,9 @@ final class TerminalRuntime: ObservableObject {
     private var sessionID: UUID?
     private var streamTask: Task<Void, Never>?
     private var isPaneActive = true
+    private var pendingOutput = Data()
+    private var transcriptBuffer = ""
+    private let maxTranscriptCharacters = 4_096
 
     func attach(view: TerminalView) {
         terminalView = view
@@ -39,6 +43,7 @@ final class TerminalRuntime: ObservableObject {
                 await self?.sendInput(data)
             }
         }
+        flushPendingOutputIfNeeded()
     }
 
     func setPaneActive(_ isActive: Bool) {
@@ -74,6 +79,7 @@ final class TerminalRuntime: ObservableObject {
         guard sessionID == nil else { return }
         connectionMode = config.mode
         connectionState = "Connecting"
+        clearTranscript()
 
         guard let host = buildHostConfiguration(config: config) else {
             connectionState = "配置错误：请检查主机、端口、用户名"
@@ -109,6 +115,7 @@ final class TerminalRuntime: ObservableObject {
                 self.connectionState = "Disconnected"
                 self.streamTask?.cancel()
                 self.streamTask = nil
+                self.pendingOutput.removeAll(keepingCapacity: false)
             }
         }
     }
@@ -119,7 +126,12 @@ final class TerminalRuntime: ObservableObject {
             let stream = await manager.sessionOutputStream(sessionID: id)
             for await data in stream {
                 await MainActor.run {
-                    terminalView?.feed(data: data)
+                    appendTranscript(data)
+                    if let terminalView {
+                        terminalView.feed(data: data)
+                    } else {
+                        enqueuePendingOutput(data)
+                    }
                 }
             }
         }
@@ -158,5 +170,39 @@ final class TerminalRuntime: ObservableObject {
             username: trimmedUser,
             auth: auth
         )
+    }
+
+    private func enqueuePendingOutput(_ data: Data) {
+        pendingOutput.append(data)
+        let maxPendingBytes = 512 * 1024
+        if pendingOutput.count > maxPendingBytes {
+            pendingOutput.removeFirst(pendingOutput.count - maxPendingBytes)
+        }
+    }
+
+    private func flushPendingOutputIfNeeded() {
+        guard let terminalView, !pendingOutput.isEmpty else { return }
+        terminalView.feed(data: pendingOutput)
+        pendingOutput.removeAll(keepingCapacity: false)
+    }
+
+    private func clearTranscript() {
+        transcriptBuffer.removeAll(keepingCapacity: false)
+        transcriptSnapshot = ""
+        pendingOutput.removeAll(keepingCapacity: false)
+    }
+
+    private func appendTranscript(_ data: Data) {
+        let chunk = String(decoding: data, as: UTF8.self)
+        guard !chunk.isEmpty else { return }
+
+        transcriptBuffer.append(chunk)
+        if transcriptBuffer.count > maxTranscriptCharacters {
+            transcriptBuffer.removeFirst(transcriptBuffer.count - maxTranscriptCharacters)
+        }
+
+        transcriptSnapshot = transcriptBuffer
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
     }
 }

@@ -33,7 +33,7 @@ struct RemoraUIAutomationTests {
         }
 
         NSRunningApplication(processIdentifier: process.processIdentifier)?
-            .activate()
+            .activate(options: [.activateAllWindows])
 
         let appElement = AXUIElementCreateApplication(process.processIdentifier)
 
@@ -128,6 +128,105 @@ struct RemoraUIAutomationTests {
         #expect(hostVisibleAfterExpand, "Expected prod-api row to be visible after expanding group.")
     }
 
+    @Test
+    func terminalAcceptsKeyboardInputAndShowsCommandOutput() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let appURL = try locateRemoraAppBinary()
+        let process = Process()
+        process.executableURL = appURL
+        process.arguments = []
+        try process.run()
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard waitUntil(timeout: 8, {
+            NSRunningApplication(processIdentifier: process.processIdentifier) != nil
+        }) else {
+            Issue.record("RemoraApp did not launch in time.")
+            return
+        }
+
+        NSRunningApplication(processIdentifier: process.processIdentifier)?
+            .activate()
+
+        let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        let connected = waitUntil(timeout: 8, {
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+        })
+        #expect(connected, "Expected mock terminal connection to be established.")
+        guard connected else { return }
+
+        guard let transcriptElement = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { element in
+                identifier(of: element) == "terminal-transcript"
+            }
+        ) else {
+            Issue.record("Could not find transcript accessibility element.")
+            return
+        }
+
+        let hasInitialTranscript = waitUntil(timeout: 8, {
+            guard let snapshot = transcriptText(from: transcriptElement) else { return false }
+            return snapshot.contains("Type commands and press Enter.")
+        })
+        if !hasInitialTranscript {
+            let snapshot = transcriptText(from: transcriptElement) ?? ""
+            Issue.record("Initial transcript snapshot: \(snapshot)")
+            Issue.record("Transcript AX summary: \(accessibilitySummary(of: transcriptElement))")
+        }
+        #expect(hasInitialTranscript, "Terminal should render initial prompt output.")
+        guard hasInitialTranscript else { return }
+
+        guard let terminal = waitForElement(
+            in: appElement,
+            timeout: 6,
+            matching: { element in
+                identifier(of: element) == "terminal-view"
+            }
+        ) else {
+            Issue.record("Could not find terminal accessibility element.")
+            return
+        }
+
+        guard let frame = frame(of: terminal) else {
+            Issue.record("Could not read terminal frame for click focus.")
+            return
+        }
+
+        _ = AXUIElementSetAttributeValue(
+            terminal,
+            kAXFocusedAttribute as CFString,
+            kCFBooleanTrue
+        )
+        click(point: CGPoint(x: frame.midX, y: frame.midY))
+        typeText("whoami\r")
+
+        var lastValue = ""
+        let hasOutput = waitUntil(timeout: 8, {
+            guard let value = transcriptText(from: transcriptElement) else {
+                return false
+            }
+            lastValue = value
+            return value.range(of: #"whoami\s*remora"#, options: .regularExpression) != nil
+        })
+        if !hasOutput {
+            Issue.record("Terminal accessibility value after typing: \(lastValue)")
+            Issue.record("Terminal AX summary: \(accessibilitySummary(of: terminal))")
+        }
+        #expect(hasOutput, "Terminal should accept keyboard input and render command output.")
+    }
+
     private func locateRemoraAppBinary() throws -> URL {
         if let custom = ProcessInfo.processInfo.environment["REMORA_APP_BINARY"], !custom.isEmpty {
             let url = URL(fileURLWithPath: custom)
@@ -208,10 +307,130 @@ struct RemoraUIAutomationTests {
         stringAttribute(kAXRoleAttribute as CFString, of: element)
     }
 
+    private func identifier(of element: AXUIElement) -> String? {
+        stringAttribute(kAXIdentifierAttribute as CFString, of: element)
+    }
+
     private func stringAttribute(_ attr: CFString, of element: AXUIElement) -> String? {
         var value: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(element, attr, &value)
         guard status == .success, let raw = value else { return nil }
-        return raw as? String
+        if let string = raw as? String {
+            return string
+        }
+        if let attributed = raw as? NSAttributedString {
+            return attributed.string
+        }
+        if let number = raw as? NSNumber {
+            return number.stringValue
+        }
+        return String(describing: raw)
+    }
+
+    private func frame(of element: AXUIElement) -> CGRect? {
+        var positionRef: CFTypeRef?
+        var sizeRef: CFTypeRef?
+
+        let positionStatus = AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef)
+        let sizeStatus = AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef)
+        guard positionStatus == .success, sizeStatus == .success,
+              let rawPosition = positionRef, let rawSize = sizeRef
+        else {
+            return nil
+        }
+
+        guard CFGetTypeID(rawPosition) == AXValueGetTypeID(),
+              CFGetTypeID(rawSize) == AXValueGetTypeID()
+        else {
+            return nil
+        }
+
+        let positionValue = rawPosition as! AXValue
+        let sizeValue = rawSize as! AXValue
+        guard AXValueGetType(positionValue) == .cgPoint,
+              AXValueGetType(sizeValue) == .cgSize
+        else {
+            return nil
+        }
+
+        var point = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(positionValue, .cgPoint, &point),
+              AXValueGetValue(sizeValue, .cgSize, &size)
+        else {
+            return nil
+        }
+
+        return CGRect(origin: point, size: size)
+    }
+
+    private func click(point: CGPoint) {
+        guard let down = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseDown,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        ) else { return }
+        guard let up = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseUp,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        ) else { return }
+
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+    }
+
+    private func typeText(_ text: String) {
+        for scalar in text.unicodeScalars {
+            if scalar == "\r" || scalar == "\n" {
+                guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 36, keyDown: true),
+                      let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 36, keyDown: false)
+                else { continue }
+                keyDown.post(tap: .cghidEventTap)
+                keyUp.post(tap: .cghidEventTap)
+                usleep(12_000)
+                continue
+            }
+
+            var unicode = [UniChar(scalar.value)]
+            guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false)
+            else { continue }
+
+            keyDown.keyboardSetUnicodeString(stringLength: 1, unicodeString: &unicode)
+            keyUp.keyboardSetUnicodeString(stringLength: 1, unicodeString: &unicode)
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+            usleep(12_000)
+        }
+    }
+
+    private func transcriptText(from element: AXUIElement) -> String? {
+        if let value = stringAttribute(kAXValueAttribute as CFString, of: element), !value.isEmpty {
+            return value
+        }
+        if let title = title(of: element), !title.isEmpty {
+            return title
+        }
+        return nil
+    }
+
+    private func accessibilitySummary(of element: AXUIElement) -> String {
+        var namesRef: CFArray?
+        let status = AXUIElementCopyAttributeNames(element, &namesRef)
+        guard status == .success, let names = namesRef as? [String] else {
+            return "attributeNames unavailable (\(status.rawValue))"
+        }
+
+        let roleValue = stringAttribute(kAXRoleAttribute as CFString, of: element) ?? "nil"
+        let titleValue = stringAttribute(kAXTitleAttribute as CFString, of: element) ?? "nil"
+        let descValue = stringAttribute(kAXDescriptionAttribute as CFString, of: element) ?? "nil"
+        let valueValue = stringAttribute(kAXValueAttribute as CFString, of: element) ?? "nil"
+        let helpValue = stringAttribute(kAXHelpAttribute as CFString, of: element) ?? "nil"
+        let focusedValue = stringAttribute(kAXFocusedAttribute as CFString, of: element) ?? "nil"
+        let idValue = stringAttribute(kAXIdentifierAttribute as CFString, of: element) ?? "nil"
+        return "role=\(roleValue), id=\(idValue), focused=\(focusedValue), title=\(titleValue), desc=\(descValue), value=\(valueValue), help=\(helpValue), attrs=\(names)"
     }
 }

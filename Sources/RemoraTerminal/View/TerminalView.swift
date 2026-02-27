@@ -18,6 +18,7 @@ public struct TerminalSelection: Equatable {
 
 public final class TerminalView: NSView {
     public var onInput: (@Sendable (Data) -> Void)?
+    public var onFocus: (() -> Void)?
     public var isDisplayActive: Bool = true
 
     private let screenBuffer: ScreenBuffer
@@ -31,14 +32,17 @@ public final class TerminalView: NSView {
     private var dirtyRows: Set<Int> = []
     private var selection: TerminalSelection?
     private var flushSequence: UInt64 = 0
+    private var accessibilityTextSnapshot = ""
 
     public init(rows: Int = 30, columns: Int = 120) {
         self.screenBuffer = ScreenBuffer(rows: rows, columns: columns)
         super.init(frame: .zero)
         wantsLayer = true
         layer?.isOpaque = true
+        configureAccessibility()
         setupScheduler()
         scheduleWelcomeText()
+        updateAccessibilitySnapshot()
     }
 
     @available(*, unavailable)
@@ -50,9 +54,33 @@ public final class TerminalView: NSView {
         true
     }
 
+    public override func isAccessibilityElement() -> Bool {
+        true
+    }
+
+    public override func accessibilityRole() -> NSAccessibility.Role? {
+        .textArea
+    }
+
+    public override func accessibilityLabel() -> String? {
+        "Terminal"
+    }
+
+    public override func accessibilityIdentifier() -> String {
+        "terminal-view"
+    }
+
+    public override func accessibilityValue() -> Any? {
+        accessibilityTextSnapshot
+    }
+
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        window?.makeFirstResponder(self)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.window?.makeFirstResponder(self)
+            self.onFocus?()
+        }
     }
 
     deinit {
@@ -70,6 +98,7 @@ public final class TerminalView: NSView {
         renderer.draw(screen: screenBuffer, in: context, bounds: bounds, dirtyRows: dirtyRows)
         drawCursor(in: context)
         drawSelection(in: context)
+        updateAccessibilitySnapshot()
 
         dirtyRows.removeAll(keepingCapacity: true)
     }
@@ -93,6 +122,7 @@ public final class TerminalView: NSView {
     }
 
     public override func mouseDown(with event: NSEvent) {
+        onFocus?()
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
         let location = cellLocation(from: point)
@@ -130,7 +160,7 @@ public final class TerminalView: NSView {
     }
 
     private func scheduleWelcomeText() {
-        let banner = "\u{001B}[32mRemora TerminalView ready\u{001B}[0m\\r\\n"
+        let banner = "\u{001B}[32mRemora TerminalView ready\u{001B}[0m\r\n"
         feed(data: Data(banner.utf8))
     }
 
@@ -143,6 +173,7 @@ public final class TerminalView: NSView {
         let changedRows = screenBuffer.consumeDirtyRows()
         if !changedRows.isEmpty {
             dirtyRows.formUnion(changedRows)
+            updateAccessibilitySnapshot()
         }
 
         let elapsed = start.duration(to: .now)
@@ -180,6 +211,7 @@ public final class TerminalView: NSView {
         sanitizeDirtyRows()
         clampSelectionIfNeeded()
         dirtyRows.formUnion(screenBuffer.consumeDirtyRows())
+        updateAccessibilitySnapshot()
         needsDisplay = true
     }
 
@@ -252,5 +284,37 @@ public final class TerminalView: NSView {
         selection.startColumn = min(max(selection.startColumn, 0), maxCol)
         selection.endColumn = min(max(selection.endColumn, 0), maxCol)
         self.selection = selection
+    }
+
+    private func configureAccessibility() {
+        setAccessibilityElement(true)
+        setAccessibilityRole(.textArea)
+        setAccessibilityLabel("Terminal")
+        setAccessibilityIdentifier("terminal-view")
+        setAccessibilityHelp("")
+    }
+
+    private func updateAccessibilitySnapshot() {
+        let startRow = max(0, screenBuffer.rows - 20)
+        var rows: [String] = []
+        rows.reserveCapacity(screenBuffer.rows - startRow)
+
+        for row in startRow ..< screenBuffer.rows {
+            let line = screenBuffer.line(at: row)
+            var text = String(line.cells.map(\.character))
+            while text.last == " " {
+                text.removeLast()
+            }
+            if !text.isEmpty {
+                rows.append(text)
+            }
+        }
+
+        let snapshot = rows.joined(separator: "\n")
+        guard snapshot != accessibilityTextSnapshot else { return }
+
+        accessibilityTextSnapshot = snapshot
+        setAccessibilityHelp(snapshot)
+        NSAccessibility.post(element: self, notification: .valueChanged)
     }
 }
