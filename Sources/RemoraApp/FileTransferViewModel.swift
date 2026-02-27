@@ -66,8 +66,7 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var transferQueue: [TransferItem] = []
 
     private let sftpClient: SFTPClientProtocol
-    private let maxConcurrentTransfers: Int
-    private var runningTransferIDs: Set<UUID> = []
+    private let transferCenter: TransferCenter
 
     init(
         sftpClient: SFTPClientProtocol = MockSFTPClient(),
@@ -78,7 +77,7 @@ final class FileTransferViewModel: ObservableObject {
         self.sftpClient = sftpClient
         self.localDirectoryURL = localDirectoryURL
         self.remoteDirectoryPath = remoteDirectoryPath
-        self.maxConcurrentTransfers = max(1, maxConcurrentTransfers)
+        self.transferCenter = TransferCenter(maxConcurrentTransfers: maxConcurrentTransfers)
 
         refreshLocalEntries()
         Task {
@@ -181,7 +180,9 @@ final class FileTransferViewModel: ObservableObject {
             destinationPath: destination
         )
         transferQueue.append(item)
-        processQueueIfNeeded()
+        Task {
+            await executeTransfer(itemID: item.id)
+        }
     }
 
     func enqueueDownload(remoteEntry: RemoteFileEntry) {
@@ -195,7 +196,9 @@ final class FileTransferViewModel: ObservableObject {
             destinationPath: destinationURL.path
         )
         transferQueue.append(item)
-        processQueueIfNeeded()
+        Task {
+            await executeTransfer(itemID: item.id)
+        }
     }
 
     func deleteRemoteEntries(paths: [String]) {
@@ -238,22 +241,16 @@ final class FileTransferViewModel: ObservableObject {
         }
     }
 
-    private func processQueueIfNeeded() {
-        while runningTransferIDs.count < maxConcurrentTransfers,
-              let nextIndex = transferQueue.firstIndex(where: { $0.status == .queued })
-        {
-            let itemID = transferQueue[nextIndex].id
-            transferQueue[nextIndex].status = .running
-            runningTransferIDs.insert(itemID)
-
+    private func executeTransfer(itemID: UUID) async {
+        await transferCenter.acquireSlot()
+        defer {
             Task {
-                await executeTransfer(itemID: itemID)
+                await transferCenter.releaseSlot()
             }
         }
-    }
 
-    private func executeTransfer(itemID: UUID) async {
         guard let idx = transferQueue.firstIndex(where: { $0.id == itemID }) else { return }
+        transferQueue[idx].status = .running
         let item = transferQueue[idx]
 
         do {
@@ -280,10 +277,8 @@ final class FileTransferViewModel: ObservableObject {
             }
         }
 
-        runningTransferIDs.remove(itemID)
         refreshLocalEntries()
         await refreshRemoteEntries()
-        processQueueIfNeeded()
     }
 
     private func normalizedRemotePath(base: String, child: String) -> String {
