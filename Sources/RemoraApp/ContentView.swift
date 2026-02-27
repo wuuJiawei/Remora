@@ -27,9 +27,15 @@ struct ContentView: View {
     @State private var pendingExportScope: HostExportScope?
     @State private var isExportFormatDialogPresented = false
     @State private var isExportingHosts = false
+    @State private var isImportingHosts = false
     @State private var isExportResultAlertPresented = false
     @State private var exportAlertTitle = ""
     @State private var exportAlertMessage = ""
+    @State private var isImportProgressSheetPresented = false
+    @State private var importSourceFilename = ""
+    @State private var importProgress = HostConnectionImportProgress(phase: "Preparing", completed: 0, total: 1)
+    @State private var importResultMessage: String?
+    @State private var importErrorMessage: String?
     @State private var isRenameSessionSheetPresented = false
     @State private var renameSessionID: UUID?
     @State private var renameSessionDraft = ""
@@ -119,7 +125,18 @@ struct ContentView: View {
             ) {
                 beginExportAllHosts()
             }
-            .disabled(isExportingHosts || hostCatalog.isLoading)
+            .disabled(isExportingHosts || isImportingHosts || hostCatalog.isLoading)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 6)
+
+            SidebarActionRowButton(
+                title: isImportingHosts ? "Importing..." : "Import Connections",
+                systemImage: "square.and.arrow.down"
+            ) {
+                beginImportHosts()
+            }
+            .accessibilityIdentifier("sidebar-import-connections")
+            .disabled(isExportingHosts || isImportingHosts || hostCatalog.isLoading)
             .padding(.horizontal, 8)
             .padding(.bottom, 10)
 
@@ -305,6 +322,10 @@ struct ContentView: View {
                     commitRenameSession()
                 }
             )
+        }
+        .sheet(isPresented: $isImportProgressSheetPresented) {
+            importProgressSheet
+                .interactiveDismissDisabled(isImportingHosts)
         }
     }
 
@@ -717,6 +738,66 @@ struct ContentView: View {
         }
     }
 
+    private func beginImportHosts() {
+        guard !isImportingHosts else { return }
+
+        let panel = NSOpenPanel()
+        panel.title = "Import SSH Connections"
+        panel.prompt = "Import"
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+
+        if panel.runModal() == .OK, let url = panel.urls.first {
+            startImport(from: url)
+        }
+    }
+
+    private func startImport(from fileURL: URL) {
+        guard !isImportingHosts else { return }
+        isImportingHosts = true
+        importSourceFilename = fileURL.lastPathComponent
+        importProgress = HostConnectionImportProgress(phase: "Preparing", completed: 0, total: 1)
+        importResultMessage = nil
+        importErrorMessage = nil
+        isImportProgressSheetPresented = true
+
+        Task {
+            do {
+                let importedHosts = try await HostConnectionImporter.importConnections(
+                    from: fileURL,
+                    progress: { progress in
+                        Task { @MainActor in
+                            importProgress = progress
+                        }
+                    }
+                )
+
+                let summary = await MainActor.run {
+                    hostCatalog.importHosts(importedHosts)
+                }
+
+                await MainActor.run {
+                    importProgress = HostConnectionImportProgress(
+                        phase: "Completed",
+                        completed: max(summary.total, 1),
+                        total: max(summary.total, 1)
+                    )
+                    importResultMessage = "Imported \(summary.created) new, updated \(summary.updated), total \(summary.total)."
+                    importErrorMessage = nil
+                    isImportingHosts = false
+                }
+            } catch {
+                await MainActor.run {
+                    importErrorMessage = error.localizedDescription
+                    importResultMessage = nil
+                    isImportingHosts = false
+                }
+            }
+        }
+    }
+
     private func deleteGroup(_ groupName: String) {
         hostCatalog.deleteGroup(named: groupName)
         collapsedGroupNames.remove(groupName)
@@ -784,6 +865,48 @@ struct ContentView: View {
     private func disconnectSession(_ tabID: UUID) {
         workspace.selectTab(tabID)
         workspace.disconnectActivePane()
+    }
+
+    private var importProgressSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Import SSH Connections")
+                .font(.headline)
+
+            Text(importSourceFilename)
+                .font(.caption.monospaced())
+                .foregroundStyle(VisualStyle.textSecondary)
+                .lineLimit(1)
+
+            ProgressView(value: importProgress.fractionCompleted)
+                .progressViewStyle(.linear)
+
+            Text("\(min(importProgress.completed, importProgress.total))/\(max(importProgress.total, 1)) • \(importProgress.phase)")
+                .font(.caption)
+                .foregroundStyle(VisualStyle.textSecondary)
+
+            if let importResultMessage {
+                Text(importResultMessage)
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
+            if let importErrorMessage {
+                Text(importErrorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("Close") {
+                    isImportProgressSheetPresented = false
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isImportingHosts)
+            }
+        }
+        .padding(16)
+        .frame(width: 460)
     }
 }
 

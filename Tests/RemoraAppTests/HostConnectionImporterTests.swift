@@ -64,6 +64,10 @@ struct HostConnectionImporterTests {
         let restoredRef = imported.first?.auth.passwordReference ?? ""
         let restoredSecret = await credentialStore.secret(for: restoredRef)
         #expect(restoredSecret == "json-pass")
+        _ = await waitUntil(timeout: 1.0) {
+            let events = await collector.snapshot()
+            return events.contains(where: { $0.phase == "Importing hosts" })
+        }
         let progressEvents = await collector.snapshot()
         #expect(progressEvents.contains(where: { $0.phase == "Importing hosts" }))
     }
@@ -99,5 +103,16 @@ struct HostConnectionImporterTests {
         let dbPasswordRef = db?.auth.passwordReference ?? ""
         let dbPassword = await credentialStore.secret(for: dbPasswordRef)
         #expect(dbPassword == "csv-pass")
+    }
+
+    private func waitUntil(timeout: TimeInterval, condition: @escaping () async -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        return await condition()
     }
 }
