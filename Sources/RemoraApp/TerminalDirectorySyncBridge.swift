@@ -7,7 +7,9 @@ final class TerminalDirectorySyncBridge: ObservableObject {
     private weak var runtime: TerminalRuntime?
 
     private var fileTransferCancellable: AnyCancellable?
+    private var syncToggleCancellable: AnyCancellable?
     private var runtimeCancellable: AnyCancellable?
+    private var runtimeModeCancellable: AnyCancellable?
 
     private var pendingPathFromFileManager: String?
     private var pendingPathFromRuntime: String?
@@ -23,6 +25,13 @@ final class TerminalDirectorySyncBridge: ObservableObject {
                 self?.handleFileManagerDirectoryChange(path)
             }
 
+        syncToggleCancellable?.cancel()
+        syncToggleCancellable = fileTransfer.$isTerminalDirectorySyncEnabled
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.updateRuntimeTrackingState()
+            }
+
         attachRuntime(runtime)
     }
 
@@ -34,9 +43,16 @@ final class TerminalDirectorySyncBridge: ObservableObject {
         self.runtime = runtime
 
         runtimeCancellable?.cancel()
+        runtimeModeCancellable?.cancel()
         guard let runtime else { return }
 
-        runtime.setWorkingDirectoryTrackingEnabled(true)
+        runtimeModeCancellable = runtime.$connectionMode
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.updateRuntimeTrackingState()
+            }
+
+        updateRuntimeTrackingState()
         runtimeCancellable = runtime.$workingDirectory
             .compactMap { $0 }
             .removeDuplicates()
@@ -45,8 +61,14 @@ final class TerminalDirectorySyncBridge: ObservableObject {
             }
     }
 
+    private func updateRuntimeTrackingState() {
+        guard let runtime else { return }
+        runtime.setWorkingDirectoryTrackingEnabled(isSyncEnabled && runtime.connectionMode == .ssh)
+    }
+
     private func handleFileManagerDirectoryChange(_ path: String) {
         guard let runtime else { return }
+        guard isSyncEnabled else { return }
         guard runtime.connectionMode == .ssh else { return }
 
         if pendingPathFromRuntime == path {
@@ -59,6 +81,7 @@ final class TerminalDirectorySyncBridge: ObservableObject {
     }
 
     private func handleRuntimeDirectoryChange(_ path: String) {
+        guard isSyncEnabled else { return }
         guard runtime?.connectionMode == .ssh else { return }
 
         if pendingPathFromFileManager == path {
@@ -71,5 +94,9 @@ final class TerminalDirectorySyncBridge: ObservableObject {
         if fileTransfer.remoteDirectoryPath != path {
             fileTransfer.navigateRemote(to: path)
         }
+    }
+
+    private var isSyncEnabled: Bool {
+        fileTransfer?.isTerminalDirectorySyncEnabled == true
     }
 }

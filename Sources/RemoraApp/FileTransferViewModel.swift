@@ -121,6 +121,7 @@ struct LocalFileEntry: Identifiable, Hashable {
 final class FileTransferViewModel: ObservableObject {
     @Published var localDirectoryURL: URL
     @Published var remoteDirectoryPath: String
+    @Published var isTerminalDirectorySyncEnabled: Bool = false
     @Published var conflictStrategy: TransferConflictStrategy = .overwrite
     @Published private(set) var remoteClipboard: RemoteClipboardState?
     @Published private(set) var localEntries: [LocalFileEntry] = []

@@ -48,6 +48,12 @@ struct FileManagerPanelView: View {
                 .controlSize(.small)
                 .accessibilityIdentifier("file-manager-back")
 
+                Toggle("Sync Terminal", isOn: $viewModel.isTerminalDirectorySyncEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .font(.caption)
+                    .accessibilityIdentifier("file-manager-sync-toggle")
+
                 Spacer()
 
                 Button("Refresh") {

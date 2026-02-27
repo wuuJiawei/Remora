@@ -19,6 +19,7 @@ struct TerminalDirectorySyncBridgeTests {
         #expect(connected)
         guard connected else { return }
 
+        fileTransfer.isTerminalDirectorySyncEnabled = true
         bridge.bind(fileTransfer: fileTransfer, runtime: runtime)
         runtime.changeDirectory(to: "/tmp")
 
@@ -44,6 +45,7 @@ struct TerminalDirectorySyncBridgeTests {
         #expect(connected)
         guard connected else { return }
 
+        fileTransfer.isTerminalDirectorySyncEnabled = true
         bridge.bind(fileTransfer: fileTransfer, runtime: runtime)
 
         fileTransfer.navigateRemote(to: "/logs")
@@ -69,6 +71,7 @@ struct TerminalDirectorySyncBridgeTests {
         #expect(connected)
         guard connected else { return }
 
+        fileTransfer.isTerminalDirectorySyncEnabled = true
         bridge.bind(fileTransfer: fileTransfer, runtime: runtime)
 
         runtime.changeDirectory(to: "/logs")
@@ -99,6 +102,7 @@ struct TerminalDirectorySyncBridgeTests {
         #expect(connected)
         guard connected else { return }
 
+        fileTransfer.isTerminalDirectorySyncEnabled = true
         bridge.bind(fileTransfer: fileTransfer, runtime: runtime)
         await recorder.reset()
 
@@ -116,6 +120,41 @@ struct TerminalDirectorySyncBridgeTests {
             cdCommands.count == 1,
             "Bridge should avoid sync loops. observed commands: \(cdCommands)"
         )
+        runtime.disconnect()
+    }
+
+    @Test
+    func disabledSyncTogglePreventsBidirectionalSyncInSSH() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let bridge = TerminalDirectorySyncBridge()
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        bridge.bind(fileTransfer: fileTransfer, runtime: runtime)
+        await recorder.reset()
+
+        fileTransfer.navigateRemote(to: "/logs")
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        #expect(runtime.workingDirectory != "/logs", "Sync should stay off until toggle enabled.")
+
+        runtime.changeDirectory(to: "/tmp")
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        #expect(fileTransfer.remoteDirectoryPath == "/logs", "Runtime updates should not drive file manager while sync is disabled.")
+
+        let cdCommands = await recorder.commands.filter { $0.hasPrefix("cd ") }
+        #expect(cdCommands.count == 1, "Only explicit runtime cd should be recorded when sync is off.")
         runtime.disconnect()
     }
 
