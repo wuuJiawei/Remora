@@ -4,15 +4,9 @@ import RemoraCore
 struct FileManagerPanelView: View {
     @ObservedObject var viewModel: FileTransferViewModel
 
-    @State private var selectedLocalID: UUID?
     @State private var selectedRemotePath: String?
-    @State private var hoveredLocalID: UUID?
     @State private var hoveredRemotePath: String?
     @State private var hoveredTransferID: UUID?
-
-    private var selectedLocalEntry: LocalFileEntry? {
-        viewModel.localEntries.first(where: { $0.id == selectedLocalID })
-    }
 
     private var selectedRemoteEntry: RemoteFileEntry? {
         guard let selectedRemotePath else { return nil }
@@ -22,30 +16,26 @@ struct FileManagerPanelView: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack {
+                Button {
+                    viewModel.goUpRemoteDirectory()
+                } label: {
+                    Label("Back", systemImage: "arrow.up.left")
+                }
+                .buttonStyle(.bordered)
+
                 Spacer()
+
                 Button("Refresh") {
                     viewModel.refreshAll()
                 }
                 .buttonStyle(.bordered)
             }
+            .padding(.bottom, 2)
 
-            HSplitView {
-                localPanel
-                remotePanel
-            }
-            .frame(minHeight: 250)
+            remotePanel
+                .frame(minHeight: 250)
 
             HStack {
-                Button {
-                    if let selectedLocalEntry {
-                        viewModel.enqueueUpload(localEntry: selectedLocalEntry)
-                    }
-                } label: {
-                    Label("Upload", systemImage: "arrow.up.circle.fill")
-                }
-                .buttonStyle(.bordered)
-                .disabled(selectedLocalEntry == nil || selectedLocalEntry?.isDirectory == true)
-
                 Button {
                     if let selectedRemoteEntry {
                         viewModel.enqueueDownload(remoteEntry: selectedRemoteEntry)
@@ -57,67 +47,14 @@ struct FileManagerPanelView: View {
                 .disabled(selectedRemoteEntry == nil || selectedRemoteEntry?.isDirectory == true)
 
                 Spacer()
+
+                Text("Server Files")
+                    .monoMetaStyle()
             }
 
             transferQueuePanel
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.transferQueue.map(\.status))
-    }
-
-    private var localPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Label("Local", systemImage: "internaldrive")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Button("Up") {
-                    viewModel.goUpLocalDirectory()
-                }
-                .buttonStyle(.bordered)
-            }
-
-            Text(viewModel.localDirectoryURL.path)
-                .monoMetaStyle()
-                .lineLimit(1)
-
-            List(viewModel.localEntries, id: \.id) { entry in
-                Button {
-                    if entry.isDirectory {
-                        viewModel.openLocal(entry)
-                        selectedLocalID = nil
-                    } else {
-                        selectedLocalID = entry.id
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: entry.isDirectory ? "folder" : "doc")
-                        Text(entry.name)
-                            .lineLimit(1)
-                            .foregroundStyle(VisualStyle.textPrimary)
-                        Spacer()
-                        if !entry.isDirectory {
-                            Text("\(entry.size)")
-                                .font(.caption.monospaced())
-                                .foregroundStyle(VisualStyle.textSecondary)
-                        }
-                    }
-                    .padding(.vertical, 3)
-                    .padding(.horizontal, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(selectedLocalID == entry.id || hoveredLocalID == entry.id ? VisualStyle.leftInteractiveBackground : Color.clear)
-                    )
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    hoveredLocalID = hovering ? entry.id : nil
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .scrollContentBackground(.hidden)
-            .background(VisualStyle.rightPanelBackground)
-            .listStyle(.plain)
-        }
     }
 
     private var remotePanel: some View {
@@ -126,10 +63,6 @@ struct FileManagerPanelView: View {
                 Label("Remote", systemImage: "externaldrive")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                Button("Up") {
-                    viewModel.goUpRemoteDirectory()
-                }
-                .buttonStyle(.bordered)
             }
 
             Text(viewModel.remoteDirectoryPath)

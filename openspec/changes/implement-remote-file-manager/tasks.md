@@ -8,7 +8,7 @@ Status allowed: `todo` | `in_progress` | `done`
 - [x] `status: done` `id: A03` 新增远端属性与传输进度模型（`RemoteFileAttributes`、`TransferProgressSnapshot`）。
 
 ## Milestone B - 单栏 File Manager UI
-- [ ] `status: todo` `id: B01` 用单栏远端目录表替换现有双栏 UI（保留路径栏/Back/Refresh）。
+- [x] `status: done` `id: B01` 用单栏远端目录表替换现有双栏 UI（保留路径栏/Back/Refresh）。
 - [ ] `status: todo` `id: B02` 新增路径输入跳转与目录 breadcrumb。
 - [ ] `status: todo` `id: B03` 支持列表多选与批量操作入口（下载/删除/移动）。
 
