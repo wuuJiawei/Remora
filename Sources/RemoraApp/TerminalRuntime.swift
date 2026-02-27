@@ -33,6 +33,7 @@ final class TerminalRuntime: ObservableObject {
     @Published var transcriptSnapshot: String = ""
     @Published var hostKeyPromptMessage: String?
     @Published private(set) var workingDirectory: String?
+    @Published private(set) var connectedSSHHost: RemoraCore.Host?
 
     private let localSessionManager: SessionManager
     private let sshSessionManager: SessionManager
@@ -137,6 +138,7 @@ final class TerminalRuntime: ObservableObject {
             await MainActor.run {
                 connectionMode = config.mode
                 connectionState = "Connecting"
+                connectedSSHHost = nil
                 clearTranscript()
                 clearInputQueue()
                 workingDirectory = config.mode == .local ? FileManager.default.currentDirectoryPath : "/"
@@ -165,6 +167,7 @@ final class TerminalRuntime: ObservableObject {
                     sessionID = descriptor.id
                     activeSessionManager = manager
                     connectionState = "Connected (\(config.mode.rawValue))"
+                    connectedSSHHost = config.mode == .ssh ? descriptor.host : nil
                     bindOutput(for: descriptor.id, manager: manager)
                     bindSessionState(for: descriptor.id, manager: manager)
                 }
@@ -177,6 +180,7 @@ final class TerminalRuntime: ObservableObject {
             } catch {
                 await MainActor.run {
                     connectionState = "Failed: \(error.localizedDescription)"
+                    connectedSSHHost = nil
                 }
             }
         }
@@ -188,6 +192,7 @@ final class TerminalRuntime: ObservableObject {
             await MainActor.run {
                 self.connectionState = "Disconnected"
                 self.workingDirectory = nil
+                self.connectedSSHHost = nil
             }
         }
     }
@@ -270,10 +275,12 @@ final class TerminalRuntime: ObservableObject {
                         }
                     case .stopped:
                         connectionState = "Disconnected"
+                        connectedSSHHost = nil
                         hostKeyPromptMessage = nil
                         activeSSHAuthStage = nil
                     case .failed(let reason):
                         connectionState = "Failed: \(reason)"
+                        connectedSSHHost = nil
                         hostKeyPromptMessage = nil
                         activeSSHAuthStage = nil
                     }
@@ -361,6 +368,7 @@ final class TerminalRuntime: ObservableObject {
         lastAppliedPTYSize = nil
         activeSSHAuthStage = nil
         activeSSHHostAddress = nil
+        connectedSSHHost = nil
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         hostKeyPromptMessage = nil
         pendingWorkingDirectoryProbeTask?.cancel()

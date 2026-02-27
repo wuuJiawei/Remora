@@ -1,7 +1,15 @@
 import AppKit
+import Combine
 import Foundation
 import SwiftUI
 import RemoraCore
+
+private struct ActiveRuntimeSFTPState: Equatable {
+    var runtimeID: ObjectIdentifier?
+    var connectionMode: ConnectionMode?
+    var connectionState: String
+    var hostSignature: String?
+}
 
 struct ContentView: View {
     @StateObject private var workspace = WorkspaceViewModel()
@@ -39,6 +47,7 @@ struct ContentView: View {
     @State private var isRenameSessionSheetPresented = false
     @State private var renameSessionID: UUID?
     @State private var renameSessionDraft = ""
+    @State private var fileManagerSFTPBindingKey = "mock"
 
     private var selectedHost: RemoraCore.Host? {
         hostCatalog.host(id: selectedHostID)
@@ -55,6 +64,36 @@ struct ContentView: View {
 
     private var visibleGroupSections: [HostGroupSection] {
         hostCatalog.groupSections(matching: hostSearchQuery)
+    }
+
+    private var activeRuntimeSFTPStatePublisher: AnyPublisher<ActiveRuntimeSFTPState, Never> {
+        guard let runtime = workspace.activePane?.runtime else {
+            return Just(
+                ActiveRuntimeSFTPState(
+                    runtimeID: nil,
+                    connectionMode: nil,
+                    connectionState: "Disconnected",
+                    hostSignature: nil
+                )
+            )
+            .eraseToAnyPublisher()
+        }
+
+        return Publishers.CombineLatest3(
+            runtime.$connectionMode,
+            runtime.$connectionState,
+            runtime.$connectedSSHHost
+        )
+        .map { mode, state, host in
+            ActiveRuntimeSFTPState(
+                runtimeID: ObjectIdentifier(runtime),
+                connectionMode: mode,
+                connectionState: state,
+                hostSignature: host.map(Self.sftpHostSignature(for:))
+            )
+        }
+        .removeDuplicates()
+        .eraseToAnyPublisher()
     }
 
     var body: some View {
@@ -77,15 +116,21 @@ struct ContentView: View {
                 firstPane.runtime.connectLocalShell()
             }
             directorySyncBridge.bind(fileTransfer: fileTransfer, runtime: workspace.activePane?.runtime)
+            syncFileManagerSFTPBinding()
         }
         .onChange(of: selectedHostID) {
             selectedTemplateID = availableTemplates.first?.id
         }
         .onChange(of: workspace.activeTabID) {
             directorySyncBridge.attachRuntime(workspace.activePane?.runtime)
+            syncFileManagerSFTPBinding()
         }
         .onChange(of: workspace.activePaneByTab) {
             directorySyncBridge.attachRuntime(workspace.activePane?.runtime)
+            syncFileManagerSFTPBinding()
+        }
+        .onReceive(activeRuntimeSFTPStatePublisher) { _ in
+            syncFileManagerSFTPBinding()
         }
         .onChange(of: hostCatalog.hosts) {
             if let selectedHostID, hostCatalog.host(id: selectedHostID) != nil {
@@ -865,6 +910,46 @@ struct ContentView: View {
     private func disconnectSession(_ tabID: UUID) {
         workspace.selectTab(tabID)
         workspace.disconnectActivePane()
+    }
+
+    private func syncFileManagerSFTPBinding() {
+        guard let runtime = workspace.activePane?.runtime else {
+            bindMockSFTPIfNeeded()
+            return
+        }
+
+        let isConnectedSSH = runtime.connectionMode == .ssh
+            && runtime.connectionState.hasPrefix("Connected")
+        if isConnectedSSH, let host = runtime.connectedSSHHost {
+            let signature = "ssh:\(Self.sftpHostSignature(for: host))"
+            guard fileManagerSFTPBindingKey != signature else { return }
+            fileManagerSFTPBindingKey = signature
+            fileTransfer.bindSFTPClient(
+                SystemSFTPClient(host: host),
+                initialRemoteDirectory: runtime.workingDirectory ?? "/"
+            )
+            return
+        }
+
+        bindMockSFTPIfNeeded()
+    }
+
+    private func bindMockSFTPIfNeeded() {
+        guard fileManagerSFTPBindingKey != "mock" else { return }
+        fileManagerSFTPBindingKey = "mock"
+        fileTransfer.bindSFTPClient(MockSFTPClient(), initialRemoteDirectory: "/")
+    }
+
+    private static func sftpHostSignature(for host: RemoraCore.Host) -> String {
+        [
+            host.id.uuidString,
+            host.address,
+            "\(host.port)",
+            host.username,
+            host.auth.method.rawValue,
+            host.auth.keyReference ?? "",
+            host.auth.passwordReference ?? "",
+        ].joined(separator: "|")
     }
 
     private var importProgressSheet: some View {

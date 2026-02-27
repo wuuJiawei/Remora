@@ -128,7 +128,7 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var remoteEntries: [RemoteFileEntry] = []
     @Published private(set) var transferQueue: [TransferItem] = []
 
-    private let sftpClient: SFTPClientProtocol
+    private var sftpClient: SFTPClientProtocol
     private let transferCenter: TransferCenter
 
     init(
@@ -143,6 +143,24 @@ final class FileTransferViewModel: ObservableObject {
         self.transferCenter = TransferCenter(maxConcurrentTransfers: maxConcurrentTransfers)
 
         refreshLocalEntries()
+        Task {
+            await refreshRemoteEntries()
+        }
+    }
+
+    func bindSFTPClient(
+        _ client: SFTPClientProtocol,
+        initialRemoteDirectory: String? = nil
+    ) {
+        sftpClient = client
+        remoteClipboard = nil
+        transferQueue.removeAll()
+        remoteEntries = []
+
+        if let initialRemoteDirectory {
+            remoteDirectoryPath = normalizeRemoteDirectoryPath(initialRemoteDirectory)
+        }
+
         Task {
             await refreshRemoteEntries()
         }

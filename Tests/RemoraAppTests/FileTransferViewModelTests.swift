@@ -320,6 +320,34 @@ struct FileTransferViewModelTests {
         #expect(updated.group == "group1")
     }
 
+    @Test
+    func bindSFTPClientSwitchesRemoteSourceAndResetsTransientState() async throws {
+        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        await vm.refreshRemoteEntries()
+        #expect(vm.remoteEntries.contains(where: { $0.path == "/README.txt" }))
+
+        vm.performContextAction(.copy(paths: ["/README.txt"]))
+        vm.enqueueDownload(paths: ["/README.txt"])
+        #expect(vm.remoteClipboard != nil)
+        #expect(!vm.transferQueue.isEmpty)
+
+        let nextClient = MockSFTPClient()
+        try await nextClient.remove(path: "/README.txt")
+        try await nextClient.upload(data: Data("next".utf8), to: "/next.txt")
+
+        vm.bindSFTPClient(nextClient, initialRemoteDirectory: "/")
+
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            await vm.refreshRemoteEntries()
+            return vm.remoteEntries.contains(where: { $0.path == "/next.txt" })
+        }
+
+        #expect(vm.remoteEntries.contains(where: { $0.path == "/next.txt" }))
+        #expect(!vm.remoteEntries.contains(where: { $0.path == "/README.txt" }))
+        #expect(vm.remoteClipboard == nil)
+        #expect(vm.transferQueue.isEmpty)
+    }
+
     private func waitForSuccess(in vm: FileTransferViewModel, transferName: String, successCount: Int) async throws {
         for _ in 0 ..< 40 {
             let success = vm.transferQueue.filter { $0.name == transferName && $0.status == .success }.count

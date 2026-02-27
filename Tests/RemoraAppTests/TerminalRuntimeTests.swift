@@ -68,7 +68,27 @@ struct TerminalRuntimeTests {
 
         #expect(connected, "Runtime should connect through SSH mode when connectSSH is used.")
         #expect(runtime.transcriptSnapshot.contains("Connected to"))
+        #expect(runtime.connectedSSHHost?.address == "127.0.0.1")
         runtime.disconnect()
+    }
+
+    @Test
+    func disconnectClearsConnectedSSHHost() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)") && runtime.connectedSSHHost != nil
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        runtime.disconnect()
+        let disconnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState == "Disconnected" && runtime.connectedSSHHost == nil
+        }
+        #expect(disconnected)
     }
 
     @Test
