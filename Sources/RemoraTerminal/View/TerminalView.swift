@@ -41,6 +41,7 @@ public final class TerminalView: NSView {
     private var selection: TerminalSelection?
     private var flushSequence: UInt64 = 0
     private var accessibilityTextSnapshot = ""
+    private var scrollbackOffset = 0
 
     public init(rows: Int = 30, columns: Int = 120) {
         self.screenBuffer = ScreenBuffer(rows: rows, columns: columns)
@@ -101,8 +102,11 @@ public final class TerminalView: NSView {
 
     public override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
+        screenBuffer.setViewportOffset(scrollbackOffset)
         renderer.draw(screen: screenBuffer, in: context, bounds: bounds, dirtyRows: [])
-        drawCursor(in: context)
+        if scrollbackOffset == 0 {
+            drawCursor(in: context)
+        }
         drawSelection(in: context)
         updateAccessibilitySnapshot()
 
@@ -119,10 +123,12 @@ public final class TerminalView: NSView {
             super.keyDown(with: event)
             return
         }
+        scrollToBottom()
         onInput?(input)
     }
 
     public func paste(_ sender: Any?) {
+        scrollToBottom()
         guard let value = NSPasteboard.general.string(forType: .string) else { return }
         onInput?(Data(value.utf8))
     }
@@ -138,6 +144,21 @@ public final class TerminalView: NSView {
             endRow: location.row,
             endColumn: location.column
         )
+        needsDisplay = true
+    }
+
+    public override func scrollWheel(with event: NSEvent) {
+        let deltaY = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 10
+        guard deltaY != 0 else { return }
+
+        let step = max(Int(abs(deltaY) / 8), 1)
+        let maxOffset = screenBuffer.maxViewportOffset()
+        if deltaY > 0 {
+            scrollbackOffset = min(maxOffset, scrollbackOffset + step)
+        } else {
+            scrollbackOffset = max(0, scrollbackOffset - step)
+        }
+        screenBuffer.setViewportOffset(scrollbackOffset)
         needsDisplay = true
     }
 
@@ -176,6 +197,11 @@ public final class TerminalView: NSView {
         guard !chunk.isEmpty else { return }
 
         parser.parse(chunk, into: screenBuffer)
+        let maxOffset = screenBuffer.maxViewportOffset()
+        if scrollbackOffset > maxOffset {
+            scrollbackOffset = maxOffset
+        }
+        screenBuffer.setViewportOffset(scrollbackOffset)
         let changedRows = screenBuffer.consumeDirtyRows()
         if !changedRows.isEmpty {
             dirtyRows.formUnion(changedRows)
@@ -212,6 +238,11 @@ public final class TerminalView: NSView {
         let columns = max(Int(drawableWidth / renderer.cellWidth), 1)
         let rows = max(Int(bounds.height / renderer.lineHeight), 1)
         screenBuffer.resize(rows: rows, columns: columns)
+        let maxOffset = screenBuffer.maxViewportOffset()
+        if scrollbackOffset > maxOffset {
+            scrollbackOffset = maxOffset
+        }
+        screenBuffer.setViewportOffset(scrollbackOffset)
         onResize?(columns, rows)
         sanitizeDirtyRows()
         clampSelectionIfNeeded()
@@ -322,5 +353,12 @@ public final class TerminalView: NSView {
         accessibilityTextSnapshot = snapshot
         setAccessibilityHelp(snapshot)
         NSAccessibility.post(element: self, notification: .valueChanged)
+    }
+
+    private func scrollToBottom() {
+        guard scrollbackOffset != 0 else { return }
+        scrollbackOffset = 0
+        screenBuffer.setViewportOffset(0)
+        needsDisplay = true
     }
 }

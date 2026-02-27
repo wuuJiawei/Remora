@@ -27,4 +27,29 @@ struct TerminalRegressionTests {
         #expect(screen.scrollback.lineCount() >= 1)
         #expect(screen.scrollback.segmentCount() >= 1)
     }
+
+    @Test
+    func viewportOffsetShowsScrollbackLines() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 2, columns: 8)
+
+        parser.parse(Data("one\r\ntwo\r\nthree\r\nfour".utf8), into: screen)
+
+        func lineText(_ row: Int) -> String {
+            var text = String(screen.line(at: row).cells.map(\.character))
+            while text.last == " " {
+                text.removeLast()
+            }
+            return text
+        }
+
+        let bottomBefore = [lineText(0), lineText(1)]
+        #expect(bottomBefore[0] == "three")
+        #expect(bottomBefore[1] == "four")
+
+        screen.setViewportOffset(1)
+        let scrolled = [lineText(0), lineText(1)]
+        #expect(scrolled[0] == "two")
+        #expect(scrolled[1] == "three")
+    }
 }

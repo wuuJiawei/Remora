@@ -11,6 +11,7 @@ public final class ScreenBuffer {
     public let scrollback: ScrollbackStore
     private var lines: [TerminalLine]
     private var dirtyRows: Set<Int> = []
+    private var viewportOffset: Int = 0
 
     public init(rows: Int, columns: Int, scrollbackSegmentSize: Int = 1024) {
         self.rows = max(1, rows)
@@ -23,7 +24,22 @@ public final class ScreenBuffer {
         guard row >= 0, row < lines.count else {
             return TerminalLine(columns: columns, attributes: .default)
         }
-        return lines[row]
+
+        guard viewportOffset > 0 else {
+            return lines[row]
+        }
+
+        let window = viewportWindowLines()
+        let paddingRows = max(0, rows - window.count)
+        if row < paddingRows {
+            return TerminalLine(columns: columns, attributes: .default)
+        }
+
+        let index = row - paddingRows
+        guard index >= 0, index < window.count else {
+            return TerminalLine(columns: columns, attributes: .default)
+        }
+        return window[index]
     }
 
     public func validRowRange() -> Range<Int> {
@@ -61,6 +77,7 @@ public final class ScreenBuffer {
         columns = targetColumns
         cursorRow = min(cursorRow, rows - 1)
         cursorColumn = min(cursorColumn, columns - 1)
+        clampViewportOffset()
         markAllDirty()
     }
 
@@ -131,6 +148,7 @@ public final class ScreenBuffer {
             scrollback.append(lines[0])
             lines.removeFirst()
             lines.append(TerminalLine(columns: columns, attributes: activeAttributes))
+            clampViewportOffset()
             markAllDirty()
         } else {
             cursorRow += 1
@@ -164,6 +182,7 @@ public final class ScreenBuffer {
         cursorRow = 0
         cursorColumn = 0
         activeAttributes = .default
+        viewportOffset = 0
         markAllDirty()
     }
 
@@ -190,8 +209,36 @@ public final class ScreenBuffer {
         dirtyRows = Set(0 ..< rows)
     }
 
+    public func maxViewportOffset() -> Int {
+        let totalLineCount = scrollback.lineCount() + lines.count
+        return max(0, totalLineCount - rows)
+    }
+
+    public func setViewportOffset(_ offset: Int) {
+        viewportOffset = min(max(0, offset), maxViewportOffset())
+    }
+
+    public func currentViewportOffset() -> Int {
+        viewportOffset
+    }
+
     private func markDirty(row: Int) {
         guard row >= 0, row < rows else { return }
         dirtyRows.insert(row)
+    }
+
+    private func clampViewportOffset() {
+        viewportOffset = min(max(0, viewportOffset), maxViewportOffset())
+    }
+
+    private func viewportWindowLines() -> [TerminalLine] {
+        let combined = scrollback.allLines() + lines
+        guard !combined.isEmpty else { return [] }
+
+        let clampedOffset = min(max(0, viewportOffset), maxViewportOffset())
+        let endExclusive = max(0, combined.count - clampedOffset)
+        let start = max(0, endExclusive - rows)
+        guard start < endExclusive else { return [] }
+        return Array(combined[start ..< endExclusive])
     }
 }
