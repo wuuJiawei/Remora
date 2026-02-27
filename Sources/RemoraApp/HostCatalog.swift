@@ -33,6 +33,12 @@ struct HostGroupSection: Identifiable, Equatable {
     var id: String { name }
 }
 
+struct HostImportSummary: Equatable {
+    var total: Int
+    var created: Int
+    var updated: Int
+}
+
 @MainActor
 final class HostCatalogStore: ObservableObject {
     @Published private(set) var hosts: [RemoraCore.Host] {
@@ -221,6 +227,31 @@ final class HostCatalogStore: ObservableObject {
         let archivedGroup = ensureGroupExists("Archived")
         hosts[idx].group = archivedGroup
         hosts[idx].favorite = false
+    }
+
+    @discardableResult
+    func importHosts(_ importedHosts: [RemoraCore.Host]) -> HostImportSummary {
+        guard !importedHosts.isEmpty else {
+            return HostImportSummary(total: 0, created: 0, updated: 0)
+        }
+
+        suppressPersistence = true
+        var created = 0
+        var updated = 0
+
+        for host in importedHosts {
+            if let existingIndex = hosts.firstIndex(where: { $0.id == host.id }) {
+                hosts[existingIndex] = normalizedHostForStorage(host, excludingID: host.id)
+                updated += 1
+            } else {
+                hosts.append(normalizedHostForStorage(host, excludingID: nil))
+                created += 1
+            }
+        }
+
+        suppressPersistence = false
+        persistSnapshotIfNeeded()
+        return HostImportSummary(total: importedHosts.count, created: created, updated: updated)
     }
 
     func quickConnectMatch(input: String) -> RemoraCore.Host? {

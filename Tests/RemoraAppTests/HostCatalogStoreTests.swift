@@ -108,4 +108,41 @@ struct HostCatalogStoreTests {
         #expect(updated?.auth.method == .agent)
         #expect(store.groups.contains("New Group"))
     }
+
+    @Test
+    func importsHostsAndUpdatesExistingRecords() {
+        let store = HostCatalogStore()
+        let existing = store.hosts[0]
+
+        let updatedExisting = Host(
+            id: existing.id,
+            name: "prod-api-updated",
+            address: "10.0.0.99",
+            port: 2200,
+            username: "deploy",
+            group: "Production",
+            tags: ["imported"],
+            favorite: true,
+            auth: HostAuth(method: .agent)
+        )
+
+        let newHost = Host(
+            name: "new-imported-host",
+            address: "192.168.100.20",
+            port: 22,
+            username: "ops",
+            group: "Imported",
+            tags: ["batch"],
+            auth: HostAuth(method: .agent)
+        )
+
+        let summary = store.importHosts([updatedExisting, newHost])
+
+        #expect(summary.total == 2)
+        #expect(summary.updated == 1)
+        #expect(summary.created == 1)
+        #expect(store.host(id: existing.id)?.address == "10.0.0.99")
+        #expect(store.hosts.contains(where: { $0.name == "new-imported-host" }))
+        #expect(store.groups.contains("Imported"))
+    }
 }
