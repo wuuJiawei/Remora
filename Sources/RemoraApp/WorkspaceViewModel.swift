@@ -153,12 +153,30 @@ final class WorkspaceViewModel: ObservableObject {
         if host.group == "Local" || host.tags.contains("mock") {
             pane.runtime.connectMock()
         } else {
-            pane.runtime.connectSSH(
-                address: host.address,
-                port: finalPort,
-                username: finalUser,
-                privateKeyPath: finalKey
-            )
+            var resolvedHost = host
+            resolvedHost.username = finalUser
+            resolvedHost.port = finalPort
+
+            if let templateKey = template?.privateKeyPath {
+                let trimmedTemplateKey = templateKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedTemplateKey.isEmpty {
+                    if host.auth.method == .privateKey {
+                        resolvedHost.auth = HostAuth(method: .agent)
+                    }
+                } else {
+                    resolvedHost.auth = HostAuth(method: .privateKey, keyReference: trimmedTemplateKey)
+                }
+            } else if let finalKey {
+                let trimmedFinalKey = finalKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if resolvedHost.auth.method == .privateKey {
+                    resolvedHost.auth = HostAuth(
+                        method: .privateKey,
+                        keyReference: trimmedFinalKey.isEmpty ? nil : trimmedFinalKey
+                    )
+                }
+            }
+
+            pane.runtime.connectSSH(host: resolvedHost)
         }
     }
 

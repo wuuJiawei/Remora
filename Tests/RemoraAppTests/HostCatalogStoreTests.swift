@@ -1,5 +1,6 @@
 import Testing
 @testable import RemoraApp
+import RemoraCore
 
 @MainActor
 struct HostCatalogStoreTests {
@@ -71,5 +72,40 @@ struct HostCatalogStoreTests {
         store.archiveHost(id: host.id)
         #expect(store.host(id: host.id)?.group == "Archived")
         #expect(store.groups.contains("Archived"))
+    }
+
+    @Test
+    func supportsDetailedHostCreateAndEdit() {
+        let store = HostCatalogStore()
+
+        let created = store.addHost(
+            Host(
+                name: " ",
+                address: "192.168.50.10",
+                port: 2201,
+                username: "ops",
+                group: "Ops",
+                auth: HostAuth(method: .password, passwordReference: "cred-1")
+            )
+        )
+
+        #expect(store.groups.contains("Ops"))
+        #expect(created.name == "new-ssh")
+        #expect(created.auth.method == .password)
+        #expect(created.auth.passwordReference == "cred-1")
+
+        var edited = created
+        edited.name = "prod-api"
+        edited.port = 0
+        edited.group = " "
+        edited.auth = HostAuth(method: .privateKey, keyReference: "")
+
+        let updated = store.updateHost(edited)
+        #expect(updated != nil)
+        #expect(updated?.name == "prod-api-2")
+        #expect(updated?.port == 22)
+        #expect(updated?.group == "New Group")
+        #expect(updated?.auth.method == .agent)
+        #expect(store.groups.contains("New Group"))
     }
 }

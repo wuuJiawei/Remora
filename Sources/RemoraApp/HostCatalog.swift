@@ -177,17 +177,30 @@ final class HostCatalogStore: ObservableObject {
 
     @discardableResult
     func addHost(in groupName: String) -> RemoraCore.Host {
-        let resolvedGroup = ensureGroupExists(groupName)
         let host = RemoraCore.Host(
             name: uniqueHostName(base: "new-ssh"),
             address: "127.0.0.1",
             username: "root",
-            group: resolvedGroup,
+            group: groupName,
             tags: ["new"],
             auth: HostAuth(method: .agent)
         )
-        hosts.append(host)
-        return host
+        return addHost(host)
+    }
+
+    @discardableResult
+    func addHost(_ host: RemoraCore.Host) -> RemoraCore.Host {
+        let normalized = normalizedHostForStorage(host, excludingID: nil)
+        hosts.append(normalized)
+        return normalized
+    }
+
+    @discardableResult
+    func updateHost(_ host: RemoraCore.Host) -> RemoraCore.Host? {
+        guard let idx = hosts.firstIndex(where: { $0.id == host.id }) else { return nil }
+        let normalized = normalizedHostForStorage(host, excludingID: host.id)
+        hosts[idx] = normalized
+        return normalized
     }
 
     func deleteHost(id: UUID) {
@@ -302,5 +315,41 @@ final class HostCatalogStore: ObservableObject {
             idx += 1
         }
         return "\(base)-\(idx)"
+    }
+
+    private func normalizedHostForStorage(_ host: RemoraCore.Host, excludingID: UUID?) -> RemoraCore.Host {
+        var normalized = host
+        let trimmedName = normalized.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAddress = normalized.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUser = normalized.username.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let baseName = trimmedName.isEmpty ? "new-ssh" : trimmedName
+        normalized.name = uniqueHostName(base: baseName, excludingID: excludingID)
+        normalized.address = trimmedAddress.isEmpty ? "127.0.0.1" : trimmedAddress
+        normalized.username = trimmedUser.isEmpty ? "root" : trimmedUser
+        normalized.port = (1...65_535).contains(normalized.port) ? normalized.port : 22
+        normalized.group = ensureGroupExists(normalized.group)
+
+        let keyRef = normalized.auth.keyReference?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let passwordRef = normalized.auth.passwordReference?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch normalized.auth.method {
+        case .privateKey:
+            if let keyRef, !keyRef.isEmpty {
+                normalized.auth = HostAuth(method: .privateKey, keyReference: keyRef)
+            } else {
+                normalized.auth = HostAuth(method: .agent)
+            }
+        case .password:
+            if let passwordRef, !passwordRef.isEmpty {
+                normalized.auth = HostAuth(method: .password, passwordReference: passwordRef)
+            } else {
+                normalized.auth = HostAuth(method: .password)
+            }
+        case .agent:
+            normalized.auth = HostAuth(method: .agent)
+        }
+
+        return normalized
     }
 }

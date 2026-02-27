@@ -33,6 +33,8 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
+    private var pendingPassword: String?
+    private let credentialStore = CredentialStore()
     private let stateQueue = DispatchQueue(label: "io.lighting-tech.remora.ssh.session")
 
     public init(host: Host, pty: PTYSize) {
@@ -50,6 +52,15 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         proc.arguments = Self.makeSSHArguments(for: host)
 
+        if host.auth.method == .password,
+           let passwordReference = host.auth.passwordReference,
+           !passwordReference.isEmpty
+        {
+            pendingPassword = await credentialStore.secret(for: passwordReference)
+        } else {
+            pendingPassword = nil
+        }
+
         let inPipe = Pipe()
         let outPipe = Pipe()
         let errPipe = Pipe()
@@ -62,12 +73,14 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             let data = handle.availableData
             guard !data.isEmpty else { return }
             self?.onOutput?(data)
+            self?.handlePasswordPromptIfNeeded(from: data)
         }
 
         errPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
             self?.onOutput?(data)
+            self?.handlePasswordPromptIfNeeded(from: data)
         }
 
         proc.terminationHandler = { [weak self] task in
@@ -161,6 +174,20 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         try? handles.0?.fileHandleForWriting.close()
         try? handles.1?.fileHandleForReading.close()
         try? handles.2?.fileHandleForReading.close()
+        pendingPassword = nil
+    }
+
+    private func handlePasswordPromptIfNeeded(from data: Data) {
+        guard let password = pendingPassword, !password.isEmpty else { return }
+        let output = String(decoding: data, as: UTF8.self).lowercased()
+        guard output.contains("password:") else { return }
+
+        do {
+            try writeSync(Data((password + "\n").utf8))
+            pendingPassword = nil
+        } catch {
+            onOutput?(Data(("password autofill failed: \(error.localizedDescription)\r\n").utf8))
+        }
     }
 
     static func makeSSHArguments(for host: Host) -> [String] {

@@ -14,7 +14,9 @@ struct TerminalConnectConfig: Sendable {
     var hostAddress: String
     var hostPort: Int
     var username: String
-    var privateKeyPath: String?
+    var authMethod: AuthenticationMethod
+    var keyReference: String?
+    var passwordReference: String?
 }
 
 @MainActor
@@ -69,7 +71,9 @@ final class TerminalRuntime: ObservableObject {
                 hostAddress: "127.0.0.1",
                 hostPort: 22,
                 username: "remora",
-                privateKeyPath: nil
+                authMethod: .agent,
+                keyReference: nil,
+                passwordReference: nil
             )
         )
     }
@@ -81,7 +85,23 @@ final class TerminalRuntime: ObservableObject {
                 hostAddress: address,
                 hostPort: port,
                 username: username,
-                privateKeyPath: privateKeyPath
+                authMethod: privateKeyPath == nil ? .agent : .privateKey,
+                keyReference: privateKeyPath,
+                passwordReference: nil
+            )
+        )
+    }
+
+    func connectSSH(host: RemoraCore.Host) {
+        connect(
+            using: TerminalConnectConfig(
+                mode: .ssh,
+                hostAddress: host.address,
+                hostPort: host.port,
+                username: host.username,
+                authMethod: host.auth.method,
+                keyReference: host.auth.keyReference,
+                passwordReference: host.auth.passwordReference
             )
         )
     }
@@ -221,12 +241,23 @@ final class TerminalRuntime: ObservableObject {
         guard !trimmedHost.isEmpty, !trimmedUser.isEmpty else { return nil }
         guard config.hostPort > 0, config.hostPort < 65536 else { return nil }
 
-        let keyPath = config.privateKeyPath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyPath = config.keyReference?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let passwordReference = config.passwordReference?.trimmingCharacters(in: .whitespacesAndNewlines)
         let auth: HostAuth = {
-            if let keyPath, !keyPath.isEmpty {
-                return HostAuth(method: .privateKey, keyReference: keyPath)
+            switch config.authMethod {
+            case .privateKey:
+                if let keyPath, !keyPath.isEmpty {
+                    return HostAuth(method: .privateKey, keyReference: keyPath)
+                }
+                return HostAuth(method: .agent)
+            case .password:
+                if let passwordReference, !passwordReference.isEmpty {
+                    return HostAuth(method: .password, passwordReference: passwordReference)
+                }
+                return HostAuth(method: .password)
+            case .agent:
+                return HostAuth(method: .agent)
             }
-            return HostAuth(method: .agent)
         }()
 
         return RemoraCore.Host(

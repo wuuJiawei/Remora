@@ -130,6 +130,79 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
+    func newSSHConnectionButtonPresentsAndDismissesEditorSheet() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let appURL = try locateRemoraAppBinary()
+        let process = Process()
+        process.executableURL = appURL
+        process.arguments = []
+        try process.run()
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard waitUntil(timeout: 8, {
+            NSRunningApplication(processIdentifier: process.processIdentifier) != nil
+        }) else {
+            Issue.record("RemoraApp did not launch in time.")
+            return
+        }
+
+        NSRunningApplication(processIdentifier: process.processIdentifier)?
+            .activate()
+
+        let appElement = AXUIElementCreateApplication(process.processIdentifier)
+
+        guard let newConnectionButton = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { identifier(of: $0) == "sidebar-new-ssh-connection" }
+        ) else {
+            Issue.record("Could not find new SSH connection button.")
+            return
+        }
+
+        _ = AXUIElementPerformAction(newConnectionButton, kAXPressAction as CFString)
+
+        guard let editorTitle = waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { identifier(of: $0) == "host-editor-title" }
+        ) else {
+            Issue.record("Could not find host editor sheet title.")
+            return
+        }
+
+        #expect(title(of: editorTitle) == "New SSH Connection")
+
+        guard let cancelButton = waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { element in
+                role(of: element) == kAXButtonRole as String && title(of: element) == "Cancel"
+            }
+        ) else {
+            Issue.record("Could not find editor Cancel button.")
+            return
+        }
+
+        _ = AXUIElementPerformAction(cancelButton, kAXPressAction as CFString)
+
+        let dismissed = waitUntil(timeout: 5, {
+            findElement(in: appElement, matching: { identifier(of: $0) == "host-editor-title" }) == nil
+        })
+        #expect(dismissed, "Expected host editor sheet to dismiss after Cancel.")
+    }
+
+    @Test
     func terminalAcceptsKeyboardInputAndShowsCommandOutput() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return

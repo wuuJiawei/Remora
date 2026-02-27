@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import SwiftUI
 import RemoraCore
 
@@ -14,12 +15,20 @@ struct ContentView: View {
     @State private var isFilePanelVisible = false
     @State private var isSettingsAlertPresented = false
     @State private var collapsedGroupNames: Set<String> = []
-    @State private var isRenameGroupSheetPresented = false
-    @State private var renameGroupSourceName = ""
-    @State private var renameGroupDraft = ""
-    @State private var isRenameHostSheetPresented = false
-    @State private var renameHostID: UUID?
-    @State private var renameHostDraft = ""
+    @State private var isGroupEditorSheetPresented = false
+    @State private var groupEditorMode: SidebarGroupEditorMode = .create
+    @State private var groupEditorSourceName = ""
+    @State private var groupEditorDraft = ""
+    @State private var isHostEditorSheetPresented = false
+    @State private var hostEditorMode: SidebarHostEditorMode = .create
+    @State private var hostEditorDraft = SidebarHostEditorDraft()
+    @State private var hostEditorTestState: HostConnectionTestState = .idle
+    @State private var pendingExportScope: HostExportScope?
+    @State private var isExportFormatDialogPresented = false
+    @State private var isExportingHosts = false
+    @State private var isExportResultAlertPresented = false
+    @State private var exportAlertTitle = ""
+    @State private var exportAlertMessage = ""
     @State private var isRenameSessionSheetPresented = false
     @State private var renameSessionID: UUID?
     @State private var renameSessionDraft = ""
@@ -82,10 +91,21 @@ struct ContentView: View {
                 title: "New SSH Connection",
                 systemImage: "plus"
             ) {
-                createHostInPreferredGroup()
+                beginCreateHostInPreferredGroup()
             }
+            .accessibilityIdentifier("sidebar-new-ssh-connection")
             .padding(.horizontal, 8)
             .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            SidebarActionRowButton(
+                title: isExportingHosts ? "Exporting..." : "Export Connections",
+                systemImage: "square.and.arrow.up"
+            ) {
+                beginExportAllHosts()
+            }
+            .disabled(isExportingHosts)
+            .padding(.horizontal, 8)
             .padding(.bottom, 10)
 
             TextField("Search SSH host", text: $hostSearchQuery)
@@ -111,8 +131,7 @@ struct ContentView: View {
                     .foregroundStyle(VisualStyle.textSecondary)
                 Spacer()
                 SidebarIconButton(systemImage: "folder.badge.plus") {
-                    let groupName = hostCatalog.addGroup()
-                    collapsedGroupNames.remove(groupName)
+                    beginCreateGroup()
                 }
             }
             .padding(.horizontal, 12)
@@ -129,10 +148,13 @@ struct ContentView: View {
                                 toggleGroupCollapse(section.name)
                             },
                             onAddThread: {
-                                createHost(in: section.name)
+                                beginCreateHost(in: section.name)
                             },
-                            onRenameGroup: {
-                                beginRenameGroup(section.name)
+                            onEditGroup: {
+                                beginEditGroup(section.name)
+                            },
+                            onExportGroup: {
+                                beginExportGroup(section.name)
                             },
                             onDeleteGroup: {
                                 deleteGroup(section.name)
@@ -143,8 +165,8 @@ struct ContentView: View {
                             onPinThread: { hostID in
                                 togglePinHost(hostID)
                             },
-                            onRenameThread: { hostID in
-                                beginRenameHost(hostID)
+                            onEditThread: { hostID in
+                                beginEditHost(hostID)
                             },
                             onArchiveThread: { hostID in
                                 archiveHost(hostID)
@@ -189,29 +211,53 @@ struct ContentView: View {
         } message: {
             Text("Settings page will be added in the next milestone.")
         }
-        .sheet(isPresented: $isRenameGroupSheetPresented) {
-            SidebarRenameSheet(
-                title: "Rename Thread Group",
-                fieldTitle: "Group name",
-                value: $renameGroupDraft,
+        .confirmationDialog(
+            "Export SSH Connections",
+            isPresented: $isExportFormatDialogPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Export as JSON") {
+                startExport(format: .json)
+            }
+            Button("Export as CSV") {
+                startExport(format: .csv)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(pendingExportScope?.label ?? "Choose format")
+        }
+        .alert(exportAlertTitle, isPresented: $isExportResultAlertPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportAlertMessage)
+        }
+        .sheet(isPresented: $isGroupEditorSheetPresented) {
+            SidebarGroupEditorSheet(
+                mode: groupEditorMode,
+                value: $groupEditorDraft,
                 onCancel: {
-                    isRenameGroupSheetPresented = false
+                    isGroupEditorSheetPresented = false
                 },
                 onConfirm: {
-                    commitRenameGroup()
+                    commitGroupEditor()
                 }
             )
         }
-        .sheet(isPresented: $isRenameHostSheetPresented) {
-            SidebarRenameSheet(
-                title: "Rename Connection",
-                fieldTitle: "Connection name",
-                value: $renameHostDraft,
+        .sheet(isPresented: $isHostEditorSheetPresented) {
+            SidebarHostEditorSheet(
+                mode: hostEditorMode,
+                draft: $hostEditorDraft,
+                testState: hostEditorTestState,
                 onCancel: {
-                    isRenameHostSheetPresented = false
+                    isHostEditorSheetPresented = false
+                },
+                onTestConnection: {
+                    testHostConnection()
                 },
                 onConfirm: {
-                    commitRenameHost()
+                    Task {
+                        await commitHostEditor()
+                    }
                 }
             )
         }
@@ -428,16 +474,216 @@ struct ContentView: View {
         }
     }
 
-    private func createHostInPreferredGroup() {
-        let preferredGroup = selectedHost?.group ?? hostCatalog.groups.first ?? hostCatalog.addGroup(named: "Default")
-        createHost(in: preferredGroup)
+    private func beginCreateHostInPreferredGroup() {
+        let preferredGroup = selectedHost?.group ?? hostCatalog.groups.first ?? "Default"
+        beginCreateHost(in: preferredGroup)
     }
 
-    private func createHost(in groupName: String) {
-        let host = hostCatalog.addHost(in: groupName)
-        collapsedGroupNames.remove(groupName)
-        selectedHostID = host.id
+    private func beginCreateHost(in groupName: String) {
+        hostEditorMode = .create
+        hostEditorDraft = SidebarHostEditorDraft(preferredGroup: groupName)
+        hostEditorTestState = .idle
+        isHostEditorSheetPresented = true
+    }
+
+    private func beginEditHost(_ hostID: UUID) {
+        guard let host = hostCatalog.host(id: hostID) else { return }
+        hostEditorMode = .edit(hostID)
+        hostEditorDraft = SidebarHostEditorDraft(host: host)
+        hostEditorTestState = .idle
+        isHostEditorSheetPresented = true
+    }
+
+    @MainActor
+    private func commitHostEditor() async {
+        guard let host = await buildHostFromEditorDraft() else { return }
+
+        let savedHost: RemoraCore.Host?
+        switch hostEditorMode {
+        case .create:
+            savedHost = hostCatalog.addHost(host)
+        case .edit:
+            savedHost = hostCatalog.updateHost(host)
+        }
+
+        guard let savedHost else { return }
+        collapsedGroupNames.remove(savedHost.group)
+        selectedHostID = savedHost.id
         selectedTemplateID = nil
+        hostEditorTestState = .idle
+        isHostEditorSheetPresented = false
+    }
+
+    @MainActor
+    private func buildHostFromEditorDraft() async -> RemoraCore.Host? {
+        guard let port = hostEditorDraft.port else { return nil }
+
+        let existingHost: RemoraCore.Host?
+        switch hostEditorMode {
+        case .create:
+            existingHost = nil
+        case .edit(let hostID):
+            existingHost = hostCatalog.host(id: hostID)
+        }
+
+        let hostID = existingHost?.id ?? UUID()
+        var host = existingHost ?? RemoraCore.Host(
+            id: hostID,
+            name: hostEditorDraft.name,
+            address: hostEditorDraft.address,
+            port: port,
+            username: hostEditorDraft.username,
+            group: hostEditorDraft.groupName,
+            tags: ["new"],
+            auth: HostAuth(method: .agent)
+        )
+
+        host.name = hostEditorDraft.name
+        host.address = hostEditorDraft.address
+        host.port = port
+        host.username = hostEditorDraft.username
+        host.group = hostEditorDraft.groupName
+
+        let credentialStore = CredentialStore()
+        let oldPasswordReference = existingHost?.auth.passwordReference
+        let newPasswordValue = hostEditorDraft.password.trimmingCharacters(in: .whitespacesAndNewlines)
+        var passwordReference: String?
+
+        if hostEditorDraft.authMethod == .password {
+            if hostEditorDraft.savePassword {
+                if !newPasswordValue.isEmpty {
+                    let key = oldPasswordReference ?? "host-password-\(hostID.uuidString)"
+                    await credentialStore.setSecret(newPasswordValue, for: key)
+                    passwordReference = key
+                } else {
+                    passwordReference = oldPasswordReference
+                }
+            } else {
+                if let oldPasswordReference {
+                    await credentialStore.removeSecret(for: oldPasswordReference)
+                }
+                passwordReference = nil
+            }
+        } else if let oldPasswordReference {
+            await credentialStore.removeSecret(for: oldPasswordReference)
+        }
+
+        switch hostEditorDraft.authMethod {
+        case .agent:
+            host.auth = HostAuth(method: .agent)
+        case .privateKey:
+            let keyReference = hostEditorDraft.privateKeyPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            host.auth = HostAuth(
+                method: .privateKey,
+                keyReference: keyReference.isEmpty ? nil : keyReference
+            )
+        case .password:
+            host.auth = HostAuth(
+                method: .password,
+                passwordReference: passwordReference
+            )
+        }
+
+        return host
+    }
+
+    private func testHostConnection() {
+        guard let port = hostEditorDraft.port else {
+            hostEditorTestState = .failure("Port must be between 1 and 65535.")
+            return
+        }
+
+        let address = hostEditorDraft.address
+        guard !address.isEmpty else {
+            hostEditorTestState = .failure("Host cannot be empty.")
+            return
+        }
+
+        hostEditorTestState = .testing
+        Task {
+            let result = await HostConnectionTester.testTCPReachability(host: address, port: port, timeout: 5)
+            await MainActor.run {
+                hostEditorTestState = result
+            }
+        }
+    }
+
+    private func beginCreateGroup() {
+        groupEditorMode = .create
+        groupEditorSourceName = ""
+        groupEditorDraft = ""
+        isGroupEditorSheetPresented = true
+    }
+
+    private func beginEditGroup(_ groupName: String) {
+        groupEditorMode = .edit
+        groupEditorSourceName = groupName
+        groupEditorDraft = groupName
+        isGroupEditorSheetPresented = true
+    }
+
+    private func commitGroupEditor() {
+        let oldName = groupEditorSourceName
+        let newName = groupEditorDraft
+        isGroupEditorSheetPresented = false
+
+        switch groupEditorMode {
+        case .create:
+            let finalName = hostCatalog.addGroup(named: newName)
+            collapsedGroupNames.remove(finalName)
+        case .edit:
+            guard !oldName.isEmpty else { return }
+            if let finalName = hostCatalog.renameGroup(from: oldName, to: newName),
+               collapsedGroupNames.remove(oldName) != nil
+            {
+                collapsedGroupNames.insert(finalName)
+            }
+        }
+
+        groupEditorSourceName = ""
+        groupEditorDraft = ""
+    }
+
+    private func beginExportAllHosts() {
+        guard !isExportingHosts else { return }
+        pendingExportScope = .all
+        isExportFormatDialogPresented = true
+    }
+
+    private func beginExportGroup(_ groupName: String) {
+        guard !isExportingHosts else { return }
+        pendingExportScope = .group(groupName)
+        isExportFormatDialogPresented = true
+    }
+
+    private func startExport(format: HostExportFormat) {
+        guard let scope = pendingExportScope else { return }
+        let hosts = hostCatalog.hosts
+        pendingExportScope = nil
+        isExportingHosts = true
+
+        Task {
+            do {
+                let outputURL = try await HostConnectionExporter.export(
+                    hosts: hosts,
+                    scope: scope,
+                    format: format
+                )
+                await MainActor.run {
+                    exportAlertTitle = "Export Complete"
+                    exportAlertMessage = "Saved to \(outputURL.path)"
+                    isExportResultAlertPresented = true
+                    isExportingHosts = false
+                }
+            } catch {
+                await MainActor.run {
+                    exportAlertTitle = "Export Failed"
+                    exportAlertMessage = error.localizedDescription
+                    isExportResultAlertPresented = true
+                    isExportingHosts = false
+                }
+            }
+        }
     }
 
     private func deleteGroup(_ groupName: String) {
@@ -455,39 +701,6 @@ struct ContentView: View {
             selectedHostID = nil
             selectedTemplateID = nil
         }
-    }
-
-    private func beginRenameGroup(_ groupName: String) {
-        renameGroupSourceName = groupName
-        renameGroupDraft = groupName
-        isRenameGroupSheetPresented = true
-    }
-
-    private func commitRenameGroup() {
-        let oldName = renameGroupSourceName
-        let newName = renameGroupDraft
-        isRenameGroupSheetPresented = false
-        guard !oldName.isEmpty else { return }
-        if let finalName = hostCatalog.renameGroup(from: oldName, to: newName),
-           collapsedGroupNames.remove(oldName) != nil
-        {
-            collapsedGroupNames.insert(finalName)
-        }
-        renameGroupSourceName = ""
-    }
-
-    private func beginRenameHost(_ hostID: UUID) {
-        guard let host = hostCatalog.host(id: hostID) else { return }
-        renameHostID = hostID
-        renameHostDraft = host.name
-        isRenameHostSheetPresented = true
-    }
-
-    private func commitRenameHost() {
-        isRenameHostSheetPresented = false
-        guard let renameHostID else { return }
-        _ = hostCatalog.renameHost(id: renameHostID, to: renameHostDraft)
-        self.renameHostID = nil
     }
 
     private func beginRenameSession(_ tabID: UUID) {
@@ -595,11 +808,12 @@ private struct SidebarGroupSectionView: View {
     let isCollapsed: Bool
     let onToggleCollapsed: () -> Void
     let onAddThread: () -> Void
-    let onRenameGroup: () -> Void
+    let onEditGroup: () -> Void
+    let onExportGroup: () -> Void
     let onDeleteGroup: () -> Void
     let onSelectThread: (UUID) -> Void
     let onPinThread: (UUID) -> Void
-    let onRenameThread: (UUID) -> Void
+    let onEditThread: (UUID) -> Void
     let onArchiveThread: (UUID) -> Void
     let onCopyAddress: (RemoraCore.Host) -> Void
     let onCopySSHCommand: (RemoraCore.Host) -> Void
@@ -643,8 +857,11 @@ private struct SidebarGroupSectionView: View {
                 Button(isCollapsed ? "Expand group" : "Collapse group") {
                     onToggleCollapsed()
                 }
-                Button("Rename group") {
-                    onRenameGroup()
+                Button("Edit group") {
+                    onEditGroup()
+                }
+                Button("Export group") {
+                    onExportGroup()
                 }
                 Divider()
                 Button("Delete group", role: .destructive) {
@@ -670,8 +887,8 @@ private struct SidebarGroupSectionView: View {
                             onPin: {
                                 onPinThread(host.id)
                             },
-                            onRename: {
-                                onRenameThread(host.id)
+                            onEdit: {
+                                onEditThread(host.id)
                             },
                             onArchive: {
                                 onArchiveThread(host.id)
@@ -698,7 +915,7 @@ private struct SidebarHostRow: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onPin: () -> Void
-    let onRename: () -> Void
+    let onEdit: () -> Void
     let onArchive: () -> Void
     let onCopyAddress: () -> Void
     let onCopySSHCommand: () -> Void
@@ -726,13 +943,23 @@ private struct SidebarHostRow: View {
             Spacer(minLength: 2)
 
             if isHovering {
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(VisualStyle.textSecondary)
-                        .frame(width: 18, height: 18)
+                HStack(spacing: 2) {
+                    Button(action: onEdit) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(VisualStyle.textSecondary)
+                            .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(VisualStyle.textSecondary)
+                            .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             } else if host.connectCount > 0 {
                 Text("\(host.connectCount)")
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -765,8 +992,8 @@ private struct SidebarHostRow: View {
             Button(host.favorite ? "Unpin connection" : "Pin connection") {
                 onPin()
             }
-            Button("Rename connection") {
-                onRename()
+            Button("Edit connection") {
+                onEdit()
             }
             Button("Archive connection") {
                 onArchive()
@@ -789,6 +1016,328 @@ private struct SidebarHostRow: View {
         if isSelected { return VisualStyle.leftSelectedBackground }
         if isHovering { return VisualStyle.leftHoverBackground }
         return Color.clear
+    }
+}
+
+private enum SidebarGroupEditorMode {
+    case create
+    case edit
+
+    var title: String {
+        switch self {
+        case .create:
+            return "New Thread Group"
+        case .edit:
+            return "Edit Thread Group"
+        }
+    }
+
+    var confirmTitle: String {
+        switch self {
+        case .create:
+            return "Create"
+        case .edit:
+            return "Save"
+        }
+    }
+}
+
+private enum SidebarHostEditorMode {
+    case create
+    case edit(UUID)
+
+    var title: String {
+        switch self {
+        case .create:
+            return "New SSH Connection"
+        case .edit:
+            return "Edit SSH Connection"
+        }
+    }
+
+    var confirmTitle: String {
+        switch self {
+        case .create:
+            return "Create"
+        case .edit:
+            return "Save"
+        }
+    }
+}
+
+private enum SidebarHostAuthMethod: String, CaseIterable, Identifiable {
+    case agent = "SSH Agent"
+    case privateKey = "Private Key"
+    case password = "Password"
+
+    var id: String { rawValue }
+}
+
+private struct SidebarHostEditorDraft {
+    var connectionName: String
+    var hostAddress: String
+    var portText: String
+    var usernameText: String
+    var groupText: String
+    var authMethod: SidebarHostAuthMethod
+    var privateKeyPath: String
+    var password: String
+    var savePassword: Bool
+
+    init(preferredGroup: String = "Default") {
+        self.connectionName = ""
+        self.hostAddress = "127.0.0.1"
+        self.portText = "22"
+        self.usernameText = "root"
+        self.groupText = preferredGroup
+        self.authMethod = .password
+        self.privateKeyPath = ""
+        self.password = ""
+        self.savePassword = false
+    }
+
+    init(host: RemoraCore.Host) {
+        self.connectionName = host.name
+        self.hostAddress = host.address
+        self.portText = "\(host.port)"
+        self.usernameText = host.username
+        self.groupText = host.group
+        self.privateKeyPath = host.auth.keyReference ?? ""
+        self.password = ""
+        self.savePassword = host.auth.passwordReference != nil
+
+        switch host.auth.method {
+        case .agent:
+            self.authMethod = .agent
+        case .privateKey:
+            self.authMethod = .privateKey
+        case .password:
+            self.authMethod = .password
+        }
+    }
+
+    var name: String {
+        let trimmedName = connectionName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty {
+            return trimmedName
+        }
+        let trimmedAddress = hostAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedAddress.isEmpty ? "new-ssh" : trimmedAddress
+    }
+
+    var address: String {
+        hostAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var username: String {
+        let trimmed = usernameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "root" : trimmed
+    }
+
+    var groupName: String {
+        let trimmed = groupText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Default" : trimmed
+    }
+
+    var port: Int? {
+        guard let port = Int(portText.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (1...65_535).contains(port)
+        else {
+            return nil
+        }
+        return port
+    }
+
+    var canSave: Bool {
+        !address.isEmpty && port != nil
+    }
+
+    var canTestConnection: Bool {
+        !address.isEmpty && port != nil
+    }
+}
+
+private enum HostConnectionTestState: Equatable {
+    case idle
+    case testing
+    case success(String)
+    case failure(String)
+
+    var isTesting: Bool {
+        if case .testing = self { return true }
+        return false
+    }
+
+    var message: String? {
+        switch self {
+        case .idle, .testing:
+            return nil
+        case .success(let message), .failure(let message):
+            return message
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .idle:
+            return ""
+        case .testing:
+            return "hourglass"
+        case .success:
+            return "checkmark.circle.fill"
+        case .failure:
+            return "xmark.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .idle:
+            return VisualStyle.textTertiary
+        case .testing:
+            return VisualStyle.textSecondary
+        case .success:
+            return .green
+        case .failure:
+            return .red
+        }
+    }
+}
+
+private enum HostConnectionTester {
+    static func testTCPReachability(host: String, port: Int, timeout: Int) async -> HostConnectionTestState {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/nc")
+                process.arguments = ["-z", "-G", "\(max(1, timeout))", host, "\(port)"]
+
+                let errorPipe = Pipe()
+                process.standardOutput = Pipe()
+                process.standardError = errorPipe
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                    let errorText = String(data: errorData, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+                    if process.terminationStatus == 0 {
+                        continuation.resume(returning: .success("Connection test passed (\(host):\(port))."))
+                    } else if !errorText.isEmpty {
+                        continuation.resume(returning: .failure(errorText))
+                    } else {
+                        continuation.resume(returning: .failure("Cannot reach \(host):\(port)."))
+                    }
+                } catch {
+                    continuation.resume(returning: .failure("Connection test failed: \(error.localizedDescription)"))
+                }
+            }
+        }
+    }
+}
+
+private struct SidebarGroupEditorSheet: View {
+    let mode: SidebarGroupEditorMode
+    @Binding var value: String
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(mode.title)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(VisualStyle.textPrimary)
+
+            TextField("Group name", text: $value)
+                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                Button(mode.confirmTitle, action: onConfirm)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 360)
+    }
+}
+
+private struct SidebarHostEditorSheet: View {
+    let mode: SidebarHostEditorMode
+    @Binding var draft: SidebarHostEditorDraft
+    let testState: HostConnectionTestState
+    let onCancel: () -> Void
+    let onTestConnection: () -> Void
+    let onConfirm: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(mode.title)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(VisualStyle.textPrimary)
+                .accessibilityIdentifier("host-editor-title")
+
+            Group {
+                TextField("Connection name", text: $draft.connectionName)
+                TextField("Host", text: $draft.hostAddress)
+
+                HStack(spacing: 10) {
+                    TextField("Port", text: $draft.portText)
+                        .frame(width: 90)
+                    TextField("Username", text: $draft.usernameText)
+                }
+
+                TextField("Group", text: $draft.groupText)
+
+                Picker("Auth", selection: $draft.authMethod) {
+                    ForEach(SidebarHostAuthMethod.allCases) { method in
+                        Text(method.rawValue).tag(method)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                if draft.authMethod == .privateKey {
+                    TextField("Private key path", text: $draft.privateKeyPath)
+                }
+
+                if draft.authMethod == .password {
+                    SecureField("Password", text: $draft.password)
+                    Toggle("Save password", isOn: $draft.savePassword)
+                        .toggleStyle(.checkbox)
+                }
+            }
+            .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: 8) {
+                Button("Test Connection", action: onTestConnection)
+                    .disabled(!draft.canTestConnection || testState.isTesting)
+
+                if testState.isTesting {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
+                if let message = testState.message {
+                    Label(message, systemImage: testState.symbolName)
+                        .font(.system(size: 12))
+                        .foregroundStyle(testState.color)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                Button(mode.confirmTitle, action: onConfirm)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!draft.canSave)
+            }
+        }
+        .padding(16)
+        .frame(width: 420)
     }
 }
 
