@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 public actor LocalShellClient: SSHTransportClientProtocol {
     private var connectedHost: Host?
@@ -28,9 +29,8 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
     private let host: Host
     private var pty: PTYSize
     private var process: Process?
-    private var stdinPipe: Pipe?
-    private var stdoutPipe: Pipe?
-    private var stderrPipe: Pipe?
+    private var masterHandle: FileHandle?
+    private var masterFileDescriptor: Int32?
     private let stateQueue = DispatchQueue(label: "io.lighting-tech.remora.local-shell.session")
 
     public init(host: Host, pty: PTYSize) {
@@ -42,29 +42,36 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
         let shouldStart = stateQueue.sync { process == nil }
         guard shouldStart else { return }
 
+        let descriptors = try createPseudoTerminal(initialSize: pty)
+        let masterFD = descriptors.master
+        let slaveFD = descriptors.slave
+        let masterHandle = FileHandle(fileDescriptor: masterFD, closeOnDealloc: true)
+        let stdinHandle = FileHandle(fileDescriptor: slaveFD, closeOnDealloc: true)
+
+        let stdoutFD = dup(slaveFD)
+        let stderrFD = dup(slaveFD)
+        guard stdoutFD >= 0, stderrFD >= 0 else {
+            let reason = "local shell setup failed: \(String(cString: strerror(errno)))"
+            masterHandle.readabilityHandler = nil
+            try? masterHandle.close()
+            try? stdinHandle.close()
+            if stdoutFD >= 0 { _ = Darwin.close(stdoutFD) }
+            if stderrFD >= 0 { _ = Darwin.close(stderrFD) }
+            throw SSHError.connectionFailed(reason)
+        }
+
+        let stdoutHandle = FileHandle(fileDescriptor: stdoutFD, closeOnDealloc: true)
+        let stderrHandle = FileHandle(fileDescriptor: stderrFD, closeOnDealloc: true)
+
         let proc = Process()
-        if FileManager.default.isExecutableFile(atPath: "/usr/bin/script") {
-            proc.executableURL = URL(fileURLWithPath: "/usr/bin/script")
-            proc.arguments = ["-q", "/dev/null", "/bin/zsh", "-i"]
-        } else {
-            proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            proc.arguments = ["-i"]
-        }
+        proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        proc.arguments = ["-i"]
         proc.environment = mergedEnvironment(proc.environment)
+        proc.standardInput = stdinHandle
+        proc.standardOutput = stdoutHandle
+        proc.standardError = stderrHandle
 
-        let inPipe = Pipe()
-        let outPipe = Pipe()
-        let errPipe = Pipe()
-        proc.standardInput = inPipe
-        proc.standardOutput = outPipe
-        proc.standardError = errPipe
-
-        outPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else { return }
-            self?.onOutput?(data)
-        }
-        errPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        masterHandle.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
             self?.onOutput?(data)
@@ -87,6 +94,8 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
         do {
             try proc.run()
         } catch {
+            masterHandle.readabilityHandler = nil
+            try? masterHandle.close()
             cleanupHandles()
             onStateChange?(.failed(error.localizedDescription))
             throw SSHError.connectionFailed(error.localizedDescription)
@@ -94,9 +103,8 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
 
         stateQueue.sync {
             process = proc
-            stdinPipe = inPipe
-            stdoutPipe = outPipe
-            stderrPipe = errPipe
+            self.masterHandle = masterHandle
+            masterFileDescriptor = masterFD
         }
 
         onStateChange?(.running)
@@ -109,7 +117,21 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
 
     public func resize(_ size: PTYSize) async throws {
         pty = size
-        try writeSync(Data("stty cols \(size.columns) rows \(size.rows)\n".utf8))
+        let state = stateQueue.sync { (masterFileDescriptor, process?.processIdentifier) }
+        guard let masterFileDescriptor = state.0 else {
+            throw SSHError.notConnected
+        }
+
+        var windowSize = makeWindowSize(from: size)
+        let resizeResult = ioctl(masterFileDescriptor, TIOCSWINSZ, &windowSize)
+        guard resizeResult == 0 else {
+            let reason = String(cString: strerror(errno))
+            throw SSHError.connectionFailed("resize failed: \(reason)")
+        }
+
+        if let processIdentifier = state.1, processIdentifier > 0 {
+            _ = kill(pid_t(processIdentifier), SIGWINCH)
+        }
     }
 
     public func stop() async {
@@ -130,37 +152,28 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
     }
 
     private func writeSync(_ data: Data) throws {
-        guard let stdinPipe = stateQueue.sync(execute: { stdinPipe }) else {
+        guard let masterHandle = stateQueue.sync(execute: { masterHandle }) else {
             throw SSHError.notConnected
         }
 
         do {
-            try stdinPipe.fileHandleForWriting.write(contentsOf: data)
+            try masterHandle.write(contentsOf: data)
         } catch {
             throw SSHError.connectionFailed("write failed: \(error.localizedDescription)")
         }
     }
 
     private func cleanupHandles() {
-        let handles = stateQueue.sync { () -> (Pipe?, Pipe?, Pipe?) in
-            let currentIn = stdinPipe
-            let currentOut = stdoutPipe
-            let currentErr = stderrPipe
-
-            stdinPipe = nil
-            stdoutPipe = nil
-            stderrPipe = nil
+        let currentHandle = stateQueue.sync { () -> FileHandle? in
+            let handle = masterHandle
+            masterHandle = nil
+            masterFileDescriptor = nil
             process = nil
-
-            return (currentIn, currentOut, currentErr)
+            return handle
         }
 
-        handles.1?.fileHandleForReading.readabilityHandler = nil
-        handles.2?.fileHandleForReading.readabilityHandler = nil
-
-        try? handles.0?.fileHandleForWriting.close()
-        try? handles.1?.fileHandleForReading.close()
-        try? handles.2?.fileHandleForReading.close()
+        currentHandle?.readabilityHandler = nil
+        try? currentHandle?.close()
     }
 
     private func mergedEnvironment(_ base: [String: String]?) -> [String: String] {
@@ -171,5 +184,26 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
         env["TERM"] = env["TERM"] ?? "xterm-256color"
         env["PROMPT_EOL_MARK"] = ""
         return env
+    }
+
+    private func createPseudoTerminal(initialSize: PTYSize) throws -> (master: Int32, slave: Int32) {
+        var master: Int32 = -1
+        var slave: Int32 = -1
+        var windowSize = makeWindowSize(from: initialSize)
+        let result = openpty(&master, &slave, nil, nil, &windowSize)
+        guard result == 0 else {
+            let reason = String(cString: strerror(errno))
+            throw SSHError.connectionFailed("openpty failed: \(reason)")
+        }
+        return (master: master, slave: slave)
+    }
+
+    private func makeWindowSize(from size: PTYSize) -> winsize {
+        winsize(
+            ws_row: UInt16(clamping: size.rows),
+            ws_col: UInt16(clamping: size.columns),
+            ws_xpixel: 0,
+            ws_ypixel: 0
+        )
     }
 }
