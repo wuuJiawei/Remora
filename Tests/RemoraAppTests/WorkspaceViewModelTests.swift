@@ -29,4 +29,18 @@ struct WorkspaceViewModelTests {
         #expect(tab.splitOrientation == .vertical)
         #expect(workspace.activePane != nil)
     }
+
+    @Test
+    func customTabTitleUsesSuffixToAvoidDuplicates() {
+        let workspace = WorkspaceViewModel()
+
+        workspace.createTab(title: "prod-api")
+        workspace.createTab(title: "prod-api")
+        workspace.createTab(title: "prod-api")
+
+        let titles = workspace.tabs.map(\.title)
+        #expect(titles.contains("prod-api"))
+        #expect(titles.contains("prod-api(1)"))
+        #expect(titles.contains("prod-api(2)"))
+    }
 }

@@ -82,9 +82,18 @@ final class WorkspaceViewModel: ObservableObject {
         return tabs.first(where: { $0.id == id })
     }
 
-    func createTab() {
+    func createTab(title preferredTitle: String? = nil) {
         let pane = TerminalPaneModel()
-        let tab = TerminalTabModel(title: "Session \(tabs.count + 1)", panes: [pane])
+        let baseTitle: String = {
+            if let preferredTitle {
+                let trimmed = preferredTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            }
+            return "Session \(tabs.count + 1)"
+        }()
+        let tab = TerminalTabModel(title: uniqueTabTitle(base: baseTitle), panes: [pane])
         tabs.append(tab)
         activeTabID = tab.id
         activePaneByTab[tab.id] = pane.id
@@ -184,5 +193,18 @@ final class WorkspaceViewModel: ObservableObject {
                 pane.runtime.setPaneActive(isVisible)
             }
         }
+    }
+
+    private func uniqueTabTitle(base: String) -> String {
+        let existing = Set(tabs.map { $0.title.lowercased() })
+        if !existing.contains(base.lowercased()) {
+            return base
+        }
+
+        var index = 1
+        while existing.contains("\(base)(\(index))".lowercased()) {
+            index += 1
+        }
+        return "\(base)(\(index))"
     }
 }

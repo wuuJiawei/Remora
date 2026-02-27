@@ -252,12 +252,12 @@ struct RemoraUIAutomationTests {
         doubleClick(point: CGPoint(x: hostFrame.midX, y: hostFrame.midY))
 
         let session2Ready = waitUntil(timeout: 8, {
-            guard selectSessionTab("Session 2", in: appElement) else { return false }
+            guard selectSessionTab("prod-api", in: appElement) else { return false }
             guard let transcript = activeTranscriptText(in: appElement) else { return false }
             return transcript.contains("Connected to deploy@10.0.0.10:22")
         })
 
-        #expect(session2Ready, "Double-clicking a host row should create Session 2 and connect to that host.")
+        #expect(session2Ready, "Double-clicking a host row should create a tab named after the SSH host and connect to that host.")
     }
 
     @Test
