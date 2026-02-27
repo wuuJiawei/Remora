@@ -25,7 +25,7 @@ struct FileManagerPanelView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             HStack {
                 Button {
                     viewModel.goUpRemoteDirectory()
@@ -33,6 +33,7 @@ struct FileManagerPanelView: View {
                     Label("Back", systemImage: "arrow.up.left")
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
                 .accessibilityIdentifier("file-manager-back")
 
                 Spacer()
@@ -41,66 +42,73 @@ struct FileManagerPanelView: View {
                     viewModel.refreshAll()
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
                 .accessibilityIdentifier("file-manager-refresh")
             }
-            .padding(.bottom, 2)
+            .padding(.top, 4)
 
             remotePanel
-                .frame(minHeight: 250)
+                .frame(minHeight: 150, maxHeight: 220)
 
-            HStack {
-                Button {
-                    for entry in selectedRemoteFiles {
-                        viewModel.enqueueDownload(remoteEntry: entry)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Button {
+                        for entry in selectedRemoteFiles {
+                            viewModel.enqueueDownload(remoteEntry: entry)
+                        }
+                    } label: {
+                        Label("Download", systemImage: "arrow.down.circle.fill")
                     }
-                } label: {
-                    Label("Download", systemImage: "arrow.down.circle.fill")
-                }
-                .buttonStyle(.bordered)
-                .disabled(selectedRemoteFiles.isEmpty)
-                .accessibilityIdentifier("file-manager-download")
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(selectedRemoteFiles.isEmpty)
+                    .accessibilityIdentifier("file-manager-download")
 
-                Button(role: .destructive) {
-                    viewModel.deleteRemoteEntries(paths: Array(selectedRemotePaths))
-                    selectedRemotePaths.removeAll()
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
-                .disabled(selectedRemotePaths.isEmpty)
-                .accessibilityIdentifier("file-manager-delete")
-
-                Button {
-                    moveTargetPath = viewModel.remoteDirectoryPath
-                    isMoveSheetPresented = true
-                } label: {
-                    Label("Move To", systemImage: "folder")
-                }
-                .buttonStyle(.bordered)
-                .disabled(selectedRemotePaths.isEmpty)
-                .accessibilityIdentifier("file-manager-move")
-
-                Picker("Conflict", selection: $viewModel.conflictStrategy) {
-                    ForEach(TransferConflictStrategy.allCases) { strategy in
-                        Text(strategy.title).tag(strategy)
+                    Button(role: .destructive) {
+                        viewModel.deleteRemoteEntries(paths: Array(selectedRemotePaths))
+                        selectedRemotePaths.removeAll()
+                    } label: {
+                        Label("Delete", systemImage: "trash")
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(selectedRemotePaths.isEmpty)
+                    .accessibilityIdentifier("file-manager-delete")
+
+                    Button {
+                        moveTargetPath = viewModel.remoteDirectoryPath
+                        isMoveSheetPresented = true
+                    } label: {
+                        Label("Move To", systemImage: "folder")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(selectedRemotePaths.isEmpty)
+                    .accessibilityIdentifier("file-manager-move")
+
+                    Text("Conflict")
+                        .font(.subheadline.weight(.semibold))
+
+                    Picker("", selection: $viewModel.conflictStrategy) {
+                        ForEach(TransferConflictStrategy.allCases) { strategy in
+                            Text(strategy.title).tag(strategy)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(minWidth: 140)
+                    .accessibilityIdentifier("file-manager-conflict")
+
+                    Button("Retry Failed") {
+                        viewModel.retryFailedTransfers()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(!hasRetryableTransfers)
+                    .accessibilityIdentifier("file-manager-retry-failed")
                 }
-                .pickerStyle(.menu)
-                .frame(width: 120)
-                .accessibilityIdentifier("file-manager-conflict")
-
-                Button("Retry Failed") {
-                    viewModel.retryFailedTransfers()
-                }
-                .buttonStyle(.bordered)
-                .disabled(!hasRetryableTransfers)
-                .accessibilityIdentifier("file-manager-retry-failed")
-
-                Spacer()
-
-                Text("Server Files")
-                    .monoMetaStyle()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             transferQueuePanel
         }
@@ -119,15 +127,17 @@ struct FileManagerPanelView: View {
 
     private var remotePanel: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 8) {
                 Label("Remote", systemImage: "externaldrive")
                     .font(.subheadline.weight(.semibold))
-                Spacer()
-            }
+                    .fixedSize(horizontal: true, vertical: false)
 
-            breadcrumbBar
+                Button("/") {
+                    navigateToRoot()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
-            HStack(spacing: 8) {
                 TextField("/path/to/dir", text: $remotePathDraft)
                     .textFieldStyle(.roundedBorder)
                     .font(.caption.monospaced())
@@ -140,6 +150,7 @@ struct FileManagerPanelView: View {
                     jumpToRemotePath()
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
                 .accessibilityIdentifier("file-manager-go")
             }
 
@@ -203,29 +214,6 @@ struct FileManagerPanelView: View {
         }
     }
 
-    private var breadcrumbBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                Button("/") {
-                    navigateToBreadcrumb(prefixCount: 0)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                ForEach(Array(pathComponents.enumerated()), id: \.offset) { index, component in
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(VisualStyle.textSecondary)
-                    Button(component) {
-                        navigateToBreadcrumb(prefixCount: index + 1)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            }
-        }
-    }
-
     private var transferQueuePanel: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -281,7 +269,7 @@ struct FileManagerPanelView: View {
                         hoveredTransferID = hovering ? item.id : nil
                     }
                 }
-                .frame(minHeight: 120)
+                .frame(minHeight: 80, maxHeight: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .scrollContentBackground(.hidden)
                 .background(VisualStyle.rightPanelBackground)
@@ -305,24 +293,13 @@ struct FileManagerPanelView: View {
         }
     }
 
-    private var pathComponents: [String] {
-        viewModel.remoteDirectoryPath
-            .split(separator: "/")
-            .map(String.init)
-    }
-
     private func jumpToRemotePath() {
         viewModel.navigateRemote(to: remotePathDraft)
         selectedRemotePaths.removeAll()
     }
 
-    private func navigateToBreadcrumb(prefixCount: Int) {
-        if prefixCount == 0 {
-            viewModel.navigateRemote(to: "/")
-        } else {
-            let path = "/" + pathComponents.prefix(prefixCount).joined(separator: "/")
-            viewModel.navigateRemote(to: path)
-        }
+    private func navigateToRoot() {
+        viewModel.navigateRemote(to: "/")
         selectedRemotePaths.removeAll()
     }
 

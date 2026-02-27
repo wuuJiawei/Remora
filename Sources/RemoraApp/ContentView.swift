@@ -463,15 +463,14 @@ struct ContentView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .zIndex(1)
 
             if isFilePanelVisible {
                 Divider()
                     .overlay(VisualStyle.borderSoft)
                     .padding(.top, 6)
                 FileManagerPanelView(viewModel: fileTransfer)
-                    .frame(minHeight: 240, maxHeight: 320)
-                    .padding(.top, 8)
+                    .frame(minHeight: 280, maxHeight: 420)
+                    .padding(.top, 12)
             }
         }
         .padding(.horizontal, 12)
