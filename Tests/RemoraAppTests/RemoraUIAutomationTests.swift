@@ -160,10 +160,11 @@ struct RemoraUIAutomationTests {
             .activate()
 
         let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        let expectedUser = NSUserName()
         let connected = waitUntil(timeout: 8, {
-            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (SSH)" }) != nil
         })
-        #expect(connected, "Expected mock terminal connection to be established.")
+        #expect(connected, "Expected ssh terminal connection to be established.")
         guard connected else { return }
 
         guard let transcriptElement = waitForElement(
@@ -219,7 +220,8 @@ struct RemoraUIAutomationTests {
                 return false
             }
             lastValue = value
-            return value.range(of: #"whoami\s*remora"#, options: .regularExpression) != nil
+            return value.contains("whoami")
+                && value.contains("\n\(expectedUser)\n")
         })
         if !hasOutput {
             Issue.record("Terminal accessibility value after typing: \(lastValue)")
@@ -227,13 +229,14 @@ struct RemoraUIAutomationTests {
         }
         #expect(hasOutput, "Terminal should accept keyboard input and render command output.")
 
-        let hasLineBreak = lastValue.range(of: #"whoami\s*\n\s*remora"#, options: .regularExpression) != nil
+        let hasLineBreak = lastValue.contains("whoami")
+            && lastValue.contains("\n\(expectedUser)\n")
         #expect(hasLineBreak, "Command output should appear on a new line after Enter.")
 
         let remainsVisibleWithoutMouseInteraction = waitUntil(timeout: 2, {
             guard let snapshot = transcriptText(from: transcriptElement) else { return false }
-            return snapshot.contains("Connected to remora@127.0.0.1:22")
-                && snapshot.range(of: #"whoami\s*\n\s*remora"#, options: .regularExpression) != nil
+            return snapshot.contains("Connected to \(expectedUser)@127.0.0.1:22")
+                && snapshot.contains("\n\(expectedUser)\n")
         })
         #expect(remainsVisibleWithoutMouseInteraction, "Terminal content should remain visible after Enter without extra mouse clicks.")
     }
@@ -269,10 +272,11 @@ struct RemoraUIAutomationTests {
             .activate()
 
         let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        let expectedUser = NSUserName()
         let connected = waitUntil(timeout: 8, {
-            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (SSH)" }) != nil
         })
-        #expect(connected, "Expected mock terminal connection to be established.")
+        #expect(connected, "Expected ssh terminal connection to be established.")
         guard connected else { return }
 
         guard let transcriptElement = waitForElement(
@@ -310,7 +314,8 @@ struct RemoraUIAutomationTests {
         let hasValidOutput = waitUntil(timeout: 8, {
             guard let value = transcriptText(from: transcriptElement) else { return false }
             snapshot = value
-            return value.range(of: #"whoami\s*\n\s*remora"#, options: .regularExpression) != nil
+            return value.contains("whoami")
+                && value.contains("\n\(expectedUser)\n")
         })
 
         if !hasValidOutput {
@@ -352,10 +357,11 @@ struct RemoraUIAutomationTests {
             .activate()
 
         let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        let expectedUser = NSUserName()
         let connected = waitUntil(timeout: 8, {
-            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (SSH)" }) != nil
         })
-        #expect(connected, "Expected mock terminal connection to be established.")
+        #expect(connected, "Expected ssh terminal connection to be established.")
         guard connected else { return }
 
         guard let transcriptElement = waitForElement(
@@ -405,7 +411,8 @@ struct RemoraUIAutomationTests {
         let hasThirdOutput = waitUntil(timeout: 6, {
             guard let snapshot = transcriptText(from: transcriptElement) else { return false }
             finalSnapshot = snapshot
-            return snapshot.range(of: #"whoami\s*\n\s*remora"#, options: .regularExpression) != nil
+            return snapshot.contains("whoami")
+                && snapshot.contains("\n\(expectedUser)\n")
         })
         #expect(hasThirdOutput, "Expected whoami command output.")
 
@@ -426,7 +433,7 @@ struct RemoraUIAutomationTests {
         #expect(hasFifthOutput, "Expected fifth command output.")
 
         let historyRetained =
-            finalSnapshot.contains("Connected to remora@127.0.0.1:22")
+            finalSnapshot.contains("Connected to \(expectedUser)@127.0.0.1:22")
             && finalSnapshot.contains("command not found: 123")
             && finalSnapshot.contains("app.log")
             && finalSnapshot.contains("whoami")
@@ -469,10 +476,11 @@ struct RemoraUIAutomationTests {
             .activate()
 
         let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        let expectedUser = NSUserName()
         let connected = waitUntil(timeout: 8, {
-            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (SSH)" }) != nil
         })
-        #expect(connected, "Expected mock terminal connection to be established.")
+        #expect(connected, "Expected ssh terminal connection to be established.")
         guard connected else { return }
 
         guard let transcriptElement = waitForElement(
@@ -511,10 +519,8 @@ struct RemoraUIAutomationTests {
         let hasCorrectOutput = waitUntil(timeout: 8, {
             guard let value = transcriptText(from: transcriptElement) else { return false }
             snapshot = value
-            return value.range(
-                of: #"\n\s*remora\s*\n\s*remora@127\.0\.0\.1\s*%"#,
-                options: .regularExpression
-            ) != nil
+            return value.contains("\n\(expectedUser)\n")
+                && value.contains("\(expectedUser)@127.0.0.1 %")
         })
 
         if !hasCorrectOutput {
@@ -557,9 +563,9 @@ struct RemoraUIAutomationTests {
 
         let appElement = AXUIElementCreateApplication(process.processIdentifier)
         let connected = waitUntil(timeout: 8, {
-            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (SSH)" }) != nil
         })
-        #expect(connected, "Expected mock terminal connection to be established.")
+        #expect(connected, "Expected ssh terminal connection to be established.")
         guard connected else { return }
 
         guard let terminal = waitForElement(
@@ -668,9 +674,9 @@ struct RemoraUIAutomationTests {
 
         let appElement = AXUIElementCreateApplication(process.processIdentifier)
         let connected = waitUntil(timeout: 8, {
-            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (SSH)" }) != nil
         })
-        #expect(connected, "Expected initial mock terminal connection.")
+        #expect(connected, "Expected initial ssh terminal connection.")
         guard connected else { return }
 
         guard let addSessionButton = waitForElement(

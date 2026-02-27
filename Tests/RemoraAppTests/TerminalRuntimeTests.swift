@@ -6,27 +6,24 @@ import RemoraCore
 @MainActor
 struct TerminalRuntimeTests {
     @Test
-    func connectMockPublishesTranscript() async {
-        let runtime = TerminalRuntime()
-        runtime.connectMock()
+    func connectSSHPublishesTranscript() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(sessionManager: manager)
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "tester", privateKeyPath: nil)
 
         let hasTranscript = await waitUntil(timeout: 2.0) {
             !runtime.transcriptSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
-        #expect(hasTranscript, "Runtime should publish transcript output after mock connect.")
+        #expect(hasTranscript, "Runtime should publish transcript output after ssh connect.")
         #expect(runtime.transcriptSnapshot.contains("Connected to"))
         runtime.disconnect()
     }
 
     @Test
     func connectSSHUsesSSHSessionManagerPath() async {
-        let mockManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let sshManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(
-            mockSessionManager: mockManager,
-            sshSessionManager: sshManager
-        )
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(sessionManager: manager)
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
 
@@ -42,12 +39,9 @@ struct TerminalRuntimeTests {
     @Test
     func connectDisconnectAndReconnectLifecycle() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(
-            mockSessionManager: manager,
-            sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() })
-        )
+        let runtime = TerminalRuntime(sessionManager: manager)
 
-        runtime.connectMock()
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "tester", privateKeyPath: nil)
         let firstConnected = await waitUntil(timeout: 2.0) {
             runtime.connectionState.contains("Connected")
         }
@@ -59,7 +53,7 @@ struct TerminalRuntimeTests {
         }
         #expect(disconnected, "Disconnect should update runtime state.")
 
-        runtime.connectMock()
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "tester", privateKeyPath: nil)
         let reconnected = await waitUntil(timeout: 2.0) {
             runtime.connectionState.contains("Connected") && runtime.transcriptSnapshot.contains("Connected to")
         }

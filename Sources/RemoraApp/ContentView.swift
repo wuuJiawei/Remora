@@ -58,7 +58,7 @@ struct ContentView: View {
                 selectedHostID = hostCatalog.hosts.first?.id
             }
             if let firstPane = workspace.activePane {
-                firstPane.runtime.connectMock()
+                firstPane.runtime.connectLocalSSH()
             }
         }
         .onChange(of: selectedHostID) {

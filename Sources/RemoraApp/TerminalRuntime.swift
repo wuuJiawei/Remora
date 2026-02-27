@@ -3,14 +3,12 @@ import RemoraCore
 import RemoraTerminal
 
 enum ConnectionMode: String, CaseIterable, Identifiable, Sendable {
-    case mock = "Mock"
     case ssh = "SSH"
 
     var id: String { rawValue }
 }
 
 struct TerminalConnectConfig: Sendable {
-    var mode: ConnectionMode
     var hostAddress: String
     var hostPort: Int
     var username: String
@@ -20,11 +18,9 @@ struct TerminalConnectConfig: Sendable {
 @MainActor
 final class TerminalRuntime: ObservableObject {
     @Published var connectionState: String = "Idle"
-    @Published var connectionMode: ConnectionMode = .mock
     @Published var transcriptSnapshot: String = ""
 
-    private let mockSessionManager: SessionManager
-    private let sshSessionManager: SessionManager
+    private let sessionManager: SessionManager
 
     private weak var terminalView: TerminalView?
     private var activeSessionManager: SessionManager?
@@ -39,11 +35,9 @@ final class TerminalRuntime: ObservableObject {
     private let maxTranscriptCharacters = 4_096
 
     init(
-        mockSessionManager: SessionManager = SessionManager(sshClientFactory: { MockSSHClient() }),
-        sshSessionManager: SessionManager = SessionManager(sshClientFactory: { OpenSSHProcessClient() })
+        sessionManager: SessionManager = SessionManager(sshClientFactory: { OpenSSHProcessClient() })
     ) {
-        self.mockSessionManager = mockSessionManager
-        self.sshSessionManager = sshSessionManager
+        self.sessionManager = sessionManager
     }
 
     func attach(view: TerminalView) {
@@ -62,13 +56,12 @@ final class TerminalRuntime: ObservableObject {
         terminalView?.isDisplayActive = isActive
     }
 
-    func connectMock() {
+    func connectLocalSSH() {
         connect(
             using: TerminalConnectConfig(
-                mode: .mock,
                 hostAddress: "127.0.0.1",
                 hostPort: 22,
-                username: "remora",
+                username: NSUserName(),
                 privateKeyPath: nil
             )
         )
@@ -77,7 +70,6 @@ final class TerminalRuntime: ObservableObject {
     func connectSSH(address: String, port: Int, username: String, privateKeyPath: String?) {
         connect(
             using: TerminalConnectConfig(
-                mode: .ssh,
                 hostAddress: address,
                 hostPort: port,
                 username: username,
@@ -88,7 +80,6 @@ final class TerminalRuntime: ObservableObject {
 
     func connect(using config: TerminalConnectConfig) {
         guard sessionID == nil else { return }
-        connectionMode = config.mode
         connectionState = "Connecting"
         clearTranscript()
         clearInputQueue()
@@ -98,19 +89,18 @@ final class TerminalRuntime: ObservableObject {
             return
         }
 
-        let manager = config.mode == .mock ? mockSessionManager : sshSessionManager
-        activeSessionManager = manager
+        activeSessionManager = sessionManager
 
         Task {
             do {
-                let descriptor = try await manager.startSession(
+                let descriptor = try await sessionManager.startSession(
                     for: host,
                     pty: .init(columns: 120, rows: 30)
                 )
                 sessionID = descriptor.id
-                connectionState = "Connected (\(config.mode.rawValue))"
-                bindOutput(for: descriptor.id, manager: manager)
-                bindSessionState(for: descriptor.id, manager: manager)
+                connectionState = "Connected (SSH)"
+                bindOutput(for: descriptor.id, manager: sessionManager)
+                bindSessionState(for: descriptor.id, manager: sessionManager)
             } catch {
                 connectionState = "Failed: \(error.localizedDescription)"
             }
@@ -163,7 +153,7 @@ final class TerminalRuntime: ObservableObject {
                     case .idle:
                         connectionState = "Idle"
                     case .running:
-                        connectionState = "Connected (\(connectionMode.rawValue))"
+                        connectionState = "Connected (SSH)"
                     case .stopped:
                         connectionState = "Disconnected"
                     case .failed(let reason):

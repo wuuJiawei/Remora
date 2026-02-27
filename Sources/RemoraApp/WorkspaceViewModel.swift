@@ -13,9 +13,16 @@ final class TerminalPaneModel: ObservableObject, Identifiable {
     let id: UUID
     let runtime: TerminalRuntime
 
-    init(id: UUID = UUID(), runtime: TerminalRuntime = TerminalRuntime()) {
+    init(id: UUID = UUID(), runtime: TerminalRuntime = TerminalPaneModel.defaultRuntime()) {
         self.id = id
         self.runtime = runtime
+    }
+
+    private static func defaultRuntime() -> TerminalRuntime {
+        if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" {
+            return TerminalRuntime(sessionManager: SessionManager(sshClientFactory: { MockSSHClient() }))
+        }
+        return TerminalRuntime()
     }
 }
 
@@ -83,7 +90,7 @@ final class WorkspaceViewModel: ObservableObject {
 
         // Test-mode convenience: auto-connect new tabs so UI automation can verify isolation.
         if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" {
-            pane.runtime.connectMock()
+            pane.runtime.connectLocalSSH()
         }
 
         applyPaneVisibility()
@@ -122,7 +129,7 @@ final class WorkspaceViewModel: ObservableObject {
         if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1",
            let pane = activePane, pane.runtime.connectionState == "Idle"
         {
-            pane.runtime.connectMock()
+            pane.runtime.connectLocalSSH()
         }
 
         applyPaneVisibility()
@@ -150,16 +157,12 @@ final class WorkspaceViewModel: ObservableObject {
         let finalPort = template?.portOverride ?? host.port
         let finalKey = template?.privateKeyPath ?? host.auth.keyReference
 
-        if host.group == "Local" || host.tags.contains("mock") {
-            pane.runtime.connectMock()
-        } else {
-            pane.runtime.connectSSH(
-                address: host.address,
-                port: finalPort,
-                username: finalUser,
-                privateKeyPath: finalKey
-            )
-        }
+        pane.runtime.connectSSH(
+            address: host.address,
+            port: finalPort,
+            username: finalUser,
+            privateKeyPath: finalKey
+        )
     }
 
     func disconnectActivePane() {
