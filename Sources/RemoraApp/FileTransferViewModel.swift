@@ -20,6 +20,8 @@ struct TransferItem: Identifiable, Sendable {
     var sourcePath: String
     var destinationPath: String
     var status: TransferStatus
+    var bytesTransferred: Int64
+    var totalBytes: Int64?
     var message: String?
 
     init(
@@ -29,6 +31,8 @@ struct TransferItem: Identifiable, Sendable {
         sourcePath: String,
         destinationPath: String,
         status: TransferStatus = .queued,
+        bytesTransferred: Int64 = 0,
+        totalBytes: Int64? = nil,
         message: String? = nil
     ) {
         self.id = id
@@ -37,7 +41,14 @@ struct TransferItem: Identifiable, Sendable {
         self.sourcePath = sourcePath
         self.destinationPath = destinationPath
         self.status = status
+        self.bytesTransferred = bytesTransferred
+        self.totalBytes = totalBytes
         self.message = message
+    }
+
+    var fractionCompleted: Double? {
+        guard let totalBytes, totalBytes > 0 else { return nil }
+        return min(max(Double(bytesTransferred) / Double(totalBytes), 0), 1)
     }
 }
 
@@ -189,7 +200,8 @@ final class FileTransferViewModel: ObservableObject {
             direction: .download,
             name: remoteEntry.name,
             sourcePath: remoteEntry.path,
-            destinationPath: destinationURL.path
+            destinationPath: destinationURL.path,
+            totalBytes: remoteEntry.size
         )
         transferQueue.append(item)
         Task {
@@ -253,17 +265,34 @@ final class FileTransferViewModel: ObservableObject {
             switch item.direction {
             case .upload:
                 let sourceURL = URL(fileURLWithPath: item.sourcePath)
-                let data = try Data(contentsOf: sourceURL)
-                try await sftpClient.upload(data: data, to: item.destinationPath)
+                try await sftpClient.upload(
+                    fileURL: sourceURL,
+                    to: item.destinationPath,
+                    progress: { [weak self] snapshot in
+                        Task { @MainActor in
+                            self?.updateTransferProgress(itemID: itemID, snapshot: snapshot)
+                        }
+                    }
+                )
 
             case .download:
-                let data = try await sftpClient.download(path: item.sourcePath)
+                let data = try await sftpClient.download(
+                    path: item.sourcePath,
+                    progress: { [weak self] snapshot in
+                        Task { @MainActor in
+                            self?.updateTransferProgress(itemID: itemID, snapshot: snapshot)
+                        }
+                    }
+                )
                 let destinationURL = URL(fileURLWithPath: item.destinationPath)
                 try data.write(to: destinationURL)
             }
 
             if let doneIdx = transferQueue.firstIndex(where: { $0.id == itemID }) {
                 transferQueue[doneIdx].status = .success
+                if let total = transferQueue[doneIdx].totalBytes {
+                    transferQueue[doneIdx].bytesTransferred = total
+                }
                 transferQueue[doneIdx].message = "Completed"
             }
         } catch {
@@ -275,6 +304,27 @@ final class FileTransferViewModel: ObservableObject {
 
         refreshLocalEntries()
         await refreshRemoteEntries()
+    }
+
+    var overallTransferProgress: Double? {
+        let trackedItems = transferQueue.filter {
+            switch $0.status {
+            case .queued, .running, .success:
+                return true
+            case .failed:
+                return false
+            }
+        }
+
+        let totalBytes = trackedItems.reduce(Int64(0)) { partial, item in
+            partial + (item.totalBytes ?? 0)
+        }
+        guard totalBytes > 0 else { return nil }
+
+        let completedBytes = trackedItems.reduce(Int64(0)) { partial, item in
+            partial + min(item.bytesTransferred, item.totalBytes ?? item.bytesTransferred)
+        }
+        return min(max(Double(completedBytes) / Double(totalBytes), 0), 1)
     }
 
     private func enqueueUploadRecursively(localURL: URL, remoteBaseDirectory: String) {
@@ -311,15 +361,25 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     private func enqueueUploadFile(localURL: URL, destinationPath: String) {
+        let fileSize = (try? localURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
         let item = TransferItem(
             direction: .upload,
             name: localURL.lastPathComponent,
             sourcePath: localURL.path,
-            destinationPath: destinationPath
+            destinationPath: destinationPath,
+            totalBytes: fileSize
         )
         transferQueue.append(item)
         Task {
             await executeTransfer(itemID: item.id)
+        }
+    }
+
+    private func updateTransferProgress(itemID: UUID, snapshot: TransferProgressSnapshot) {
+        guard let index = transferQueue.firstIndex(where: { $0.id == itemID }) else { return }
+        transferQueue[index].bytesTransferred = snapshot.bytesTransferred
+        if let total = snapshot.totalBytes {
+            transferQueue[index].totalBytes = total
         }
     }
 

@@ -187,26 +187,48 @@ struct FileManagerPanelView: View {
 
     private var transferQueuePanel: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Transfer Queue")
-                .font(.subheadline.weight(.semibold))
+            HStack {
+                Text("Transfer Queue")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                if let overallProgress = viewModel.overallTransferProgress {
+                    Text("\(Int(overallProgress * 100))%")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(VisualStyle.textSecondary)
+                }
+            }
+
+            if let overallProgress = viewModel.overallTransferProgress {
+                ProgressView(value: overallProgress)
+                    .progressViewStyle(.linear)
+                    .controlSize(.small)
+            }
 
             if viewModel.transferQueue.isEmpty {
                 Text("No transfer tasks")
                     .monoMetaStyle()
             } else {
                 List(viewModel.transferQueue) { item in
-                    HStack(spacing: 8) {
-                        Text(item.direction.rawValue)
-                            .font(.caption.monospaced())
-                            .frame(width: 70, alignment: .leading)
-                            .foregroundStyle(VisualStyle.textSecondary)
-                        Text(item.name)
-                            .lineLimit(1)
-                            .foregroundStyle(VisualStyle.textPrimary)
-                        Spacer()
-                        Text(item.status.rawValue)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(statusColor(item.status))
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Text(item.direction.rawValue)
+                                .font(.caption.monospaced())
+                                .frame(width: 70, alignment: .leading)
+                                .foregroundStyle(VisualStyle.textSecondary)
+                            Text(item.name)
+                                .lineLimit(1)
+                                .foregroundStyle(VisualStyle.textPrimary)
+                            Spacer()
+                            Text(item.status.rawValue)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(statusColor(item.status))
+                        }
+
+                        if let progress = item.fractionCompleted {
+                            ProgressView(value: progress)
+                                .progressViewStyle(.linear)
+                                .controlSize(.small)
+                        }
                     }
                     .padding(.vertical, 2)
                     .padding(.horizontal, 4)

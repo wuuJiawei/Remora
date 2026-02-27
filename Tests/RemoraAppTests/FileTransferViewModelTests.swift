@@ -125,6 +125,57 @@ struct FileTransferViewModelTests {
         }
     }
 
+    @Test
+    func multiDownloadUpdatesTaskAndOverallProgress() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-download-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let seededLocalFile = tempRoot.appendingPathComponent("seed.txt")
+        try Data("seed-data".utf8).write(to: seededLocalFile)
+
+        let vm = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            localDirectoryURL: tempRoot,
+            remoteDirectoryPath: "/",
+            maxConcurrentTransfers: 2
+        )
+
+        vm.refreshLocalEntries()
+        guard let seedEntry = vm.localEntries.first(where: { $0.name == "seed.txt" }) else {
+            Issue.record("Seed local file not found.")
+            return
+        }
+
+        vm.enqueueUpload(localEntry: seedEntry)
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            vm.transferQueue.contains(where: { $0.direction == .upload && $0.status == .success })
+        }
+
+        await vm.refreshRemoteEntries()
+        let downloadTargets = vm.remoteEntries.filter { !$0.isDirectory }
+        #expect(downloadTargets.count >= 2)
+
+        try? FileManager.default.removeItem(at: seededLocalFile)
+        vm.refreshLocalEntries()
+
+        for target in downloadTargets {
+            vm.enqueueDownload(remoteEntry: target)
+        }
+
+        let expectedSuccessfulTransfers = 1 + downloadTargets.count
+        try await waitUntil(timeoutLoops: 80, intervalMS: 50) {
+            vm.transferQueue.filter { $0.status == .success }.count >= expectedSuccessfulTransfers
+        }
+
+        let downloadItems = vm.transferQueue.filter { $0.direction == .download }
+        #expect(downloadItems.count == downloadTargets.count)
+        #expect(downloadItems.allSatisfy { $0.totalBytes != nil })
+        #expect(downloadItems.allSatisfy { $0.bytesTransferred == $0.totalBytes })
+        #expect(vm.overallTransferProgress == 1)
+    }
+
     private func waitForSuccess(in vm: FileTransferViewModel, transferName: String, successCount: Int) async throws {
         for _ in 0 ..< 40 {
             let success = vm.transferQueue.filter { $0.name == transferName && $0.status == .success }.count
