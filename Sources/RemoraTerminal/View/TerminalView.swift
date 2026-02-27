@@ -19,6 +19,7 @@ public struct TerminalSelection: Equatable {
 public final class TerminalView: NSView {
     public var onInput: (@Sendable (Data) -> Void)?
     public var onFocus: (() -> Void)?
+    public var onResize: ((Int, Int) -> Void)?
     public var isDisplayActive: Bool = true {
         didSet {
             guard isDisplayActive else { return }
@@ -211,6 +212,7 @@ public final class TerminalView: NSView {
         let columns = max(Int(drawableWidth / renderer.cellWidth), 1)
         let rows = max(Int(bounds.height / renderer.lineHeight), 1)
         screenBuffer.resize(rows: rows, columns: columns)
+        onResize?(columns, rows)
         sanitizeDirtyRows()
         clampSelectionIfNeeded()
         dirtyRows.formUnion(screenBuffer.consumeDirtyRows())

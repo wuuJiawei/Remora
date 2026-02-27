@@ -25,4 +25,16 @@ struct ANSIParserTests {
         let line = screen.line(at: 1)
         #expect(line[2].character == "X")
     }
+
+    @Test
+    func parserHandlesHorizontalTabStops() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 16)
+
+        parser.parse(Data("A\tB".utf8), into: screen)
+
+        let line = screen.line(at: 0)
+        #expect(line[0].character == "A")
+        #expect(line[8].character == "B")
+    }
 }

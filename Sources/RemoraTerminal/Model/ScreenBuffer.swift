@@ -148,6 +148,17 @@ public final class ScreenBuffer {
         markDirty(row: cursorRow)
     }
 
+    public func horizontalTab(tabWidth: Int = 8) {
+        let width = max(1, tabWidth)
+        let nextStop = ((cursorColumn / width) + 1) * width
+        if nextStop >= columns {
+            lineFeed()
+            carriageReturn()
+            return
+        }
+        cursorColumn = nextStop
+    }
+
     public func clearScreen() {
         lines = Array(repeating: TerminalLine(columns: columns, attributes: .default), count: rows)
         cursorRow = 0

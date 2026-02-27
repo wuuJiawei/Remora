@@ -48,6 +48,8 @@ public final class ANSIParser {
             screen.carriageReturn()
         case 0x08:
             screen.backspace()
+        case 0x09:
+            screen.horizontalTab()
         case 0x20 ... 0x7E:
             if let scalar = UnicodeScalar(Int(byte)) {
                 screen.put(character: Character(scalar))

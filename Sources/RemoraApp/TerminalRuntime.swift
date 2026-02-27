@@ -3,7 +3,7 @@ import RemoraCore
 import RemoraTerminal
 
 enum ConnectionMode: String, CaseIterable, Identifiable, Sendable {
-    case mock = "Mock"
+    case local = "Local"
     case ssh = "SSH"
 
     var id: String { rawValue }
@@ -22,10 +22,10 @@ struct TerminalConnectConfig: Sendable {
 @MainActor
 final class TerminalRuntime: ObservableObject {
     @Published var connectionState: String = "Idle"
-    @Published var connectionMode: ConnectionMode = .mock
+    @Published var connectionMode: ConnectionMode = .local
     @Published var transcriptSnapshot: String = ""
 
-    private let mockSessionManager: SessionManager
+    private let localSessionManager: SessionManager
     private let sshSessionManager: SessionManager
 
     private weak var terminalView: TerminalView?
@@ -39,12 +39,14 @@ final class TerminalRuntime: ObservableObject {
     private var pendingOutput = Data()
     private var transcriptBuffer = ""
     private let maxTranscriptCharacters = 4_096
+    private var pendingPTYSize: PTYSize?
+    private var lastAppliedPTYSize: PTYSize?
 
     init(
-        mockSessionManager: SessionManager = SessionManager(sshClientFactory: { MockSSHClient() }),
+        localSessionManager: SessionManager = SessionManager(sshClientFactory: { LocalShellClient() }),
         sshSessionManager: SessionManager = SessionManager(sshClientFactory: { OpenSSHProcessClient() })
     ) {
-        self.mockSessionManager = mockSessionManager
+        self.localSessionManager = localSessionManager
         self.sshSessionManager = sshSessionManager
     }
 
@@ -64,13 +66,13 @@ final class TerminalRuntime: ObservableObject {
         terminalView?.isDisplayActive = isActive
     }
 
-    func connectMock() {
+    func connectLocalShell() {
         connect(
             using: TerminalConnectConfig(
-                mode: .mock,
+                mode: .local,
                 hostAddress: "127.0.0.1",
                 hostPort: 22,
-                username: "remora",
+                username: NSUserName(),
                 authMethod: .agent,
                 keyReference: nil,
                 passwordReference: nil
@@ -107,53 +109,59 @@ final class TerminalRuntime: ObservableObject {
     }
 
     func connect(using config: TerminalConnectConfig) {
-        guard sessionID == nil else { return }
-        connectionMode = config.mode
-        connectionState = "Connecting"
-        clearTranscript()
-        clearInputQueue()
-
-        guard let host = buildHostConfiguration(config: config) else {
-            connectionState = "配置错误：请检查主机、端口、用户名"
-            return
-        }
-
-        let manager = config.mode == .mock ? mockSessionManager : sshSessionManager
-        activeSessionManager = manager
-
         Task {
+            await stopActiveSessionIfNeeded()
+            await MainActor.run {
+                connectionMode = config.mode
+                connectionState = "Connecting"
+                clearTranscript()
+                clearInputQueue()
+            }
+
+            guard let host = await MainActor.run(body: { buildHostConfiguration(config: config) }) else {
+                await MainActor.run {
+                    connectionState = "配置错误：请检查主机、端口、用户名"
+                }
+                return
+            }
+
+            let manager = await MainActor.run(body: { sessionManager(for: config.mode) })
+
             do {
                 let descriptor = try await manager.startSession(
                     for: host,
                     pty: .init(columns: 120, rows: 30)
                 )
-                sessionID = descriptor.id
-                connectionState = "Connected (\(config.mode.rawValue))"
-                bindOutput(for: descriptor.id, manager: manager)
-                bindSessionState(for: descriptor.id, manager: manager)
+
+                await MainActor.run {
+                    sessionID = descriptor.id
+                    activeSessionManager = manager
+                    connectionState = "Connected (\(config.mode.rawValue))"
+                    bindOutput(for: descriptor.id, manager: manager)
+                    bindSessionState(for: descriptor.id, manager: manager)
+                }
+                await self.applyPendingResizeIfNeeded()
             } catch {
-                connectionState = "Failed: \(error.localizedDescription)"
+                await MainActor.run {
+                    connectionState = "Failed: \(error.localizedDescription)"
+                }
             }
         }
     }
 
     func disconnect() {
-        guard let sessionID, let manager = activeSessionManager else { return }
-
         Task {
-            await manager.stopSession(id: sessionID)
+            await stopActiveSessionIfNeeded()
             await MainActor.run {
-                self.sessionID = nil
-                self.activeSessionManager = nil
                 self.connectionState = "Disconnected"
-                self.streamTask?.cancel()
-                self.streamTask = nil
-                self.stateTask?.cancel()
-                self.stateTask = nil
-                self.pendingOutput.removeAll(keepingCapacity: false)
-                self.clearInputQueue()
             }
         }
+    }
+
+    func resize(columns: Int, rows: Int) {
+        let nextSize = PTYSize(columns: max(1, columns), rows: max(1, rows))
+        pendingPTYSize = nextSize
+        Task { await applyPendingResizeIfNeeded() }
     }
 
     private func bindOutput(for id: UUID, manager: SessionManager) {
@@ -233,6 +241,45 @@ final class TerminalRuntime: ObservableObject {
         pendingInputs.removeAll(keepingCapacity: false)
         inputDrainerTask?.cancel()
         inputDrainerTask = nil
+    }
+
+    private func sessionManager(for mode: ConnectionMode) -> SessionManager {
+        switch mode {
+        case .local:
+            return localSessionManager
+        case .ssh:
+            return sshSessionManager
+        }
+    }
+
+    private func stopActiveSessionIfNeeded() async {
+        guard let currentSessionID = sessionID, let manager = activeSessionManager else { return }
+
+        await manager.stopSession(id: currentSessionID)
+        sessionID = nil
+        activeSessionManager = nil
+
+        streamTask?.cancel()
+        streamTask = nil
+        stateTask?.cancel()
+        stateTask = nil
+
+        pendingOutput.removeAll(keepingCapacity: false)
+        clearInputQueue()
+        lastAppliedPTYSize = nil
+    }
+
+    private func applyPendingResizeIfNeeded() async {
+        guard let pendingSize = pendingPTYSize else { return }
+        guard pendingSize != lastAppliedPTYSize else { return }
+        guard let sessionID, let manager = activeSessionManager else { return }
+
+        do {
+            try await manager.resize(sessionID: sessionID, pty: pendingSize)
+            lastAppliedPTYSize = pendingSize
+        } catch {
+            connectionState = "Resize failed: \(error.localizedDescription)"
+        }
     }
 
     private func buildHostConfiguration(config: TerminalConnectConfig) -> RemoraCore.Host? {

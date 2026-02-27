@@ -13,9 +13,17 @@ final class TerminalPaneModel: ObservableObject, Identifiable {
     let id: UUID
     let runtime: TerminalRuntime
 
-    init(id: UUID = UUID(), runtime: TerminalRuntime = TerminalRuntime()) {
+    init(id: UUID = UUID(), runtime: TerminalRuntime = TerminalPaneModel.defaultRuntime()) {
         self.id = id
         self.runtime = runtime
+    }
+
+    private static func defaultRuntime() -> TerminalRuntime {
+        if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" {
+            let mockManager = SessionManager(sshClientFactory: { MockSSHClient() })
+            return TerminalRuntime(localSessionManager: mockManager, sshSessionManager: mockManager)
+        }
+        return TerminalRuntime()
     }
 }
 
@@ -80,12 +88,7 @@ final class WorkspaceViewModel: ObservableObject {
         tabs.append(tab)
         activeTabID = tab.id
         activePaneByTab[tab.id] = pane.id
-
-        // Test-mode convenience: auto-connect new tabs so UI automation can verify isolation.
-        if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" {
-            pane.runtime.connectMock()
-        }
-
+        pane.runtime.connectLocalShell()
         applyPaneVisibility()
     }
 
@@ -119,12 +122,6 @@ final class WorkspaceViewModel: ObservableObject {
             activePaneByTab[tabID] = pane.id
         }
 
-        if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1",
-           let pane = activePane, pane.runtime.connectionState == "Idle"
-        {
-            pane.runtime.connectMock()
-        }
-
         applyPaneVisibility()
     }
 
@@ -150,34 +147,30 @@ final class WorkspaceViewModel: ObservableObject {
         let finalPort = template?.portOverride ?? host.port
         let finalKey = template?.privateKeyPath ?? host.auth.keyReference
 
-        if host.group == "Local" || host.tags.contains("mock") {
-            pane.runtime.connectMock()
-        } else {
-            var resolvedHost = host
-            resolvedHost.username = finalUser
-            resolvedHost.port = finalPort
+        var resolvedHost = host
+        resolvedHost.username = finalUser
+        resolvedHost.port = finalPort
 
-            if let templateKey = template?.privateKeyPath {
-                let trimmedTemplateKey = templateKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmedTemplateKey.isEmpty {
-                    if host.auth.method == .privateKey {
-                        resolvedHost.auth = HostAuth(method: .agent)
-                    }
-                } else {
-                    resolvedHost.auth = HostAuth(method: .privateKey, keyReference: trimmedTemplateKey)
+        if let templateKey = template?.privateKeyPath {
+            let trimmedTemplateKey = templateKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedTemplateKey.isEmpty {
+                if host.auth.method == .privateKey {
+                    resolvedHost.auth = HostAuth(method: .agent)
                 }
-            } else if let finalKey {
-                let trimmedFinalKey = finalKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                if resolvedHost.auth.method == .privateKey {
-                    resolvedHost.auth = HostAuth(
-                        method: .privateKey,
-                        keyReference: trimmedFinalKey.isEmpty ? nil : trimmedFinalKey
-                    )
-                }
+            } else {
+                resolvedHost.auth = HostAuth(method: .privateKey, keyReference: trimmedTemplateKey)
             }
-
-            pane.runtime.connectSSH(host: resolvedHost)
+        } else if let finalKey {
+            let trimmedFinalKey = finalKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if resolvedHost.auth.method == .privateKey {
+                resolvedHost.auth = HostAuth(
+                    method: .privateKey,
+                    keyReference: trimmedFinalKey.isEmpty ? nil : trimmedFinalKey
+                )
+            }
         }
+
+        pane.runtime.connectSSH(host: resolvedHost)
     }
 
     func disconnectActivePane() {

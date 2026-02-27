@@ -63,9 +63,9 @@ final class HostCatalogStore: ObservableObject {
         let jump = RemoraCore.Host(
             name: "jump-box",
             address: "127.0.0.1",
-            username: "remora",
+            username: NSUserName(),
             group: "Local",
-            tags: ["mock"],
+            tags: ["local"],
             favorite: true,
             auth: HostAuth(method: .agent)
         )
