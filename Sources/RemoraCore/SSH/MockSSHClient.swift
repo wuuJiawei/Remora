@@ -47,6 +47,11 @@ public final class MockShellSession: SSHShellSessionProtocol, @unchecked Sendabl
         guard isRunning else { return }
         guard let input = String(data: data, encoding: .utf8) else { return }
 
+        // Ignore ANSI navigation/control sequences from local key mapping in mock mode.
+        if input.contains("\u{1B}") {
+            return
+        }
+
         for character in input {
             if character == "\u{3}" {
                 commandBuffer.removeAll(keepingCapacity: true)
@@ -66,8 +71,13 @@ public final class MockShellSession: SSHShellSessionProtocol, @unchecked Sendabl
             if character == "\r" || character == "\n" {
                 let command = commandBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
                 commandBuffer.removeAll(keepingCapacity: true)
+                emit("\r\n")
                 try await handle(command: command)
                 prompt()
+                continue
+            }
+
+            if character.unicodeScalars.allSatisfy({ CharacterSet.controlCharacters.contains($0) }) {
                 continue
             }
 
@@ -89,7 +99,9 @@ public final class MockShellSession: SSHShellSessionProtocol, @unchecked Sendabl
 
     private func handle(command: String) async throws {
         switch command {
-        case "", "clear":
+        case "":
+            return
+        case "clear":
             emit("\u{001B}[2J\u{001B}[H")
         case "help":
             emit("Available commands: help, date, whoami, ls, clear\r\n")

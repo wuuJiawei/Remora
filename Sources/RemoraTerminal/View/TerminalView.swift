@@ -205,7 +205,8 @@ public final class TerminalView: NSView {
     private func resizeBufferToBounds() {
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        let columns = max(Int(bounds.width / renderer.cellWidth), 1)
+        let drawableWidth = max(bounds.width - renderer.horizontalInset * 2, renderer.cellWidth)
+        let columns = max(Int(drawableWidth / renderer.cellWidth), 1)
         let rows = max(Int(bounds.height / renderer.lineHeight), 1)
         screenBuffer.resize(rows: rows, columns: columns)
         sanitizeDirtyRows()
@@ -217,7 +218,7 @@ public final class TerminalView: NSView {
 
     private func drawCursor(in context: CGContext) {
         let cursorRect = CGRect(
-            x: CGFloat(screenBuffer.cursorColumn) * renderer.cellWidth,
+            x: renderer.horizontalInset + CGFloat(screenBuffer.cursorColumn) * renderer.cellWidth,
             y: bounds.height - CGFloat(screenBuffer.cursorRow + 1) * renderer.lineHeight,
             width: renderer.cellWidth,
             height: renderer.lineHeight
@@ -243,7 +244,7 @@ public final class TerminalView: NSView {
         context.setFillColor(NSColor.systemBlue.withAlphaComponent(0.25).cgColor)
         for row in clampedMinRow ... clampedMaxRow {
             let rect = CGRect(
-                x: CGFloat(clampedMinCol) * renderer.cellWidth,
+                x: renderer.horizontalInset + CGFloat(clampedMinCol) * renderer.cellWidth,
                 y: bounds.height - CGFloat(row + 1) * renderer.lineHeight,
                 width: CGFloat(clampedMaxCol - clampedMinCol + 1) * renderer.cellWidth,
                 height: renderer.lineHeight
@@ -253,7 +254,8 @@ public final class TerminalView: NSView {
     }
 
     private func cellLocation(from point: CGPoint) -> (row: Int, column: Int) {
-        let col = max(Int(point.x / renderer.cellWidth), 0)
+        let contentX = max(point.x - renderer.horizontalInset, 0)
+        let col = max(Int(contentX / renderer.cellWidth), 0)
         let row = max(Int((bounds.height - point.y) / renderer.lineHeight), 0)
         return (min(row, screenBuffer.rows - 1), min(col, screenBuffer.columns - 1))
     }

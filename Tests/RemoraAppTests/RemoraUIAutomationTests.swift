@@ -3,6 +3,7 @@ import ApplicationServices
 import Foundation
 import Testing
 
+@Suite(.serialized)
 @MainActor
 struct RemoraUIAutomationTests {
     @Test
@@ -225,6 +226,92 @@ struct RemoraUIAutomationTests {
             Issue.record("Terminal AX summary: \(accessibilitySummary(of: terminal))")
         }
         #expect(hasOutput, "Terminal should accept keyboard input and render command output.")
+
+        let hasLineBreak = lastValue.range(of: #"whoami\s*\n\s*remora"#, options: .regularExpression) != nil
+        #expect(hasLineBreak, "Command output should appear on a new line after Enter.")
+    }
+
+    @Test
+    func terminalArrowKeysDoNotCorruptPrompt() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let appURL = try locateRemoraAppBinary()
+        let process = Process()
+        process.executableURL = appURL
+        process.arguments = []
+        try process.run()
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard waitUntil(timeout: 8, {
+            NSRunningApplication(processIdentifier: process.processIdentifier) != nil
+        }) else {
+            Issue.record("RemoraApp did not launch in time.")
+            return
+        }
+
+        NSRunningApplication(processIdentifier: process.processIdentifier)?
+            .activate()
+
+        let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        let connected = waitUntil(timeout: 8, {
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+        })
+        #expect(connected, "Expected mock terminal connection to be established.")
+        guard connected else { return }
+
+        guard let transcriptElement = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { element in
+                identifier(of: element) == "terminal-transcript"
+            }
+        ) else {
+            Issue.record("Could not find transcript accessibility element.")
+            return
+        }
+
+        guard let terminal = waitForElement(
+            in: appElement,
+            timeout: 6,
+            matching: { element in
+                identifier(of: element) == "terminal-view"
+            }
+        ) else {
+            Issue.record("Could not find terminal accessibility element.")
+            return
+        }
+
+        guard let frame = frame(of: terminal) else {
+            Issue.record("Could not read terminal frame for click focus.")
+            return
+        }
+
+        click(point: CGPoint(x: frame.midX, y: frame.midY))
+        pressLeftArrow(repeatCount: 25)
+        typeText("whoami\r")
+
+        var snapshot = ""
+        let hasValidOutput = waitUntil(timeout: 8, {
+            guard let value = transcriptText(from: transcriptElement) else { return false }
+            snapshot = value
+            return value.range(of: #"whoami\s*\n\s*remora"#, options: .regularExpression) != nil
+        })
+
+        if !hasValidOutput {
+            Issue.record("Transcript after arrow-input: \(snapshot)")
+        }
+
+        #expect(hasValidOutput, "Arrow keys should not move input cursor into prompt prefix.")
+        #expect(!snapshot.contains("\u{1B}"), "Transcript should not include raw ANSI arrow sequences.")
     }
 
     private func locateRemoraAppBinary() throws -> URL {
@@ -383,27 +470,55 @@ struct RemoraUIAutomationTests {
     }
 
     private func typeText(_ text: String) {
+        var unicodeBuffer = ""
+
+        func flushUnicodeBuffer() {
+            guard !unicodeBuffer.isEmpty else { return }
+            postUnicodeText(unicodeBuffer)
+            unicodeBuffer.removeAll(keepingCapacity: true)
+        }
+
         for scalar in text.unicodeScalars {
             if scalar == "\r" || scalar == "\n" {
+                flushUnicodeBuffer()
                 guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 36, keyDown: true),
                       let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 36, keyDown: false)
                 else { continue }
                 keyDown.post(tap: .cghidEventTap)
                 keyUp.post(tap: .cghidEventTap)
-                usleep(12_000)
+                usleep(18_000)
                 continue
             }
 
-            var unicode = [UniChar(scalar.value)]
-            guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
-                  let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false)
-            else { continue }
+            unicodeBuffer.append(String(scalar))
+        }
 
-            keyDown.keyboardSetUnicodeString(stringLength: 1, unicodeString: &unicode)
-            keyUp.keyboardSetUnicodeString(stringLength: 1, unicodeString: &unicode)
+        flushUnicodeBuffer()
+    }
+
+    private func postUnicodeText(_ text: String) {
+        var utf16Units = Array(text.utf16)
+        guard !utf16Units.isEmpty else { return }
+        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false)
+        else { return }
+
+        keyDown.keyboardSetUnicodeString(stringLength: utf16Units.count, unicodeString: &utf16Units)
+        keyUp.keyboardSetUnicodeString(stringLength: utf16Units.count, unicodeString: &utf16Units)
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        usleep(20_000)
+    }
+
+    private func pressLeftArrow(repeatCount: Int) {
+        guard repeatCount > 0 else { return }
+        for _ in 0 ..< repeatCount {
+            guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 123, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 123, keyDown: false)
+            else { continue }
             keyDown.post(tap: .cghidEventTap)
             keyUp.post(tap: .cghidEventTap)
-            usleep(12_000)
+            usleep(10_000)
         }
     }
 

@@ -12,6 +12,7 @@ public final class CoreTextTerminalRenderer {
 
     public private(set) var cellWidth: CGFloat = 8
     public private(set) var lineHeight: CGFloat = 16
+    public var horizontalInset: CGFloat = 10
 
     private let glyphCache = GlyphCache()
 
@@ -57,12 +58,17 @@ public final class CoreTextTerminalRenderer {
 
         func flushRun(endColumn: Int) {
             guard let attrs = currentAttrs, !currentText.isEmpty else { return }
-            let x = CGFloat(runStartColumn) * cellWidth
+            let x = horizontalInset + CGFloat(runStartColumn) * cellWidth
             let y = baselineY
             let fg = color(for: attrs.foreground, isBackground: false)
             let bg = color(for: attrs.background, isBackground: true)
 
-            let bgRect = CGRect(x: x, y: bounds.height - CGFloat(row + 1) * lineHeight, width: CGFloat(endColumn - runStartColumn) * cellWidth, height: lineHeight)
+            let bgRect = CGRect(
+                x: x,
+                y: bounds.height - CGFloat(row + 1) * lineHeight,
+                width: CGFloat(endColumn - runStartColumn) * cellWidth,
+                height: lineHeight
+            )
             bg.setFill()
             context.fill(bgRect)
 
