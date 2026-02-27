@@ -114,6 +114,11 @@ public final class TerminalView: NSView {
     }
 
     public override func keyDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "c" {
+            copy(nil)
+            return
+        }
+
         if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v" {
             paste(nil)
             return
@@ -131,6 +136,15 @@ public final class TerminalView: NSView {
         scrollToBottom()
         guard let value = NSPasteboard.general.string(forType: .string) else { return }
         onInput?(Data(value.utf8))
+    }
+
+    @objc
+    public func copy(_ sender: Any?) {
+        screenBuffer.setViewportOffset(scrollbackOffset)
+        guard let selectedText = selectedText(), !selectedText.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(selectedText, forType: .string)
     }
 
     public override func mouseDown(with event: NSEvent) {
@@ -353,6 +367,37 @@ public final class TerminalView: NSView {
         accessibilityTextSnapshot = snapshot
         setAccessibilityHelp(snapshot)
         NSAccessibility.post(element: self, notification: .valueChanged)
+    }
+
+    private func selectedText() -> String? {
+        guard let selection else { return nil }
+        guard screenBuffer.rows > 0, screenBuffer.columns > 0 else { return nil }
+
+        let minRow = max(0, min(selection.startRow, selection.endRow))
+        let maxRow = min(screenBuffer.rows - 1, max(selection.startRow, selection.endRow))
+        let minCol = max(0, min(selection.startColumn, selection.endColumn))
+        let maxCol = min(screenBuffer.columns - 1, max(selection.startColumn, selection.endColumn))
+
+        guard minRow <= maxRow, minCol <= maxCol else { return nil }
+
+        var rows: [String] = []
+        rows.reserveCapacity(maxRow - minRow + 1)
+
+        for row in minRow ... maxRow {
+            let line = screenBuffer.line(at: row)
+            let startCol = row == minRow ? minCol : 0
+            let endCol = row == maxRow ? maxCol : screenBuffer.columns - 1
+            guard startCol <= endCol else { continue }
+
+            let characters = (startCol ... endCol).map { line[$0].character }
+            var text = String(characters)
+            while text.last == " " {
+                text.removeLast()
+            }
+            rows.append(text)
+        }
+
+        return rows.joined(separator: "\n")
     }
 
     private func scrollToBottom() {

@@ -663,6 +663,94 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
+    func terminalSelectionSupportsCommandCCopy() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let appURL = try locateRemoraAppBinary()
+        let process = Process()
+        process.executableURL = appURL
+        process.arguments = []
+        try process.run()
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard waitUntil(timeout: 8, {
+            NSRunningApplication(processIdentifier: process.processIdentifier) != nil
+        }) else {
+            Issue.record("RemoraApp did not launch in time.")
+            return
+        }
+
+        NSRunningApplication(processIdentifier: process.processIdentifier)?
+            .activate()
+
+        let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        let expectedUser = NSUserName()
+        let connected = waitUntil(timeout: 8, {
+            hasConnectedStatus(in: appElement)
+        })
+        #expect(connected, "Expected terminal connection to be established.")
+        guard connected else { return }
+
+        guard let terminal = waitForElement(
+            in: appElement,
+            timeout: 6,
+            matching: { identifier(of: $0) == "terminal-view" }
+        ) else {
+            Issue.record("Could not find terminal accessibility element.")
+            return
+        }
+
+        guard let transcriptElement = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { identifier(of: $0) == "terminal-transcript" }
+        ) else {
+            Issue.record("Could not find transcript accessibility element.")
+            return
+        }
+
+        guard let frame = frame(of: terminal) else {
+            Issue.record("Could not read terminal frame for copy-selection test.")
+            return
+        }
+
+        click(point: CGPoint(x: frame.midX, y: frame.midY))
+        typeText("whoami\r")
+
+        let hasWhoamiOutput = waitUntil(timeout: 8, {
+            guard let value = transcriptText(from: transcriptElement) else { return false }
+            return value.contains("whoami") && value.contains("\n\(expectedUser)\n")
+        })
+        #expect(hasWhoamiOutput, "Expected whoami output before copy test.")
+        guard hasWhoamiOutput else { return }
+
+        NSPasteboard.general.clearContents()
+        drag(from: CGPoint(x: frame.minX + 20, y: frame.minY + 20), to: CGPoint(x: frame.maxX - 20, y: frame.maxY - 20))
+        pressCommandC()
+
+        var copied = ""
+        let copiedExpectedText = waitUntil(timeout: 5, {
+            guard let value = NSPasteboard.general.string(forType: .string), !value.isEmpty else { return false }
+            copied = value
+            return value.contains("whoami") || value.contains(expectedUser)
+        })
+
+        if !copiedExpectedText {
+            Issue.record("Clipboard content after Cmd+C: \(copied)")
+        }
+        #expect(copiedExpectedText, "Cmd+C should copy selected terminal text into pasteboard.")
+    }
+
+    @Test
     func newSessionStartsIsolatedFromExistingTerminalBuffer() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return
@@ -1143,6 +1231,43 @@ struct RemoraUIAutomationTests {
             up.post(tap: .cghidEventTap)
             usleep(8_000)
         }
+    }
+
+    private func drag(from start: CGPoint, to end: CGPoint) {
+        guard let down = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseDown,
+            mouseCursorPosition: start,
+            mouseButton: .left
+        ),
+        let drag = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseDragged,
+            mouseCursorPosition: end,
+            mouseButton: .left
+        ),
+        let up = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseUp,
+            mouseCursorPosition: end,
+            mouseButton: .left
+        ) else { return }
+
+        down.post(tap: .cghidEventTap)
+        drag.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+    }
+
+    private func pressCommandC() {
+        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 8, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 8, keyDown: false)
+        else { return }
+
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        usleep(20_000)
     }
 
     private func typeText(_ text: String) {
