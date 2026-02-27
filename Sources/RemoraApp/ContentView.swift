@@ -69,6 +69,13 @@ struct ContentView: View {
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: workspace.activeTabID)
         .animation(.spring(response: 0.32, dampingFraction: 0.84), value: isFilePanelVisible)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Text("Remora")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textSecondary)
+            }
+        }
     }
 
     private var backgroundGradient: some View {
