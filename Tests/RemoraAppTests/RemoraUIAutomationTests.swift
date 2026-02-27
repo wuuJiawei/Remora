@@ -444,6 +444,59 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
+    func fileManagerShowsRemoteEntriesAfterSSHConnect() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let launched = try launchAppForUIAutomation()
+        let process = launched.process
+        let appElement = launched.appElement
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard let hostRow = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { element in
+                role(of: element) == kAXStaticTextRole as String && title(of: element) == "prod-api"
+            }
+        ) else {
+            Issue.record("Could not find prod-api row.")
+            return
+        }
+
+        guard let hostFrame = frame(of: hostRow) else {
+            Issue.record("Could not read prod-api row frame.")
+            return
+        }
+        doubleClick(point: CGPoint(x: hostFrame.midX, y: hostFrame.midY))
+
+        let connected = waitUntil(timeout: 8, {
+            guard selectSessionTab("prod-api", in: appElement) else { return false }
+            return hasConnectedStatus(in: appElement)
+        })
+        #expect(connected, "Expected SSH session to connect.")
+        guard connected else { return }
+
+        let expanded = expandFileManager(in: appElement)
+        #expect(expanded, "File Manager should expand after SSH connect.")
+        guard expanded else { return }
+
+        let hasRemoteEntries = waitUntil(timeout: 8, {
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-row_logs" }) != nil
+                && findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-row_README.txt" }) != nil
+        })
+        #expect(hasRemoteEntries, "Remote file list should remain visible after SSH connection is established.")
+    }
+
+    @Test
     func terminalAcceptsKeyboardInputAndShowsCommandOutput() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return

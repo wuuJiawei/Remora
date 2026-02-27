@@ -197,6 +197,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             "-o", "ServerAliveCountMax=3",
             "-o", "StrictHostKeyChecking=ask",
         ]
+        args.append(contentsOf: SSHConnectionReuse.options(for: host))
 
         switch host.auth.method {
         case .privateKey:

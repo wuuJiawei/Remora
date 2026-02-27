@@ -913,6 +913,11 @@ struct ContentView: View {
     }
 
     private func syncFileManagerSFTPBinding() {
+        if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" {
+            bindMockSFTPIfNeeded()
+            return
+        }
+
         guard let runtime = workspace.activePane?.runtime else {
             bindMockSFTPIfNeeded()
             return

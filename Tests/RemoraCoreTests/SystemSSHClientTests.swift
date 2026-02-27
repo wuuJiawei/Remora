@@ -23,6 +23,8 @@ struct SystemSSHClientTests {
         #expect(args.contains("ServerAliveInterval=30"))
         #expect(args.contains("ServerAliveCountMax=3"))
         #expect(args.contains("StrictHostKeyChecking=ask"))
+        #expect(args.contains("ControlMaster=auto"))
+        #expect(args.contains(where: { $0.hasPrefix("ControlPath=/tmp/") }))
         #expect(args.contains("-i"))
         #expect(args.contains("/Users/demo/.ssh/id_ed25519"))
         #expect(args.contains("deploy@10.0.0.2"))

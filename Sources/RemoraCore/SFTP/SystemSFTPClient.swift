@@ -23,7 +23,22 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     public func list(path: String) async throws -> [RemoteFileEntry] {
         let normalized = normalize(path)
         let output = try await runSFTPBatch(commands: ["ls -lan \(Self.quoteBatchArgument(normalized))"])
-        return Self.parseLongListOutput(output, parentPath: normalized)
+        let parsedLongEntries = Self.parseLongListOutput(output, parentPath: normalized)
+        if !parsedLongEntries.isEmpty {
+            return parsedLongEntries
+        }
+
+        // Some servers return a non-long listing even when -l is requested.
+        if let sshFallback = try? await listViaSSH(path: normalized), !sshFallback.isEmpty {
+            return sshFallback
+        }
+
+        let parsedNameEntries = Self.parseNameOnlyListOutput(output, parentPath: normalized)
+        if !parsedNameEntries.isEmpty {
+            return parsedNameEntries
+        }
+
+        return []
     }
 
     public func download(path: String) async throws -> Data {
@@ -170,6 +185,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             "-o", "ServerAliveCountMax=3",
             "-o", "StrictHostKeyChecking=ask",
         ]
+        args.append(contentsOf: SSHConnectionReuse.options(for: host))
 
         switch host.auth.method {
         case .privateKey:
@@ -195,6 +211,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             "-o", "ServerAliveCountMax=3",
             "-o", "StrictHostKeyChecking=ask",
         ]
+        args.append(contentsOf: SSHConnectionReuse.options(for: host))
 
         switch host.auth.method {
         case .privateKey:
@@ -238,6 +255,55 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 modifiedAt: parsed.modifiedAt
             )
         }
+    }
+
+    static func parseNameOnlyListOutput(_ output: String, parentPath: String, now: Date = Date()) -> [RemoteFileEntry] {
+        var seen = Set<String>()
+        var entries: [RemoteFileEntry] = []
+        let lines = output
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        for line in lines {
+            guard !line.isEmpty else { continue }
+            guard !line.hasPrefix("sftp>") else { continue }
+            guard !line.hasPrefix("Connected to ") else { continue }
+            guard !line.hasSuffix(":") else { continue }
+            guard !line.contains("No such file") else { continue }
+
+            let tokens = line.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+            for rawToken in tokens {
+                guard !rawToken.isEmpty else { continue }
+                var name = rawToken
+                var isDirectory = false
+                if name.hasSuffix("/") {
+                    isDirectory = true
+                    name.removeLast()
+                }
+                guard name != "." && name != ".." else { continue }
+                guard !seen.contains(name) else { continue }
+                seen.insert(name)
+
+                let fullPath: String
+                if parentPath == "/" {
+                    fullPath = "/\(name)"
+                } else {
+                    fullPath = "\(parentPath)/\(name)".replacingOccurrences(of: "//", with: "/")
+                }
+                entries.append(
+                    RemoteFileEntry(
+                        name: name,
+                        path: fullPath,
+                        size: 0,
+                        isDirectory: isDirectory,
+                        modifiedAt: now
+                    )
+                )
+            }
+        }
+
+        return entries
     }
 
     static func parseLongListEntries(_ output: String, now: Date = Date()) -> [ParsedLongListEntry] {
@@ -368,8 +434,12 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     }
 
     private func runSSHCommand(_ command: String) async throws {
+        _ = try await runSSHCommandOutput(command)
+    }
+
+    private func runSSHCommandOutput(_ command: String) async throws -> String {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return "" }
 
         let launch = try await makeSSHLaunchConfiguration(command: trimmed)
         let result = try await runProcess(
@@ -379,14 +449,17 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             stdin: nil
         )
 
+        let stdoutText = String(decoding: result.stdout, as: UTF8.self)
+        let stderrText = String(decoding: result.stderr, as: UTF8.self)
+
         guard result.status == 0 else {
-            let stderrText = String(decoding: result.stderr, as: UTF8.self)
-            let stdoutText = String(decoding: result.stdout, as: UTF8.self)
             let message = [stderrText, stdoutText]
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .first(where: { !$0.isEmpty }) ?? "ssh exited with status \(result.status)"
             throw SSHError.connectionFailed(message)
         }
+
+        return stdoutText
     }
 
     private func runProcess(
@@ -514,6 +587,40 @@ public actor SystemSFTPClient: SFTPClientProtocol {
 
     private func makeTemporaryURL(prefix: String) -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("\(prefix)-\(UUID().uuidString)")
+    }
+
+    private func listViaSSH(path: String) async throws -> [RemoteFileEntry] {
+        let command = "LC_ALL=C ls -1Ap -- \(Self.quoteShellArgument(path))"
+        let output = try await runSSHCommandOutput(command)
+        let now = Date()
+        let names = output
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+
+        return names.map { rawName in
+            var name = rawName
+            let isDirectory = name.hasSuffix("/")
+            if isDirectory {
+                name.removeLast()
+            }
+
+            let fullPath: String
+            if path == "/" {
+                fullPath = "/\(name)"
+            } else {
+                fullPath = "\(path)/\(name)".replacingOccurrences(of: "//", with: "/")
+            }
+
+            return RemoteFileEntry(
+                name: name,
+                path: fullPath,
+                size: 0,
+                isDirectory: isDirectory,
+                modifiedAt: now
+            )
+        }
     }
 
     private static func quoteBatchArgument(_ value: String) -> String {

@@ -22,6 +22,8 @@ struct SystemSFTPClientTests {
         #expect(args.contains("ConnectTimeout=12"))
         #expect(args.contains("ServerAliveInterval=40"))
         #expect(args.contains("StrictHostKeyChecking=ask"))
+        #expect(args.contains("ControlMaster=auto"))
+        #expect(args.contains(where: { $0.hasPrefix("ControlPath=/tmp/") }))
         #expect(args.contains("-i"))
         #expect(args.contains("/Users/demo/.ssh/id_ed25519"))
         #expect(args.contains("PreferredAuthentications=publickey"))
@@ -59,5 +61,20 @@ struct SystemSFTPClientTests {
         #expect(parsed[0].owner == "user1")
         #expect(parsed[0].group == "group2")
         #expect(parsed[0].size == 512)
+    }
+
+    @Test
+    func parsesNameOnlyListOutputFallback() {
+        let output = """
+        bin/
+        etc/
+        README.txt
+        """
+
+        let entries = SystemSFTPClient.parseNameOnlyListOutput(output, parentPath: "/")
+        #expect(entries.count == 3)
+        #expect(entries.contains(where: { $0.path == "/bin" && $0.isDirectory }))
+        #expect(entries.contains(where: { $0.path == "/etc" && $0.isDirectory }))
+        #expect(entries.contains(where: { $0.path == "/README.txt" && !$0.isDirectory }))
     }
 }
