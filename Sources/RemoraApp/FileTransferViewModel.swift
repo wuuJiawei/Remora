@@ -153,6 +153,11 @@ final class FileTransferViewModel: ObservableObject {
         Task { await refreshRemoteEntries() }
     }
 
+    func navigateRemote(to path: String) {
+        remoteDirectoryPath = normalizeRemoteDirectoryPath(path)
+        Task { await refreshRemoteEntries() }
+    }
+
     func openLocal(_ entry: LocalFileEntry) {
         guard entry.isDirectory else { return }
         localDirectoryURL = entry.url
@@ -246,5 +251,13 @@ final class FileTransferViewModel: ObservableObject {
             return "/\(child)"
         }
         return "\(base)/\(child)".replacingOccurrences(of: "//", with: "/")
+    }
+
+    private func normalizeRemoteDirectoryPath(_ rawPath: String) -> String {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "/" }
+        let prefixed = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        let collapsed = prefixed.replacingOccurrences(of: "//", with: "/")
+        return collapsed.isEmpty ? "/" : collapsed
     }
 }

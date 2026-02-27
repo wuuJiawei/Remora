@@ -7,6 +7,7 @@ struct FileManagerPanelView: View {
     @State private var selectedRemotePath: String?
     @State private var hoveredRemotePath: String?
     @State private var hoveredTransferID: UUID?
+    @State private var remotePathDraft = "/"
 
     private var selectedRemoteEntry: RemoteFileEntry? {
         guard let selectedRemotePath else { return nil }
@@ -55,6 +56,12 @@ struct FileManagerPanelView: View {
             transferQueuePanel
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.transferQueue.map(\.status))
+        .onAppear {
+            remotePathDraft = viewModel.remoteDirectoryPath
+        }
+        .onChange(of: viewModel.remoteDirectoryPath) {
+            remotePathDraft = viewModel.remoteDirectoryPath
+        }
     }
 
     private var remotePanel: some View {
@@ -65,9 +72,21 @@ struct FileManagerPanelView: View {
                 Spacer()
             }
 
-            Text(viewModel.remoteDirectoryPath)
-                .monoMetaStyle()
-                .lineLimit(1)
+            breadcrumbBar
+
+            HStack(spacing: 8) {
+                TextField("/path/to/dir", text: $remotePathDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption.monospaced())
+                    .onSubmit {
+                        jumpToRemotePath()
+                    }
+
+                Button("Go") {
+                    jumpToRemotePath()
+                }
+                .buttonStyle(.bordered)
+            }
 
             List(viewModel.remoteEntries, id: \.path) { entry in
                 Button {
@@ -106,6 +125,29 @@ struct FileManagerPanelView: View {
             .scrollContentBackground(.hidden)
             .background(VisualStyle.rightPanelBackground)
             .listStyle(.plain)
+        }
+    }
+
+    private var breadcrumbBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                Button("/") {
+                    navigateToBreadcrumb(prefixCount: 0)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                ForEach(Array(pathComponents.enumerated()), id: \.offset) { index, component in
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(VisualStyle.textSecondary)
+                    Button(component) {
+                        navigateToBreadcrumb(prefixCount: index + 1)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
         }
     }
 
@@ -162,5 +204,26 @@ struct FileManagerPanelView: View {
         case .failed:
             return .red
         }
+    }
+
+    private var pathComponents: [String] {
+        viewModel.remoteDirectoryPath
+            .split(separator: "/")
+            .map(String.init)
+    }
+
+    private func jumpToRemotePath() {
+        viewModel.navigateRemote(to: remotePathDraft)
+        selectedRemotePath = nil
+    }
+
+    private func navigateToBreadcrumb(prefixCount: Int) {
+        if prefixCount == 0 {
+            viewModel.navigateRemote(to: "/")
+        } else {
+            let path = "/" + pathComponents.prefix(prefixCount).joined(separator: "/")
+            viewModel.navigateRemote(to: path)
+        }
+        selectedRemotePath = nil
     }
 }
