@@ -43,6 +43,7 @@ final class TerminalRuntime: ObservableObject {
     private var streamTask: Task<Void, Never>?
     private var stateTask: Task<Void, Never>?
     private var inputDrainerTask: Task<Void, Never>?
+    private var pendingResizeApplyTask: Task<Void, Never>?
     private struct QueuedInput {
         var data: Data
         var trackWorkingDirectory: Bool
@@ -216,7 +217,12 @@ final class TerminalRuntime: ObservableObject {
     func resize(columns: Int, rows: Int) {
         let nextSize = PTYSize(columns: max(1, columns), rows: max(1, rows))
         pendingPTYSize = nextSize
-        Task { await applyPendingResizeIfNeeded() }
+        pendingResizeApplyTask?.cancel()
+        pendingResizeApplyTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard let self, !Task.isCancelled else { return }
+            await self.applyPendingResizeIfNeeded()
+        }
     }
 
     func respondToHostKeyPrompt(accept: Bool) {
@@ -350,6 +356,8 @@ final class TerminalRuntime: ObservableObject {
 
         pendingOutput.removeAll(keepingCapacity: false)
         clearInputQueue()
+        pendingResizeApplyTask?.cancel()
+        pendingResizeApplyTask = nil
         lastAppliedPTYSize = nil
         activeSSHAuthStage = nil
         activeSSHHostAddress = nil

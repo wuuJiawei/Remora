@@ -188,6 +188,43 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func rapidDifferentResizesAreDebouncedToLatestSize() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        await recorder.reset()
+        runtime.resize(columns: 96, rows: 21)
+        runtime.resize(columns: 96, rows: 27)
+        runtime.resize(columns: 96, rows: 32)
+        runtime.resize(columns: 96, rows: 33)
+
+        let applied = await waitUntilAsync(timeout: 2.0) {
+            await recorder.resizeRequests.contains(where: { $0.columns == 96 && $0.rows == 33 })
+        }
+        #expect(applied, "Latest resize should be applied after debounce.")
+
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        let requests = await recorder.resizeRequests
+        #expect(requests.count == 1, "Rapid resize bursts should be coalesced into one apply.")
+        if let only = requests.first {
+            #expect(only.columns == 96 && only.rows == 33, "Coalesced resize should use the latest size.")
+        }
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
