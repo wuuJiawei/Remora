@@ -7,6 +7,7 @@ struct ContentView: View {
     @StateObject private var workspace = WorkspaceViewModel()
     @StateObject private var hostCatalog = HostCatalogStore()
     @StateObject private var fileTransfer = FileTransferViewModel()
+    @StateObject private var directorySyncBridge = TerminalDirectorySyncBridge()
 
     @State private var hostSearchQuery = ""
     @State private var selectedHostID: UUID?
@@ -69,9 +70,16 @@ struct ContentView: View {
             if let firstPane = workspace.activePane {
                 firstPane.runtime.connectLocalShell()
             }
+            directorySyncBridge.bind(fileTransfer: fileTransfer, runtime: workspace.activePane?.runtime)
         }
         .onChange(of: selectedHostID) {
             selectedTemplateID = availableTemplates.first?.id
+        }
+        .onChange(of: workspace.activeTabID) {
+            directorySyncBridge.attachRuntime(workspace.activePane?.runtime)
+        }
+        .onChange(of: workspace.activePaneByTab) {
+            directorySyncBridge.attachRuntime(workspace.activePane?.runtime)
         }
         .onChange(of: hostCatalog.hosts) {
             if let selectedHostID, hostCatalog.host(id: selectedHostID) != nil {
