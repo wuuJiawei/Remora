@@ -32,6 +32,7 @@ final class TerminalRuntime: ObservableObject {
     @Published var connectionMode: ConnectionMode = .local
     @Published var transcriptSnapshot: String = ""
     @Published var hostKeyPromptMessage: String?
+    @Published private(set) var workingDirectory: String?
 
     private let localSessionManager: SessionManager
     private let sshSessionManager: SessionManager
@@ -42,7 +43,12 @@ final class TerminalRuntime: ObservableObject {
     private var streamTask: Task<Void, Never>?
     private var stateTask: Task<Void, Never>?
     private var inputDrainerTask: Task<Void, Never>?
-    private var pendingInputs: [Data] = []
+    private struct QueuedInput {
+        var data: Data
+        var trackWorkingDirectory: Bool
+    }
+
+    private var pendingInputs: [QueuedInput] = []
     private var isPaneActive = true
     private var pendingOutput = Data()
     private var transcriptBuffer = ""
@@ -52,6 +58,10 @@ final class TerminalRuntime: ObservableObject {
     private var activeSSHAuthStage: SSHAuthStage?
     private var sshAuthProbeTail = ""
     private var activeSSHHostAddress: String?
+    private var isWorkingDirectoryTrackingEnabled = false
+    private var pendingWorkingDirectoryProbeTask: Task<Void, Never>?
+    private var awaitingPwdResponse = false
+    private var workingDirectoryLineBuffer = ""
 
     init(
         localSessionManager: SessionManager = SessionManager(sshClientFactory: { LocalShellClient() }),
@@ -127,6 +137,7 @@ final class TerminalRuntime: ObservableObject {
                 connectionState = "Connecting"
                 clearTranscript()
                 clearInputQueue()
+                workingDirectory = config.mode == .local ? FileManager.default.currentDirectoryPath : "/"
             }
 
             guard let host = await MainActor.run(body: { buildHostConfiguration(config: config) }) else {
@@ -156,6 +167,11 @@ final class TerminalRuntime: ObservableObject {
                     bindSessionState(for: descriptor.id, manager: manager)
                 }
                 await self.applyPendingResizeIfNeeded()
+                if await MainActor.run(body: { isWorkingDirectoryTrackingEnabled }) {
+                    await MainActor.run {
+                        scheduleWorkingDirectoryProbe()
+                    }
+                }
             } catch {
                 await MainActor.run {
                     connectionState = "Failed: \(error.localizedDescription)"
@@ -169,7 +185,30 @@ final class TerminalRuntime: ObservableObject {
             await stopActiveSessionIfNeeded()
             await MainActor.run {
                 self.connectionState = "Disconnected"
+                self.workingDirectory = nil
             }
+        }
+    }
+
+    func setWorkingDirectoryTrackingEnabled(_ enabled: Bool) {
+        isWorkingDirectoryTrackingEnabled = enabled
+        if enabled {
+            scheduleWorkingDirectoryProbe()
+        } else {
+            pendingWorkingDirectoryProbeTask?.cancel()
+            pendingWorkingDirectoryProbeTask = nil
+            awaitingPwdResponse = false
+            workingDirectoryLineBuffer.removeAll(keepingCapacity: false)
+        }
+    }
+
+    func changeDirectory(to path: String) {
+        let normalized = normalizeDirectoryPath(path)
+        workingDirectory = normalized
+        let quotedPath = shellSingleQuoted(normalized)
+        enqueueInput(Data("cd \(quotedPath)\n".utf8), trackWorkingDirectory: false)
+        if isWorkingDirectoryTrackingEnabled {
+            scheduleWorkingDirectoryProbe()
         }
     }
 
@@ -180,7 +219,7 @@ final class TerminalRuntime: ObservableObject {
     }
 
     func respondToHostKeyPrompt(accept: Bool) {
-        enqueueInput(Data((accept ? "yes\n" : "no\n").utf8))
+        enqueueInput(Data((accept ? "yes\n" : "no\n").utf8), trackWorkingDirectory: false)
         hostKeyPromptMessage = nil
         activeSSHAuthStage = nil
         sshAuthProbeTail.removeAll(keepingCapacity: false)
@@ -237,7 +276,11 @@ final class TerminalRuntime: ObservableObject {
     }
 
     private func enqueueInput(_ data: Data) {
-        pendingInputs.append(data)
+        enqueueInput(data, trackWorkingDirectory: true)
+    }
+
+    private func enqueueInput(_ data: Data, trackWorkingDirectory: Bool) {
+        pendingInputs.append(.init(data: data, trackWorkingDirectory: trackWorkingDirectory))
         guard inputDrainerTask == nil else { return }
 
         inputDrainerTask = Task { [weak self] in
@@ -258,12 +301,18 @@ final class TerminalRuntime: ObservableObject {
         while !pendingInputs.isEmpty {
             if Task.isCancelled { return }
 
-            let data = pendingInputs.removeFirst()
-            guard !data.isEmpty else { continue }
+            let queuedInput = pendingInputs.removeFirst()
+            guard !queuedInput.data.isEmpty else { continue }
             guard let sessionID, let manager = activeSessionManager else { continue }
 
             do {
-                try await manager.write(data, to: sessionID)
+                try await manager.write(queuedInput.data, to: sessionID)
+                if queuedInput.trackWorkingDirectory,
+                   isWorkingDirectoryTrackingEnabled,
+                   queuedInput.data.contains(where: { $0 == 10 || $0 == 13 })
+                {
+                    scheduleWorkingDirectoryProbe()
+                }
             } catch {
                 connectionState = "Write failed: \(error.localizedDescription)"
                 return
@@ -305,6 +354,10 @@ final class TerminalRuntime: ObservableObject {
         activeSSHHostAddress = nil
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         hostKeyPromptMessage = nil
+        pendingWorkingDirectoryProbeTask?.cancel()
+        pendingWorkingDirectoryProbeTask = nil
+        awaitingPwdResponse = false
+        workingDirectoryLineBuffer.removeAll(keepingCapacity: false)
     }
 
     private func applyPendingResizeIfNeeded() async {
@@ -381,6 +434,8 @@ final class TerminalRuntime: ObservableObject {
         let chunk = String(decoding: data, as: UTF8.self)
         guard !chunk.isEmpty else { return }
 
+        updateWorkingDirectory(with: chunk)
+
         transcriptBuffer.append(chunk)
         if transcriptBuffer.count > maxTranscriptCharacters {
             transcriptBuffer.removeFirst(transcriptBuffer.count - maxTranscriptCharacters)
@@ -389,6 +444,72 @@ final class TerminalRuntime: ObservableObject {
         transcriptSnapshot = transcriptBuffer
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    private func scheduleWorkingDirectoryProbe() {
+        guard isWorkingDirectoryTrackingEnabled else { return }
+        pendingWorkingDirectoryProbeTask?.cancel()
+        pendingWorkingDirectoryProbeTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard let self else { return }
+            guard !Task.isCancelled else { return }
+            guard self.sessionID != nil else { return }
+            await MainActor.run {
+                self.awaitingPwdResponse = true
+                self.enqueueInput(Data("pwd\n".utf8), trackWorkingDirectory: false)
+            }
+        }
+    }
+
+    private func updateWorkingDirectory(with chunk: String) {
+        guard isWorkingDirectoryTrackingEnabled else { return }
+        if let oscPath = parseOSC7Path(from: chunk) {
+            workingDirectory = normalizeDirectoryPath(oscPath)
+            awaitingPwdResponse = false
+        }
+
+        let normalizedChunk = chunk.replacingOccurrences(of: "\r", with: "\n")
+        workingDirectoryLineBuffer.append(normalizedChunk)
+
+        while let newlineIndex = workingDirectoryLineBuffer.firstIndex(of: "\n") {
+            let line = String(workingDirectoryLineBuffer[..<newlineIndex])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            workingDirectoryLineBuffer.removeSubrange(...newlineIndex)
+
+            guard awaitingPwdResponse else { continue }
+            guard line.hasPrefix("/") else { continue }
+            workingDirectory = normalizeDirectoryPath(line)
+            awaitingPwdResponse = false
+        }
+
+        if workingDirectoryLineBuffer.count > 2048 {
+            workingDirectoryLineBuffer = String(workingDirectoryLineBuffer.suffix(1024))
+        }
+    }
+
+    private func parseOSC7Path(from text: String) -> String? {
+        let oscPrefix = "\u{001B}]7;file://"
+        guard let prefixRange = text.range(of: oscPrefix) else { return nil }
+        let remainder = text[prefixRange.upperBound...]
+        let terminatorIndex: String.Index? = remainder.firstIndex(of: "\u{0007}")
+            ?? remainder.range(of: "\u{001B}\\")?.lowerBound
+        guard let terminatorIndex else { return nil }
+        let payload = String(remainder[..<terminatorIndex])
+        guard let slashIndex = payload.firstIndex(of: "/") else { return nil }
+        let path = String(payload[slashIndex...])
+        return path.removingPercentEncoding ?? path
+    }
+
+    private func normalizeDirectoryPath(_ path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "/" }
+        let prefixed = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        return prefixed.replacingOccurrences(of: "//", with: "/")
+    }
+
+    private func shellSingleQuoted(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
+        return "'\(escaped)'"
     }
 
     private func updateAuthenticationState(with data: Data) {

@@ -100,6 +100,61 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func changeDirectoryUpdatesWorkingDirectoryImmediately() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        runtime.changeDirectory(to: "/tmp")
+
+        let updated = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/tmp"
+        }
+        #expect(updated, "changeDirectory should update runtime workingDirectory.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func workingDirectoryTrackingFallsBackToPwdProbe() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/srv/app")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.setWorkingDirectoryTrackingEnabled(true)
+        runtime.connectLocalShell()
+
+        let initialDetected = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/srv/app"
+        }
+        #expect(initialDetected, "Tracking should discover the current directory from pwd output.")
+        guard initialDetected else { return }
+
+        await recorder.reset()
+        runtime.changeDirectory(to: "/srv/app/logs")
+
+        let movedDetected = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/srv/app/logs"
+        }
+        #expect(movedDetected, "Working directory should converge to the moved path.")
+
+        let probeIssued = await waitUntilAsync(timeout: 2.0) {
+            await recorder.commands.contains("pwd")
+        }
+        #expect(probeIssued, "Runtime should issue a pwd fallback probe after cd.")
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -109,5 +164,16 @@ struct TerminalRuntimeTests {
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
         return condition()
+    }
+
+    private func waitUntilAsync(timeout: TimeInterval, condition: @escaping () async -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return await condition()
     }
 }
