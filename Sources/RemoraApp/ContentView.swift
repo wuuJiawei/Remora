@@ -8,12 +8,10 @@ struct ContentView: View {
     @StateObject private var fileTransfer = FileTransferViewModel()
 
     @State private var hostSearchQuery = ""
-    @State private var quickConnectQuery = ""
     @State private var selectedHostID: UUID?
     @State private var selectedTemplateID: UUID?
-    @State private var pendingSplitOrientation: PaneSplitOrientation = .horizontal
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
-    @State private var isFilePanelVisible = true
+    @State private var isFilePanelVisible = false
     @State private var isSettingsAlertPresented = false
     @State private var collapsedGroupNames: Set<String> = []
     @State private var isRenameGroupSheetPresented = false
@@ -22,6 +20,9 @@ struct ContentView: View {
     @State private var isRenameHostSheetPresented = false
     @State private var renameHostID: UUID?
     @State private var renameHostDraft = ""
+    @State private var isRenameSessionSheetPresented = false
+    @State private var renameSessionID: UUID?
+    @State private var renameSessionDraft = ""
 
     private var selectedHost: RemoraCore.Host? {
         hostCatalog.host(id: selectedHostID)
@@ -214,194 +215,194 @@ struct ContentView: View {
                 }
             )
         }
+        .sheet(isPresented: $isRenameSessionSheetPresented) {
+            SidebarRenameSheet(
+                title: "Rename Session",
+                fieldTitle: "Session title",
+                value: $renameSessionDraft,
+                onCancel: {
+                    isRenameSessionSheetPresented = false
+                },
+                onConfirm: {
+                    commitRenameSession()
+                }
+            )
+        }
     }
 
     private var detailWorkspace: some View {
-        GeometryReader { proxy in
-            let isCompact = proxy.size.width < 1260
+        VStack(spacing: VisualStyle.panelSpacing) {
+            sessionContainer
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            fileManagerDisclosure
+        }
+        .padding(VisualStyle.pagePadding)
+    }
 
-            VStack(spacing: VisualStyle.panelSpacing) {
-                controlCard(isCompact: isCompact)
-                tabStripCard
-
-                if isCompact {
-                    VStack(spacing: VisualStyle.panelSpacing) {
-                        terminalWorkspaceCard
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                        if isFilePanelVisible {
-                            FileManagerPanelView(viewModel: fileTransfer)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                                .frame(minHeight: 260, maxHeight: 340)
-                        }
-                    }
+    private var sessionContainer: some View {
+        VStack(spacing: 0) {
+            sessionTabBar
+            Divider()
+                .overlay(VisualStyle.borderSoft)
+            Group {
+                if let activeTab = workspace.activeTab {
+                    sessionContent(for: activeTab)
                 } else {
-                    HSplitView {
-                        terminalWorkspaceCard
-
-                        if isFilePanelVisible {
-                            FileManagerPanelView(viewModel: fileTransfer)
-                                .frame(minWidth: 340, idealWidth: 380, maxWidth: 460)
-                        }
-                    }
-                }
-            }
-            .padding(VisualStyle.pagePadding)
-        }
-    }
-
-    private func controlCard(isCompact: Bool) -> some View {
-        GroupBox {
-            VStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    TextField("Quick Connect (alias / host)", text: $quickConnectQuery)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit {
-                            connectFromQuickQuery()
-                        }
-
-                    Button("Quick Connect") {
-                        connectFromQuickQuery()
-                    }
-                    .buttonStyle(.bordered)
-
-                    Spacer(minLength: 10)
-
-                    Picker("Split", selection: $pendingSplitOrientation) {
-                        ForEach(PaneSplitOrientation.allCases) { orientation in
-                            Text(orientation.rawValue).tag(orientation)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: isCompact ? 180 : 220)
-
-                    Button("Split") {
-                        workspace.splitActiveTab(orientation: pendingSplitOrientation)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        workspace.createTab()
-                    } label: {
-                        Label("Tab", systemImage: "plus")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        withAnimation {
-                            isFilePanelVisible.toggle()
-                        }
-                    } label: {
-                        Label(
-                            isFilePanelVisible ? "Hide Files" : "Show Files",
-                            systemImage: isFilePanelVisible ? "sidebar.right" : "sidebar.left"
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                HStack(spacing: 10) {
-                    HostSummaryChip(host: selectedHost)
-
-                    if !availableTemplates.isEmpty {
-                        Picker("Template", selection: $selectedTemplateID) {
-                            ForEach(availableTemplates) { template in
-                                Text(template.name).tag(Optional(template.id))
-                            }
-                        }
-                        .frame(width: 230)
-                    }
-
-                    Button("Connect Active Pane") {
-                        connectSelectedHostToActivePane()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(selectedHost == nil)
-
-                    Button("Disconnect") {
-                        workspace.disconnectActivePane()
-                    }
-                    .buttonStyle(.bordered)
-
-                    if let activePane = workspace.activePane {
-                        PaneStatusChip(status: activePane.runtime.connectionState)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-            }
-            .padding(.top, 2)
-        } label: {
-            Label("Command Center", systemImage: "slider.horizontal.3")
-                .panelTitleStyle()
-        }
-        .groupBoxStyle(.automatic)
-        .glassCard()
-    }
-
-    private var tabStripCard: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(workspace.tabs) { tab in
-                    TabPill(
-                        title: tab.title,
-                        isActive: workspace.activeTabID == tab.id,
-                        canClose: workspace.tabs.count > 1,
-                        onTap: { workspace.selectTab(tab.id) },
-                        onClose: { workspace.closeTab(tab.id) }
+                    ContentUnavailableView(
+                        "No Session",
+                        systemImage: "rectangle.slash",
+                        description: Text("Create a new session from tab bar.")
                     )
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .glassCard(radius: 12, fill: VisualStyle.rightPanelBackground, border: VisualStyle.borderSoft)
+        .glassCard(fill: VisualStyle.rightPanelBackground, border: VisualStyle.borderSoft)
     }
 
-    private var terminalWorkspaceCard: some View {
-        GroupBox {
-            tabWorkspace
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } label: {
-            Label("Terminal Workspace", systemImage: "rectangle.split.2x1")
-                .panelTitleStyle()
+    private var sessionTabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(workspace.tabs) { tab in
+                    SessionTabBarItem(
+                        title: tab.title,
+                        isActive: workspace.activeTabID == tab.id,
+                        canClose: workspace.tabs.count > 1,
+                        onSelect: {
+                            workspace.selectTab(tab.id)
+                        },
+                        onClose: {
+                            workspace.closeTab(tab.id)
+                        }
+                    )
+                    .contextMenu {
+                        sessionContextMenu(for: tab)
+                    }
+                }
+
+                Button {
+                    workspace.createTab()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(VisualStyle.textSecondary)
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .glassCard()
+        .background(VisualStyle.rightPanelBackground)
     }
 
     @ViewBuilder
-    private var tabWorkspace: some View {
-        if let activeTab = workspace.activeTab {
-            if activeTab.panes.count == 1, let pane = activeTab.panes.first {
-                TerminalPaneView(
-                    pane: pane,
-                    isFocused: workspace.activePane?.id == pane.id,
-                    onSelect: {
-                        workspace.selectPane(pane.id, in: activeTab.id)
-                    }
-                )
-            } else if activeTab.panes.count == 2 {
-                if activeTab.splitOrientation == .horizontal {
-                    HSplitView {
-                        paneView(activeTab.panes[0], tabID: activeTab.id)
-                        paneView(activeTab.panes[1], tabID: activeTab.id)
-                    }
-                } else {
-                    VSplitView {
-                        paneView(activeTab.panes[0], tabID: activeTab.id)
-                        paneView(activeTab.panes[1], tabID: activeTab.id)
-                    }
+    private func sessionContextMenu(for tab: TerminalTabModel) -> some View {
+        Button("New Session") {
+            workspace.createTab()
+        }
+
+        Button("Rename Session") {
+            beginRenameSession(tab.id)
+        }
+
+        if workspace.tabs.count > 1 {
+            Button("Close Session", role: .destructive) {
+                workspace.closeTab(tab.id)
+            }
+        }
+
+        Divider()
+
+        Button("Split Horizontal") {
+            workspace.selectTab(tab.id)
+            workspace.splitActiveTab(orientation: .horizontal)
+        }
+        .disabled(tab.panes.count > 1)
+
+        Button("Split Vertical") {
+            workspace.selectTab(tab.id)
+            workspace.splitActiveTab(orientation: .vertical)
+        }
+        .disabled(tab.panes.count > 1)
+
+        if selectedHost != nil {
+            Divider()
+            Button("Connect Selected SSH Host") {
+                connectSelectedHost(to: tab.id)
+            }
+            Button("Disconnect Session") {
+                disconnectSession(tab.id)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sessionContent(for tab: TerminalTabModel) -> some View {
+        if tab.panes.count == 1, let pane = tab.panes.first {
+            paneView(pane, tabID: tab.id)
+        } else if tab.panes.count == 2 {
+            if tab.splitOrientation == .horizontal {
+                HSplitView {
+                    paneView(tab.panes[0], tabID: tab.id)
+                    paneView(tab.panes[1], tabID: tab.id)
+                }
+            } else {
+                VSplitView {
+                    paneView(tab.panes[0], tabID: tab.id)
+                    paneView(tab.panes[1], tabID: tab.id)
                 }
             }
         } else {
-            ContentUnavailableView("No Active Tab", systemImage: "rectangle.slash", description: Text("Create a new tab to start a session."))
+            ContentUnavailableView(
+                "Invalid Session State",
+                systemImage: "exclamationmark.triangle",
+                description: Text("Session pane count is not supported.")
+            )
         }
+    }
+
+    private var fileManagerDisclosure: some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isFilePanelVisible.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isFilePanelVisible ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(VisualStyle.textSecondary)
+                    Label("File Manager", systemImage: "folder")
+                        .panelTitleStyle()
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 2)
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .zIndex(1)
+
+            if isFilePanelVisible {
+                Divider()
+                    .overlay(VisualStyle.borderSoft)
+                    .padding(.top, 6)
+                FileManagerPanelView(viewModel: fileTransfer)
+                    .frame(minHeight: 240, maxHeight: 320)
+                    .padding(.top, 8)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .glassCard(fill: VisualStyle.rightPanelBackground, border: VisualStyle.borderSoft)
     }
 
     private func paneView(_ pane: TerminalPaneModel, tabID: UUID) -> some View {
         TerminalPaneView(
             pane: pane,
-            isFocused: workspace.activePane?.id == pane.id,
+            isFocused: workspace.activePaneByTab[tabID] == pane.id,
             onSelect: {
                 workspace.selectPane(pane.id, in: tabID)
             }
@@ -478,6 +479,20 @@ struct ContentView: View {
         self.renameHostID = nil
     }
 
+    private func beginRenameSession(_ tabID: UUID) {
+        guard let tab = workspace.tab(id: tabID) else { return }
+        renameSessionID = tabID
+        renameSessionDraft = tab.title
+        isRenameSessionSheetPresented = true
+    }
+
+    private func commitRenameSession() {
+        isRenameSessionSheetPresented = false
+        guard let renameSessionID else { return }
+        workspace.renameTab(renameSessionID, title: renameSessionDraft)
+        self.renameSessionID = nil
+    }
+
     private func togglePinHost(_ hostID: UUID) {
         hostCatalog.toggleFavorite(hostID: hostID)
     }
@@ -493,26 +508,16 @@ struct ContentView: View {
         pasteboard.setString(text, forType: .string)
     }
 
-    private func connectSelectedHostToActivePane() {
+    private func connectSelectedHost(to tabID: UUID) {
         guard let host = selectedHost else { return }
+        workspace.selectTab(tabID)
         workspace.connectActivePane(host: host, template: selectedTemplate)
         hostCatalog.markConnected(hostID: host.id)
     }
 
-    private func connectFromQuickQuery() {
-        guard let host = hostCatalog.quickConnectMatch(input: quickConnectQuery) else {
-            if let pane = workspace.activePane {
-                pane.runtime.connectionState = "Quick connect: host not found"
-            }
-            return
-        }
-
-        selectedHostID = host.id
-        let template = hostCatalog.templates(for: host.id).first
-        selectedTemplateID = template?.id
-        workspace.connectActivePane(host: host, template: template)
-        hostCatalog.markConnected(hostID: host.id)
-        quickConnectQuery = ""
+    private func disconnectSession(_ tabID: UUID) {
+        workspace.selectTab(tabID)
+        workspace.disconnectActivePane()
     }
 }
 
@@ -809,72 +814,20 @@ private struct SidebarRenameSheet: View {
     }
 }
 
-private struct HostSummaryChip: View {
-    let host: RemoraCore.Host?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "server.rack")
-            Text(host.map { "\($0.name) (\($0.address))" } ?? "No host selected")
-                .lineLimit(1)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(VisualStyle.textPrimary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(VisualStyle.leftInteractiveBackground, in: Capsule())
-        .overlay(Capsule().stroke(VisualStyle.borderNormal, lineWidth: 1))
-    }
-}
-
-private struct PaneStatusChip: View {
-    let status: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-            Text(status)
-                .lineLimit(1)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(VisualStyle.textPrimary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(VisualStyle.leftInteractiveBackground, in: Capsule())
-        .overlay(Capsule().stroke(VisualStyle.borderNormal, lineWidth: 1))
-        .contentTransition(.opacity)
-        .animation(.easeInOut(duration: 0.2), value: status)
-    }
-
-    private var statusColor: Color {
-        if status.hasPrefix("Connected") {
-            return .green
-        }
-        if status.hasPrefix("Failed") {
-            return .red
-        }
-        if status.hasPrefix("Connecting") {
-            return .orange
-        }
-        return .secondary
-    }
-}
-
-private struct TabPill: View {
+private struct SessionTabBarItem: View {
     let title: String
     let isActive: Bool
     let canClose: Bool
-    let onTap: () -> Void
+    let onSelect: () -> Void
     let onClose: () -> Void
     @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 6) {
-            Button(action: onTap) {
+            Button(action: onSelect) {
                 Text(title)
                     .lineLimit(1)
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(VisualStyle.textPrimary)
             }
             .buttonStyle(.plain)
@@ -882,25 +835,27 @@ private struct TabPill: View {
             if canClose {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.caption.bold())
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(VisualStyle.textSecondary)
+                        .frame(width: 14, height: 14)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(isActive || isHovering ? VisualStyle.leftInteractiveBackground : VisualStyle.rightPanelBackground, in: Capsule())
-        .overlay(
-            Capsule()
-                .stroke(isActive ? VisualStyle.borderStrong : VisualStyle.borderSoft, lineWidth: 1)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isActive ? VisualStyle.leftSelectedBackground : (isHovering ? VisualStyle.leftHoverBackground : Color.clear))
         )
-        .scaleEffect(isHovering && !isActive ? 1.02 : 1.0)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isActive ? VisualStyle.borderStrong : Color.clear, lineWidth: 1)
+        )
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.14)) {
+            withAnimation(.easeOut(duration: 0.12)) {
                 isHovering = hovering
             }
         }
-        .animation(.spring(response: 0.24, dampingFraction: 0.85), value: isActive)
     }
 }
