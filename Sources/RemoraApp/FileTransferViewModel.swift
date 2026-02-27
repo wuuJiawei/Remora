@@ -11,6 +11,26 @@ enum TransferStatus: String, Sendable {
     case running = "Running"
     case success = "Success"
     case failed = "Failed"
+    case skipped = "Skipped"
+}
+
+enum TransferConflictStrategy: String, CaseIterable, Identifiable, Sendable {
+    case overwrite
+    case skip
+    case rename
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .overwrite:
+            return "Overwrite"
+        case .skip:
+            return "Skip"
+        case .rename:
+            return "Rename"
+        }
+    }
 }
 
 struct TransferItem: Identifiable, Sendable {
@@ -72,6 +92,7 @@ struct LocalFileEntry: Identifiable, Hashable {
 final class FileTransferViewModel: ObservableObject {
     @Published var localDirectoryURL: URL
     @Published var remoteDirectoryPath: String
+    @Published var conflictStrategy: TransferConflictStrategy = .overwrite
     @Published private(set) var localEntries: [LocalFileEntry] = []
     @Published private(set) var remoteEntries: [RemoteFileEntry] = []
     @Published private(set) var transferQueue: [TransferItem] = []
@@ -249,6 +270,26 @@ final class FileTransferViewModel: ObservableObject {
         }
     }
 
+    func retryTransfer(itemID: UUID) {
+        guard let index = transferQueue.firstIndex(where: { $0.id == itemID }) else { return }
+        guard transferQueue[index].status == .failed || transferQueue[index].status == .skipped else { return }
+        transferQueue[index].status = .queued
+        transferQueue[index].message = nil
+        transferQueue[index].bytesTransferred = 0
+        Task {
+            await executeTransfer(itemID: itemID)
+        }
+    }
+
+    func retryFailedTransfers() {
+        let failedIDs = transferQueue
+            .filter { $0.status == .failed || $0.status == .skipped }
+            .map(\.id)
+        for id in failedIDs {
+            retryTransfer(itemID: id)
+        }
+    }
+
     private func executeTransfer(itemID: UUID) async {
         await transferCenter.acquireSlot()
         defer {
@@ -258,8 +299,19 @@ final class FileTransferViewModel: ObservableObject {
         }
 
         guard let idx = transferQueue.firstIndex(where: { $0.id == itemID }) else { return }
-        transferQueue[idx].status = .running
-        let item = transferQueue[idx]
+        var item = transferQueue[idx]
+
+        let conflictOutcome = await resolveConflictOutcome(for: item)
+        switch conflictOutcome {
+        case .skip(let reason):
+            transferQueue[idx].status = .skipped
+            transferQueue[idx].message = reason
+            return
+        case .proceed(let destinationPath):
+            transferQueue[idx].destinationPath = destinationPath
+            item.destinationPath = destinationPath
+            transferQueue[idx].status = .running
+        }
 
         do {
             switch item.direction {
@@ -311,7 +363,7 @@ final class FileTransferViewModel: ObservableObject {
             switch $0.status {
             case .queued, .running, .success:
                 return true
-            case .failed:
+            case .failed, .skipped:
                 return false
             }
         }
@@ -381,6 +433,98 @@ final class FileTransferViewModel: ObservableObject {
         if let total = snapshot.totalBytes {
             transferQueue[index].totalBytes = total
         }
+    }
+
+    private enum TransferConflictOutcome {
+        case proceed(String)
+        case skip(String)
+    }
+
+    private func resolveConflictOutcome(for item: TransferItem) async -> TransferConflictOutcome {
+        switch item.direction {
+        case .upload:
+            guard await remotePathExists(item.destinationPath) || queuedDestinationExists(item.destinationPath, excluding: item.id) else {
+                return .proceed(item.destinationPath)
+            }
+
+            switch conflictStrategy {
+            case .overwrite:
+                return .proceed(item.destinationPath)
+            case .skip:
+                return .skip("Skipped: remote path already exists")
+            case .rename:
+                let renamed = await uniqueRemotePath(from: item.destinationPath, excluding: item.id)
+                return .proceed(renamed)
+            }
+
+        case .download:
+            let localExists = FileManager.default.fileExists(atPath: item.destinationPath)
+            let queuedExists = queuedDestinationExists(item.destinationPath, excluding: item.id)
+            guard localExists || queuedExists else {
+                return .proceed(item.destinationPath)
+            }
+
+            switch conflictStrategy {
+            case .overwrite:
+                return .proceed(item.destinationPath)
+            case .skip:
+                return .skip("Skipped: local file already exists")
+            case .rename:
+                let renamed = uniqueLocalPath(from: item.destinationPath, excluding: item.id)
+                return .proceed(renamed)
+            }
+        }
+    }
+
+    private func remotePathExists(_ path: String) async -> Bool {
+        do {
+            _ = try await sftpClient.stat(path: path)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func queuedDestinationExists(_ path: String, excluding itemID: UUID) -> Bool {
+        transferQueue.contains { item in
+            guard item.id != itemID else { return false }
+            guard item.destinationPath == path else { return false }
+            return item.status == .queued || item.status == .running || item.status == .success
+        }
+    }
+
+    private func uniqueRemotePath(from originalPath: String, excluding itemID: UUID) async -> String {
+        var index = 1
+        var candidate = originalPath
+        while await remotePathExists(candidate) || queuedDestinationExists(candidate, excluding: itemID) {
+            candidate = pathByAppendingSuffix(originalPath, index: index)
+            index += 1
+        }
+        return candidate
+    }
+
+    private func uniqueLocalPath(from originalPath: String, excluding itemID: UUID) -> String {
+        var index = 1
+        var candidate = originalPath
+        while FileManager.default.fileExists(atPath: candidate) || queuedDestinationExists(candidate, excluding: itemID) {
+            candidate = pathByAppendingSuffix(originalPath, index: index)
+            index += 1
+        }
+        return candidate
+    }
+
+    private func pathByAppendingSuffix(_ path: String, index: Int) -> String {
+        let fileURL = URL(fileURLWithPath: path)
+        let parent = fileURL.deletingLastPathComponent()
+        let ext = fileURL.pathExtension
+        let baseName = ext.isEmpty ? fileURL.lastPathComponent : fileURL.deletingPathExtension().lastPathComponent
+        let candidateName: String
+        if ext.isEmpty {
+            candidateName = "\(baseName) (\(index))"
+        } else {
+            candidateName = "\(baseName) (\(index)).\(ext)"
+        }
+        return parent.appendingPathComponent(candidateName).path
     }
 
     private func normalizedRemotePath(base: String, child: String) -> String {

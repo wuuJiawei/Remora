@@ -16,7 +16,7 @@ Status allowed: `todo` | `in_progress` | `done`
 - [x] `status: done` `id: C01` 新增 `TransferCenter`（actor）并接入并发调度（默认 3）。
 - [x] `status: done` `id: C02` 实现拖拽上传：拖到当前目录或目录行均可上传。
 - [x] `status: done` `id: C03` 实现多文件下载到本地目录，显示任务级和总进度。
-- [ ] `status: todo` `id: C04` 补齐失败重试与同名冲突策略（覆盖/跳过/重命名）。
+- [x] `status: done` `id: C04` 补齐失败重试与同名冲突策略（覆盖/跳过/重命名）。
 
 ## Milestone D - 右键菜单与编辑能力
 - [ ] `status: todo` `id: D01` 实现右键动作分发：刷新、删除、重命名、复制、粘贴、下载、移动至。

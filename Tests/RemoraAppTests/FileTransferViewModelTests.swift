@@ -176,6 +176,76 @@ struct FileTransferViewModelTests {
         #expect(vm.overallTransferProgress == 1)
     }
 
+    @Test
+    func conflictStrategyRenameCreatesAlternateDownloadPath() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-conflict-rename-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let existingReadme = tempRoot.appendingPathComponent("README.txt")
+        try Data("existing".utf8).write(to: existingReadme)
+
+        let vm = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            localDirectoryURL: tempRoot
+        )
+        vm.conflictStrategy = .rename
+
+        await vm.refreshRemoteEntries()
+        guard let readme = vm.remoteEntries.first(where: { $0.path == "/README.txt" }) else {
+            Issue.record("Remote README not found.")
+            return
+        }
+
+        vm.enqueueDownload(remoteEntry: readme)
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            vm.transferQueue.contains(where: { $0.direction == .download && $0.status == .success })
+        }
+
+        let renamedPath = tempRoot.appendingPathComponent("README (1).txt").path
+        #expect(FileManager.default.fileExists(atPath: renamedPath))
+    }
+
+    @Test
+    func skippedTransferCanBeRetriedAfterStrategyChange() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-conflict-retry-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let existingReadme = tempRoot.appendingPathComponent("README.txt")
+        try Data("existing".utf8).write(to: existingReadme)
+
+        let vm = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            localDirectoryURL: tempRoot
+        )
+        vm.conflictStrategy = .skip
+
+        await vm.refreshRemoteEntries()
+        guard let readme = vm.remoteEntries.first(where: { $0.path == "/README.txt" }) else {
+            Issue.record("Remote README not found.")
+            return
+        }
+
+        vm.enqueueDownload(remoteEntry: readme)
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            vm.transferQueue.contains(where: { $0.direction == .download && $0.status == .skipped })
+        }
+
+        guard let skippedItem = vm.transferQueue.first(where: { $0.direction == .download && $0.status == .skipped }) else {
+            Issue.record("Expected skipped download transfer item.")
+            return
+        }
+
+        vm.conflictStrategy = .overwrite
+        vm.retryTransfer(itemID: skippedItem.id)
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            vm.transferQueue.contains(where: { $0.id == skippedItem.id && $0.status == .success })
+        }
+    }
+
     private func waitForSuccess(in vm: FileTransferViewModel, transferName: String, successCount: Int) async throws {
         for _ in 0 ..< 40 {
             let success = vm.transferQueue.filter { $0.name == transferName && $0.status == .success }.count

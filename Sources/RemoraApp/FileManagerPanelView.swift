@@ -19,6 +19,10 @@ struct FileManagerPanelView: View {
         selectedRemoteEntries.filter { !$0.isDirectory }
     }
 
+    private var hasRetryableTransfers: Bool {
+        viewModel.transferQueue.contains { $0.status == .failed || $0.status == .skipped }
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             HStack {
@@ -69,6 +73,20 @@ struct FileManagerPanelView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(selectedRemotePaths.isEmpty)
+
+                Picker("Conflict", selection: $viewModel.conflictStrategy) {
+                    ForEach(TransferConflictStrategy.allCases) { strategy in
+                        Text(strategy.title).tag(strategy)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 120)
+
+                Button("Retry Failed") {
+                    viewModel.retryFailedTransfers()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!hasRetryableTransfers)
 
                 Spacer()
 
@@ -259,6 +277,8 @@ struct FileManagerPanelView: View {
             return .green
         case .failed:
             return .red
+        case .skipped:
+            return .gray
         }
     }
 
