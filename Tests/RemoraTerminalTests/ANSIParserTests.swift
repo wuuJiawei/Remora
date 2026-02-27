@@ -37,4 +37,30 @@ struct ANSIParserTests {
         #expect(line[0].character == "A")
         #expect(line[8].character == "B")
     }
+
+    @Test
+    func parserIgnoresOSCSequenceTerminatedByBEL() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 64)
+        let data = Data("\u{001B}]0;root@example:/home\u{0007}root@example:/home# ".utf8)
+
+        parser.parse(data, into: screen)
+
+        let rendered = String(screen.line(at: 0).cells.map(\.character))
+        #expect(!rendered.contains("0;root@example:/home"))
+        #expect(rendered.contains("root@example:/home#"))
+    }
+
+    @Test
+    func parserIgnoresOSCSequenceTerminatedByST() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 64)
+        let data = Data("\u{001B}]0;root@example:/home\u{001B}\\root@example:/home# ".utf8)
+
+        parser.parse(data, into: screen)
+
+        let rendered = String(screen.line(at: 0).cells.map(\.character))
+        #expect(!rendered.contains("0;root@example:/home"))
+        #expect(rendered.contains("root@example:/home#"))
+    }
 }

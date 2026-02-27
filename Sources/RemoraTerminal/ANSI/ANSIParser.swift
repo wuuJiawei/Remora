@@ -5,6 +5,8 @@ public final class ANSIParser {
         case ground
         case escape
         case csi([UInt8])
+        case osc
+        case oscEscape
     }
 
     private var state: State = .ground
@@ -24,6 +26,8 @@ public final class ANSIParser {
         case .escape:
             if byte == UInt8(ascii: "[") {
                 state = .csi([])
+            } else if byte == UInt8(ascii: "]") {
+                state = .osc
             } else {
                 state = .ground
             }
@@ -34,6 +38,18 @@ public final class ANSIParser {
             } else {
                 bytes.append(byte)
                 state = .csi(bytes)
+            }
+        case .osc:
+            if byte == 0x07 {
+                state = .ground
+            } else if byte == 0x1B {
+                state = .oscEscape
+            }
+        case .oscEscape:
+            if byte == UInt8(ascii: "\\") {
+                state = .ground
+            } else if byte != 0x1B {
+                state = .osc
             }
         }
     }
