@@ -55,6 +55,7 @@ final class TerminalRuntime: ObservableObject {
     private let maxTranscriptCharacters = 4_096
     private var pendingPTYSize: PTYSize?
     private var lastAppliedPTYSize: PTYSize?
+    private var isApplyingPendingResize = false
     private var activeSSHAuthStage: SSHAuthStage?
     private var sshAuthProbeTail = ""
     private var activeSSHHostAddress: String?
@@ -361,15 +362,22 @@ final class TerminalRuntime: ObservableObject {
     }
 
     private func applyPendingResizeIfNeeded() async {
-        guard let pendingSize = pendingPTYSize else { return }
-        guard pendingSize != lastAppliedPTYSize else { return }
-        guard let sessionID, let manager = activeSessionManager else { return }
+        guard !isApplyingPendingResize else { return }
+        isApplyingPendingResize = true
+        defer { isApplyingPendingResize = false }
 
-        do {
-            try await manager.resize(sessionID: sessionID, pty: pendingSize)
-            lastAppliedPTYSize = pendingSize
-        } catch {
-            connectionState = "Resize failed: \(error.localizedDescription)"
+        while true {
+            guard let pendingSize = pendingPTYSize else { return }
+            guard pendingSize != lastAppliedPTYSize else { return }
+            guard let sessionID, let manager = activeSessionManager else { return }
+
+            do {
+                try await manager.resize(sessionID: sessionID, pty: pendingSize)
+                lastAppliedPTYSize = pendingSize
+            } catch {
+                connectionState = "Resize failed: \(error.localizedDescription)"
+                return
+            }
         }
     }
 

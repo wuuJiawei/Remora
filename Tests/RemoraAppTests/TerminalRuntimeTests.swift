@@ -155,6 +155,39 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func repeatedSameResizeOnlyAppliesOnce() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        await recorder.reset()
+        for _ in 0..<12 {
+            runtime.resize(columns: 96, rows: 15)
+        }
+
+        let resized = await waitUntilAsync(timeout: 2.0) {
+            await recorder.resizeRequests.contains(where: { $0.columns == 96 && $0.rows == 15 })
+        }
+        #expect(resized, "Runtime should apply queued resize.")
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        let matchingCount = await recorder.resizeRequests.filter { $0.columns == 96 && $0.rows == 15 }.count
+        #expect(matchingCount == 1, "Repeated same-size resize calls should be coalesced into one apply.")
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

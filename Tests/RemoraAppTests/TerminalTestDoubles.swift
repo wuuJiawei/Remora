@@ -3,13 +3,19 @@ import RemoraCore
 
 actor TerminalCommandRecorder {
     private(set) var commands: [String] = []
+    private(set) var resizeRequests: [PTYSize] = []
 
     func append(_ command: String) {
         commands.append(command)
     }
 
+    func appendResize(_ size: PTYSize) {
+        resizeRequests.append(size)
+    }
+
     func reset() {
         commands.removeAll(keepingCapacity: false)
+        resizeRequests.removeAll(keepingCapacity: false)
     }
 }
 
@@ -92,6 +98,7 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
 
     func resize(_ size: PTYSize) async throws {
         pty = size
+        await recorder.appendResize(size)
     }
 
     func stop() async {
