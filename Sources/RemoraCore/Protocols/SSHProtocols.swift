@@ -1,12 +1,12 @@
 import Foundation
 
-public protocol SSHClientProtocol: Sendable {
+public protocol SSHTransportClientProtocol: Sendable {
     func connect(to host: Host) async throws
-    func openShell(pty: PTYSize) async throws -> SSHShellSessionProtocol
+    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol
     func disconnect() async
 }
 
-public protocol SSHShellSessionProtocol: AnyObject, Sendable {
+public protocol SSHTransportSessionProtocol: AnyObject, Sendable {
     var onOutput: (@Sendable (Data) -> Void)? { get set }
     var onStateChange: (@Sendable (ShellSessionState) -> Void)? { get set }
     func start() async throws
@@ -14,6 +14,9 @@ public protocol SSHShellSessionProtocol: AnyObject, Sendable {
     func resize(_ size: PTYSize) async throws
     func stop() async
 }
+
+public typealias SSHClientProtocol = SSHTransportClientProtocol
+public typealias SSHShellSessionProtocol = SSHTransportSessionProtocol
 
 public struct PTYSize: Equatable, Sendable {
     public var columns: Int

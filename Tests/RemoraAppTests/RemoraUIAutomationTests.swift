@@ -409,15 +409,117 @@ struct RemoraUIAutomationTests {
         })
         #expect(hasThirdOutput, "Expected whoami command output.")
 
+        typeText("help\r")
+        let hasFourthOutput = waitUntil(timeout: 6, {
+            guard let snapshot = transcriptText(from: transcriptElement) else { return false }
+            finalSnapshot = snapshot
+            return snapshot.contains("Available commands: help, date, whoami, ls, clear")
+        })
+        #expect(hasFourthOutput, "Expected help command output.")
+
+        typeText("unknown\r")
+        let hasFifthOutput = waitUntil(timeout: 6, {
+            guard let snapshot = transcriptText(from: transcriptElement) else { return false }
+            finalSnapshot = snapshot
+            return snapshot.contains("command not found: unknown")
+        })
+        #expect(hasFifthOutput, "Expected fifth command output.")
+
         let historyRetained =
             finalSnapshot.contains("Connected to remora@127.0.0.1:22")
             && finalSnapshot.contains("command not found: 123")
             && finalSnapshot.contains("app.log")
             && finalSnapshot.contains("whoami")
+            && finalSnapshot.contains("Available commands: help, date, whoami, ls, clear")
+            && finalSnapshot.contains("command not found: unknown")
         if !historyRetained {
             Issue.record("Final transcript snapshot: \(finalSnapshot)")
         }
         #expect(historyRetained, "Previous terminal history should remain visible after multiple commands.")
+    }
+
+    @Test
+    func terminalBackspaceAndEnterBehaveConsistently() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let appURL = try locateRemoraAppBinary()
+        let process = Process()
+        process.executableURL = appURL
+        process.arguments = []
+        try process.run()
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard waitUntil(timeout: 8, {
+            NSRunningApplication(processIdentifier: process.processIdentifier) != nil
+        }) else {
+            Issue.record("RemoraApp did not launch in time.")
+            return
+        }
+
+        NSRunningApplication(processIdentifier: process.processIdentifier)?
+            .activate()
+
+        let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        let connected = waitUntil(timeout: 8, {
+            findElement(in: appElement, matching: { title(of: $0) == "Connected (Mock)" }) != nil
+        })
+        #expect(connected, "Expected mock terminal connection to be established.")
+        guard connected else { return }
+
+        guard let transcriptElement = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { element in
+                identifier(of: element) == "terminal-transcript"
+            }
+        ) else {
+            Issue.record("Could not find transcript accessibility element.")
+            return
+        }
+
+        guard let terminal = waitForElement(
+            in: appElement,
+            timeout: 6,
+            matching: { element in
+                identifier(of: element) == "terminal-view"
+            }
+        ) else {
+            Issue.record("Could not find terminal accessibility element.")
+            return
+        }
+
+        guard let frame = frame(of: terminal) else {
+            Issue.record("Could not read terminal frame for click focus.")
+            return
+        }
+
+        click(point: CGPoint(x: frame.midX, y: frame.midY))
+        typeText("whoamx")
+        pressDelete(repeatCount: 1)
+        typeText("i\r")
+
+        var snapshot = ""
+        let hasCorrectOutput = waitUntil(timeout: 8, {
+            guard let value = transcriptText(from: transcriptElement) else { return false }
+            snapshot = value
+            return value.range(of: #"whoami\s*\n\s*remora"#, options: .regularExpression) != nil
+        })
+
+        if !hasCorrectOutput {
+            Issue.record("Transcript after backspace-edit command: \(snapshot)")
+        }
+
+        #expect(hasCorrectOutput, "Backspace editing should produce the corrected command output after Enter.")
+        #expect(!snapshot.contains("command not found: whoamx"), "Corrected command should not execute the unedited typo.")
     }
 
     private func locateRemoraAppBinary() throws -> URL {
@@ -621,6 +723,18 @@ struct RemoraUIAutomationTests {
         for _ in 0 ..< repeatCount {
             guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 123, keyDown: true),
                   let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 123, keyDown: false)
+            else { continue }
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+            usleep(10_000)
+        }
+    }
+
+    private func pressDelete(repeatCount: Int) {
+        guard repeatCount > 0 else { return }
+        for _ in 0 ..< repeatCount {
+            guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 51, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 51, keyDown: false)
             else { continue }
             keyDown.post(tap: .cghidEventTap)
             keyUp.post(tap: .cghidEventTap)

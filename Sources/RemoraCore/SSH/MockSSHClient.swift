@@ -1,6 +1,6 @@
 import Foundation
 
-public actor MockSSHClient: SSHClientProtocol {
+public actor MockSSHClient: SSHTransportClientProtocol {
     private var connectedHost: Host?
 
     public init() {}
@@ -9,7 +9,7 @@ public actor MockSSHClient: SSHClientProtocol {
         connectedHost = host
     }
 
-    public func openShell(pty: PTYSize) async throws -> SSHShellSessionProtocol {
+    public func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
         guard let host = connectedHost else {
             throw SSHError.notConnected
         }
@@ -21,7 +21,7 @@ public actor MockSSHClient: SSHClientProtocol {
     }
 }
 
-public final class MockShellSession: SSHShellSessionProtocol, @unchecked Sendable {
+public final class MockShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
     public var onOutput: (@Sendable (Data) -> Void)?
     public var onStateChange: (@Sendable (ShellSessionState) -> Void)?
 

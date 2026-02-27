@@ -45,6 +45,28 @@ struct SessionManagerTests {
         await manager.stopSession(id: descriptor.id)
     }
 
+    @Test
+    func stateStreamEmitsRunningAndStopped() async throws {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let host = Host(
+            name: "demo",
+            address: "127.0.0.1",
+            username: "tester",
+            auth: HostAuth(method: .agent)
+        )
+
+        let descriptor = try await manager.startSession(for: host, pty: .init(columns: 100, rows: 30))
+        let states = await manager.sessionStateStream(sessionID: descriptor.id)
+        var iterator = states.makeAsyncIterator()
+
+        let running = await iterator.next()
+        #expect(running == .running)
+
+        await manager.stopSession(id: descriptor.id)
+        let stopped = await iterator.next()
+        #expect(stopped == .stopped)
+    }
+
     private func firstChunkWithinOneSecond(
         from stream: AsyncStream<Data>
     ) async -> Data? {
@@ -62,4 +84,5 @@ struct SessionManagerTests {
             return result
         }
     }
+
 }

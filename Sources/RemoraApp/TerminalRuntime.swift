@@ -23,17 +23,26 @@ final class TerminalRuntime: ObservableObject {
     @Published var connectionMode: ConnectionMode = .mock
     @Published var transcriptSnapshot: String = ""
 
-    private let mockSessionManager = SessionManager(sshClientFactory: { MockSSHClient() })
-    private let sshSessionManager = SessionManager(sshClientFactory: { SystemSSHClient() })
+    private let mockSessionManager: SessionManager
+    private let sshSessionManager: SessionManager
 
     private weak var terminalView: TerminalView?
     private var activeSessionManager: SessionManager?
     private var sessionID: UUID?
     private var streamTask: Task<Void, Never>?
+    private var stateTask: Task<Void, Never>?
     private var isPaneActive = true
     private var pendingOutput = Data()
     private var transcriptBuffer = ""
     private let maxTranscriptCharacters = 4_096
+
+    init(
+        mockSessionManager: SessionManager = SessionManager(sshClientFactory: { MockSSHClient() }),
+        sshSessionManager: SessionManager = SessionManager(sshClientFactory: { OpenSSHProcessClient() })
+    ) {
+        self.mockSessionManager = mockSessionManager
+        self.sshSessionManager = sshSessionManager
+    }
 
     func attach(view: TerminalView) {
         terminalView = view
@@ -98,6 +107,7 @@ final class TerminalRuntime: ObservableObject {
                 sessionID = descriptor.id
                 connectionState = "Connected (\(config.mode.rawValue))"
                 bindOutput(for: descriptor.id, manager: manager)
+                bindSessionState(for: descriptor.id, manager: manager)
             } catch {
                 connectionState = "Failed: \(error.localizedDescription)"
             }
@@ -115,6 +125,8 @@ final class TerminalRuntime: ObservableObject {
                 self.connectionState = "Disconnected"
                 self.streamTask?.cancel()
                 self.streamTask = nil
+                self.stateTask?.cancel()
+                self.stateTask = nil
                 self.pendingOutput.removeAll(keepingCapacity: false)
             }
         }
@@ -131,6 +143,27 @@ final class TerminalRuntime: ObservableObject {
                         terminalView.feed(data: data)
                     } else {
                         enqueuePendingOutput(data)
+                    }
+                }
+            }
+        }
+    }
+
+    private func bindSessionState(for id: UUID, manager: SessionManager) {
+        stateTask?.cancel()
+        stateTask = Task {
+            let stream = await manager.sessionStateStream(sessionID: id)
+            for await state in stream {
+                await MainActor.run {
+                    switch state {
+                    case .idle:
+                        connectionState = "Idle"
+                    case .running:
+                        connectionState = "Connected (\(connectionMode.rawValue))"
+                    case .stopped:
+                        connectionState = "Disconnected"
+                    case .failed(let reason):
+                        connectionState = "Failed: \(reason)"
                     }
                 }
             }

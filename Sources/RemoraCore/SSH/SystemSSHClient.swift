@@ -1,6 +1,6 @@
 import Foundation
 
-public actor SystemSSHClient: SSHClientProtocol {
+public actor OpenSSHProcessClient: SSHTransportClientProtocol {
     private var connectedHost: Host?
 
     public init() {}
@@ -9,7 +9,7 @@ public actor SystemSSHClient: SSHClientProtocol {
         connectedHost = host
     }
 
-    public func openShell(pty: PTYSize) async throws -> SSHShellSessionProtocol {
+    public func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
         guard let host = connectedHost else {
             throw SSHError.notConnected
         }
@@ -21,7 +21,9 @@ public actor SystemSSHClient: SSHClientProtocol {
     }
 }
 
-public final class ProcessSSHShellSession: SSHShellSessionProtocol, @unchecked Sendable {
+public typealias SystemSSHClient = OpenSSHProcessClient
+
+public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
     public var onOutput: (@Sendable (Data) -> Void)?
     public var onStateChange: (@Sendable (ShellSessionState) -> Void)?
 
@@ -69,13 +71,17 @@ public final class ProcessSSHShellSession: SSHShellSessionProtocol, @unchecked S
         }
 
         proc.terminationHandler = { [weak self] task in
-            self?.onStateChange?(.stopped)
             self?.cleanupHandles()
+            guard let self else { return }
 
-            if task.terminationStatus != 0 {
-                let message = "ssh exited with status \(task.terminationStatus)"
-                self?.onOutput?(Data((message + "\r\n").utf8))
+            if task.terminationStatus == 0 {
+                self.onStateChange?(.stopped)
+                return
             }
+
+            let message = "ssh exited with status \(task.terminationStatus)"
+            self.onOutput?(Data((message + "\r\n").utf8))
+            self.onStateChange?(.failed(message))
         }
 
         do {
@@ -111,11 +117,13 @@ public final class ProcessSSHShellSession: SSHShellSessionProtocol, @unchecked S
         let currentProcess = stateQueue.sync { process }
         guard let currentProcess else {
             cleanupHandles()
+            onStateChange?(.stopped)
             return
         }
 
         if currentProcess.isRunning {
             currentProcess.terminate()
+            return
         }
         cleanupHandles()
         onStateChange?(.stopped)
@@ -161,6 +169,8 @@ public final class ProcessSSHShellSession: SSHShellSessionProtocol, @unchecked S
             "-p", "\(host.port)",
             "-o", "ConnectTimeout=\(max(1, host.policies.connectTimeoutSeconds))",
             "-o", "ServerAliveInterval=\(max(5, host.policies.keepAliveSeconds))",
+            "-o", "ServerAliveCountMax=3",
+            "-o", "StrictHostKeyChecking=accept-new",
         ]
 
         switch host.auth.method {

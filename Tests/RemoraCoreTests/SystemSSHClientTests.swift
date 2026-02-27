@@ -20,6 +20,8 @@ struct SystemSSHClientTests {
         #expect(args.contains("2222"))
         #expect(args.contains("ConnectTimeout=8"))
         #expect(args.contains("ServerAliveInterval=30"))
+        #expect(args.contains("ServerAliveCountMax=3"))
+        #expect(args.contains("StrictHostKeyChecking=accept-new"))
         #expect(args.contains("-i"))
         #expect(args.contains("/Users/demo/.ssh/id_ed25519"))
         #expect(args.contains("deploy@10.0.0.2"))
