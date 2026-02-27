@@ -144,11 +144,21 @@ struct FileManagerPanelView: View {
                 .onHover { hovering in
                     hoveredRemotePath = hovering ? entry.path : nil
                 }
+                .dropDestination(for: URL.self) { items, _ in
+                    guard entry.isDirectory, !items.isEmpty else { return false }
+                    viewModel.enqueueUpload(localFileURLs: items, toRemoteDirectory: entry.path)
+                    return true
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .scrollContentBackground(.hidden)
             .background(VisualStyle.rightPanelBackground)
             .listStyle(.plain)
+            .dropDestination(for: URL.self) { items, _ in
+                guard !items.isEmpty else { return false }
+                viewModel.enqueueUpload(localFileURLs: items, toRemoteDirectory: viewModel.remoteDirectoryPath)
+                return true
+            }
         }
     }
 

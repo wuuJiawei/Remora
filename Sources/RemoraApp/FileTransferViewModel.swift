@@ -171,17 +171,13 @@ final class FileTransferViewModel: ObservableObject {
 
     func enqueueUpload(localEntry: LocalFileEntry) {
         guard !localEntry.isDirectory else { return }
+        enqueueUpload(localFileURLs: [localEntry.url], toRemoteDirectory: remoteDirectoryPath)
+    }
 
-        let destination = normalizedRemotePath(base: remoteDirectoryPath, child: localEntry.name)
-        let item = TransferItem(
-            direction: .upload,
-            name: localEntry.name,
-            sourcePath: localEntry.url.path,
-            destinationPath: destination
-        )
-        transferQueue.append(item)
-        Task {
-            await executeTransfer(itemID: item.id)
+    func enqueueUpload(localFileURLs: [URL], toRemoteDirectory destinationDirectory: String? = nil) {
+        let baseDirectory = destinationDirectory.map(normalizeRemoteDirectoryPath) ?? remoteDirectoryPath
+        for url in localFileURLs {
+            enqueueUploadRecursively(localURL: url, remoteBaseDirectory: baseDirectory)
         }
     }
 
@@ -279,6 +275,52 @@ final class FileTransferViewModel: ObservableObject {
 
         refreshLocalEntries()
         await refreshRemoteEntries()
+    }
+
+    private func enqueueUploadRecursively(localURL: URL, remoteBaseDirectory: String) {
+        let keys: Set<URLResourceKey> = [.isDirectoryKey]
+        let values = try? localURL.resourceValues(forKeys: keys)
+        if values?.isDirectory == true {
+            let directoryBase = normalizedRemotePath(base: remoteBaseDirectory, child: localURL.lastPathComponent)
+            let fm = FileManager.default
+            let rootComponents = localURL.standardizedFileURL.pathComponents
+            guard let enumerator = fm.enumerator(
+                at: localURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else { return }
+
+            for case let childURL as URL in enumerator {
+                let childValues = try? childURL.resourceValues(forKeys: keys)
+                guard childValues?.isDirectory != true else { continue }
+                let childComponents = childURL.standardizedFileURL.pathComponents
+                guard childComponents.count > rootComponents.count else { continue }
+                guard Array(childComponents.prefix(rootComponents.count)) == rootComponents else { continue }
+                let relativePath = childComponents
+                    .dropFirst(rootComponents.count)
+                    .joined(separator: "/")
+                guard !relativePath.isEmpty else { continue }
+                let destination = normalizedRemotePath(base: directoryBase, child: relativePath)
+                enqueueUploadFile(localURL: childURL, destinationPath: destination)
+            }
+            return
+        }
+
+        let destination = normalizedRemotePath(base: remoteBaseDirectory, child: localURL.lastPathComponent)
+        enqueueUploadFile(localURL: localURL, destinationPath: destination)
+    }
+
+    private func enqueueUploadFile(localURL: URL, destinationPath: String) {
+        let item = TransferItem(
+            direction: .upload,
+            name: localURL.lastPathComponent,
+            sourcePath: localURL.path,
+            destinationPath: destinationPath
+        )
+        transferQueue.append(item)
+        Task {
+            await executeTransfer(itemID: item.id)
+        }
     }
 
     private func normalizedRemotePath(base: String, child: String) -> String {

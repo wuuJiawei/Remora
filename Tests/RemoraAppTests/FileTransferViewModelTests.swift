@@ -81,6 +81,50 @@ struct FileTransferViewModelTests {
         }
     }
 
+    @Test
+    func recursiveUploadFromDirectoryPreservesRelativePath() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-upload-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let localFolder = tempRoot.appendingPathComponent("bundle")
+        let nestedFolder = localFolder.appendingPathComponent("nested")
+        try FileManager.default.createDirectory(at: nestedFolder, withIntermediateDirectories: true)
+        let topFile = localFolder.appendingPathComponent("a.txt")
+        let nestedFile = nestedFolder.appendingPathComponent("b.txt")
+        try Data("top".utf8).write(to: topFile)
+        try Data("nested".utf8).write(to: nestedFile)
+
+        let vm = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            remoteDirectoryPath: "/"
+        )
+
+        vm.enqueueUpload(localFileURLs: [localFolder], toRemoteDirectory: "/")
+        try await waitUntil(timeoutLoops: 80, intervalMS: 50) {
+            let terminalStateCount = vm.transferQueue.filter {
+                $0.status == .success || $0.status == .failed
+            }.count
+            return terminalStateCount >= 2
+        }
+        let failures = vm.transferQueue.filter { $0.status == .failed }
+        #expect(failures.isEmpty)
+        #expect(vm.transferQueue.filter { $0.status == .success }.count >= 2)
+
+        vm.navigateRemote(to: "/bundle")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            await vm.refreshRemoteEntries()
+            return vm.remoteEntries.contains(where: { $0.path == "/bundle/a.txt" })
+        }
+
+        vm.navigateRemote(to: "/bundle/nested")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            await vm.refreshRemoteEntries()
+            return vm.remoteEntries.contains(where: { $0.path == "/bundle/nested/b.txt" })
+        }
+    }
+
     private func waitForSuccess(in vm: FileTransferViewModel, transferName: String, successCount: Int) async throws {
         for _ in 0 ..< 40 {
             let success = vm.transferQueue.filter { $0.name == transferName && $0.status == .success }.count
