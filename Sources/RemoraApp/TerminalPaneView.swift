@@ -6,6 +6,17 @@ struct TerminalPaneView: View {
     var isFocused: Bool
     var onSelect: () -> Void
 
+    private var hostKeyPromptBinding: Binding<Bool> {
+        Binding(
+            get: { runtime.hostKeyPromptMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    runtime.dismissHostKeyPrompt()
+                }
+            }
+        )
+    }
+
     init(pane: TerminalPaneModel, isFocused: Bool, onSelect: @escaping () -> Void) {
         self.pane = pane
         self._runtime = ObservedObject(wrappedValue: pane.runtime)
@@ -61,6 +72,16 @@ struct TerminalPaneView: View {
         .contentShape(Rectangle())
         .animation(.spring(response: 0.24, dampingFraction: 0.85), value: isFocused)
         .animation(.easeInOut(duration: 0.18), value: runtime.connectionState)
+        .alert("Trust SSH Host Key?", isPresented: hostKeyPromptBinding) {
+            Button("Reject", role: .destructive) {
+                runtime.respondToHostKeyPrompt(accept: false)
+            }
+            Button("Trust") {
+                runtime.respondToHostKeyPrompt(accept: true)
+            }
+        } message: {
+            Text(runtime.hostKeyPromptMessage ?? "The server requested host key confirmation.")
+        }
     }
 
     private var statusColor: Color {
@@ -70,7 +91,7 @@ struct TerminalPaneView: View {
         if runtime.connectionState.hasPrefix("Failed") {
             return .red
         }
-        if runtime.connectionState == "Connecting" {
+        if runtime.connectionState == "Connecting" || runtime.connectionState.hasPrefix("Waiting") {
             return .orange
         }
         return .secondary

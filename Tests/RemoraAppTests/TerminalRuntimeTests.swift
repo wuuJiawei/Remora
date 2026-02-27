@@ -6,6 +6,37 @@ import RemoraCore
 @MainActor
 struct TerminalRuntimeTests {
     @Test
+    func detectsSSHAuthenticationStagesFromPromptText() {
+        let hostKeyPrompt = "Are you sure you want to continue connecting (yes/no/[fingerprint])?"
+        let passwordPrompt = "deploy@example.com's password:"
+        let otpPrompt = "Verification code:"
+        let passphrasePrompt = "Enter passphrase for key '/Users/demo/.ssh/id_ed25519':"
+
+        #expect(TerminalRuntime.detectSSHAuthStage(in: hostKeyPrompt.lowercased()) == .hostKey)
+        #expect(TerminalRuntime.detectSSHAuthStage(in: passwordPrompt.lowercased()) == .password)
+        #expect(TerminalRuntime.detectSSHAuthStage(in: otpPrompt.lowercased()) == .otp)
+        #expect(TerminalRuntime.detectSSHAuthStage(in: passphrasePrompt.lowercased()) == .passphrase)
+    }
+
+    @Test
+    func hostKeyPromptMessageIncludesHostAndRelevantLines() {
+        let prompt = """
+        The authenticity of host '192.168.30.120 (192.168.30.120)' can't be established.
+        ED25519 key fingerprint is SHA256:example.
+        Are you sure you want to continue connecting (yes/no/[fingerprint])?
+        """
+
+        let message = TerminalRuntime.makeHostKeyPromptMessage(
+            from: prompt,
+            hostAddress: "192.168.30.120"
+        )
+
+        #expect(message.contains("Host: 192.168.30.120"))
+        #expect(message.contains("authenticity of host"))
+        #expect(message.contains("yes/no"))
+    }
+
+    @Test
     func connectLocalShellPublishesTranscript() async {
         let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
         let runtime = TerminalRuntime(

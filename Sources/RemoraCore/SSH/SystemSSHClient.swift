@@ -49,8 +49,9 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         }
 
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        proc.arguments = Self.makeSSHArguments(for: host)
+        let launch = Self.makeLaunchConfiguration(for: host)
+        proc.executableURL = URL(fileURLWithPath: launch.executablePath)
+        proc.arguments = launch.arguments
 
         if host.auth.method == .password,
            let passwordReference = host.auth.passwordReference,
@@ -113,8 +114,6 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         }
 
         onStateChange?(.running)
-
-        try writeSync(Data("stty cols \(pty.columns) rows \(pty.rows)\n".utf8))
     }
 
     public func write(_ data: Data) async throws {
@@ -123,7 +122,6 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
     public func resize(_ size: PTYSize) async throws {
         pty = size
-        try writeSync(Data("stty cols \(size.columns) rows \(size.rows)\n".utf8))
     }
 
     public func stop() async {
@@ -197,7 +195,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             "-o", "ConnectTimeout=\(max(1, host.policies.connectTimeoutSeconds))",
             "-o", "ServerAliveInterval=\(max(5, host.policies.keepAliveSeconds))",
             "-o", "ServerAliveCountMax=3",
-            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "StrictHostKeyChecking=ask",
         ]
 
         switch host.auth.method {
@@ -214,5 +212,19 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
         args.append("\(host.username)@\(host.address)")
         return args
+    }
+
+    static func makeLaunchConfiguration(for host: Host) -> (executablePath: String, arguments: [String]) {
+        let sshPath = "/usr/bin/ssh"
+        let sshArguments = makeSSHArguments(for: host)
+
+        if FileManager.default.isExecutableFile(atPath: "/usr/bin/script") {
+            return (
+                executablePath: "/usr/bin/script",
+                arguments: ["-q", "/dev/null", sshPath] + sshArguments
+            )
+        }
+
+        return (executablePath: sshPath, arguments: sshArguments)
     }
 }

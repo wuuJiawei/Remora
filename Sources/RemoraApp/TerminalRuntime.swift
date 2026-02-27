@@ -2,6 +2,13 @@ import Foundation
 import RemoraCore
 import RemoraTerminal
 
+enum SSHAuthStage: String, Equatable, Sendable {
+    case hostKey
+    case password
+    case otp
+    case passphrase
+}
+
 enum ConnectionMode: String, CaseIterable, Identifiable, Sendable {
     case local = "Local"
     case ssh = "SSH"
@@ -24,6 +31,7 @@ final class TerminalRuntime: ObservableObject {
     @Published var connectionState: String = "Idle"
     @Published var connectionMode: ConnectionMode = .local
     @Published var transcriptSnapshot: String = ""
+    @Published var hostKeyPromptMessage: String?
 
     private let localSessionManager: SessionManager
     private let sshSessionManager: SessionManager
@@ -41,6 +49,9 @@ final class TerminalRuntime: ObservableObject {
     private let maxTranscriptCharacters = 4_096
     private var pendingPTYSize: PTYSize?
     private var lastAppliedPTYSize: PTYSize?
+    private var activeSSHAuthStage: SSHAuthStage?
+    private var sshAuthProbeTail = ""
+    private var activeSSHHostAddress: String?
 
     init(
         localSessionManager: SessionManager = SessionManager(sshClientFactory: { LocalShellClient() }),
@@ -125,6 +136,10 @@ final class TerminalRuntime: ObservableObject {
                 return
             }
 
+            await MainActor.run {
+                activeSSHHostAddress = host.address
+            }
+
             let manager = await MainActor.run(body: { sessionManager(for: config.mode) })
 
             do {
@@ -164,6 +179,18 @@ final class TerminalRuntime: ObservableObject {
         Task { await applyPendingResizeIfNeeded() }
     }
 
+    func respondToHostKeyPrompt(accept: Bool) {
+        enqueueInput(Data((accept ? "yes\n" : "no\n").utf8))
+        hostKeyPromptMessage = nil
+        activeSSHAuthStage = nil
+        sshAuthProbeTail.removeAll(keepingCapacity: false)
+        connectionState = accept ? "Waiting (authentication)" : "Host key rejected"
+    }
+
+    func dismissHostKeyPrompt() {
+        hostKeyPromptMessage = nil
+    }
+
     private func bindOutput(for id: UUID, manager: SessionManager) {
         streamTask?.cancel()
         streamTask = Task {
@@ -171,6 +198,7 @@ final class TerminalRuntime: ObservableObject {
             for await data in stream {
                 await MainActor.run {
                     appendTranscript(data)
+                    updateAuthenticationState(with: data)
                     if let terminalView {
                         terminalView.feed(data: data)
                     } else {
@@ -191,11 +219,17 @@ final class TerminalRuntime: ObservableObject {
                     case .idle:
                         connectionState = "Idle"
                     case .running:
-                        connectionState = "Connected (\(connectionMode.rawValue))"
+                        if activeSSHAuthStage == nil {
+                            connectionState = "Connected (\(connectionMode.rawValue))"
+                        }
                     case .stopped:
                         connectionState = "Disconnected"
+                        hostKeyPromptMessage = nil
+                        activeSSHAuthStage = nil
                     case .failed(let reason):
                         connectionState = "Failed: \(reason)"
+                        hostKeyPromptMessage = nil
+                        activeSSHAuthStage = nil
                     }
                 }
             }
@@ -267,6 +301,10 @@ final class TerminalRuntime: ObservableObject {
         pendingOutput.removeAll(keepingCapacity: false)
         clearInputQueue()
         lastAppliedPTYSize = nil
+        activeSSHAuthStage = nil
+        activeSSHHostAddress = nil
+        sshAuthProbeTail.removeAll(keepingCapacity: false)
+        hostKeyPromptMessage = nil
     }
 
     private func applyPendingResizeIfNeeded() async {
@@ -334,6 +372,9 @@ final class TerminalRuntime: ObservableObject {
         transcriptBuffer.removeAll(keepingCapacity: false)
         transcriptSnapshot = ""
         pendingOutput.removeAll(keepingCapacity: false)
+        activeSSHAuthStage = nil
+        sshAuthProbeTail.removeAll(keepingCapacity: false)
+        hostKeyPromptMessage = nil
     }
 
     private func appendTranscript(_ data: Data) {
@@ -348,5 +389,108 @@ final class TerminalRuntime: ObservableObject {
         transcriptSnapshot = transcriptBuffer
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    private func updateAuthenticationState(with data: Data) {
+        guard connectionMode == .ssh else { return }
+        let chunk = String(decoding: data, as: UTF8.self)
+        guard !chunk.isEmpty else { return }
+
+        let probeText = sshAuthProbeTail + chunk
+        let detectedStage = Self.detectSSHAuthStage(in: probeText.lowercased())
+
+        if let detectedStage {
+            activeSSHAuthStage = detectedStage
+            switch detectedStage {
+            case .hostKey:
+                connectionState = "Waiting (host-key)"
+                if hostKeyPromptMessage == nil {
+                    hostKeyPromptMessage = Self.makeHostKeyPromptMessage(
+                        from: probeText,
+                        hostAddress: activeSSHHostAddress
+                    )
+                }
+            case .password:
+                connectionState = "Waiting (password)"
+            case .otp:
+                connectionState = "Waiting (otp)"
+            case .passphrase:
+                connectionState = "Waiting (passphrase)"
+            }
+        } else if activeSSHAuthStage != nil {
+            activeSSHAuthStage = nil
+            hostKeyPromptMessage = nil
+            connectionState = "Connected (\(connectionMode.rawValue))"
+        }
+
+        if probeText.count > 512 {
+            sshAuthProbeTail = String(probeText.suffix(512))
+        } else {
+            sshAuthProbeTail = probeText
+        }
+    }
+
+    static func detectSSHAuthStage(in lowercasedText: String) -> SSHAuthStage? {
+        if lowercasedText.contains("are you sure you want to continue connecting"),
+           lowercasedText.contains("yes/no")
+        {
+            return .hostKey
+        }
+
+        if lowercasedText.contains("continue connecting"),
+           lowercasedText.contains("fingerprint")
+        {
+            return .hostKey
+        }
+
+        if lowercasedText.contains("enter passphrase for key") || lowercasedText.contains("passphrase for key") {
+            return .passphrase
+        }
+
+        if lowercasedText.contains("one-time password")
+            || lowercasedText.contains("verification code:")
+            || lowercasedText.contains("otp:")
+            || lowercasedText.contains("authenticator code")
+            || lowercasedText.contains("token code")
+        {
+            return .otp
+        }
+
+        if lowercasedText.contains("password:") {
+            return .password
+        }
+
+        return nil
+    }
+
+    static func makeHostKeyPromptMessage(from probeText: String, hostAddress: String?) -> String {
+        let trimmedHost = hostAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hostPart: String = {
+            if let trimmedHost, !trimmedHost.isEmpty {
+                return "Host: \(trimmedHost)\n\n"
+            }
+            return ""
+        }()
+
+        let normalizedLines = probeText
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let relevantLines = normalizedLines.filter { line in
+            let lower = line.lowercased()
+            return lower.contains("authenticity of host")
+                || lower.contains("fingerprint")
+                || lower.contains("continue connecting")
+                || lower.contains("yes/no")
+        }
+
+        if relevantLines.isEmpty {
+            return hostPart + "The server is requesting first-time host key confirmation. Verify the fingerprint and choose Trust or Reject."
+        }
+
+        let snippet = relevantLines.suffix(4).joined(separator: "\n")
+        return hostPart + snippet
     }
 }
