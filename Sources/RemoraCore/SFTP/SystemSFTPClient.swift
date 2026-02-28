@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 public actor SystemSFTPClient: SFTPClientProtocol {
     private struct ProcessResult {
@@ -15,22 +20,27 @@ public actor SystemSFTPClient: SFTPClientProtocol {
 
     private let host: Host
     private let credentialStore = CredentialStore()
+    private let directoryOperationTimeout: TimeInterval
 
     public init(host: Host) {
         self.host = host
+        self.directoryOperationTimeout = TimeInterval(min(30, max(8, host.policies.connectTimeoutSeconds * 2)))
     }
 
     public func list(path: String) async throws -> [RemoteFileEntry] {
         let normalized = normalize(path)
         do {
-            let output = try await runSFTPBatch(commands: ["ls -lan \(Self.quoteBatchArgument(normalized))"])
+            let output = try await runSFTPBatch(
+                commands: ["ls -lan \(Self.quoteBatchArgument(normalized))"],
+                timeout: directoryOperationTimeout
+            )
             let parsedLongEntries = Self.parseLongListOutput(output, parentPath: normalized)
             if !parsedLongEntries.isEmpty {
                 return parsedLongEntries
             }
 
             // Some servers return a non-long listing even when -l is requested.
-            if let sshFallback = try? await listViaSSH(path: normalized), !sshFallback.isEmpty {
+            if let sshFallback = try? await listViaSSH(path: normalized, timeout: directoryOperationTimeout), !sshFallback.isEmpty {
                 return sshFallback
             }
 
@@ -42,7 +52,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             return []
         } catch {
             // Some servers disable SFTP subsystem while SSH shell stays available.
-            if let sshFallback = try? await listViaSSH(path: normalized), !sshFallback.isEmpty {
+            if let sshFallback = try? await listViaSSH(path: normalized, timeout: directoryOperationTimeout), !sshFallback.isEmpty {
                 return sshFallback
             }
             throw error
@@ -147,7 +157,10 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     public func stat(path: String) async throws -> RemoteFileAttributes {
         let normalized = normalize(path)
         do {
-            let output = try await runSFTPBatch(commands: ["ls -ldn \(Self.quoteBatchArgument(normalized))"])
+            let output = try await runSFTPBatch(
+                commands: ["ls -ldn \(Self.quoteBatchArgument(normalized))"],
+                timeout: directoryOperationTimeout
+            )
             guard let parsed = Self.parseLongListEntries(output).first else {
                 throw SFTPClientError.notFound(normalized)
             }
@@ -161,7 +174,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             )
         } catch {
             let command = "LC_ALL=C ls -ldn -- \(Self.quoteShellArgument(normalized))"
-            let output = try await runSSHCommandOutput(command)
+            let output = try await runSSHCommandOutput(command, timeout: directoryOperationTimeout)
             guard let parsed = Self.parseLongListEntries(output).first else {
                 throw SFTPClientError.notFound(normalized)
             }
@@ -250,8 +263,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     static func makeSSHArguments(
         for host: Host,
         batchMode: Bool = true,
-        useConnectionReuse: Bool = true,
-        forceTTY: Bool = false
+        useConnectionReuse: Bool = true
     ) -> [String] {
         var args: [String] = [
             "-p", "\(host.port)",
@@ -260,9 +272,6 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             "-o", "ServerAliveCountMax=3",
             "-o", "StrictHostKeyChecking=ask",
         ]
-        if forceTTY {
-            args.insert("-tt", at: 0)
-        }
         if batchMode {
             args.append(contentsOf: ["-o", "BatchMode=yes"])
         }
@@ -493,7 +502,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         return formatter.date(from: "\(month) \(day) \(timeOrYear)")
     }
 
-    private func runSFTPBatch(commands: [String]) async throws -> String {
+    private func runSFTPBatch(commands: [String], timeout: TimeInterval? = nil) async throws -> String {
         let normalizedCommands = commands.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard !normalizedCommands.isEmpty else {
@@ -501,7 +510,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         }
 
         let payload = Data((normalizedCommands + ["quit"]).joined(separator: "\n").appending("\n").utf8)
-        let result = try await runSFTPBatchWithFallbacks(stdin: payload)
+        let result = try await runSFTPBatchWithFallbacks(stdin: payload, timeout: timeout)
 
         let stdoutText = String(decoding: result.stdout, as: UTF8.self)
         let stderrText = String(decoding: result.stderr, as: UTF8.self)
@@ -523,11 +532,11 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         _ = try await runSSHCommandOutput(command)
     }
 
-    private func runSSHCommandOutput(_ command: String) async throws -> String {
+    private func runSSHCommandOutput(_ command: String, timeout: TimeInterval? = nil) async throws -> String {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
 
-        let result = try await runSSHCommandWithFallbacks(command: trimmed)
+        let result = try await runSSHCommandWithFallbacks(command: trimmed, timeout: timeout)
 
         let stdoutText = String(decoding: result.stdout, as: UTF8.self)
         let stderrText = String(decoding: result.stderr, as: UTF8.self)
@@ -542,14 +551,15 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         return stdoutText
     }
 
-    private func runSFTPBatchWithFallbacks(stdin: Data) async throws -> ProcessResult {
+    private func runSFTPBatchWithFallbacks(stdin: Data, timeout: TimeInterval? = nil) async throws -> ProcessResult {
         let storedPassword = await storedPasswordIfAvailable()
 
         var result = try await runProcess(
             executablePath: "/usr/bin/sftp",
             arguments: Self.makeSFTPArguments(for: host, batchMode: true, useConnectionReuse: true),
             environment: [:],
-            stdin: stdin
+            stdin: stdin,
+            timeout: timeout
         )
         if result.status == 0 {
             return result
@@ -565,7 +575,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 executablePath: passwordLaunch.executablePath,
                 arguments: passwordLaunch.arguments,
                 environment: passwordLaunch.environment,
-                stdin: stdin
+                stdin: stdin,
+                timeout: timeout
             )
             if result.status == 0 {
                 return result
@@ -575,7 +586,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 executablePath: "/usr/bin/sftp",
                 arguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: true),
                 environment: [:],
-                stdin: Self.passwordPrefixedStdin(password: storedPassword, payload: stdin)
+                stdin: Self.passwordPrefixedStdin(password: storedPassword, payload: stdin),
+                timeout: timeout
             )
             if result.status == 0 {
                 return result
@@ -590,7 +602,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             executablePath: "/usr/bin/sftp",
             arguments: Self.makeSFTPArguments(for: host, batchMode: true, useConnectionReuse: false),
             environment: [:],
-            stdin: stdin
+            stdin: stdin,
+            timeout: timeout
         )
         if result.status == 0 {
             return result
@@ -606,28 +619,31 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 executablePath: passwordLaunch.executablePath,
                 arguments: passwordLaunch.arguments,
                 environment: passwordLaunch.environment,
-                stdin: stdin
+                stdin: stdin,
+                timeout: timeout
             )
         } else if let storedPassword {
             result = try await runProcess(
                 executablePath: "/usr/bin/sftp",
                 arguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: false),
                 environment: [:],
-                stdin: Self.passwordPrefixedStdin(password: storedPassword, payload: stdin)
+                stdin: Self.passwordPrefixedStdin(password: storedPassword, payload: stdin),
+                timeout: timeout
             )
         }
 
         return result
     }
 
-    private func runSSHCommandWithFallbacks(command: String) async throws -> ProcessResult {
+    private func runSSHCommandWithFallbacks(command: String, timeout: TimeInterval? = nil) async throws -> ProcessResult {
         let storedPassword = await storedPasswordIfAvailable()
 
         var result = try await runProcess(
             executablePath: "/usr/bin/ssh",
             arguments: Self.makeSSHArguments(for: host, batchMode: true, useConnectionReuse: true) + [command],
             environment: [:],
-            stdin: nil
+            stdin: nil,
+            timeout: timeout
         )
         if result.status == 0 {
             return result
@@ -643,7 +659,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 executablePath: passwordLaunch.executablePath,
                 arguments: passwordLaunch.arguments,
                 environment: passwordLaunch.environment,
-                stdin: nil
+                stdin: nil,
+                timeout: timeout
             )
             if result.status == 0 {
                 return result
@@ -653,7 +670,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 executablePath: "/usr/bin/ssh",
                 arguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: true) + [command],
                 environment: [:],
-                stdin: Data((storedPassword + "\n").utf8)
+                stdin: Data((storedPassword + "\n").utf8),
+                timeout: timeout
             )
             if result.status == 0 {
                 return result
@@ -668,7 +686,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             executablePath: "/usr/bin/ssh",
             arguments: Self.makeSSHArguments(for: host, batchMode: true, useConnectionReuse: false) + [command],
             environment: [:],
-            stdin: nil
+            stdin: nil,
+            timeout: timeout
         )
         if result.status == 0 {
             return result
@@ -684,42 +703,16 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 executablePath: passwordLaunch.executablePath,
                 arguments: passwordLaunch.arguments,
                 environment: passwordLaunch.environment,
-                stdin: nil
+                stdin: nil,
+                timeout: timeout
             )
         } else if let storedPassword {
             result = try await runProcess(
                 executablePath: "/usr/bin/ssh",
                 arguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: false) + [command],
                 environment: [:],
-                stdin: Data((storedPassword + "\n").utf8)
-            )
-        }
-
-        if result.status != 0 {
-            result = try await runProcess(
-                executablePath: "/usr/bin/ssh",
-                arguments: Self.makeSSHArguments(
-                    for: host,
-                    batchMode: true,
-                    useConnectionReuse: false,
-                    forceTTY: true
-                ) + [command],
-                environment: [:],
-                stdin: nil
-            )
-        }
-
-        if result.status != 0, let storedPassword {
-            result = try await runProcess(
-                executablePath: "/usr/bin/ssh",
-                arguments: Self.makeSSHArguments(
-                    for: host,
-                    batchMode: false,
-                    useConnectionReuse: false,
-                    forceTTY: true
-                ) + [command],
-                environment: [:],
-                stdin: Data((storedPassword + "\n").utf8)
+                stdin: Data((storedPassword + "\n").utf8),
+                timeout: timeout
             )
         }
 
@@ -730,7 +723,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         executablePath: String,
         arguments: [String],
         environment: [String: String],
-        stdin: Data?
+        stdin: Data?,
+        timeout: TimeInterval? = nil
     ) async throws -> ProcessResult {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -755,6 +749,39 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                     return
                 }
 
+                final class OutputBuffer: @unchecked Sendable {
+                    private let lock = NSLock()
+                    private var data = Data()
+
+                    func set(_ newData: Data) {
+                        lock.lock()
+                        data = newData
+                        lock.unlock()
+                    }
+
+                    func get() -> Data {
+                        lock.lock()
+                        defer { lock.unlock() }
+                        return data
+                    }
+                }
+
+                let stdoutBuffer = OutputBuffer()
+                let stderrBuffer = OutputBuffer()
+                let outputGroup = DispatchGroup()
+                outputGroup.enter()
+                DispatchQueue.global(qos: .utility).async {
+                    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    stdoutBuffer.set(data)
+                    outputGroup.leave()
+                }
+                outputGroup.enter()
+                DispatchQueue.global(qos: .utility).async {
+                    let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                    stderrBuffer.set(data)
+                    outputGroup.leave()
+                }
+
                 if let stdin, !stdin.isEmpty {
                     do {
                         try stdinPipe.fileHandleForWriting.write(contentsOf: stdin)
@@ -767,22 +794,63 @@ public actor SystemSFTPClient: SFTPClientProtocol {
 
                 try? stdinPipe.fileHandleForWriting.close()
 
-                process.waitUntilExit()
-                let stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                let waitOutcome = Self.waitForProcessExit(process, timeout: timeout)
+                outputGroup.wait()
+                let capturedStdout = stdoutBuffer.get()
+                let capturedStderr = stderrBuffer.get()
 
                 try? stdoutPipe.fileHandleForReading.close()
                 try? stderrPipe.fileHandleForReading.close()
 
+                if waitOutcome == .timedOut {
+                    let timeoutText = timeout.map { String(format: "%.1f", $0) } ?? "unknown"
+                    continuation.resume(throwing: SSHError.connectionFailed("command timed out after \(timeoutText)s"))
+                    return
+                }
+
                 continuation.resume(
                     returning: ProcessResult(
                         status: process.terminationStatus,
-                        stdout: stdout,
-                        stderr: stderr
+                        stdout: capturedStdout,
+                        stderr: capturedStderr
                     )
                 )
             }
         }
+    }
+
+    private enum ProcessWaitOutcome {
+        case exited
+        case timedOut
+    }
+
+    private static func waitForProcessExit(_ process: Process, timeout: TimeInterval?) -> ProcessWaitOutcome {
+        guard let timeout, timeout > 0 else {
+            process.waitUntilExit()
+            return .exited
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+
+        guard process.isRunning else {
+            process.waitUntilExit()
+            return .exited
+        }
+
+        process.terminate()
+        let graceDeadline = Date().addingTimeInterval(1)
+        while process.isRunning, Date() < graceDeadline {
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+
+        if process.isRunning {
+            _ = kill(process.processIdentifier, SIGKILL)
+        }
+        process.waitUntilExit()
+        return .timedOut
     }
 
     private func shouldRetryWithoutConnectionReuse(result: ProcessResult) -> Bool {
@@ -855,9 +923,9 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         FileManager.default.temporaryDirectory.appendingPathComponent("\(prefix)-\(UUID().uuidString)")
     }
 
-    private func listViaSSH(path: String) async throws -> [RemoteFileEntry] {
+    private func listViaSSH(path: String, timeout: TimeInterval? = nil) async throws -> [RemoteFileEntry] {
         let command = "LC_ALL=C ls -1Ap -- \(Self.quoteShellArgument(path))"
-        let output = try await runSSHCommandOutput(command)
+        let output = try await runSSHCommandOutput(command, timeout: timeout)
         let now = Date()
         let names = output
             .replacingOccurrences(of: "\r", with: "\n")

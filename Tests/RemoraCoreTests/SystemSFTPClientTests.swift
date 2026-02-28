@@ -32,6 +32,24 @@ struct SystemSFTPClientTests {
     }
 
     @Test
+    func buildsSSHArgumentsWithoutForcedTTY() {
+        let host = Host(
+            name: "prod",
+            address: "10.0.0.2",
+            port: 2202,
+            username: "deploy",
+            auth: HostAuth(method: .privateKey, keyReference: "/Users/demo/.ssh/id_ed25519"),
+            policies: HostPolicies(keepAliveSeconds: 40, connectTimeoutSeconds: 12, terminalProfileID: "default")
+        )
+
+        let args = SystemSFTPClient.makeSSHArguments(for: host)
+
+        #expect(!args.contains("-tt"))
+        #expect(args.contains("BatchMode=yes"))
+        #expect(args.contains("ControlMaster=auto"))
+    }
+
+    @Test
     func parsesLongListOutputWithFilesAndDirectories() {
         let output = """
         drwxr-xr-x    3 deploy deploy      96 Jan 12 14:33 logs
