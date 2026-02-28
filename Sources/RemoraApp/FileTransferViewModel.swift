@@ -119,6 +119,11 @@ struct LocalFileEntry: Identifiable, Hashable {
 
 @MainActor
 final class FileTransferViewModel: ObservableObject {
+    private struct CachedRemoteDirectory {
+        var entries: [RemoteFileEntry]
+        var fetchedAt: Date
+    }
+
     @Published var localDirectoryURL: URL
     @Published var remoteDirectoryPath: String
     @Published var isTerminalDirectorySyncEnabled: Bool = false
@@ -131,6 +136,9 @@ final class FileTransferViewModel: ObservableObject {
 
     private var sftpClient: SFTPClientProtocol
     private let transferCenter: TransferCenter
+    private var remoteDirectoryCache: [String: CachedRemoteDirectory] = [:]
+    private var remoteRefreshInFlightPaths: Set<String> = []
+    private let remoteDirectoryCacheTTL: TimeInterval = 2
 
     init(
         sftpClient: SFTPClientProtocol = DisconnectedSFTPClient(),
@@ -158,6 +166,8 @@ final class FileTransferViewModel: ObservableObject {
         transferQueue.removeAll()
         remoteEntries = []
         remoteLoadErrorMessage = nil
+        remoteDirectoryCache.removeAll()
+        remoteRefreshInFlightPaths.removeAll()
 
         if let initialRemoteDirectory {
             remoteDirectoryPath = normalizeRemoteDirectoryPath(initialRemoteDirectory)
@@ -208,19 +218,12 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     func refreshRemoteEntries() async {
-        do {
-            let entries = try await sftpClient.list(path: remoteDirectoryPath)
-            remoteEntries = entries.sorted { lhs, rhs in
-                if lhs.isDirectory != rhs.isDirectory {
-                    return lhs.isDirectory && !rhs.isDirectory
-                }
-                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
-            remoteLoadErrorMessage = nil
-        } catch {
-            remoteEntries = []
-            remoteLoadErrorMessage = error.localizedDescription
-        }
+        let path = normalizeRemoteDirectoryPath(remoteDirectoryPath)
+        await refreshRemoteEntries(
+            path: path,
+            preferCachedFirst: false,
+            deduplicateInFlight: false
+        )
     }
 
     func goUpLocalDirectory() {
@@ -233,13 +236,28 @@ final class FileTransferViewModel: ObservableObject {
     func goUpRemoteDirectory() {
         guard remoteDirectoryPath != "/" else { return }
         let parent = URL(fileURLWithPath: remoteDirectoryPath).deletingLastPathComponent().path
-        remoteDirectoryPath = parent.isEmpty ? "/" : parent
-        Task { await refreshRemoteEntries() }
+        let targetPath = parent.isEmpty ? "/" : parent
+        let normalizedTargetPath = normalizeRemoteDirectoryPath(targetPath)
+        remoteDirectoryPath = normalizedTargetPath
+        Task {
+            await refreshRemoteEntries(
+                path: normalizedTargetPath,
+                preferCachedFirst: true,
+                deduplicateInFlight: true
+            )
+        }
     }
 
     func navigateRemote(to path: String) {
-        remoteDirectoryPath = normalizeRemoteDirectoryPath(path)
-        Task { await refreshRemoteEntries() }
+        let normalizedTargetPath = normalizeRemoteDirectoryPath(path)
+        remoteDirectoryPath = normalizedTargetPath
+        Task {
+            await refreshRemoteEntries(
+                path: normalizedTargetPath,
+                preferCachedFirst: true,
+                deduplicateInFlight: true
+            )
+        }
     }
 
     func canPaste(into destinationDirectory: String) -> Bool {
@@ -277,8 +295,15 @@ final class FileTransferViewModel: ObservableObject {
 
     func openRemote(_ entry: RemoteFileEntry) {
         guard entry.isDirectory else { return }
-        remoteDirectoryPath = normalizeRemoteDirectoryPath(entry.path)
-        Task { await refreshRemoteEntries() }
+        let normalizedTargetPath = normalizeRemoteDirectoryPath(entry.path)
+        remoteDirectoryPath = normalizedTargetPath
+        Task {
+            await refreshRemoteEntries(
+                path: normalizedTargetPath,
+                preferCachedFirst: true,
+                deduplicateInFlight: true
+            )
+        }
     }
 
     func enqueueUpload(localEntry: LocalFileEntry) {
@@ -331,6 +356,7 @@ final class FileTransferViewModel: ObservableObject {
                     continue
                 }
             }
+            invalidateRemoteDirectoryCache()
             await refreshRemoteEntries()
         }
     }
@@ -358,6 +384,7 @@ final class FileTransferViewModel: ObservableObject {
                     continue
                 }
             }
+            invalidateRemoteDirectoryCache()
             await refreshRemoteEntries()
         }
     }
@@ -377,6 +404,7 @@ final class FileTransferViewModel: ObservableObject {
             } catch {
                 return
             }
+            invalidateRemoteDirectoryCache()
             await refreshRemoteEntries()
         }
     }
@@ -423,6 +451,7 @@ final class FileTransferViewModel: ObservableObject {
                 }
             }
 
+            invalidateRemoteDirectoryCache()
             await refreshRemoteEntries()
         }
     }
@@ -493,6 +522,7 @@ final class FileTransferViewModel: ObservableObject {
         }
 
         try await sftpClient.upload(data: data, to: normalizedPath)
+        invalidateRemoteDirectoryCache()
         await refreshRemoteEntries()
         let savedAttributes = try? await sftpClient.stat(path: normalizedPath)
         return savedAttributes?.modifiedAt
@@ -504,6 +534,7 @@ final class FileTransferViewModel: ObservableObject {
 
     func saveRemoteAttributes(path: String, attributes: RemoteFileAttributes) async throws {
         try await sftpClient.setAttributes(path: normalizeRemoteDirectoryPath(path), attributes: attributes)
+        invalidateRemoteDirectoryCache()
         await refreshRemoteEntries()
     }
 
@@ -572,7 +603,10 @@ final class FileTransferViewModel: ObservableObject {
         }
 
         refreshLocalEntries()
-        await refreshRemoteEntries()
+        if item.direction == .upload {
+            invalidateRemoteDirectoryCache()
+            await refreshRemoteEntries()
+        }
     }
 
     var overallTransferProgress: Double? {
@@ -782,5 +816,71 @@ final class FileTransferViewModel: ObservableObject {
         let prefixed = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
         let collapsed = prefixed.replacingOccurrences(of: "//", with: "/")
         return collapsed.isEmpty ? "/" : collapsed
+    }
+
+    private func refreshRemoteEntries(
+        path rawPath: String,
+        preferCachedFirst: Bool,
+        deduplicateInFlight: Bool
+    ) async {
+        let path = normalizeRemoteDirectoryPath(rawPath)
+
+        if preferCachedFirst, let cached = remoteDirectoryCache[path] {
+            if remoteDirectoryPath == path {
+                remoteEntries = cached.entries
+                remoteLoadErrorMessage = nil
+            }
+
+            let cacheAge = Date().timeIntervalSince(cached.fetchedAt)
+            if cacheAge <= remoteDirectoryCacheTTL {
+                return
+            }
+        }
+
+        if deduplicateInFlight, remoteRefreshInFlightPaths.contains(path) {
+            return
+        }
+
+        remoteRefreshInFlightPaths.insert(path)
+        defer {
+            remoteRefreshInFlightPaths.remove(path)
+        }
+
+        do {
+            let entries = try await sftpClient.list(path: path)
+            let sorted = sortRemoteEntries(entries)
+            remoteDirectoryCache[path] = CachedRemoteDirectory(entries: sorted, fetchedAt: Date())
+            if remoteDirectoryPath == path {
+                remoteEntries = sorted
+                remoteLoadErrorMessage = nil
+            }
+        } catch {
+            if let cached = remoteDirectoryCache[path], !cached.entries.isEmpty {
+                if remoteDirectoryPath == path {
+                    remoteEntries = cached.entries
+                    remoteLoadErrorMessage = nil
+                }
+                return
+            }
+
+            if remoteDirectoryPath == path {
+                remoteEntries = []
+                remoteLoadErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func sortRemoteEntries(_ entries: [RemoteFileEntry]) -> [RemoteFileEntry] {
+        entries.sorted { lhs, rhs in
+            if lhs.isDirectory != rhs.isDirectory {
+                return lhs.isDirectory && !rhs.isDirectory
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    private func invalidateRemoteDirectoryCache() {
+        remoteDirectoryCache.removeAll()
+        remoteRefreshInFlightPaths.removeAll()
     }
 }

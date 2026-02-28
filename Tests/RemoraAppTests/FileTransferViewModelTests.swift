@@ -363,6 +363,48 @@ struct FileTransferViewModelTests {
         #expect(vm.remoteDirectoryPath == "/home/lighting")
     }
 
+    @Test
+    func repeatedNavigateToSameDirectoryDeduplicatesInFlightListRequests() async throws {
+        let countingClient = CountingMockSFTPClient(listDelayMS: 180)
+        let vm = FileTransferViewModel(sftpClient: countingClient, remoteDirectoryPath: "/")
+
+        await vm.refreshRemoteEntries()
+        let baseline = await countingClient.listCallCount()
+
+        vm.navigateRemote(to: "/logs")
+        vm.navigateRemote(to: "/logs")
+        vm.navigateRemote(to: "/logs")
+
+        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+            await countingClient.listCallCount() >= baseline + 1
+        }
+
+        try await Task.sleep(for: .milliseconds(220))
+        let finalCount = await countingClient.listCallCount()
+        #expect(finalCount == baseline + 1)
+    }
+
+    @Test
+    func navigateBackToRecentlyLoadedDirectoryUsesCache() async throws {
+        let countingClient = CountingMockSFTPClient(listDelayMS: 120)
+        let vm = FileTransferViewModel(sftpClient: countingClient, remoteDirectoryPath: "/")
+
+        await vm.refreshRemoteEntries()
+        let baseline = await countingClient.listCallCount()
+
+        vm.navigateRemote(to: "/logs")
+        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+            await countingClient.listCallCount() >= baseline + 1
+        }
+        let afterLogs = await countingClient.listCallCount()
+
+        vm.navigateRemote(to: "/")
+        try await Task.sleep(for: .milliseconds(120))
+
+        let afterBack = await countingClient.listCallCount()
+        #expect(afterBack == afterLogs)
+    }
+
     private func waitForSuccess(in vm: FileTransferViewModel, transferName: String, successCount: Int) async throws {
         for _ in 0 ..< 40 {
             let success = vm.transferQueue.filter { $0.name == transferName && $0.status == .success }.count
@@ -389,5 +431,75 @@ struct FileTransferViewModelTests {
             try await Task.sleep(for: .milliseconds(intervalMS))
         }
         throw NSError(domain: "FileTransferViewModelTests", code: 3, userInfo: [NSLocalizedDescriptionKey: "timeout waiting condition"])
+    }
+}
+
+actor CountingMockSFTPClient: SFTPClientProtocol {
+    private let base = MockSFTPClient()
+    private let listDelayNS: UInt64
+    private var listCalls: Int = 0
+
+    init(listDelayMS: UInt64) {
+        self.listDelayNS = listDelayMS * 1_000_000
+    }
+
+    func listCallCount() -> Int {
+        listCalls
+    }
+
+    func list(path: String) async throws -> [RemoteFileEntry] {
+        listCalls += 1
+        if listDelayNS > 0 {
+            try await Task.sleep(nanoseconds: listDelayNS)
+        }
+        return try await base.list(path: path)
+    }
+
+    func download(path: String) async throws -> Data {
+        try await base.download(path: path)
+    }
+
+    func download(path: String, progress: TransferProgressHandler?) async throws -> Data {
+        try await base.download(path: path, progress: progress)
+    }
+
+    func upload(data: Data, to path: String) async throws {
+        try await base.upload(data: data, to: path)
+    }
+
+    func upload(data: Data, to path: String, progress: TransferProgressHandler?) async throws {
+        try await base.upload(data: data, to: path, progress: progress)
+    }
+
+    func upload(fileURL: URL, to path: String, progress: TransferProgressHandler?) async throws {
+        try await base.upload(fileURL: fileURL, to: path, progress: progress)
+    }
+
+    func rename(from: String, to: String) async throws {
+        try await base.rename(from: from, to: to)
+    }
+
+    func move(from: String, to: String) async throws {
+        try await base.move(from: from, to: to)
+    }
+
+    func copy(from: String, to: String) async throws {
+        try await base.copy(from: from, to: to)
+    }
+
+    func mkdir(path: String) async throws {
+        try await base.mkdir(path: path)
+    }
+
+    func remove(path: String) async throws {
+        try await base.remove(path: path)
+    }
+
+    func stat(path: String) async throws -> RemoteFileAttributes {
+        try await base.stat(path: path)
+    }
+
+    func setAttributes(path: String, attributes: RemoteFileAttributes) async throws {
+        try await base.setAttributes(path: path, attributes: attributes)
     }
 }
