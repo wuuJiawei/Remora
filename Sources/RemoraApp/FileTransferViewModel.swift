@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import RemoraCore
 
 enum TransferDirection: String, Sendable {
@@ -144,10 +145,11 @@ final class FileTransferViewModel: ObservableObject {
     private let remoteDirectoryCacheTTL: TimeInterval = 2
     private var remoteDirectoryHistory: [String] = []
     private var remoteDirectoryHistoryIndex: Int = 0
+    private let logger = Logger(subsystem: "io.lighting-tech.remora", category: "file-transfer")
 
     init(
         sftpClient: SFTPClientProtocol = DisconnectedSFTPClient(),
-        localDirectoryURL: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+        localDirectoryURL: URL = FileTransferViewModel.defaultLocalDirectoryURL(),
         remoteDirectoryPath: String = "/",
         maxConcurrentTransfers: Int = 2
     ) {
@@ -163,6 +165,25 @@ final class FileTransferViewModel: ObservableObject {
         Task {
             await refreshRemoteEntries()
         }
+    }
+
+    private static func defaultLocalDirectoryURL(fileManager: FileManager = .default) -> URL {
+        let current = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+            .standardizedFileURL
+        if fileManager.isWritableFile(atPath: current.path) {
+            return current
+        }
+
+        if let downloads = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first {
+            if !fileManager.fileExists(atPath: downloads.path) {
+                try? fileManager.createDirectory(at: downloads, withIntermediateDirectories: true)
+            }
+            if fileManager.isWritableFile(atPath: downloads.path) {
+                return downloads
+            }
+        }
+
+        return fileManager.homeDirectoryForCurrentUser
     }
 
     func bindSFTPClient(
@@ -627,6 +648,10 @@ final class FileTransferViewModel: ObservableObject {
             if let failedIdx = transferQueue.firstIndex(where: { $0.id == itemID }) {
                 transferQueue[failedIdx].status = .failed
                 transferQueue[failedIdx].message = error.localizedDescription
+                let failedItem = transferQueue[failedIdx]
+                logger.error(
+                    "transfer failed direction=\(failedItem.direction.rawValue, privacy: .public) source=\(failedItem.sourcePath, privacy: .public) destination=\(failedItem.destinationPath, privacy: .public) reason=\(error.localizedDescription, privacy: .public)"
+                )
             }
         }
 

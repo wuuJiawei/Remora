@@ -373,6 +373,16 @@ struct FileManagerPanelView: View {
                                 .progressViewStyle(.linear)
                                 .controlSize(.small)
                         }
+
+                        if let message = item.message,
+                           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        {
+                            Text(message)
+                                .font(.caption2.monospaced())
+                                .lineLimit(2)
+                                .foregroundStyle(item.status == .failed ? Color.red : VisualStyle.textSecondary)
+                                .accessibilityIdentifier("file-manager-transfer-message-\(item.id.uuidString)")
+                        }
                     }
                     .padding(.vertical, 2)
                     .padding(.horizontal, 4)
