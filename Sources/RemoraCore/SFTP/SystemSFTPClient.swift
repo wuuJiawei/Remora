@@ -21,10 +21,12 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     private let host: Host
     private let credentialStore = CredentialStore()
     private let directoryOperationTimeout: TimeInterval
+    private let shellFallbackTimeout: TimeInterval
 
     public init(host: Host) {
         self.host = host
-        self.directoryOperationTimeout = TimeInterval(min(30, max(8, host.policies.connectTimeoutSeconds * 2)))
+        self.directoryOperationTimeout = TimeInterval(min(10, max(5, host.policies.connectTimeoutSeconds)))
+        self.shellFallbackTimeout = TimeInterval(min(6, max(4, host.policies.connectTimeoutSeconds / 2)))
     }
 
     public func list(path: String) async throws -> [RemoteFileEntry] {
@@ -40,7 +42,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             }
 
             // Some servers return a non-long listing even when -l is requested.
-            if let sshFallback = try? await listViaSSH(path: normalized, timeout: directoryOperationTimeout), !sshFallback.isEmpty {
+            if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), !sshFallback.isEmpty {
                 return sshFallback
             }
 
@@ -52,7 +54,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             return []
         } catch {
             // Some servers disable SFTP subsystem while SSH shell stays available.
-            if let sshFallback = try? await listViaSSH(path: normalized, timeout: directoryOperationTimeout), !sshFallback.isEmpty {
+            if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), !sshFallback.isEmpty {
                 return sshFallback
             }
             throw error
@@ -174,7 +176,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             )
         } catch {
             let command = "LC_ALL=C ls -ldn -- \(Self.quoteShellArgument(normalized))"
-            let output = try await runSSHCommandOutput(command, timeout: directoryOperationTimeout)
+            let output = try await runSSHCommandOutput(command, timeout: shellFallbackTimeout)
             guard let parsed = Self.parseLongListEntries(output).first else {
                 throw SFTPClientError.notFound(normalized)
             }
@@ -252,6 +254,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             args.append(contentsOf: ["-o", "PreferredAuthentications=publickey"])
         case .password:
             args.append(contentsOf: ["-o", "PreferredAuthentications=password,keyboard-interactive"])
+            args.append(contentsOf: ["-o", "NumberOfPasswordPrompts=1"])
         case .agent:
             args.append(contentsOf: ["-o", "PreferredAuthentications=publickey"])
         }
@@ -287,6 +290,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             args.append(contentsOf: ["-o", "PreferredAuthentications=publickey"])
         case .password:
             args.append(contentsOf: ["-o", "PreferredAuthentications=password,keyboard-interactive"])
+            args.append(contentsOf: ["-o", "NumberOfPasswordPrompts=1"])
         case .agent:
             args.append(contentsOf: ["-o", "PreferredAuthentications=publickey"])
         }
@@ -552,7 +556,23 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     }
 
     private func runSFTPBatchWithFallbacks(stdin: Data, timeout: TimeInterval? = nil) async throws -> ProcessResult {
-        let storedPassword = await storedPasswordIfAvailable()
+        if host.auth.method == .password,
+           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
+               baseExecutable: "/usr/bin/sftp",
+               baseArguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: false)
+           )
+        {
+            let directPasswordResult = try await runProcess(
+                executablePath: passwordLaunch.executablePath,
+                arguments: passwordLaunch.arguments,
+                environment: passwordLaunch.environment,
+                stdin: stdin,
+                timeout: timeout
+            )
+            if directPasswordResult.status == 0 {
+                return directPasswordResult
+            }
+        }
 
         var result = try await runProcess(
             executablePath: "/usr/bin/sftp",
@@ -576,17 +596,6 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 arguments: passwordLaunch.arguments,
                 environment: passwordLaunch.environment,
                 stdin: stdin,
-                timeout: timeout
-            )
-            if result.status == 0 {
-                return result
-            }
-        } else if let storedPassword {
-            result = try await runProcess(
-                executablePath: "/usr/bin/sftp",
-                arguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: true),
-                environment: [:],
-                stdin: Self.passwordPrefixedStdin(password: storedPassword, payload: stdin),
                 timeout: timeout
             )
             if result.status == 0 {
@@ -622,21 +631,29 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 stdin: stdin,
                 timeout: timeout
             )
-        } else if let storedPassword {
-            result = try await runProcess(
-                executablePath: "/usr/bin/sftp",
-                arguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: false),
-                environment: [:],
-                stdin: Self.passwordPrefixedStdin(password: storedPassword, payload: stdin),
-                timeout: timeout
-            )
         }
 
         return result
     }
 
     private func runSSHCommandWithFallbacks(command: String, timeout: TimeInterval? = nil) async throws -> ProcessResult {
-        let storedPassword = await storedPasswordIfAvailable()
+        if host.auth.method == .password,
+           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
+               baseExecutable: "/usr/bin/ssh",
+               baseArguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: false) + [command]
+           )
+        {
+            let directPasswordResult = try await runProcess(
+                executablePath: passwordLaunch.executablePath,
+                arguments: passwordLaunch.arguments,
+                environment: passwordLaunch.environment,
+                stdin: nil,
+                timeout: timeout
+            )
+            if directPasswordResult.status == 0 {
+                return directPasswordResult
+            }
+        }
 
         var result = try await runProcess(
             executablePath: "/usr/bin/ssh",
@@ -660,17 +677,6 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 arguments: passwordLaunch.arguments,
                 environment: passwordLaunch.environment,
                 stdin: nil,
-                timeout: timeout
-            )
-            if result.status == 0 {
-                return result
-            }
-        } else if let storedPassword {
-            result = try await runProcess(
-                executablePath: "/usr/bin/ssh",
-                arguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: true) + [command],
-                environment: [:],
-                stdin: Data((storedPassword + "\n").utf8),
                 timeout: timeout
             )
             if result.status == 0 {
@@ -704,14 +710,6 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 arguments: passwordLaunch.arguments,
                 environment: passwordLaunch.environment,
                 stdin: nil,
-                timeout: timeout
-            )
-        } else if let storedPassword {
-            result = try await runProcess(
-                executablePath: "/usr/bin/ssh",
-                arguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: false) + [command],
-                environment: [:],
-                stdin: Data((storedPassword + "\n").utf8),
                 timeout: timeout
             )
         }
@@ -878,38 +876,70 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         return password
     }
 
-    private static func passwordPrefixedStdin(password: String, payload: Data) -> Data {
-        var data = Data((password + "\n").utf8)
-        data.append(payload)
-        return data
-    }
-
     private func makePasswordLaunchConfigurationIfAvailable(
         baseExecutable: String,
         baseArguments: [String]
     ) async -> BatchLaunchConfiguration? {
+        guard let password = await storedPasswordIfAvailable() else {
+            return nil
+        }
+
         let sshpassCandidates = [
             "/opt/homebrew/bin/sshpass",
             "/usr/local/bin/sshpass",
             "/usr/bin/sshpass",
         ]
 
-        guard let sshpassPath = sshpassCandidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-            return nil
+        if let sshpassPath = sshpassCandidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            return BatchLaunchConfiguration(
+                executablePath: sshpassPath,
+                arguments: ["-e", baseExecutable] + baseArguments,
+                environment: ["SSHPASS": password]
+            )
         }
 
-        guard let passwordRef = host.auth.passwordReference, !passwordRef.isEmpty else {
-            return nil
-        }
-        guard let password = await credentialStore.secret(for: passwordRef), !password.isEmpty else {
+        guard let askPassScriptPath = ensureAskPassScriptPath() else {
             return nil
         }
 
         return BatchLaunchConfiguration(
-            executablePath: sshpassPath,
-            arguments: ["-e", baseExecutable] + baseArguments,
-            environment: ["SSHPASS": password]
+            executablePath: baseExecutable,
+            arguments: baseArguments,
+            environment: [
+                "SSH_ASKPASS": askPassScriptPath,
+                "SSH_ASKPASS_REQUIRE": "force",
+                "DISPLAY": "remora-askpass",
+                "REMORA_SSH_PASSWORD": password,
+            ]
         )
+    }
+
+    private func ensureAskPassScriptPath() -> String? {
+        let scriptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-ssh-askpass.sh")
+
+        if FileManager.default.fileExists(atPath: scriptURL.path) {
+            return scriptURL.path
+        }
+
+        let script = """
+        #!/bin/sh
+        printf '%s\\n' \"${REMORA_SSH_PASSWORD}\"
+        """
+        guard let scriptData = script.data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            try scriptData.write(to: scriptURL, options: [.atomic])
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o700],
+                ofItemAtPath: scriptURL.path
+            )
+            return scriptURL.path
+        } catch {
+            return nil
+        }
     }
 
     private func normalize(_ path: String) -> String {

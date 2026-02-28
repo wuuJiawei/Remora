@@ -50,6 +50,26 @@ struct SystemSFTPClientTests {
     }
 
     @Test
+    func buildsPasswordAuthArgumentsWithSinglePromptLimit() {
+        let host = Host(
+            name: "remote",
+            address: "47.100.100.215",
+            port: 22,
+            username: "root",
+            auth: HostAuth(method: .password, passwordReference: "pw-ref"),
+            policies: HostPolicies(keepAliveSeconds: 15, connectTimeoutSeconds: 8, terminalProfileID: "default")
+        )
+
+        let sftpArgs = SystemSFTPClient.makeSFTPArguments(for: host)
+        let sshArgs = SystemSFTPClient.makeSSHArguments(for: host)
+
+        #expect(sftpArgs.contains("PreferredAuthentications=password,keyboard-interactive"))
+        #expect(sftpArgs.contains("NumberOfPasswordPrompts=1"))
+        #expect(sshArgs.contains("PreferredAuthentications=password,keyboard-interactive"))
+        #expect(sshArgs.contains("NumberOfPasswordPrompts=1"))
+    }
+
+    @Test
     func parsesLongListOutputWithFilesAndDirectories() {
         let output = """
         drwxr-xr-x    3 deploy deploy      96 Jan 12 14:33 logs
