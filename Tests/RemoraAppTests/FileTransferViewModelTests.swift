@@ -405,6 +405,45 @@ struct FileTransferViewModelTests {
         #expect(afterBack == afterLogs)
     }
 
+    @Test
+    func remoteNavigationBackAndForwardFollowHistory() async throws {
+        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        await vm.refreshRemoteEntries()
+
+        vm.navigateRemote(to: "/logs")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.remoteDirectoryPath == "/logs"
+        }
+        #expect(vm.canNavigateRemoteBack)
+
+        vm.navigateRemoteBack()
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.remoteDirectoryPath == "/"
+        }
+        #expect(vm.canNavigateRemoteForward)
+
+        vm.navigateRemoteForward()
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.remoteDirectoryPath == "/logs"
+        }
+    }
+
+    @Test
+    func remoteLoadingStateTurnsOnDuringDirectoryFetch() async throws {
+        let countingClient = CountingMockSFTPClient(listDelayMS: 220)
+        let vm = FileTransferViewModel(sftpClient: countingClient, remoteDirectoryPath: "/")
+
+        await vm.refreshRemoteEntries()
+        vm.navigateRemote(to: "/logs")
+        try await waitUntil(timeoutLoops: 20, intervalMS: 20) {
+            vm.isRemoteLoading
+        }
+
+        try await waitUntil(timeoutLoops: 60, intervalMS: 25) {
+            vm.isRemoteLoading == false
+        }
+    }
+
     private func waitForSuccess(in vm: FileTransferViewModel, transferName: String, successCount: Int) async throws {
         for _ in 0 ..< 40 {
             let success = vm.transferQueue.filter { $0.name == transferName && $0.status == .success }.count

@@ -128,6 +128,9 @@ final class FileTransferViewModel: ObservableObject {
     @Published var remoteDirectoryPath: String
     @Published var isTerminalDirectorySyncEnabled: Bool = false
     @Published var conflictStrategy: TransferConflictStrategy = .overwrite
+    @Published private(set) var canNavigateRemoteBack: Bool = false
+    @Published private(set) var canNavigateRemoteForward: Bool = false
+    @Published private(set) var isRemoteLoading: Bool = false
     @Published private(set) var remoteClipboard: RemoteClipboardState?
     @Published private(set) var localEntries: [LocalFileEntry] = []
     @Published private(set) var remoteEntries: [RemoteFileEntry] = []
@@ -139,6 +142,8 @@ final class FileTransferViewModel: ObservableObject {
     private var remoteDirectoryCache: [String: CachedRemoteDirectory] = [:]
     private var remoteRefreshInFlightPaths: Set<String> = []
     private let remoteDirectoryCacheTTL: TimeInterval = 2
+    private var remoteDirectoryHistory: [String] = []
+    private var remoteDirectoryHistoryIndex: Int = 0
 
     init(
         sftpClient: SFTPClientProtocol = DisconnectedSFTPClient(),
@@ -148,8 +153,11 @@ final class FileTransferViewModel: ObservableObject {
     ) {
         self.sftpClient = sftpClient
         self.localDirectoryURL = localDirectoryURL
-        self.remoteDirectoryPath = remoteDirectoryPath
+        self.remoteDirectoryPath = Self.normalizeStaticRemoteDirectoryPath(remoteDirectoryPath)
         self.transferCenter = TransferCenter(maxConcurrentTransfers: maxConcurrentTransfers)
+        self.remoteDirectoryHistory = [self.remoteDirectoryPath]
+        self.remoteDirectoryHistoryIndex = 0
+        updateRemoteNavigationAvailability()
 
         refreshLocalEntries()
         Task {
@@ -168,10 +176,10 @@ final class FileTransferViewModel: ObservableObject {
         remoteLoadErrorMessage = nil
         remoteDirectoryCache.removeAll()
         remoteRefreshInFlightPaths.removeAll()
+        isRemoteLoading = false
 
-        if let initialRemoteDirectory {
-            remoteDirectoryPath = normalizeRemoteDirectoryPath(initialRemoteDirectory)
-        }
+        let initialPath = normalizeRemoteDirectoryPath(initialRemoteDirectory ?? "/")
+        setRemoteDirectory(path: initialPath, recordHistory: false, resetHistory: true)
 
         Task {
             await refreshRemoteEntries()
@@ -237,11 +245,31 @@ final class FileTransferViewModel: ObservableObject {
         guard remoteDirectoryPath != "/" else { return }
         let parent = URL(fileURLWithPath: remoteDirectoryPath).deletingLastPathComponent().path
         let targetPath = parent.isEmpty ? "/" : parent
-        let normalizedTargetPath = normalizeRemoteDirectoryPath(targetPath)
-        remoteDirectoryPath = normalizedTargetPath
+        navigateRemote(to: targetPath)
+    }
+
+    func navigateRemoteBack() {
+        guard remoteDirectoryHistoryIndex > 0 else { return }
+        remoteDirectoryHistoryIndex -= 1
+        let targetPath = remoteDirectoryHistory[remoteDirectoryHistoryIndex]
+        setRemoteDirectory(path: targetPath, recordHistory: false, resetHistory: false)
         Task {
             await refreshRemoteEntries(
-                path: normalizedTargetPath,
+                path: targetPath,
+                preferCachedFirst: true,
+                deduplicateInFlight: true
+            )
+        }
+    }
+
+    func navigateRemoteForward() {
+        guard remoteDirectoryHistoryIndex + 1 < remoteDirectoryHistory.count else { return }
+        remoteDirectoryHistoryIndex += 1
+        let targetPath = remoteDirectoryHistory[remoteDirectoryHistoryIndex]
+        setRemoteDirectory(path: targetPath, recordHistory: false, resetHistory: false)
+        Task {
+            await refreshRemoteEntries(
+                path: targetPath,
                 preferCachedFirst: true,
                 deduplicateInFlight: true
             )
@@ -250,7 +278,7 @@ final class FileTransferViewModel: ObservableObject {
 
     func navigateRemote(to path: String) {
         let normalizedTargetPath = normalizeRemoteDirectoryPath(path)
-        remoteDirectoryPath = normalizedTargetPath
+        setRemoteDirectory(path: normalizedTargetPath, recordHistory: true, resetHistory: false)
         Task {
             await refreshRemoteEntries(
                 path: normalizedTargetPath,
@@ -296,7 +324,7 @@ final class FileTransferViewModel: ObservableObject {
     func openRemote(_ entry: RemoteFileEntry) {
         guard entry.isDirectory else { return }
         let normalizedTargetPath = normalizeRemoteDirectoryPath(entry.path)
-        remoteDirectoryPath = normalizedTargetPath
+        setRemoteDirectory(path: normalizedTargetPath, recordHistory: true, resetHistory: false)
         Task {
             await refreshRemoteEntries(
                 path: normalizedTargetPath,
@@ -818,6 +846,14 @@ final class FileTransferViewModel: ObservableObject {
         return collapsed.isEmpty ? "/" : collapsed
     }
 
+    private static func normalizeStaticRemoteDirectoryPath(_ rawPath: String) -> String {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "/" }
+        let prefixed = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        let collapsed = prefixed.replacingOccurrences(of: "//", with: "/")
+        return collapsed.isEmpty ? "/" : collapsed
+    }
+
     private func refreshRemoteEntries(
         path rawPath: String,
         preferCachedFirst: Bool,
@@ -833,17 +869,21 @@ final class FileTransferViewModel: ObservableObject {
 
             let cacheAge = Date().timeIntervalSince(cached.fetchedAt)
             if cacheAge <= remoteDirectoryCacheTTL {
+                updateRemoteLoadingState()
                 return
             }
         }
 
         if deduplicateInFlight, remoteRefreshInFlightPaths.contains(path) {
+            updateRemoteLoadingState()
             return
         }
 
         remoteRefreshInFlightPaths.insert(path)
+        updateRemoteLoadingState()
         defer {
             remoteRefreshInFlightPaths.remove(path)
+            updateRemoteLoadingState()
         }
 
         do {
@@ -882,5 +922,58 @@ final class FileTransferViewModel: ObservableObject {
     private func invalidateRemoteDirectoryCache() {
         remoteDirectoryCache.removeAll()
         remoteRefreshInFlightPaths.removeAll()
+        updateRemoteLoadingState()
+    }
+
+    private func setRemoteDirectory(path: String, recordHistory: Bool, resetHistory: Bool) {
+        let normalized = normalizeRemoteDirectoryPath(path)
+        remoteDirectoryPath = normalized
+
+        if resetHistory {
+            remoteDirectoryHistory = [normalized]
+            remoteDirectoryHistoryIndex = 0
+            updateRemoteNavigationAvailability()
+            updateRemoteLoadingState()
+            return
+        }
+
+        guard recordHistory else {
+            updateRemoteNavigationAvailability()
+            updateRemoteLoadingState()
+            return
+        }
+
+        if remoteDirectoryHistory.isEmpty {
+            remoteDirectoryHistory = [normalized]
+            remoteDirectoryHistoryIndex = 0
+            updateRemoteNavigationAvailability()
+            updateRemoteLoadingState()
+            return
+        }
+
+        if remoteDirectoryHistory[remoteDirectoryHistoryIndex] == normalized {
+            updateRemoteNavigationAvailability()
+            updateRemoteLoadingState()
+            return
+        }
+
+        if remoteDirectoryHistoryIndex + 1 < remoteDirectoryHistory.count {
+            remoteDirectoryHistory.removeSubrange((remoteDirectoryHistoryIndex + 1) ..< remoteDirectoryHistory.count)
+        }
+
+        remoteDirectoryHistory.append(normalized)
+        remoteDirectoryHistoryIndex = remoteDirectoryHistory.count - 1
+        updateRemoteNavigationAvailability()
+        updateRemoteLoadingState()
+    }
+
+    private func updateRemoteNavigationAvailability() {
+        canNavigateRemoteBack = remoteDirectoryHistoryIndex > 0
+        canNavigateRemoteForward = remoteDirectoryHistoryIndex + 1 < remoteDirectoryHistory.count
+    }
+
+    private func updateRemoteLoadingState() {
+        let currentPath = normalizeRemoteDirectoryPath(remoteDirectoryPath)
+        isRemoteLoading = remoteRefreshInFlightPaths.contains(currentPath)
     }
 }

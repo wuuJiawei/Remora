@@ -5,10 +5,14 @@ import RemoraCore
 struct FileManagerPanelView: View {
     @ObservedObject var viewModel: FileTransferViewModel
 
+    @AppStorage("file-manager-path-width") private var remotePathFieldWidth: Double = 720
     @State private var selectedRemotePaths: Set<String> = []
     @State private var hoveredRemotePath: String?
     @State private var hoveredTransferID: UUID?
     @State private var remotePathDraft = "/"
+    @State private var pathWidthDragStart: Double?
+    @State private var lastTappedRemotePath: String?
+    @State private var lastRemoteTapAt = Date.distantPast
     @State private var isMoveSheetPresented = false
     @State private var moveTargetPath = "/"
     @State private var moveSourcePaths: [String] = []
@@ -36,35 +40,12 @@ struct FileManagerPanelView: View {
         viewModel.remoteDirectoryPath
     }
 
+    private var clampedPathFieldWidth: CGFloat {
+        CGFloat(min(max(remotePathFieldWidth, 260), 1400))
+    }
+
     var body: some View {
         VStack(spacing: 8) {
-            HStack {
-                Button {
-                    viewModel.goUpRemoteDirectory()
-                } label: {
-                    Label("Back", systemImage: "arrow.up.left")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityIdentifier("file-manager-back")
-
-                Toggle("Sync Terminal", isOn: $viewModel.isTerminalDirectorySyncEnabled)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .font(.caption)
-                    .accessibilityIdentifier("file-manager-sync-toggle")
-
-                Spacer()
-
-                Button("Refresh") {
-                    viewModel.performContextAction(.refresh)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityIdentifier("file-manager-refresh")
-            }
-            .padding(.top, 4)
-
             remotePanel
                 .frame(minHeight: 150, maxHeight: 220)
 
@@ -102,19 +83,6 @@ struct FileManagerPanelView: View {
                     .controlSize(.small)
                     .disabled(selectedRemotePaths.isEmpty)
                     .accessibilityIdentifier("file-manager-move")
-
-                    Text("Conflict")
-                        .font(.subheadline.weight(.semibold))
-
-                    Picker("", selection: $viewModel.conflictStrategy) {
-                        ForEach(TransferConflictStrategy.allCases) { strategy in
-                            Text(strategy.title).tag(strategy)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(minWidth: 140)
-                    .accessibilityIdentifier("file-manager-conflict")
 
                     Button("Retry Failed") {
                         viewModel.retryFailedTransfers()
@@ -183,133 +151,218 @@ struct FileManagerPanelView: View {
 
     private var remotePanel: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Label("Remote", systemImage: "externaldrive")
-                    .font(.subheadline.weight(.semibold))
-                    .fixedSize(horizontal: true, vertical: false)
+            remoteToolbar
 
-                Button("/") {
-                    navigateToRoot()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            ScrollViewReader { proxy in
+                List {
+                    Color.clear
+                        .frame(height: 0)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .id("file-manager-remote-list-top")
 
-                TextField("/path/to/dir", text: $remotePathDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption.monospaced())
-                    .onSubmit {
-                        jumpToRemotePath()
-                    }
-                    .accessibilityIdentifier("file-manager-path-field")
-
-                Button("Go") {
-                    jumpToRemotePath()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityIdentifier("file-manager-go")
-            }
-
-            List(viewModel.remoteEntries, id: \.path) { entry in
-                let isSelected = selectedRemotePaths.contains(entry.path)
-                HStack {
-                    Image(systemName: entry.isDirectory ? "folder" : "doc")
-                    Text(entry.name)
-                        .lineLimit(1)
-                        .foregroundStyle(VisualStyle.textPrimary)
-                    Spacer()
-                    if !entry.isDirectory {
-                        Text("\(entry.size)")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(VisualStyle.textSecondary)
-                    }
-                }
-                .padding(.vertical, 3)
-                .padding(.horizontal, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(
-                            isSelected
-                                ? VisualStyle.leftSelectedBackground
-                                : (hoveredRemotePath == entry.path ? VisualStyle.leftHoverBackground : Color.clear)
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isSelected ? VisualStyle.borderStrong : Color.clear, lineWidth: 1)
-                )
-                .contentShape(Rectangle())
-                .listRowBackground(Color.clear)
-                .tag(entry.path)
-                .accessibilityIdentifier(remoteRowIdentifier(entry.path))
-                .onTapGesture {
-                    if NSEvent.modifierFlags.contains(.command) {
-                        if selectedRemotePaths.contains(entry.path) {
-                            selectedRemotePaths.remove(entry.path)
-                        } else {
-                            selectedRemotePaths.insert(entry.path)
+                    ForEach(viewModel.remoteEntries, id: \.path) { entry in
+                        let isSelected = selectedRemotePaths.contains(entry.path)
+                        HStack {
+                            Image(systemName: entry.isDirectory ? "folder" : "doc")
+                            Text(entry.name)
+                                .lineLimit(1)
+                                .foregroundStyle(VisualStyle.textPrimary)
+                            Spacer()
+                            if !entry.isDirectory {
+                                Text("\(entry.size)")
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(VisualStyle.textSecondary)
+                            }
                         }
-                    } else {
-                        selectedRemotePaths = [entry.path]
+                        .padding(.vertical, 3)
+                        .padding(.horizontal, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(
+                                    isSelected
+                                        ? VisualStyle.leftSelectedBackground
+                                        : (hoveredRemotePath == entry.path ? VisualStyle.leftHoverBackground : Color.clear)
+                                )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(isSelected ? VisualStyle.borderStrong : Color.clear, lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
+                        .listRowBackground(Color.clear)
+                        .tag(entry.path)
+                        .accessibilityIdentifier(remoteRowIdentifier(entry.path))
+                        .onTapGesture {
+                            handleRemoteRowTap(entry)
+                        }
+                        .onHover { hovering in
+                            hoveredRemotePath = hovering ? entry.path : nil
+                        }
+                        .dropDestination(for: URL.self) { items, _ in
+                            guard entry.isDirectory, !items.isEmpty else { return false }
+                            viewModel.enqueueUpload(localFileURLs: items, toRemoteDirectory: entry.path)
+                            return true
+                        }
+                        .contextMenu {
+                            rowContextMenu(for: entry)
+                        }
                     }
                 }
-                .onTapGesture(count: 2) {
-                    guard entry.isDirectory else { return }
-                    viewModel.openRemote(entry)
-                    selectedRemotePaths.removeAll()
+                .onChange(of: viewModel.remoteDirectoryPath) {
+                    DispatchQueue.main.async {
+                        proxy.scrollTo("file-manager-remote-list-top", anchor: .top)
+                    }
                 }
-                .onHover { hovering in
-                    hoveredRemotePath = hovering ? entry.path : nil
-                }
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .scrollContentBackground(.hidden)
+                .background(VisualStyle.rightPanelBackground)
+                .listStyle(.plain)
+                .accessibilityIdentifier("file-manager-remote-list")
                 .dropDestination(for: URL.self) { items, _ in
-                    guard entry.isDirectory, !items.isEmpty else { return false }
-                    viewModel.enqueueUpload(localFileURLs: items, toRemoteDirectory: entry.path)
+                    guard !items.isEmpty else { return false }
+                    viewModel.enqueueUpload(localFileURLs: items, toRemoteDirectory: viewModel.remoteDirectoryPath)
                     return true
                 }
                 .contextMenu {
-                    rowContextMenu(for: entry)
+                    panelContextMenu
                 }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .scrollContentBackground(.hidden)
-            .background(VisualStyle.rightPanelBackground)
-            .listStyle(.plain)
-            .accessibilityIdentifier("file-manager-remote-list")
-            .dropDestination(for: URL.self) { items, _ in
-                guard !items.isEmpty else { return false }
-                viewModel.enqueueUpload(localFileURLs: items, toRemoteDirectory: viewModel.remoteDirectoryPath)
-                return true
-            }
-            .contextMenu {
-                panelContextMenu
-            }
-            .overlay(alignment: .center) {
-                if viewModel.remoteEntries.isEmpty,
-                   let message = viewModel.remoteLoadErrorMessage,
-                   !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                {
-                    VStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
-                        Text("Failed to load remote directory")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(message)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(4)
+                .overlay(alignment: .center) {
+                    if viewModel.isRemoteLoading {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading directory...")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.black.opacity(0.04))
+                        )
+                        .padding(16)
+                        .accessibilityIdentifier("file-manager-remote-loading")
+                    } else if viewModel.remoteEntries.isEmpty,
+                              let message = viewModel.remoteLoadErrorMessage,
+                              !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    {
+                        VStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                            Text("Failed to load remote directory")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(message)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(4)
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.black.opacity(0.04))
+                        )
+                        .padding(16)
+                        .accessibilityIdentifier("file-manager-remote-error")
                     }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.04))
-                    )
-                    .padding(16)
-                    .accessibilityIdentifier("file-manager-remote-error")
                 }
             }
         }
+    }
+
+    private var remoteToolbar: some View {
+        HStack(spacing: 8) {
+            toolbarIconButton(
+                "chevron.backward",
+                accessibilityIdentifier: "file-manager-back",
+                helpText: "Back",
+                disabled: !viewModel.canNavigateRemoteBack
+            ) {
+                viewModel.navigateRemoteBack()
+            }
+
+            toolbarIconButton(
+                "chevron.forward",
+                accessibilityIdentifier: "file-manager-forward",
+                helpText: "Forward",
+                disabled: !viewModel.canNavigateRemoteForward
+            ) {
+                viewModel.navigateRemoteForward()
+            }
+
+            toolbarIconButton(
+                "house",
+                accessibilityIdentifier: "file-manager-root",
+                helpText: "Go to Root",
+                disabled: viewModel.remoteDirectoryPath == "/"
+            ) {
+                navigateToRoot()
+            }
+
+            toolbarIconButton(
+                "arrow.clockwise",
+                accessibilityIdentifier: "file-manager-refresh",
+                helpText: "Refresh",
+                disabled: false
+            ) {
+                viewModel.performContextAction(.refresh)
+            }
+
+            Label("Remote", systemImage: "externaldrive")
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.leading, 4)
+
+            TextField("/path/to/dir", text: $remotePathDraft)
+                .textFieldStyle(.roundedBorder)
+                .font(.caption.monospaced())
+                .frame(width: clampedPathFieldWidth)
+                .onSubmit {
+                    jumpToRemotePath()
+                }
+                .accessibilityIdentifier("file-manager-path-field")
+
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(VisualStyle.borderStrong)
+                .frame(width: 4, height: 18)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { value in
+                            if pathWidthDragStart == nil {
+                                pathWidthDragStart = remotePathFieldWidth
+                            }
+                            let start = pathWidthDragStart ?? remotePathFieldWidth
+                            remotePathFieldWidth = min(max(start + value.translation.width, 260), 1400)
+                        }
+                        .onEnded { _ in
+                            pathWidthDragStart = nil
+                        }
+                )
+                .accessibilityIdentifier("file-manager-path-resize")
+
+            toolbarIconButton(
+                "arrow.right.circle",
+                accessibilityIdentifier: "file-manager-go",
+                helpText: "Go",
+                disabled: false
+            ) {
+                jumpToRemotePath()
+            }
+
+            Spacer(minLength: 8)
+
+            Toggle("Sync Terminal", isOn: $viewModel.isTerminalDirectorySyncEnabled)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .font(.caption)
+                .accessibilityIdentifier("file-manager-sync-toggle")
+                .fixedSize()
+        }
+        .padding(.top, 4)
     }
 
     private var transferQueuePanel: some View {
@@ -479,6 +532,54 @@ struct FileManagerPanelView: View {
         }
     }
 
+    @ViewBuilder
+    private func toolbarIconButton(
+        _ systemImage: String,
+        accessibilityIdentifier: String,
+        helpText: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 14, height: 14)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .frame(width: 30, height: 28)
+        .help(helpText)
+        .disabled(disabled)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func handleRemoteRowTap(_ entry: RemoteFileEntry) {
+        if NSEvent.modifierFlags.contains(.command) {
+            if selectedRemotePaths.contains(entry.path) {
+                selectedRemotePaths.remove(entry.path)
+            } else {
+                selectedRemotePaths.insert(entry.path)
+            }
+        } else {
+            selectedRemotePaths = [entry.path]
+        }
+
+        let now = Date()
+        if entry.isDirectory,
+           lastTappedRemotePath == entry.path,
+           now.timeIntervalSince(lastRemoteTapAt) < 0.32
+        {
+            viewModel.openRemote(entry)
+            selectedRemotePaths.removeAll()
+            lastTappedRemotePath = nil
+            lastRemoteTapAt = .distantPast
+            return
+        }
+
+        lastTappedRemotePath = entry.path
+        lastRemoteTapAt = now
+    }
+
     private func jumpToRemotePath() {
         viewModel.navigateRemote(to: remotePathDraft)
         selectedRemotePaths.removeAll()
@@ -559,6 +660,21 @@ struct FileManagerPanelView: View {
             TextField("/target/path", text: $moveTargetPath)
                 .textFieldStyle(.roundedBorder)
                 .font(.body.monospaced())
+
+            HStack(spacing: 8) {
+                Text("Conflict")
+                    .font(.subheadline.weight(.semibold))
+
+                Picker("Conflict", selection: $viewModel.conflictStrategy) {
+                    ForEach(TransferConflictStrategy.allCases) { strategy in
+                        Text(strategy.title).tag(strategy)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(minWidth: 140)
+                .labelsHidden()
+                .accessibilityIdentifier("file-manager-move-conflict")
+            }
 
             HStack {
                 Spacer()

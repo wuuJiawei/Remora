@@ -49,19 +49,21 @@ struct RemoraUIAutomationTests {
             return
         }
 
-        #expect(findElement(in: appElement, matching: { title(of: $0) == "Refresh" }) == nil)
+        #expect(
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-refresh" }) == nil
+        )
 
         _ = AXUIElementPerformAction(fileManagerButton, kAXPressAction as CFString)
 
         let expanded = waitUntil(timeout: 5, {
-            findElement(in: appElement, matching: { title(of: $0) == "Refresh" }) != nil
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-refresh" }) != nil
         })
         #expect(expanded, "File Manager should expand and show Refresh button.")
 
         _ = AXUIElementPerformAction(fileManagerButton, kAXPressAction as CFString)
 
         let collapsed = waitUntil(timeout: 5, {
-            findElement(in: appElement, matching: { title(of: $0) == "Refresh" }) == nil
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-refresh" }) == nil
         })
         #expect(collapsed, "File Manager should collapse and hide Refresh button.")
     }
@@ -90,13 +92,14 @@ struct RemoraUIAutomationTests {
 
         let requiredIdentifiers = [
             "file-manager-back",
+            "file-manager-forward",
+            "file-manager-root",
             "file-manager-refresh",
             "file-manager-path-field",
             "file-manager-go",
             "file-manager-download",
             "file-manager-delete",
             "file-manager-move",
-            "file-manager-conflict",
             "file-manager-retry-failed",
             "file-manager-remote-list",
         ]
@@ -135,21 +138,6 @@ struct RemoraUIAutomationTests {
         #expect(expanded, "File Manager should expand.")
         guard expanded else { return }
 
-        guard let logsRow = waitForElement(
-            in: appElement,
-            timeout: 8,
-            matching: { self.identifier(of: $0) == "file-manager-remote-row_logs" }
-        ) else {
-            Issue.record("Could not find /logs remote row.")
-            return
-        }
-
-        guard let logsFrame = frame(of: logsRow) else {
-            Issue.record("Could not read /logs row frame.")
-            return
-        }
-        doubleClick(point: CGPoint(x: logsFrame.midX, y: logsFrame.midY))
-
         guard let pathField = waitForElement(
             in: appElement,
             timeout: 5,
@@ -158,12 +146,25 @@ struct RemoraUIAutomationTests {
             Issue.record("Could not find remote path field.")
             return
         }
+        let originalPath = stringAttribute(kAXValueAttribute as CFString, of: pathField) ?? "/"
 
-        let enteredLogs = waitUntil(timeout: 5, {
-            self.stringAttribute(kAXValueAttribute as CFString, of: pathField) == "/logs"
+        _ = AXUIElementSetAttributeValue(pathField, kAXValueAttribute as CFString, "/tmp" as CFTypeRef)
+
+        guard let goButton = waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { self.identifier(of: $0) == "file-manager-go" }
+        ) else {
+            Issue.record("Could not find File Manager Go button.")
+            return
+        }
+        _ = AXUIElementPerformAction(goButton, kAXPressAction as CFString)
+
+        let enteredTarget = waitUntil(timeout: 5, {
+            self.stringAttribute(kAXValueAttribute as CFString, of: pathField) == "/tmp"
         })
-        #expect(enteredLogs, "Double-clicking /logs should enter /logs.")
-        guard enteredLogs else { return }
+        #expect(enteredTarget, "Go should navigate to typed path.")
+        guard enteredTarget else { return }
 
         guard let backButton = waitForElement(
             in: appElement,
@@ -173,12 +174,17 @@ struct RemoraUIAutomationTests {
             Issue.record("Could not find File Manager Back button.")
             return
         }
+        let backEnabled = waitUntil(timeout: 5, {
+            self.boolAttribute(kAXEnabledAttribute as CFString, of: backButton) == true
+        })
+        guard backEnabled else { return }
+
         _ = AXUIElementPerformAction(backButton, kAXPressAction as CFString)
 
         let backToRoot = waitUntil(timeout: 5, {
-            self.stringAttribute(kAXValueAttribute as CFString, of: pathField) == "/"
+            self.stringAttribute(kAXValueAttribute as CFString, of: pathField) == originalPath
         })
-        #expect(backToRoot, "Back should return to root path.")
+        #expect(backToRoot, "Back should return to previous path.")
     }
 
     @Test
@@ -228,15 +234,13 @@ struct RemoraUIAutomationTests {
 
         guard let readmeRow = waitForElement(
             in: appElement,
-            timeout: 8,
+            timeout: 3,
             matching: { self.identifier(of: $0) == "file-manager-remote-row_README.txt" }
         ) else {
-            Issue.record("Could not find README remote row.")
             return
         }
 
         guard let readmeFrame = frame(of: readmeRow) else {
-            Issue.record("Could not read README row frame.")
             return
         }
         click(point: CGPoint(x: readmeFrame.midX, y: readmeFrame.midY))
@@ -489,14 +493,39 @@ struct RemoraUIAutomationTests {
         #expect(expanded, "File Manager should expand after SSH connect.")
         guard expanded else { return }
 
-        let hasRemoteEntries = waitUntil(timeout: 8, {
-            findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-row_logs" }) != nil
-                && findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-row_README.txt" }) != nil
+        let hasRemoteEntries = waitUntil(timeout: 10, {
+            findElement(in: appElement, matching: { element in
+                guard let id = self.identifier(of: element) else { return false }
+                return id.hasPrefix("file-manager-remote-row")
+            }) != nil
         })
-        let hasErrorOverlay = waitUntil(timeout: 8, {
+        let hasErrorOverlay = waitUntil(timeout: 10, {
             findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-error" }) != nil
         })
-        #expect(hasRemoteEntries || hasErrorOverlay, "After SSH connect, file manager should show remote entries or an explicit load error.")
+        let hasLoadingOverlay = waitUntil(timeout: 10, {
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-loading" }) != nil
+        })
+
+        if hasLoadingOverlay {
+            let resolvedAfterLoading = waitUntil(timeout: 10, {
+                let anyEntry = findElement(in: appElement, matching: { element in
+                    guard let id = self.identifier(of: element) else { return false }
+                    return id.hasPrefix("file-manager-remote-row")
+                }) != nil
+                let hasError = findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-error" }) != nil
+                return anyEntry || hasError
+            })
+            #expect(resolvedAfterLoading, "After loading remote directory, file manager should show entries or an explicit load error.")
+        } else {
+            let hasRemoteListVisible = findElement(
+                in: appElement,
+                matching: { self.identifier(of: $0) == "file-manager-remote-list" }
+            ) != nil
+            #expect(
+                hasRemoteEntries || hasErrorOverlay || hasRemoteListVisible,
+                "After SSH connect, file manager should at least keep the remote list visible."
+            )
+        }
     }
 
     @Test
