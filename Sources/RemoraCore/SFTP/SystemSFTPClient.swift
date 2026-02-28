@@ -32,6 +32,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
 
     private static let diagnosticsQueue = DispatchQueue(label: "io.lighting-tech.remora.sftp-diagnostics")
     private static let diagnosticsLogMaxBytes: Int64 = 10 * 1024 * 1024
+    private static let diagnosticsRetentionDays: Int = 14
     private static let diagnosticsLogURL: URL = {
         let fm = FileManager.default
         let baseDirectory = fm.urls(for: .libraryDirectory, in: .userDomainMask).first?
@@ -941,6 +942,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     private static func appendDiagnostics(_ message: String) {
         diagnosticsQueue.sync {
             rotateDiagnosticsIfNeeded(fileManager: .default)
+            cleanupExpiredDiagnosticsIfNeeded(fileManager: .default, now: Date())
 
             let data = Data((message + "\n").utf8)
             if FileManager.default.fileExists(atPath: diagnosticsLogURL.path) {
@@ -979,6 +981,40 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         let timestamp = formatter.string(from: Date())
         let archiveURL = diagnosticsLogURL.deletingPathExtension().appendingPathExtension("\(timestamp).log")
         try? fileManager.moveItem(at: diagnosticsLogURL, to: archiveURL)
+    }
+
+    private static func cleanupExpiredDiagnosticsIfNeeded(fileManager: FileManager, now: Date) {
+        let directoryURL = diagnosticsLogURL.deletingLastPathComponent()
+        guard let fileURLs = try? fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey, .isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for fileURL in fileURLs {
+            let fileName = fileURL.lastPathComponent
+            guard fileName.hasPrefix("sftp-diagnostics") else { continue }
+
+            guard let values = try? fileURL.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey, .creationDateKey]),
+                  values.isDirectory != true
+            else {
+                continue
+            }
+
+            let referenceDate = values.contentModificationDate ?? values.creationDate
+            guard let referenceDate else { continue }
+            guard shouldDeleteDiagnosticsFile(referenceDate: referenceDate, now: now, retentionDays: diagnosticsRetentionDays) else {
+                continue
+            }
+            try? fileManager.removeItem(at: fileURL)
+        }
+    }
+
+    static func shouldDeleteDiagnosticsFile(referenceDate: Date, now: Date, retentionDays: Int) -> Bool {
+        let retentionInterval = TimeInterval(retentionDays * 24 * 60 * 60)
+        return now.timeIntervalSince(referenceDate) > retentionInterval
     }
 
     private static func redactedEnvironmentDescription(_ environment: [String: String]) -> String {

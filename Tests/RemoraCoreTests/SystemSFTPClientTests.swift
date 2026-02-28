@@ -159,4 +159,14 @@ struct SystemSFTPClientTests {
         #expect(!SystemSFTPClient.isTransientConnectionFailureMessage("Permission denied (publickey,password)."))
         #expect(!SystemSFTPClient.isTransientConnectionFailureMessage("No such file or directory"))
     }
+
+    @Test
+    func diagnosticsRetentionDeletesOnlyExpiredFiles() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let justInsideRetention = now.addingTimeInterval(-Double(14 * 24 * 60 * 60 - 60))
+        let justOutsideRetention = now.addingTimeInterval(-Double(14 * 24 * 60 * 60 + 60))
+
+        #expect(!SystemSFTPClient.shouldDeleteDiagnosticsFile(referenceDate: justInsideRetention, now: now, retentionDays: 14))
+        #expect(SystemSFTPClient.shouldDeleteDiagnosticsFile(referenceDate: justOutsideRetention, now: now, retentionDays: 14))
+    }
 }
