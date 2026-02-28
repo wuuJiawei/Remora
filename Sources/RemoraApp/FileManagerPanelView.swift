@@ -48,6 +48,7 @@ struct FileManagerPanelView: View {
     @State private var createRemoteKind: RemoteCreateKind = .file
     @State private var createRemoteTargetDirectory = "/"
     @State private var createRemoteNameDraft = ""
+    @State private var isTransferQueueExpanded = false
 
     private var selectedRemoteEntries: [RemoteFileEntry] {
         viewModel.remoteEntries.filter { selectedRemotePaths.contains($0.path) }
@@ -67,6 +68,41 @@ struct FileManagerPanelView: View {
 
     private var currentDestinationDirectoryForPaste: String {
         viewModel.remoteDirectoryPath
+    }
+
+    private struct TransferQueueSummary {
+        var statusText: String
+        var progress: Double
+        var statusColor: Color
+    }
+
+    private var transferQueueSummary: TransferQueueSummary {
+        let items = viewModel.transferQueue
+        guard !items.isEmpty else {
+            return TransferQueueSummary(statusText: "Idle", progress: 0, statusColor: .secondary)
+        }
+
+        let hasRunning = items.contains { $0.status == .running || $0.status == .queued }
+        let hasIssue = items.contains { $0.status == .failed || $0.status == .skipped }
+
+        let statusText: String
+        let statusColor: Color
+        if hasRunning {
+            statusText = "Transferring"
+            statusColor = .orange
+        } else if hasIssue {
+            statusText = "Finished with Issues"
+            statusColor = .red
+        } else {
+            statusText = "Completed"
+            statusColor = .green
+        }
+
+        let aggregate = items.reduce(Double(0)) { partial, item in
+            partial + transferProgressValue(for: item)
+        }
+        let progress = min(max(aggregate / Double(max(items.count, 1)), 0), 1)
+        return TransferQueueSummary(statusText: statusText, progress: progress, statusColor: statusColor)
     }
 
     var body: some View {
@@ -127,10 +163,13 @@ struct FileManagerPanelView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            transferQueuePanel
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.transferQueue.map(\.status))
+        .animation(.easeInOut(duration: 0.2), value: isTransferQueueExpanded)
+        .overlay(alignment: .bottomTrailing) {
+            transferQueueFloatingOverlay
+                .padding(8)
+        }
         .onAppear {
             remotePathDraft = viewModel.remoteDirectoryPath
         }
@@ -363,17 +402,82 @@ struct FileManagerPanelView: View {
         }
     }
 
-    private var transferQueuePanel: some View {
+    private var transferQueueFloatingOverlay: some View {
+        Group {
+            if isTransferQueueExpanded {
+                transferQueueExpandedPanel
+            } else {
+                transferQueueCollapsedPanel
+            }
+        }
+    }
+
+    private var transferQueueCollapsedPanel: some View {
+        Button {
+            isTransferQueueExpanded = true
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text("Transfer Queue")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(VisualStyle.textPrimary)
+                    Spacer(minLength: 6)
+                    Text(transferQueueSummary.statusText)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(transferQueueSummary.statusColor)
+                    Image(systemName: "chevron.up")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(VisualStyle.textSecondary)
+                }
+
+                ProgressView(value: transferQueueSummary.progress)
+                    .progressViewStyle(.linear)
+                    .controlSize(.small)
+
+                HStack {
+                    Text("\(Int(transferQueueSummary.progress * 100))%")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(VisualStyle.textSecondary)
+                    Spacer()
+                    Text("\(viewModel.transferQueue.count) task\(viewModel.transferQueue.count == 1 ? "" : "s")")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(VisualStyle.textSecondary)
+                }
+            }
+            .padding(10)
+            .frame(width: 300)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(VisualStyle.rightPanelBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(VisualStyle.borderSoft, lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.08), radius: 6, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("file-manager-transfer-collapsed")
+    }
+
+    private var transferQueueExpandedPanel: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Transfer Queue")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                if let overallProgress = viewModel.overallTransferProgress {
-                    Text("\(Int(overallProgress * 100))%")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(VisualStyle.textSecondary)
+                Text("\(Int(transferQueueSummary.progress * 100))%")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(VisualStyle.textSecondary)
+                Button {
+                    isTransferQueueExpanded = false
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
                 }
+                .buttonStyle(.borderless)
+                .help("Collapse Transfer Queue")
+                .accessibilityIdentifier("file-manager-transfer-collapse")
             }
 
             HStack(spacing: 8) {
@@ -392,18 +496,16 @@ struct FileManagerPanelView: View {
                 .accessibilityIdentifier("file-manager-open-download-folder")
             }
 
-            if let overallProgress = viewModel.overallTransferProgress {
-                ProgressView(value: overallProgress)
-                    .progressViewStyle(.linear)
-                    .controlSize(.small)
-            }
+            ProgressView(value: transferQueueSummary.progress)
+                .progressViewStyle(.linear)
+                .controlSize(.small)
 
             if viewModel.transferQueue.isEmpty {
                 Text("No transfer tasks")
                     .monoMetaStyle()
             } else {
                 List(viewModel.transferQueue) { item in
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 8) {
                             Text(item.direction.rawValue)
                                 .font(.caption.monospaced())
@@ -425,26 +527,15 @@ struct FileManagerPanelView: View {
                                 .help("Reveal Downloaded File")
                                 .accessibilityIdentifier("file-manager-transfer-reveal-\(item.id.uuidString)")
                             }
-                            Text(item.status.rawValue)
+                            Text(transferStatusText(for: item))
                                 .font(.caption.monospaced())
                                 .foregroundStyle(statusColor(item.status))
+                                .lineLimit(1)
                         }
 
-                        if let progress = item.fractionCompleted {
-                            ProgressView(value: progress)
-                                .progressViewStyle(.linear)
-                                .controlSize(.small)
-                        }
-
-                        if let message = item.message,
-                           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        {
-                            Text(message)
-                                .font(.caption2.monospaced())
-                                .lineLimit(2)
-                                .foregroundStyle(item.status == .failed ? Color.red : VisualStyle.textSecondary)
-                                .accessibilityIdentifier("file-manager-transfer-message-\(item.id.uuidString)")
-                        }
+                        ProgressView(value: transferProgressValue(for: item))
+                            .progressViewStyle(.linear)
+                            .controlSize(.small)
                     }
                     .padding(.vertical, 2)
                     .padding(.horizontal, 4)
@@ -459,13 +550,25 @@ struct FileManagerPanelView: View {
                         transferContextMenu(for: item)
                     }
                 }
-                .frame(minHeight: 80, maxHeight: 120)
+                .frame(minHeight: 100, maxHeight: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .scrollContentBackground(.hidden)
                 .background(VisualStyle.rightPanelBackground)
                 .listStyle(.plain)
             }
         }
+        .padding(10)
+        .frame(width: 420)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(VisualStyle.rightPanelBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(VisualStyle.borderSoft, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 8, y: 3)
+        .accessibilityIdentifier("file-manager-transfer-expanded")
     }
 
     @ViewBuilder
@@ -575,6 +678,33 @@ struct FileManagerPanelView: View {
             Button("Upload To Current Directory") {
                 presentUploadPanel(targetDirectory: entry.path)
             }
+        }
+    }
+
+    private func transferProgressValue(for item: TransferItem) -> Double {
+        if let fraction = item.fractionCompleted {
+            return min(max(fraction, 0), 1)
+        }
+
+        switch item.status {
+        case .success, .failed, .skipped:
+            return 1
+        case .running:
+            return 0.1
+        case .queued:
+            return 0
+        }
+    }
+
+    private func transferStatusText(for item: TransferItem) -> String {
+        switch item.status {
+        case .failed, .skipped:
+            if let message = item.message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "\(item.status.rawValue): \(message)"
+            }
+            return item.status.rawValue
+        default:
+            return item.status.rawValue
         }
     }
 
