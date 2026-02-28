@@ -50,6 +50,21 @@ struct SystemSFTPClientTests {
     }
 
     @Test
+    func parsesLongListOutputWithAbsolutePathsAndSkipsDotEntries() {
+        let output = """
+        drwxr-xr-x    3 root root      96 Jan 12 14:33 /home/.
+        drwxr-xr-x   24 root root    4096 Jan 12 14:33 /home/..
+        drwx------    4 root root     128 Jan 13 09:01 /home/lighting
+        """
+
+        let entries = SystemSFTPClient.parseLongListOutput(output, parentPath: "/home")
+        #expect(entries.count == 1)
+        #expect(entries[0].name == "lighting")
+        #expect(entries[0].path == "/home/lighting")
+        #expect(entries[0].isDirectory)
+    }
+
+    @Test
     func parsesPermissionsAndOwnershipFromLongList() {
         let output = """
         -rw-r-----    1 user1 group2     512 Feb 10 2024 app.conf
@@ -77,5 +92,20 @@ struct SystemSFTPClientTests {
         #expect(entries.contains(where: { $0.path == "/bin" && $0.isDirectory }))
         #expect(entries.contains(where: { $0.path == "/etc" && $0.isDirectory }))
         #expect(entries.contains(where: { $0.path == "/README.txt" && !$0.isDirectory }))
+    }
+
+    @Test
+    func parsesNameOnlyOutputWithAbsolutePathsAndSkipsDotEntries() {
+        let output = """
+        /home/.
+        /home/..
+        /home/lighting/
+        """
+
+        let entries = SystemSFTPClient.parseNameOnlyListOutput(output, parentPath: "/home")
+        #expect(entries.count == 1)
+        #expect(entries[0].name == "lighting")
+        #expect(entries[0].path == "/home/lighting")
+        #expect(entries[0].isDirectory)
     }
 }

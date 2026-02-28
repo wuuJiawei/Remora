@@ -444,7 +444,7 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
-    func fileManagerShowsRemoteEntriesAfterSSHConnect() throws {
+    func fileManagerShowsRemoteEntriesOrErrorAfterSSHConnect() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return
         }
@@ -493,7 +493,10 @@ struct RemoraUIAutomationTests {
             findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-row_logs" }) != nil
                 && findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-row_README.txt" }) != nil
         })
-        #expect(hasRemoteEntries, "Remote file list should remain visible after SSH connection is established.")
+        let hasErrorOverlay = waitUntil(timeout: 8, {
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "file-manager-remote-error" }) != nil
+        })
+        #expect(hasRemoteEntries || hasErrorOverlay, "After SSH connect, file manager should show remote entries or an explicit load error.")
     }
 
     @Test

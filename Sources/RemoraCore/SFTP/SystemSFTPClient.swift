@@ -246,15 +246,22 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     }
 
     static func parseLongListOutput(_ output: String, parentPath: String, now: Date = Date()) -> [RemoteFileEntry] {
-        parseLongListEntries(output, now: now).map { parsed in
+        var seen = Set<String>()
+        return parseLongListEntries(output, now: now).compactMap { parsed in
+            guard let normalizedName = sanitizeListedName(parsed.name, parentPath: parentPath) else {
+                return nil
+            }
+            guard !seen.contains(normalizedName) else { return nil }
+            seen.insert(normalizedName)
+
             let fullPath: String
             if parentPath == "/" {
-                fullPath = "/\(parsed.name)"
+                fullPath = "/\(normalizedName)"
             } else {
-                fullPath = "\(parentPath)/\(parsed.name)".replacingOccurrences(of: "//", with: "/")
+                fullPath = "\(parentPath)/\(normalizedName)".replacingOccurrences(of: "//", with: "/")
             }
             return RemoteFileEntry(
-                name: parsed.name,
+                name: normalizedName,
                 path: fullPath,
                 size: parsed.size,
                 isDirectory: parsed.isDirectory,
@@ -287,19 +294,19 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                     isDirectory = true
                     name.removeLast()
                 }
-                guard name != "." && name != ".." else { continue }
-                guard !seen.contains(name) else { continue }
-                seen.insert(name)
+                guard let normalizedName = sanitizeListedName(name, parentPath: parentPath) else { continue }
+                guard !seen.contains(normalizedName) else { continue }
+                seen.insert(normalizedName)
 
                 let fullPath: String
                 if parentPath == "/" {
-                    fullPath = "/\(name)"
+                    fullPath = "/\(normalizedName)"
                 } else {
-                    fullPath = "\(parentPath)/\(name)".replacingOccurrences(of: "//", with: "/")
+                    fullPath = "\(parentPath)/\(normalizedName)".replacingOccurrences(of: "//", with: "/")
                 }
                 entries.append(
                     RemoteFileEntry(
-                        name: name,
+                        name: normalizedName,
                         path: fullPath,
                         size: 0,
                         isDirectory: isDirectory,
@@ -373,6 +380,34 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         let group = triadValue(modeChars[3..<6])
         let other = triadValue(modeChars[6..<9])
         return owner * 64 + group * 8 + other
+    }
+
+    private static func sanitizeListedName(_ rawName: String, parentPath: String) -> String? {
+        var candidate = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return nil }
+
+        if candidate.hasSuffix("/") {
+            candidate.removeLast()
+        }
+
+        if candidate == "." || candidate == ".." {
+            return nil
+        }
+
+        let normalizedParent = parentPath == "/" ? "/" : parentPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parentPrefix = normalizedParent == "/" ? "/" : "\(normalizedParent)/"
+        if candidate.hasPrefix(parentPrefix), candidate.count > parentPrefix.count {
+            candidate = String(candidate.dropFirst(parentPrefix.count))
+        }
+
+        if candidate.hasPrefix("/") {
+            candidate = URL(fileURLWithPath: candidate).lastPathComponent
+        }
+
+        candidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return nil }
+        guard candidate != "." && candidate != ".." else { return nil }
+        return candidate
     }
 
     private static func parseLongListDate(

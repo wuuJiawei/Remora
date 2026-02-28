@@ -133,7 +133,7 @@ final class FileTransferViewModel: ObservableObject {
     private let transferCenter: TransferCenter
 
     init(
-        sftpClient: SFTPClientProtocol = MockSFTPClient(),
+        sftpClient: SFTPClientProtocol = DisconnectedSFTPClient(),
         localDirectoryURL: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
         remoteDirectoryPath: String = "/",
         maxConcurrentTransfers: Int = 2
@@ -277,7 +277,7 @@ final class FileTransferViewModel: ObservableObject {
 
     func openRemote(_ entry: RemoteFileEntry) {
         guard entry.isDirectory else { return }
-        remoteDirectoryPath = normalizedRemotePath(base: remoteDirectoryPath, child: entry.name)
+        remoteDirectoryPath = normalizeRemoteDirectoryPath(entry.path)
         Task { await refreshRemoteEntries() }
     }
 
@@ -765,10 +765,15 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     private func normalizedRemotePath(base: String, child: String) -> String {
-        if base == "/" {
-            return "/\(child)"
+        let trimmedChild = child.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedChild.isEmpty else { return normalizeRemoteDirectoryPath(base) }
+        if trimmedChild.hasPrefix("/") {
+            return normalizeRemoteDirectoryPath(trimmedChild)
         }
-        return "\(base)/\(child)".replacingOccurrences(of: "//", with: "/")
+        if base == "/" {
+            return normalizeRemoteDirectoryPath("/\(trimmedChild)")
+        }
+        return normalizeRemoteDirectoryPath("\(base)/\(trimmedChild)")
     }
 
     private func normalizeRemoteDirectoryPath(_ rawPath: String) -> String {

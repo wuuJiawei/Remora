@@ -47,7 +47,7 @@ struct ContentView: View {
     @State private var isRenameSessionSheetPresented = false
     @State private var renameSessionID: UUID?
     @State private var renameSessionDraft = ""
-    @State private var fileManagerSFTPBindingKey = "mock"
+    @State private var fileManagerSFTPBindingKey = "disconnected"
 
     private var selectedHost: RemoraCore.Host? {
         hostCatalog.host(id: selectedHostID)
@@ -913,13 +913,8 @@ struct ContentView: View {
     }
 
     private func syncFileManagerSFTPBinding() {
-        if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" {
-            bindMockSFTPIfNeeded()
-            return
-        }
-
         guard let runtime = workspace.activePane?.runtime else {
-            bindMockSFTPIfNeeded()
+            bindDisconnectedSFTPIfNeeded()
             return
         }
 
@@ -936,13 +931,13 @@ struct ContentView: View {
             return
         }
 
-        bindMockSFTPIfNeeded()
+        bindDisconnectedSFTPIfNeeded()
     }
 
-    private func bindMockSFTPIfNeeded() {
-        guard fileManagerSFTPBindingKey != "mock" else { return }
-        fileManagerSFTPBindingKey = "mock"
-        fileTransfer.bindSFTPClient(MockSFTPClient(), initialRemoteDirectory: "/")
+    private func bindDisconnectedSFTPIfNeeded() {
+        guard fileManagerSFTPBindingKey != "disconnected" else { return }
+        fileManagerSFTPBindingKey = "disconnected"
+        fileTransfer.bindSFTPClient(DisconnectedSFTPClient(), initialRemoteDirectory: "/")
     }
 
     private static func sftpHostSignature(for host: RemoraCore.Host) -> String {

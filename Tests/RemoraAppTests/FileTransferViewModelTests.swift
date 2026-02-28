@@ -348,6 +348,21 @@ struct FileTransferViewModelTests {
         #expect(vm.transferQueue.isEmpty)
     }
 
+    @Test
+    func openRemoteUsesEntryAbsolutePathWithoutDuplicatingParent() async {
+        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/home")
+        let absoluteEntry = RemoteFileEntry(
+            name: "/home/lighting",
+            path: "/home/lighting",
+            size: 0,
+            isDirectory: true
+        )
+
+        vm.openRemote(absoluteEntry)
+
+        #expect(vm.remoteDirectoryPath == "/home/lighting")
+    }
+
     private func waitForSuccess(in vm: FileTransferViewModel, transferName: String, successCount: Int) async throws {
         for _ in 0 ..< 40 {
             let success = vm.transferQueue.filter { $0.name == transferName && $0.status == .success }.count
