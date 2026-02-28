@@ -3,6 +3,29 @@ import SwiftUI
 import RemoraCore
 
 struct FileManagerPanelView: View {
+    private enum RemoteCreateKind {
+        case file
+        case directory
+
+        var title: String {
+            switch self {
+            case .file:
+                return "New File"
+            case .directory:
+                return "New Folder"
+            }
+        }
+
+        var defaultName: String {
+            switch self {
+            case .file:
+                return "untitled.txt"
+            case .directory:
+                return "New Folder"
+            }
+        }
+    }
+
     @ObservedObject var viewModel: FileTransferViewModel
 
     @State private var selectedRemotePaths: Set<String> = []
@@ -21,6 +44,10 @@ struct FileManagerPanelView: View {
     @State private var propertiesTargetPath: String?
     @State private var isUploadPanelPresented = false
     @State private var uploadTargetDirectory = "/"
+    @State private var isCreateRemoteSheetPresented = false
+    @State private var createRemoteKind: RemoteCreateKind = .file
+    @State private var createRemoteTargetDirectory = "/"
+    @State private var createRemoteNameDraft = ""
 
     private var selectedRemoteEntries: [RemoteFileEntry] {
         viewModel.remoteEntries.filter { selectedRemotePaths.contains($0.path) }
@@ -116,6 +143,9 @@ struct FileManagerPanelView: View {
         }
         .sheet(isPresented: $isRenameSheetPresented) {
             renameSheet
+        }
+        .sheet(isPresented: $isCreateRemoteSheetPresented) {
+            createRemoteSheet
         }
         .sheet(
             isPresented: Binding(
@@ -444,6 +474,18 @@ struct FileManagerPanelView: View {
             viewModel.performContextAction(.refresh)
         }
 
+        Divider()
+
+        Button("New File") {
+            beginCreateRemote(kind: .file, in: viewModel.remoteDirectoryPath)
+        }
+
+        Button("New Folder") {
+            beginCreateRemote(kind: .directory, in: viewModel.remoteDirectoryPath)
+        }
+
+        Divider()
+
         if viewModel.canPaste(into: viewModel.remoteDirectoryPath) {
             Button("Paste") {
                 viewModel.performContextAction(.paste(destinationDirectory: viewModel.remoteDirectoryPath))
@@ -484,6 +526,16 @@ struct FileManagerPanelView: View {
             Button("Paste") {
                 let destination = entry.isDirectory ? entry.path : viewModel.remoteDirectoryPath
                 viewModel.performContextAction(.paste(destinationDirectory: destination))
+            }
+        }
+
+        if entry.isDirectory {
+            Button("New File Here") {
+                beginCreateRemote(kind: .file, in: entry.path)
+            }
+
+            Button("New Folder Here") {
+                beginCreateRemote(kind: .directory, in: entry.path)
             }
         }
 
@@ -613,6 +665,26 @@ struct FileManagerPanelView: View {
         viewModel.performContextAction(.rename(path: sourcePath, newName: renameDraft))
     }
 
+    private func beginCreateRemote(kind: RemoteCreateKind, in directoryPath: String) {
+        createRemoteKind = kind
+        createRemoteTargetDirectory = directoryPath
+        createRemoteNameDraft = kind.defaultName
+        isCreateRemoteSheetPresented = true
+    }
+
+    private func commitCreateRemote() {
+        let trimmedName = createRemoteNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        switch createRemoteKind {
+        case .file:
+            viewModel.createRemoteFile(named: trimmedName, in: createRemoteTargetDirectory)
+        case .directory:
+            viewModel.createRemoteDirectory(named: trimmedName, in: createRemoteTargetDirectory)
+        }
+        selectedRemotePaths.removeAll()
+        isCreateRemoteSheetPresented = false
+    }
+
     private func copyToPasteboard(_ text: String) {
         let pb = NSPasteboard.general
         pb.clearContents()
@@ -659,6 +731,40 @@ struct FileManagerPanelView: View {
             guard !urls.isEmpty else { return }
             viewModel.enqueueUpload(localFileURLs: urls, toRemoteDirectory: targetDirectory)
         }
+    }
+
+    private var createRemoteSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(createRemoteKind.title)
+                .font(.headline)
+
+            Text("Directory")
+                .font(.subheadline)
+                .foregroundStyle(VisualStyle.textSecondary)
+
+            Text(createRemoteTargetDirectory)
+                .font(.caption.monospaced())
+                .lineLimit(1)
+
+            TextField("Name", text: $createRemoteNameDraft)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("file-manager-create-name")
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) {
+                    isCreateRemoteSheetPresented = false
+                }
+                Button("Create") {
+                    commitCreateRemote()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(createRemoteNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("file-manager-create-confirm")
+            }
+        }
+        .padding(16)
+        .frame(width: 360)
     }
 
     private var renameSheet: some View {

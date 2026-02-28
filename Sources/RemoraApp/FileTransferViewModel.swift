@@ -414,6 +414,46 @@ final class FileTransferViewModel: ObservableObject {
         }
     }
 
+    func createRemoteFile(named name: String, in directoryPath: String? = nil) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.contains("/") else { return }
+
+        let parentDirectory = normalizeRemoteDirectoryPath(directoryPath ?? remoteDirectoryPath)
+        let targetPath = normalizedRemotePath(base: parentDirectory, child: trimmedName)
+        guard targetPath != "/" else { return }
+
+        Task {
+            do {
+                try await sftpClient.upload(data: Data(), to: targetPath)
+            } catch {
+                return
+            }
+            invalidateRemoteDirectoryCache()
+            await refreshRemoteEntries(path: parentDirectory, preferCachedFirst: false, deduplicateInFlight: false)
+        }
+    }
+
+    func createRemoteDirectory(named name: String, in directoryPath: String? = nil) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.contains("/") else { return }
+
+        let parentDirectory = normalizeRemoteDirectoryPath(directoryPath ?? remoteDirectoryPath)
+        let targetPath = normalizedRemotePath(base: parentDirectory, child: trimmedName)
+        guard targetPath != "/" else { return }
+
+        Task {
+            do {
+                try await sftpClient.mkdir(path: targetPath)
+            } catch {
+                return
+            }
+            invalidateRemoteDirectoryCache()
+            await refreshRemoteEntries(path: parentDirectory, preferCachedFirst: false, deduplicateInFlight: false)
+        }
+    }
+
     func deleteRemoteEntries(paths: [String]) {
         let normalizedPaths = paths
             .map(normalizeRemoteDirectoryPath)

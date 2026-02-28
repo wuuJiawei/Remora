@@ -280,6 +280,38 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func createRemoteFileAppearsInCurrentDirectory() async throws {
+        let vm = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            remoteDirectoryPath: "/"
+        )
+        await vm.refreshRemoteEntries()
+        #expect(vm.remoteEntries.contains(where: { $0.path == "/notes.txt" }) == false)
+
+        vm.createRemoteFile(named: "notes.txt", in: "/")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            await vm.refreshRemoteEntries()
+            return vm.remoteEntries.contains(where: { $0.path == "/notes.txt" && !$0.isDirectory })
+        }
+    }
+
+    @Test
+    func createRemoteDirectoryAppearsInCurrentDirectory() async throws {
+        let vm = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            remoteDirectoryPath: "/"
+        )
+        await vm.refreshRemoteEntries()
+        #expect(vm.remoteEntries.contains(where: { $0.path == "/assets" }) == false)
+
+        vm.createRemoteDirectory(named: "assets", in: "/")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
+            await vm.refreshRemoteEntries()
+            return vm.remoteEntries.contains(where: { $0.path == "/assets" && $0.isDirectory })
+        }
+    }
+
+    @Test
     func contextActionsSupportRenameCopyPasteAndDelete() async throws {
         let vm = FileTransferViewModel(
             sftpClient: MockSFTPClient(),
