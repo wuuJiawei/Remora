@@ -32,7 +32,7 @@ struct TerminalDirectorySyncBridgeTests {
     }
 
     @Test
-    func fileManagerDirectoryChangePushesToRuntime() async {
+    func fileManagerDirectoryChangeDoesNotPushToRuntime() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
@@ -49,11 +49,12 @@ struct TerminalDirectorySyncBridgeTests {
         bridge.bind(fileTransfer: fileTransfer, runtime: runtime)
 
         fileTransfer.navigateRemote(to: "/logs")
+        try? await Task.sleep(nanoseconds: 400_000_000)
 
-        let synced = await waitUntil(timeout: 2.0) {
-            runtime.workingDirectory == "/logs"
-        }
-        #expect(synced, "File manager directory should sync to terminal runtime.")
+        #expect(
+            runtime.workingDirectory != "/logs",
+            "File manager directory should not drive runtime directory."
+        )
         runtime.disconnect()
     }
 
@@ -84,7 +85,7 @@ struct TerminalDirectorySyncBridgeTests {
     }
 
     @Test
-    func runtimeToFileManagerSyncDoesNotLoopBackIntoRepeatedCd() async {
+    func runtimeToFileManagerSyncDoesNotIssueExtraCdCommand() async {
         let recorder = TerminalCommandRecorder()
         let manager = SessionManager(
             sshClientFactory: {
@@ -116,15 +117,12 @@ struct TerminalDirectorySyncBridgeTests {
 
         try? await Task.sleep(nanoseconds: 400_000_000)
         let cdCommands = await recorder.commands.filter { $0.hasPrefix("cd ") }
-        #expect(
-            cdCommands.count == 1,
-            "Bridge should avoid sync loops. observed commands: \(cdCommands)"
-        )
+        #expect(cdCommands.count == 1, "Bridge should not emit extra cd commands. observed commands: \(cdCommands)")
         runtime.disconnect()
     }
 
     @Test
-    func disabledSyncTogglePreventsBidirectionalSyncInSSH() async {
+    func disabledSyncTogglePreventsRuntimeToFileManagerSyncInSSH() async {
         let recorder = TerminalCommandRecorder()
         let manager = SessionManager(
             sshClientFactory: {
@@ -147,7 +145,7 @@ struct TerminalDirectorySyncBridgeTests {
 
         fileTransfer.navigateRemote(to: "/logs")
         try? await Task.sleep(nanoseconds: 400_000_000)
-        #expect(runtime.workingDirectory != "/logs", "Sync should stay off until toggle enabled.")
+        #expect(runtime.workingDirectory != "/logs", "File manager should never drive runtime directory.")
 
         runtime.changeDirectory(to: "/tmp")
         try? await Task.sleep(nanoseconds: 400_000_000)

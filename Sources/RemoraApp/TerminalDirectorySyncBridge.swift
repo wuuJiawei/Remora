@@ -6,24 +6,12 @@ final class TerminalDirectorySyncBridge: ObservableObject {
     private weak var fileTransfer: FileTransferViewModel?
     private weak var runtime: TerminalRuntime?
 
-    private var fileTransferCancellable: AnyCancellable?
     private var syncToggleCancellable: AnyCancellable?
     private var runtimeCancellable: AnyCancellable?
     private var runtimeModeCancellable: AnyCancellable?
 
-    private var pendingPathFromFileManager: String?
-    private var pendingPathFromRuntime: String?
-
     func bind(fileTransfer: FileTransferViewModel, runtime: TerminalRuntime?) {
         self.fileTransfer = fileTransfer
-
-        fileTransferCancellable?.cancel()
-        fileTransferCancellable = fileTransfer.$remoteDirectoryPath
-            .removeDuplicates()
-            .dropFirst()
-            .sink { [weak self] path in
-                self?.handleFileManagerDirectoryChange(path)
-            }
 
         syncToggleCancellable?.cancel()
         syncToggleCancellable = fileTransfer.$isTerminalDirectorySyncEnabled
@@ -72,31 +60,11 @@ final class TerminalDirectorySyncBridge: ObservableObject {
         }
     }
 
-    private func handleFileManagerDirectoryChange(_ path: String) {
-        guard let runtime else { return }
-        guard isSyncEnabled else { return }
-        guard runtime.connectionMode == .ssh else { return }
-
-        if pendingPathFromRuntime == path {
-            pendingPathFromRuntime = nil
-            return
-        }
-
-        pendingPathFromFileManager = path
-        runtime.changeDirectory(to: path)
-    }
-
     private func handleRuntimeDirectoryChange(_ path: String) {
         guard isSyncEnabled else { return }
         guard runtime?.connectionMode == .ssh else { return }
 
-        if pendingPathFromFileManager == path {
-            pendingPathFromFileManager = nil
-            return
-        }
-
         guard let fileTransfer else { return }
-        pendingPathFromRuntime = path
         if fileTransfer.remoteDirectoryPath != path {
             fileTransfer.navigateRemote(to: path)
         }
