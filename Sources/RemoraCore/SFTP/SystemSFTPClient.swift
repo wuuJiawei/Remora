@@ -16,6 +16,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         var executablePath: String
         var arguments: [String]
         var environment: [String: String]
+        var usesConnectionReuse: Bool
     }
 
     private let host: Host
@@ -556,28 +557,11 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     }
 
     private func runSFTPBatchWithFallbacks(stdin: Data, timeout: TimeInterval? = nil) async throws -> ProcessResult {
-        if host.auth.method == .password,
-           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
-               baseExecutable: "/usr/bin/sftp",
-               baseArguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: false)
-           )
-        {
-            let directPasswordResult = try await runProcess(
-                executablePath: passwordLaunch.executablePath,
-                arguments: passwordLaunch.arguments,
-                environment: passwordLaunch.environment,
-                stdin: stdin,
-                timeout: timeout
-            )
-            if directPasswordResult.status == 0 {
-                return directPasswordResult
-            }
-        }
-
+        let primary = await makePrimarySFTPLaunchConfiguration()
         var result = try await runProcess(
-            executablePath: "/usr/bin/sftp",
-            arguments: Self.makeSFTPArguments(for: host, batchMode: true, useConnectionReuse: true),
-            environment: [:],
+            executablePath: primary.executablePath,
+            arguments: primary.arguments,
+            environment: primary.environment,
             stdin: stdin,
             timeout: timeout
         )
@@ -585,80 +569,27 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             return result
         }
 
-        if host.auth.method == .password,
-           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
-               baseExecutable: "/usr/bin/sftp",
-               baseArguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: true)
-           )
-        {
-            result = try await runProcess(
-                executablePath: passwordLaunch.executablePath,
-                arguments: passwordLaunch.arguments,
-                environment: passwordLaunch.environment,
-                stdin: stdin,
-                timeout: timeout
-            )
-            if result.status == 0 {
-                return result
-            }
-        }
-
-        guard shouldRetryWithoutConnectionReuse(result: result) else {
+        guard primary.usesConnectionReuse, shouldRetryWithoutConnectionReuse(result: result) else {
             return result
         }
 
+        let retry = makeSFTPLaunchConfiguration(batchMode: true, useConnectionReuse: false)
         result = try await runProcess(
-            executablePath: "/usr/bin/sftp",
-            arguments: Self.makeSFTPArguments(for: host, batchMode: true, useConnectionReuse: false),
-            environment: [:],
+            executablePath: retry.executablePath,
+            arguments: retry.arguments,
+            environment: retry.environment,
             stdin: stdin,
             timeout: timeout
         )
-        if result.status == 0 {
-            return result
-        }
-
-        if host.auth.method == .password,
-           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
-               baseExecutable: "/usr/bin/sftp",
-               baseArguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: false)
-           )
-        {
-            result = try await runProcess(
-                executablePath: passwordLaunch.executablePath,
-                arguments: passwordLaunch.arguments,
-                environment: passwordLaunch.environment,
-                stdin: stdin,
-                timeout: timeout
-            )
-        }
-
         return result
     }
 
     private func runSSHCommandWithFallbacks(command: String, timeout: TimeInterval? = nil) async throws -> ProcessResult {
-        if host.auth.method == .password,
-           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
-               baseExecutable: "/usr/bin/ssh",
-               baseArguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: false) + [command]
-           )
-        {
-            let directPasswordResult = try await runProcess(
-                executablePath: passwordLaunch.executablePath,
-                arguments: passwordLaunch.arguments,
-                environment: passwordLaunch.environment,
-                stdin: nil,
-                timeout: timeout
-            )
-            if directPasswordResult.status == 0 {
-                return directPasswordResult
-            }
-        }
-
+        let primary = await makePrimarySSHLaunchConfiguration(command: command)
         var result = try await runProcess(
-            executablePath: "/usr/bin/ssh",
-            arguments: Self.makeSSHArguments(for: host, batchMode: true, useConnectionReuse: true) + [command],
-            environment: [:],
+            executablePath: primary.executablePath,
+            arguments: primary.arguments,
+            environment: primary.environment,
             stdin: nil,
             timeout: timeout
         )
@@ -666,54 +597,18 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             return result
         }
 
-        if host.auth.method == .password,
-           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
-               baseExecutable: "/usr/bin/ssh",
-               baseArguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: true) + [command]
-           )
-        {
-            result = try await runProcess(
-                executablePath: passwordLaunch.executablePath,
-                arguments: passwordLaunch.arguments,
-                environment: passwordLaunch.environment,
-                stdin: nil,
-                timeout: timeout
-            )
-            if result.status == 0 {
-                return result
-            }
-        }
-
-        guard shouldRetryWithoutConnectionReuse(result: result) else {
+        guard primary.usesConnectionReuse, shouldRetryWithoutConnectionReuse(result: result) else {
             return result
         }
 
+        let retry = makeSSHLaunchConfiguration(command: command, batchMode: true, useConnectionReuse: false)
         result = try await runProcess(
-            executablePath: "/usr/bin/ssh",
-            arguments: Self.makeSSHArguments(for: host, batchMode: true, useConnectionReuse: false) + [command],
-            environment: [:],
+            executablePath: retry.executablePath,
+            arguments: retry.arguments,
+            environment: retry.environment,
             stdin: nil,
             timeout: timeout
         )
-        if result.status == 0 {
-            return result
-        }
-
-        if host.auth.method == .password,
-           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
-               baseExecutable: "/usr/bin/ssh",
-                baseArguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: false) + [command]
-           )
-        {
-            result = try await runProcess(
-                executablePath: passwordLaunch.executablePath,
-                arguments: passwordLaunch.arguments,
-                environment: passwordLaunch.environment,
-                stdin: nil,
-                timeout: timeout
-            )
-        }
-
         return result
     }
 
@@ -876,9 +771,64 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         return password
     }
 
+    private func makePrimarySFTPLaunchConfiguration() async -> BatchLaunchConfiguration {
+        if host.auth.method == .password,
+           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
+               baseExecutable: "/usr/bin/sftp",
+               baseArguments: Self.makeSFTPArguments(for: host, batchMode: false, useConnectionReuse: false),
+               usesConnectionReuse: false
+           )
+        {
+            return passwordLaunch
+        }
+
+        if host.auth.method == .password {
+            return makeSFTPLaunchConfiguration(batchMode: true, useConnectionReuse: false)
+        }
+
+        return makeSFTPLaunchConfiguration(batchMode: true, useConnectionReuse: true)
+    }
+
+    private func makePrimarySSHLaunchConfiguration(command: String) async -> BatchLaunchConfiguration {
+        if host.auth.method == .password,
+           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
+               baseExecutable: "/usr/bin/ssh",
+               baseArguments: Self.makeSSHArguments(for: host, batchMode: false, useConnectionReuse: false) + [command],
+               usesConnectionReuse: false
+           )
+        {
+            return passwordLaunch
+        }
+
+        if host.auth.method == .password {
+            return makeSSHLaunchConfiguration(command: command, batchMode: true, useConnectionReuse: false)
+        }
+
+        return makeSSHLaunchConfiguration(command: command, batchMode: true, useConnectionReuse: true)
+    }
+
+    private func makeSFTPLaunchConfiguration(batchMode: Bool, useConnectionReuse: Bool) -> BatchLaunchConfiguration {
+        BatchLaunchConfiguration(
+            executablePath: "/usr/bin/sftp",
+            arguments: Self.makeSFTPArguments(for: host, batchMode: batchMode, useConnectionReuse: useConnectionReuse),
+            environment: [:],
+            usesConnectionReuse: useConnectionReuse
+        )
+    }
+
+    private func makeSSHLaunchConfiguration(command: String, batchMode: Bool, useConnectionReuse: Bool) -> BatchLaunchConfiguration {
+        BatchLaunchConfiguration(
+            executablePath: "/usr/bin/ssh",
+            arguments: Self.makeSSHArguments(for: host, batchMode: batchMode, useConnectionReuse: useConnectionReuse) + [command],
+            environment: [:],
+            usesConnectionReuse: useConnectionReuse
+        )
+    }
+
     private func makePasswordLaunchConfigurationIfAvailable(
         baseExecutable: String,
-        baseArguments: [String]
+        baseArguments: [String],
+        usesConnectionReuse: Bool
     ) async -> BatchLaunchConfiguration? {
         guard let password = await storedPasswordIfAvailable() else {
             return nil
@@ -894,7 +844,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             return BatchLaunchConfiguration(
                 executablePath: sshpassPath,
                 arguments: ["-e", baseExecutable] + baseArguments,
-                environment: ["SSHPASS": password]
+                environment: ["SSHPASS": password],
+                usesConnectionReuse: usesConnectionReuse
             )
         }
 
@@ -911,6 +862,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 "DISPLAY": "remora-askpass",
                 "REMORA_SSH_PASSWORD": password,
             ]
+            ,
+            usesConnectionReuse: usesConnectionReuse
         )
     }
 
