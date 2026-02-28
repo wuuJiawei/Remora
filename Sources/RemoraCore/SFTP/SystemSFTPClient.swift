@@ -1259,8 +1259,16 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     }
 
     private func listViaSSH(path: String, timeout: TimeInterval? = nil) async throws -> [RemoteFileEntry] {
-        let command = "LC_ALL=C ls -1Ap -- \(Self.quoteShellArgument(path))"
-        let output = try await runSSHCommandOutput(command, timeout: timeout)
+        let longListCommand = "LC_ALL=C ls -lan -- \(Self.quoteShellArgument(path))"
+        if let longOutput = try? await runSSHCommandOutput(longListCommand, timeout: timeout) {
+            let parsedLongEntries = Self.parseLongListOutput(longOutput, parentPath: path)
+            if !parsedLongEntries.isEmpty {
+                return parsedLongEntries
+            }
+        }
+
+        let nameOnlyCommand = "LC_ALL=C ls -1Ap -- \(Self.quoteShellArgument(path))"
+        let output = try await runSSHCommandOutput(nameOnlyCommand, timeout: timeout)
         let now = Date()
         let names = output
             .replacingOccurrences(of: "\r", with: "\n")
