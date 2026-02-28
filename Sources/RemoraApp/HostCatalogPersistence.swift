@@ -35,12 +35,16 @@ actor HostCatalogPersistenceStore {
     private let storageFileURL: URL
     private let keyFileURL: URL
     private let keyReference: String
+    private let usesKeychainForCatalogKey: Bool
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private var cachedKeyData: Data?
+    private var keychainLoadAttempted = false
 
     init(
         credentialStore: CredentialStore = CredentialStore(),
         keyReference: String = "host-catalog-encryption-key-v1",
+        usesKeychainForCatalogKey: Bool = false,
         baseDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".remora/ssh", isDirectory: true)
     ) {
@@ -49,6 +53,7 @@ actor HostCatalogPersistenceStore {
         self.storageFileURL = baseDirectoryURL.appendingPathComponent("connections.enc.json")
         self.keyFileURL = baseDirectoryURL.appendingPathComponent("catalog.key")
         self.keyReference = keyReference
+        self.usesKeychainForCatalogKey = usesKeychainForCatalogKey
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -108,13 +113,18 @@ actor HostCatalogPersistenceStore {
     }
 
     private func encryptionKey() async throws -> SymmetricKey {
+        if let cachedKeyData, cachedKeyData.count == 32 {
+            return SymmetricKey(data: cachedKeyData)
+        }
+
         if let fileKeyData = loadKeyDataFromFile() {
-            await credentialStore.setSecret(fileKeyData.base64EncodedString(), for: keyReference)
+            cachedKeyData = fileKeyData
             return SymmetricKey(data: fileKeyData)
         }
 
-        if let keychainData = await loadKeyDataFromKeychain() {
+        if let keychainData = await loadKeyDataFromKeychainIfNeeded() {
             try persistKeyDataToFile(keychainData)
+            cachedKeyData = keychainData
             return SymmetricKey(data: keychainData)
         }
 
@@ -125,32 +135,32 @@ actor HostCatalogPersistenceStore {
         }
 
         try persistKeyDataToFile(keyData)
-        await credentialStore.setSecret(keyData.base64EncodedString(), for: keyReference)
+        cachedKeyData = keyData
         return generated
     }
 
     private func decryptionKeys() async throws -> [SymmetricKey] {
-        var keys: [SymmetricKey] = []
-        var seen: Set<Data> = []
-
-        if let fileData = loadKeyDataFromFile(), !seen.contains(fileData) {
-            seen.insert(fileData)
-            keys.append(SymmetricKey(data: fileData))
+        if let cachedKeyData, cachedKeyData.count == 32 {
+            return [SymmetricKey(data: cachedKeyData)]
         }
 
-        if let keychainData = await loadKeyDataFromKeychain(), !seen.contains(keychainData) {
-            seen.insert(keychainData)
-            keys.append(SymmetricKey(data: keychainData))
+        if let fileData = loadKeyDataFromFile() {
+            cachedKeyData = fileData
+            return [SymmetricKey(data: fileData)]
         }
 
-        if keys.isEmpty {
-            keys.append(try await encryptionKey())
+        if let keychainData = await loadKeyDataFromKeychainIfNeeded() {
+            cachedKeyData = keychainData
+            return [SymmetricKey(data: keychainData)]
         }
 
-        return keys
+        return [try await encryptionKey()]
     }
 
-    private func loadKeyDataFromKeychain() async -> Data? {
+    private func loadKeyDataFromKeychainIfNeeded() async -> Data? {
+        guard usesKeychainForCatalogKey else { return nil }
+        guard !keychainLoadAttempted else { return nil }
+        keychainLoadAttempted = true
         guard let base64 = await credentialStore.secret(for: keyReference),
               let keyData = Data(base64Encoded: base64),
               keyData.count == 32
