@@ -47,7 +47,7 @@ struct FileManagerPanelView: View {
     var body: some View {
         VStack(spacing: 8) {
             remotePanel
-                .frame(minHeight: 150, maxHeight: 220)
+                .frame(minHeight: 150, maxHeight: 220, alignment: .top)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -155,13 +155,6 @@ struct FileManagerPanelView: View {
 
             ScrollViewReader { proxy in
                 List {
-                    Color.clear
-                        .frame(height: 0)
-                        .listRowInsets(EdgeInsets())
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .id("file-manager-remote-list-top")
-
                     ForEach(viewModel.remoteEntries, id: \.path) { entry in
                         let isSelected = selectedRemotePaths.contains(entry.path)
                         HStack {
@@ -211,8 +204,11 @@ struct FileManagerPanelView: View {
                     }
                 }
                 .onChange(of: viewModel.remoteDirectoryPath) {
+                    guard let firstPath = viewModel.remoteEntries.first?.path else {
+                        return
+                    }
                     DispatchQueue.main.async {
-                        proxy.scrollTo("file-manager-remote-list-top", anchor: .top)
+                        proxy.scrollTo(firstPath, anchor: .top)
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
