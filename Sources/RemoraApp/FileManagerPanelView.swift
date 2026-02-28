@@ -108,7 +108,7 @@ struct FileManagerPanelView: View {
     var body: some View {
         VStack(spacing: 8) {
             remotePanel
-                .frame(minHeight: 150, maxHeight: 220, alignment: .top)
+                .frame(minHeight: 150, maxHeight: .infinity, alignment: .top)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
