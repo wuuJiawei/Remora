@@ -55,6 +55,7 @@ struct RemoraSettingsSheet: View {
     @AppStorage("settings.general.confirmBeforeClosingTab") private var confirmBeforeClosingTab = true
     @AppStorage("settings.general.reopenLastWorkspace") private var reopenLastWorkspace = true
     @AppStorage("settings.general.defaultShell") private var defaultShell = "/bin/zsh"
+    @AppStorage(AppSettings.appearanceModeKey) private var appearanceModeRawValue = AppAppearanceMode.system.rawValue
     @AppStorage(AppSettings.downloadDirectoryPathKey) private var downloadDirectoryPath = AppSettings.defaultDownloadDirectoryURL().path
 
     @AppStorage("settings.tags.enableThreadTags") private var enableThreadTags = true
@@ -182,6 +183,21 @@ struct RemoraSettingsSheet: View {
                     Text("zsh").tag("/bin/zsh")
                     Text("bash").tag("/bin/bash")
                     Text("fish").tag("/opt/homebrew/bin/fish")
+                }
+                .frame(maxWidth: 260, alignment: .leading)
+
+                Picker(
+                    "Appearance",
+                    selection: Binding(
+                        get: { AppAppearanceMode.resolved(from: appearanceModeRawValue) },
+                        set: { mode in
+                            appearanceModeRawValue = mode.rawValue
+                        }
+                    )
+                ) {
+                    Text("System").tag(AppAppearanceMode.system)
+                    Text("Light").tag(AppAppearanceMode.light)
+                    Text("Dark").tag(AppAppearanceMode.dark)
                 }
                 .frame(maxWidth: 260, alignment: .leading)
             }

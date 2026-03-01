@@ -80,10 +80,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct RemoraAppMain: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @AppStorage(AppSettings.appearanceModeKey) private var appearanceModeRawValue = AppAppearanceMode.system.rawValue
+
+    private var preferredScheme: ColorScheme? {
+        AppAppearanceMode.resolved(from: appearanceModeRawValue).colorScheme
+    }
 
     var body: some Scene {
         WindowGroup("Remora") {
             ContentView()
+                .preferredColorScheme(preferredScheme)
         }
         .windowResizability(.contentSize)
 
@@ -92,6 +98,7 @@ struct RemoraAppMain: App {
             id: "settings"
         ) {
             RemoraSettingsSheet()
+                .preferredColorScheme(preferredScheme)
         }
         .defaultSize(width: 660, height: 410)
         .windowResizability(.contentSize)

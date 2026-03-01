@@ -14,6 +14,10 @@
 "Confirm before closing an active session tab" = "Confirm before closing an active session tab";
 "Reopen the last selected workspace on launch" = "Reopen the last selected workspace on launch";
 "Default local shell" = "Default local shell";
+"Appearance" = "Appearance";
+"System" = "System";
+"Light" = "Light";
+"Dark" = "Dark";
 "Enable tags for SSH threads" = "Enable tags for SSH threads";
 "Show tag color dots in the sidebar list" = "Show tag color dots in the sidebar list";
 "Default tag color" = "Default tag color";

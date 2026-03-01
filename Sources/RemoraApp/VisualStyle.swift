@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum VisualStyle {
@@ -6,38 +7,22 @@ enum VisualStyle {
     static let cardRadius: CGFloat = 14
     static let smallRadius: CGFloat = 10
 
-    static let leftSidebarBackground = Color(
-        red: 243.0 / 255.0,
-        green: 243.0 / 255.0,
-        blue: 244.0 / 255.0
-    )
-    static let leftInteractiveBackground = Color(
-        red: 214.0 / 255.0,
-        green: 216.0 / 255.0,
-        blue: 219.0 / 255.0
-    )
-    static let leftHoverBackground = Color(
-        red: 223.0 / 255.0,
-        green: 224.0 / 255.0,
-        blue: 227.0 / 255.0
-    )
-    static let leftSelectedBackground = Color(
-        red: 210.0 / 255.0,
-        green: 212.0 / 255.0,
-        blue: 216.0 / 255.0
-    )
-    static let rightPanelBackground = Color.white
+    static let leftSidebarBackground = Color(nsColor: .controlBackgroundColor)
+    static let leftInteractiveBackground = Color(nsColor: .selectedContentBackgroundColor).opacity(0.2)
+    static let leftHoverBackground = Color(nsColor: .selectedContentBackgroundColor).opacity(0.14)
+    static let leftSelectedBackground = Color(nsColor: .selectedContentBackgroundColor).opacity(0.28)
+    static let rightPanelBackground = Color(nsColor: .textBackgroundColor)
     static let terminalBackground = Color.black
 
-    static let textPrimary = Color.black.opacity(0.95)
-    static let textSecondary = Color.black.opacity(0.72)
-    static let textTertiary = Color.black.opacity(0.55)
+    static let textPrimary = Color(nsColor: .labelColor)
+    static let textSecondary = Color(nsColor: .secondaryLabelColor)
+    static let textTertiary = Color(nsColor: .tertiaryLabelColor)
 
-    static let borderStrong = Color.black.opacity(0.22)
-    static let borderNormal = Color.black.opacity(0.15)
-    static let borderSoft = Color.black.opacity(0.09)
+    static let borderStrong = Color(nsColor: .separatorColor).opacity(0.9)
+    static let borderNormal = Color(nsColor: .separatorColor).opacity(0.7)
+    static let borderSoft = Color(nsColor: .separatorColor).opacity(0.45)
 
-    static let shadowColor = Color.black.opacity(0.06)
+    static let shadowColor = Color.black.opacity(0.12)
 }
 
 private struct GlassCardModifier: ViewModifier {

@@ -18,6 +18,7 @@ final class ServerStatusWindowManager: ObservableObject {
         if window == nil {
             createWindow(metricsCenter: metricsCenter)
         }
+        applyAppearanceMode()
         positionWindowBesidePrimaryWindow()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -34,6 +35,18 @@ final class ServerStatusWindowManager: ObservableObject {
         nextWindow.minSize = NSSize(width: 300, height: 480)
         nextWindow.isReleasedWhenClosed = false
         window = nextWindow
+    }
+
+    private func applyAppearanceMode() {
+        guard let window else { return }
+        let rawValue = UserDefaults.standard.string(forKey: AppSettings.appearanceModeKey)
+            ?? AppAppearanceMode.system.rawValue
+        let mode = AppAppearanceMode.resolved(from: rawValue)
+        if let appearanceName = mode.nsAppearanceName {
+            window.appearance = NSAppearance(named: appearanceName)
+        } else {
+            window.appearance = nil
+        }
     }
 
     private func positionWindowBesidePrimaryWindow() {
