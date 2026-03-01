@@ -417,9 +417,20 @@ struct ContentView: View {
 
     private var emptySessionPlaceholder: some View {
         VStack(spacing: 14) {
-            Image(systemName: "bolt.horizontal.circle")
-                .font(.system(size: 40, weight: .regular))
-                .foregroundStyle(VisualStyle.textSecondary)
+            Group {
+                if NSApp.applicationIconImage.size.width > 0 {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .interpolation(.high)
+                } else {
+                    Image(systemName: "bolt.horizontal.circle")
+                        .resizable()
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(VisualStyle.textSecondary)
+                }
+            }
+            .frame(width: 72, height: 72)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             Text("Welcome to Remora")
                 .font(.system(size: 26, weight: .semibold))
