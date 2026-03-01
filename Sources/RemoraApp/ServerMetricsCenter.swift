@@ -25,6 +25,11 @@ struct ServerResourceMetricsSnapshot: Equatable, Sendable {
     let memoryTotalBytes: Int64?
     let diskUsedBytes: Int64?
     let diskTotalBytes: Int64?
+    let processCount: Int64?
+    let networkRXBytes: Int64?
+    let networkTXBytes: Int64?
+    let diskReadBytes: Int64?
+    let diskWriteBytes: Int64?
     let loadAverage1: Double?
     let uptimeSeconds: Int64?
     let sampledAt: Date
@@ -91,6 +96,54 @@ actor RemoteServerMetricsProbe {
       uptime_s=$(awk '{print int($1); exit}' /proc/uptime)
     fi
 
+    proc_count=-1
+    if [ -d /proc ]; then
+      proc_count=$(ls -1 /proc 2>/dev/null | awk '/^[0-9]+$/ {count++} END {print count+0}')
+    fi
+
+    net_rx_bytes=-1
+    net_tx_bytes=-1
+    if [ -r /proc/net/dev ]; then
+      set -- $(awk -F':' 'NR>2 {
+        iface=$1
+        gsub(/ /, "", iface)
+        if (iface == "lo" || iface == "") next
+        gsub(/^ +/, "", $2)
+        split($2, a, / +/)
+        rx+=a[1]
+        tx+=a[9]
+      } END {print rx+0, tx+0}' /proc/net/dev)
+      if [ "$#" -ge 2 ]; then
+        net_rx_bytes=$1
+        net_tx_bytes=$2
+      fi
+    fi
+
+    disk_read_bytes=-1
+    disk_write_bytes=-1
+    disk_read_sectors=0
+    disk_write_sectors=0
+    disk_io_found=0
+    if [ -d /sys/block ]; then
+      for stat in /sys/block/*/stat; do
+        [ -r "$stat" ] || continue
+        dev=$(basename "$(dirname "$stat")")
+        case "$dev" in
+          loop*|ram*|fd*|sr*) continue ;;
+        esac
+        read -r _ _ rs _ _ _ _ _ ws _ _ _ _ _ _ _ < "$stat"
+        if [ -n "$rs" ] && [ -n "$ws" ]; then
+          disk_read_sectors=$((disk_read_sectors + rs))
+          disk_write_sectors=$((disk_write_sectors + ws))
+          disk_io_found=1
+        fi
+      done
+    fi
+    if [ "$disk_io_found" -eq 1 ]; then
+      disk_read_bytes=$((disk_read_sectors * 512))
+      disk_write_bytes=$((disk_write_sectors * 512))
+    fi
+
     printf 'cpu_permille=%s\\n' "$cpu_permille"
     printf 'mem_total_kb=%s\\n' "$mem_total_kb"
     printf 'mem_used_kb=%s\\n' "$mem_used_kb"
@@ -98,6 +151,11 @@ actor RemoteServerMetricsProbe {
     printf 'disk_used_kb=%s\\n' "$disk_used_kb"
     printf 'load1=%s\\n' "$load1"
     printf 'uptime_s=%s\\n' "$uptime_s"
+    printf 'proc_count=%s\\n' "$proc_count"
+    printf 'net_rx_bytes=%s\\n' "$net_rx_bytes"
+    printf 'net_tx_bytes=%s\\n' "$net_tx_bytes"
+    printf 'disk_read_bytes=%s\\n' "$disk_read_bytes"
+    printf 'disk_write_bytes=%s\\n' "$disk_write_bytes"
     REMORA_METRICS
     """
 
@@ -162,6 +220,11 @@ actor RemoteServerMetricsProbe {
         let diskUsedKB = parseNonNegativeInt("disk_used_kb")
         let loadAverage1 = parseNonNegativeDouble("load1")
         let uptimeSeconds = parseNonNegativeInt("uptime_s")
+        let processCount = parseNonNegativeInt("proc_count")
+        let networkRXBytes = parseNonNegativeInt("net_rx_bytes")
+        let networkTXBytes = parseNonNegativeInt("net_tx_bytes")
+        let diskReadBytes = parseNonNegativeInt("disk_read_bytes")
+        let diskWriteBytes = parseNonNegativeInt("disk_write_bytes")
 
         let cpuFraction = cpuPermille.map { clampFraction(Double($0) / 1000) }
         let memoryFraction = fraction(used: memoryUsedKB, total: memoryTotalKB)
@@ -175,7 +238,12 @@ actor RemoteServerMetricsProbe {
            memoryFraction == nil,
            diskFraction == nil,
            loadAverage1 == nil,
-           uptimeSeconds == nil
+           uptimeSeconds == nil,
+           processCount == nil,
+           networkRXBytes == nil,
+           networkTXBytes == nil,
+           diskReadBytes == nil,
+           diskWriteBytes == nil
         {
             return nil
         }
@@ -188,6 +256,11 @@ actor RemoteServerMetricsProbe {
             memoryTotalBytes: memoryTotalBytes,
             diskUsedBytes: diskUsedBytes,
             diskTotalBytes: diskTotalBytes,
+            processCount: processCount,
+            networkRXBytes: networkRXBytes,
+            networkTXBytes: networkTXBytes,
+            diskReadBytes: diskReadBytes,
+            diskWriteBytes: diskWriteBytes,
             loadAverage1: loadAverage1,
             uptimeSeconds: uptimeSeconds,
             sampledAt: sampledAt

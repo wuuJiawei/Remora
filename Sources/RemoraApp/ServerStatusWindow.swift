@@ -86,6 +86,7 @@ final class ServerStatusWindowContext: ObservableObject {
 private struct ServerStatusWindowView: View {
     @ObservedObject var context: ServerStatusWindowContext
     @ObservedObject var metricsCenter: ServerMetricsCenter
+    @State private var isExtendedMetricsExpanded = true
 
     var body: some View {
         ZStack {
@@ -152,6 +153,25 @@ private struct ServerStatusWindowView: View {
                 }
                 .font(.system(size: 12, design: .monospaced))
 
+                DisclosureGroup(isExpanded: $isExtendedMetricsExpanded) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        statusLine("Processes", formatCount(snapshot?.processCount))
+                        statusLine("Net RX", formatBytes(snapshot?.networkRXBytes))
+                        statusLine("Net TX", formatBytes(snapshot?.networkTXBytes))
+                        statusLine("Disk Read", formatBytes(snapshot?.diskReadBytes))
+                        statusLine("Disk Write", formatBytes(snapshot?.diskWriteBytes))
+                        Text("Network and disk IO values are cumulative since server boot.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(VisualStyle.textSecondary)
+                    }
+                    .padding(.top, 6)
+                } label: {
+                    Text("Process / Network / Disk IO")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(VisualStyle.textPrimary)
+                }
+                .animation(.easeInOut(duration: 0.16), value: isExtendedMetricsExpanded)
+
                 if state.isLoading {
                     Text("Refreshing metrics…")
                         .font(.system(size: 12))
@@ -213,6 +233,11 @@ private struct ServerStatusWindowView: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm:ss"
         return formatter.string(from: date)
+    }
+
+    private func formatCount(_ value: Int64?) -> String {
+        guard let value else { return "--" }
+        return "\(value)"
     }
 }
 
