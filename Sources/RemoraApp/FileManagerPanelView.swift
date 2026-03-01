@@ -105,70 +105,85 @@ struct FileManagerPanelView: View {
         return TransferQueueSummary(statusText: statusText, progress: progress, statusColor: statusColor)
     }
 
+    private var hasTransferTasks: Bool {
+        !viewModel.transferQueue.isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             remotePanel
                 .frame(minHeight: 150, maxHeight: .infinity, alignment: .top)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Button {
-                        viewModel.performContextAction(.download(paths: Array(selectedRemotePaths)))
-                    } label: {
-                        Label("Download", systemImage: "arrow.down.circle.fill")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(selectedRemoteFiles.isEmpty)
-                    .accessibilityIdentifier("file-manager-download")
+            HStack(spacing: 10) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Button {
+                            viewModel.performContextAction(.download(paths: Array(selectedRemotePaths)))
+                        } label: {
+                            Label("Download", systemImage: "arrow.down.circle.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(selectedRemoteFiles.isEmpty)
+                        .accessibilityIdentifier("file-manager-download")
 
-                    Button(role: .destructive) {
-                        viewModel.performContextAction(.delete(paths: Array(selectedRemotePaths)))
-                        selectedRemotePaths.removeAll()
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(selectedRemotePaths.isEmpty)
-                    .accessibilityIdentifier("file-manager-delete")
+                        Button(role: .destructive) {
+                            viewModel.performContextAction(.delete(paths: Array(selectedRemotePaths)))
+                            selectedRemotePaths.removeAll()
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(selectedRemotePaths.isEmpty)
+                        .accessibilityIdentifier("file-manager-delete")
 
-                    Button {
-                        moveSourcePaths = Array(selectedRemotePaths)
-                        moveTargetPath = viewModel.remoteDirectoryPath
-                        isMoveSheetPresented = true
-                    } label: {
-                        Label("Move To", systemImage: "folder")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(selectedRemotePaths.isEmpty)
-                    .accessibilityIdentifier("file-manager-move")
+                        Button {
+                            moveSourcePaths = Array(selectedRemotePaths)
+                            moveTargetPath = viewModel.remoteDirectoryPath
+                            isMoveSheetPresented = true
+                        } label: {
+                            Label("Move To", systemImage: "folder")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(selectedRemotePaths.isEmpty)
+                        .accessibilityIdentifier("file-manager-move")
 
-                    Button("Retry Failed") {
-                        viewModel.retryFailedTransfers()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(!hasRetryableTransfers)
-                    .accessibilityIdentifier("file-manager-retry-failed")
+                        Button("Retry Failed") {
+                            viewModel.retryFailedTransfers()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(!hasRetryableTransfers)
+                        .accessibilityIdentifier("file-manager-retry-failed")
 
-                    Button("Paste") {
-                        viewModel.performContextAction(.paste(destinationDirectory: currentDestinationDirectoryForPaste))
+                        Button("Paste") {
+                            viewModel.performContextAction(.paste(destinationDirectory: currentDestinationDirectoryForPaste))
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(!viewModel.canPaste(into: currentDestinationDirectoryForPaste))
+                        .accessibilityIdentifier("file-manager-paste")
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(!viewModel.canPaste(into: currentDestinationDirectoryForPaste))
-                    .accessibilityIdentifier("file-manager-paste")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if hasTransferTasks, !isTransferQueueExpanded {
+                    transferQueueCollapsedInlineControl
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.transferQueue.map(\.status))
         .animation(.easeInOut(duration: 0.2), value: isTransferQueueExpanded)
         .overlay(alignment: .bottomTrailing) {
             transferQueueFloatingOverlay
                 .padding(8)
+        }
+        .onChange(of: hasTransferTasks) {
+            if !hasTransferTasks {
+                isTransferQueueExpanded = false
+            }
         }
         .onAppear {
             remotePathDraft = viewModel.remoteDirectoryPath
@@ -404,36 +419,21 @@ struct FileManagerPanelView: View {
 
     private var transferQueueFloatingOverlay: some View {
         Group {
-            if !viewModel.transferQueue.isEmpty {
-                if isTransferQueueExpanded {
-                    transferQueueExpandedPanel
-                } else {
-                    transferQueueCollapsedPanel
-                }
+            if hasTransferTasks, isTransferQueueExpanded {
+                transferQueueExpandedPanel
             }
         }
     }
 
-    private var transferQueueCollapsedPanel: some View {
+    private var transferQueueCollapsedInlineControl: some View {
         Button {
             isTransferQueueExpanded = true
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                ProgressView(value: transferQueueSummary.progress)
-                    .progressViewStyle(.linear)
-                    .controlSize(.small)
-            }
-            .padding(10)
-            .frame(width: 220)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(VisualStyle.rightPanelBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(VisualStyle.borderSoft, lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.08), radius: 6, y: 2)
+            ProgressView(value: transferQueueSummary.progress)
+                .progressViewStyle(.linear)
+                .controlSize(.small)
+                .frame(width: 150)
+                .padding(.horizontal, 2)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("file-manager-transfer-collapsed")
