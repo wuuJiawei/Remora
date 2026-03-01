@@ -104,18 +104,29 @@ final class WorkspaceViewModel: ObservableObject {
     }
 
     func closeTab(_ tabID: UUID) {
-        guard tabs.count > 1 else { return }
-        if let tab = tab(id: tabID) {
-            tab.panes.forEach { $0.runtime.disconnect() }
-        }
+        closeTabs(withIDs: [tabID])
+    }
 
-        tabs.removeAll { $0.id == tabID }
-        activePaneByTab.removeValue(forKey: tabID)
+    func closeAllTabs() {
+        closeTabs(withIDs: Set(tabs.map(\.id)))
+    }
 
-        if activeTabID == tabID {
-            activeTabID = tabs.first?.id
-        }
-        applyPaneVisibility()
+    func closeAllInactiveTabs() {
+        guard let activeTabID else { return }
+        let inactiveIDs = Set(tabs.map(\.id).filter { $0 != activeTabID })
+        closeTabs(withIDs: inactiveIDs)
+    }
+
+    func closeTabsLeft(of tabID: UUID) {
+        guard let tabIndex = tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        let leftIDs = Set(tabs.prefix(tabIndex).map(\.id))
+        closeTabs(withIDs: leftIDs)
+    }
+
+    func closeTabsRight(of tabID: UUID) {
+        guard let tabIndex = tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        let rightIDs = Set(tabs.suffix(from: tabIndex + 1).map(\.id))
+        closeTabs(withIDs: rightIDs)
     }
 
     func renameTab(_ tabID: UUID, title: String) {
@@ -208,5 +219,53 @@ final class WorkspaceViewModel: ObservableObject {
             index += 1
         }
         return "\(base)(\(index))"
+    }
+
+    private func closeTabs(withIDs tabIDs: Set<UUID>) {
+        guard !tabIDs.isEmpty else { return }
+
+        let currentTabs = tabs
+        for tab in currentTabs where tabIDs.contains(tab.id) {
+            tab.panes.forEach { $0.runtime.disconnect() }
+        }
+
+        tabs.removeAll { tabIDs.contains($0.id) }
+        for id in tabIDs {
+            activePaneByTab.removeValue(forKey: id)
+        }
+
+        if let activeTabID, tabIDs.contains(activeTabID) {
+            self.activeTabID = nextActiveTabID(
+                afterClosing: tabIDs,
+                previousTabs: currentTabs,
+                previousActiveID: activeTabID
+            )
+        } else if self.activeTabID == nil {
+            self.activeTabID = tabs.first?.id
+        }
+
+        applyPaneVisibility()
+    }
+
+    private func nextActiveTabID(
+        afterClosing closedIDs: Set<UUID>,
+        previousTabs: [TerminalTabModel],
+        previousActiveID: UUID
+    ) -> UUID? {
+        guard let previousActiveIndex = previousTabs.firstIndex(where: { $0.id == previousActiveID }) else {
+            return tabs.first?.id
+        }
+
+        if let rightNeighbor = previousTabs[(previousActiveIndex + 1)...].first(where: { !closedIDs.contains($0.id) }) {
+            return rightNeighbor.id
+        }
+
+        if previousActiveIndex > 0,
+           let leftNeighbor = previousTabs[..<previousActiveIndex].last(where: { !closedIDs.contains($0.id) })
+        {
+            return leftNeighbor.id
+        }
+
+        return nil
     }
 }

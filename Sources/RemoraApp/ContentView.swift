@@ -455,6 +455,14 @@ struct ContentView: View {
 
     @ViewBuilder
     private func sessionContextMenu(for tab: TerminalTabModel) -> some View {
+        let tabIndex = workspace.tabs.firstIndex(where: { $0.id == tab.id })
+        let hasTabsOnLeft = tabIndex.map { $0 > 0 } ?? false
+        let hasTabsOnRight = tabIndex.map { $0 + 1 < workspace.tabs.count } ?? false
+        let canCloseInactiveTabs: Bool = {
+            guard let activeTabID = workspace.activeTabID else { return false }
+            return workspace.tabs.contains { $0.id != activeTabID }
+        }()
+
         Button("New Session") {
             workspace.createTab()
         }
@@ -463,11 +471,30 @@ struct ContentView: View {
             beginRenameSession(tab.id)
         }
 
-        if workspace.tabs.count > 1 {
-            Button("Close Session", role: .destructive) {
-                workspace.closeTab(tab.id)
-            }
+        Divider()
+
+        Button("Close Current Session", role: .destructive) {
+            workspace.closeTab(tab.id)
         }
+
+        Button("Close All Sessions", role: .destructive) {
+            workspace.closeAllTabs()
+        }
+
+        Button("Close All Non-Active Sessions", role: .destructive) {
+            workspace.closeAllInactiveTabs()
+        }
+        .disabled(!canCloseInactiveTabs)
+
+        Button("Close Sessions to the Left", role: .destructive) {
+            workspace.closeTabsLeft(of: tab.id)
+        }
+        .disabled(!hasTabsOnLeft)
+
+        Button("Close Sessions to the Right", role: .destructive) {
+            workspace.closeTabsRight(of: tab.id)
+        }
+        .disabled(!hasTabsOnRight)
 
         Divider()
 
