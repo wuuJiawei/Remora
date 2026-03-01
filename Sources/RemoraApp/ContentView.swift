@@ -418,8 +418,8 @@ struct ContentView: View {
     private var emptySessionPlaceholder: some View {
         VStack(spacing: 14) {
             Group {
-                if NSApp.applicationIconImage.size.width > 0 {
-                    Image(nsImage: NSApp.applicationIconImage)
+                if let appIconImage = Self.resolveWelcomeAppIconImage() {
+                    Image(nsImage: appIconImage)
                         .resizable()
                         .interpolation(.high)
                 } else {
@@ -448,6 +448,51 @@ struct ContentView: View {
             .accessibilityIdentifier("session-placeholder-new-ssh")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private static func resolveWelcomeAppIconImage() -> NSImage? {
+        let fileManager = FileManager.default
+        var candidateDirectories: [URL] = []
+
+        candidateDirectories.append(URL(fileURLWithPath: fileManager.currentDirectoryPath))
+
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        candidateDirectories.append(sourceRoot)
+
+        if let executableURL = Bundle.main.executableURL {
+            var directory = executableURL.deletingLastPathComponent()
+            for _ in 0 ..< 8 {
+                candidateDirectories.append(directory)
+                directory.deleteLastPathComponent()
+            }
+        }
+
+        var visitedPaths: Set<String> = []
+        for directory in candidateDirectories {
+            let standardizedPath = directory.standardizedFileURL.path
+            guard !visitedPaths.contains(standardizedPath) else { continue }
+            visitedPaths.insert(standardizedPath)
+
+            let iconCandidates = [
+                directory.appendingPathComponent("Resources/AppIcon.icns"),
+                directory.appendingPathComponent("AppIcon.icns"),
+            ]
+
+            for candidate in iconCandidates where fileManager.fileExists(atPath: candidate.path) {
+                if let image = NSImage(contentsOf: candidate) {
+                    image.isTemplate = false
+                    return image
+                }
+            }
+        }
+
+        if NSApp.applicationIconImage.size.width > 0 {
+            return NSApp.applicationIconImage
+        }
+        return nil
     }
 
     private var sessionTabBar: some View {
