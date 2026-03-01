@@ -150,6 +150,20 @@ struct ContentView: View {
         .onReceive(serverMetricsTrackingTimer) { _ in
             syncServerMetricsTracking()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .remoraOpenSettingsCommand)) { _ in
+            openWindow(id: "settings")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .remoraNewSSHConnectionCommand)) { _ in
+            beginCreateHostInPreferredGroup()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .remoraImportConnectionsCommand)) { _ in
+            guard !isExportingHosts, !isImportingHosts, !hostCatalog.isLoading else { return }
+            beginImportHosts()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .remoraExportConnectionsCommand)) { _ in
+            guard !isExportingHosts, !isImportingHosts, !hostCatalog.isLoading else { return }
+            beginExportAllHosts()
+        }
         .onChange(of: hostCatalog.hosts) {
             if let selectedHostID, hostCatalog.host(id: selectedHostID) != nil {
                 return

@@ -103,5 +103,33 @@ struct RemoraAppMain: App {
         .defaultSize(width: 660, height: 410)
         .windowResizability(.contentSize)
         .windowToolbarStyle(.unified)
+
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button(L10n.tr("Settings", fallback: "Settings")) {
+                    NotificationCenter.default.post(name: .remoraOpenSettingsCommand, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
+            CommandGroup(after: .newItem) {
+                Button(L10n.tr("New SSH Connection", fallback: "New SSH Connection")) {
+                    NotificationCenter.default.post(name: .remoraNewSSHConnectionCommand, object: nil)
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            }
+
+            CommandGroup(after: .importExport) {
+                Button(L10n.tr("Import Connections", fallback: "Import Connections")) {
+                    NotificationCenter.default.post(name: .remoraImportConnectionsCommand, object: nil)
+                }
+                .keyboardShortcut("i", modifiers: .command)
+
+                Button(L10n.tr("Export Connections", fallback: "Export Connections")) {
+                    NotificationCenter.default.post(name: .remoraExportConnectionsCommand, object: nil)
+                }
+                .keyboardShortcut("e", modifiers: .command)
+            }
+        }
     }
 }

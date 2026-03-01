@@ -18,7 +18,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -269,7 +269,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -339,7 +339,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -467,6 +467,69 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
+    func menuShortcutsOpenNewConnectionAndSettings() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let launched = try launchAppForUIAutomation()
+        let process = launched.process
+        let appElement = launched.appElement
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { identifier(of: $0) == "sidebar-new-ssh-connection" }
+        ) != nil else {
+            Issue.record("Main window did not finish loading before shortcut test.")
+            return
+        }
+
+        pressShortcut(virtualKey: 45, modifiers: [.maskCommand, .maskShift]) // Cmd+Shift+N
+        guard waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { identifier(of: $0) == "host-editor-title" }
+        ) != nil else {
+            Issue.record("Cmd+Shift+N did not open the new SSH connection editor.")
+            return
+        }
+
+        guard let cancelButton = waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { element in
+                role(of: element) == kAXButtonRole as String && title(of: element) == "Cancel"
+            }
+        ) else {
+            Issue.record("Could not find editor Cancel button after Cmd+Shift+N.")
+            return
+        }
+        _ = AXUIElementPerformAction(cancelButton, kAXPressAction as CFString)
+
+        let dismissed = waitUntil(timeout: 5, {
+            findElement(in: appElement, matching: { identifier(of: $0) == "host-editor-title" }) == nil
+        })
+        #expect(dismissed, "Editor sheet should dismiss after Cancel.")
+
+        pressShortcut(virtualKey: 43, modifiers: .maskCommand) // Cmd+,
+        let settingsOpened = waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { identifier(of: $0) == "settings-window" }
+        ) != nil
+        #expect(settingsOpened, "Cmd+, should open the settings window.")
+    }
+
+    @Test
     func doubleClickHostRowCreatesNewSessionAndConnects() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return
@@ -478,7 +541,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -684,7 +747,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -794,7 +857,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -877,7 +940,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -994,7 +1057,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -1078,7 +1141,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -1164,7 +1227,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -1273,7 +1336,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
         defer {
             if process.isRunning {
@@ -1437,7 +1500,7 @@ struct RemoraUIAutomationTests {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = []
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
 
         guard waitUntil(timeout: 8, {
@@ -1456,6 +1519,10 @@ struct RemoraUIAutomationTests {
         NSRunningApplication(processIdentifier: process.processIdentifier)?
             .activate(options: [.activateAllWindows])
         return (process, AXUIElementCreateApplication(process.processIdentifier))
+    }
+
+    private var uiAutomationLaunchArguments: [String] {
+        ["-AppleLanguages", "(en)", "-AppleLocale", "en_US_POSIX"]
     }
 
     private func expandFileManager(in appElement: AXUIElement) -> Bool {
@@ -1791,6 +1858,18 @@ struct RemoraUIAutomationTests {
         keyDown.post(tap: .cghidEventTap)
         keyUp.post(tap: .cghidEventTap)
         usleep(20_000)
+    }
+
+    private func pressShortcut(virtualKey: CGKeyCode, modifiers: CGEventFlags) {
+        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: virtualKey, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: virtualKey, keyDown: false)
+        else { return }
+
+        keyDown.flags = modifiers
+        keyUp.flags = modifiers
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        usleep(30_000)
     }
 
     private func typeText(_ text: String) {
