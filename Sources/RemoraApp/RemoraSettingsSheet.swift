@@ -40,6 +40,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 }
 
 struct RemoraSettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
     @Binding var isPresented: Bool
     @State private var selectedPane: SettingsPane = .sidebar
 
@@ -70,26 +71,40 @@ struct RemoraSettingsSheet: View {
             Divider()
             footer
         }
-        .frame(width: 700, height: 460)
+        .frame(width: 660, height: 410)
         .background(VisualStyle.leftSidebarBackground)
         .accessibilityIdentifier("settings-sheet")
+        .onExitCommand(perform: closeSheet)
     }
 
     private var header: some View {
-        VStack(spacing: 10) {
-            Text("Preferences")
+        VStack(spacing: 8) {
+            Text("Settings")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
-                .padding(.top, 12)
                 .accessibilityIdentifier("settings-sheet-title")
+                .frame(maxWidth: .infinity)
+                .overlay(alignment: .trailing) {
+                    Button(action: closeSheet) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundStyle(VisualStyle.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityLabel("Close")
+                    .accessibilityIdentifier("settings-close")
+                }
+                .padding(.top, 10)
+                .padding(.horizontal, 14)
 
-            HStack(spacing: 14) {
+            HStack(spacing: 8) {
                 ForEach(SettingsPane.allCases) { pane in
                     paneButton(pane)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
         }
         .frame(maxWidth: .infinity)
     }
@@ -108,8 +123,8 @@ struct RemoraSettingsSheet: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     private var footer: some View {
@@ -119,14 +134,14 @@ struct RemoraSettingsSheet: View {
                 .foregroundStyle(VisualStyle.textSecondary)
             Spacer()
             Button("Done") {
-                isPresented = false
+                closeSheet()
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
             .accessibilityIdentifier("settings-done")
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
 
     private func paneButton(_ pane: SettingsPane) -> some View {
@@ -138,14 +153,14 @@ struct RemoraSettingsSheet: View {
         } label: {
             VStack(spacing: 8) {
                 Image(systemName: pane.icon)
-                    .font(.system(size: 24, weight: .regular))
+                    .font(.system(size: 18, weight: .regular))
                 Text(pane.title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
             }
             .foregroundStyle(isSelected ? Color.accentColor : VisualStyle.textSecondary)
-            .frame(width: 124, height: 82)
+            .frame(width: 92, height: 62)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(isSelected ? Color.white.opacity(0.9) : Color.clear)
             )
             .contentShape(Rectangle())
@@ -156,7 +171,7 @@ struct RemoraSettingsSheet: View {
     }
 
     private var generalPane: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Session")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
@@ -182,7 +197,7 @@ struct RemoraSettingsSheet: View {
     }
 
     private var tagsPane: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Tagging")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
@@ -207,7 +222,7 @@ struct RemoraSettingsSheet: View {
     }
 
     private var sidebarPane: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Show these items in the sidebar:")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
@@ -248,7 +263,7 @@ struct RemoraSettingsSheet: View {
     }
 
     private var advancedPane: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Advanced")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
@@ -276,5 +291,10 @@ struct RemoraSettingsSheet: View {
                 .foregroundStyle(VisualStyle.textSecondary)
         }
         .accessibilityIdentifier("settings-section-advanced")
+    }
+
+    private func closeSheet() {
+        isPresented = false
+        dismiss()
     }
 }

@@ -424,16 +424,21 @@ struct RemoraUIAutomationTests {
 
         _ = AXUIElementPerformAction(settingsButton, kAXPressAction as CFString)
 
-        guard let doneButton = waitForElement(
+        guard waitForElement(
             in: appElement,
             timeout: 5,
             matching: { element in
                 role(of: element) == kAXButtonRole as String && title(of: element) == "Done"
             }
-        ) else {
+        ) != nil else {
             Issue.record("Could not find settings sheet Done button.")
             return
         }
+
+        #expect(
+            findElement(in: appElement, matching: { self.title(of: $0) == "Settings" }) != nil,
+            "Expected settings sheet title to use Settings."
+        )
 
         #expect(
             findElement(in: appElement, matching: { title(of: $0) == "Show these items in the sidebar:" }) != nil,
@@ -457,6 +462,17 @@ struct RemoraUIAutomationTests {
             findElement(in: appElement, matching: { self.title(of: $0) == "Session" }) != nil
         })
         #expect(switched, "Clicking General tab should switch the settings pane.")
+
+        guard let doneButton = waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { element in
+                role(of: element) == kAXButtonRole as String && title(of: element) == "Done"
+            }
+        ) else {
+            Issue.record("Could not find settings Done button for dismissal.")
+            return
+        }
 
         _ = AXUIElementPerformAction(doneButton, kAXPressAction as CFString)
 
