@@ -1293,14 +1293,16 @@ private struct SidebarHostRow: View {
                 onArchive()
             }
             Divider()
-            Button("Copy connection info") {
-                onCopyConnectionInfo()
-            }
-            Button("Copy address") {
-                onCopyAddress()
-            }
-            Button("Copy SSH command") {
-                onCopySSHCommand()
+            Menu("Copy") {
+                Button("Copy connection info") {
+                    onCopyConnectionInfo()
+                }
+                Button("Copy address") {
+                    onCopyAddress()
+                }
+                Button("Copy SSH command") {
+                    onCopySSHCommand()
+                }
             }
             Divider()
             Button("Delete connection", role: .destructive) {
