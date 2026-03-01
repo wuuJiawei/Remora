@@ -300,6 +300,13 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         try await runSSHCommand(touchCommand)
     }
 
+    public func executeRemoteShellCommand(
+        _ command: String,
+        timeout: TimeInterval? = nil
+    ) async throws -> String {
+        try await runSSHCommandOutput(command, timeout: timeout ?? shellFallbackTimeout)
+    }
+
     private func executeSFTPPrimaryWithSSHFallback<T>(
         sftpOperation: () async throws -> T,
         sshFallback: () async throws -> T
