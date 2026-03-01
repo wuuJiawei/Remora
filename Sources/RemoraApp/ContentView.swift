@@ -1047,15 +1047,20 @@ struct ContentView: View {
     }
 
     private func syncFileManagerSFTPBinding() {
-        guard let runtime = workspace.activePane?.runtime else {
-            bindDisconnectedSFTPIfNeeded(bindingKey: "disconnected:none")
+        guard let activeTabID = workspace.activeTabID,
+              let activePane = workspace.activePane
+        else {
+            bindDisconnectedSFTPIfNeeded(bindingKey: "tab:none|pane:none|disconnected")
             return
         }
+        let runtime = activePane.runtime
 
-        let isConnectedSSH = runtime.connectionMode == .ssh
-            && runtime.connectionState.hasPrefix("Connected")
-        if isConnectedSSH, let host = runtime.connectedSSHHost {
-            let bindingKey = Self.fileManagerBindingKey(for: runtime, host: host)
+        if runtime.connectionMode == .ssh, let host = runtime.connectedSSHHost {
+            let bindingKey = Self.fileManagerBindingKey(
+                tabID: activeTabID,
+                paneID: activePane.id,
+                host: host
+            )
             guard fileManagerSFTPBindingKey != bindingKey else { return }
             fileManagerSFTPBindingKey = bindingKey
             fileTransfer.bindSFTPClient(
@@ -1066,7 +1071,10 @@ struct ContentView: View {
             return
         }
 
-        let disconnectedBindingKey = Self.fileManagerDisconnectedBindingKey(for: runtime)
+        let disconnectedBindingKey = Self.fileManagerDisconnectedBindingKey(
+            tabID: activeTabID,
+            paneID: activePane.id
+        )
         bindDisconnectedSFTPIfNeeded(bindingKey: disconnectedBindingKey)
     }
 
@@ -1092,16 +1100,12 @@ struct ContentView: View {
         ].joined(separator: "|")
     }
 
-    private static func runtimeSignature(for runtime: TerminalRuntime) -> String {
-        String(describing: ObjectIdentifier(runtime))
+    private static func fileManagerBindingKey(tabID: UUID, paneID: UUID, host: RemoraCore.Host) -> String {
+        "tab:\(tabID.uuidString)|pane:\(paneID.uuidString)|ssh:\(sftpHostSignature(for: host))"
     }
 
-    private static func fileManagerBindingKey(for runtime: TerminalRuntime, host: RemoraCore.Host) -> String {
-        "runtime:\(runtimeSignature(for: runtime))|ssh:\(sftpHostSignature(for: host))"
-    }
-
-    private static func fileManagerDisconnectedBindingKey(for runtime: TerminalRuntime) -> String {
-        "runtime:\(runtimeSignature(for: runtime))|disconnected"
+    private static func fileManagerDisconnectedBindingKey(tabID: UUID, paneID: UUID) -> String {
+        "tab:\(tabID.uuidString)|pane:\(paneID.uuidString)|disconnected"
     }
 
     private var importProgressSheet: some View {

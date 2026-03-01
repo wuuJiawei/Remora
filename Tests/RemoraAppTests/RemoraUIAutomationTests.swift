@@ -608,6 +608,71 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
+    func fileManagerStaysConnectedWhenOpeningSameHostInSecondSession() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let launched = try launchAppForUIAutomation()
+        let process = launched.process
+        let appElement = launched.appElement
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard let hostRow = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { element in
+                identifier(of: element) == sidebarHostRowIdentifier(for: "prod-api")
+                    || isSidebarHostRow(element, named: "prod-api")
+            }
+        ) else {
+            Issue.record("Could not find prod-api row.")
+            return
+        }
+        guard let hostFrame = frame(of: hostRow) else {
+            Issue.record("Could not read prod-api row frame.")
+            return
+        }
+
+        doubleClick(point: CGPoint(x: hostFrame.midX, y: hostFrame.midY))
+        let firstConnected = waitUntil(timeout: 8, {
+            guard selectSessionTab("prod-api", in: appElement) else { return false }
+            return hasConnectedStatus(in: appElement)
+        })
+        #expect(firstConnected, "First SSH session should connect.")
+        guard firstConnected else { return }
+
+        let expanded = expandFileManager(in: appElement)
+        #expect(expanded, "File Manager should expand after first SSH connect.")
+        guard expanded else { return }
+
+        doubleClick(point: CGPoint(x: hostFrame.midX, y: hostFrame.midY))
+        let secondConnected = waitUntil(timeout: 8, {
+            guard selectSessionTab("prod-api(1)", in: appElement) else { return false }
+            return hasConnectedStatus(in: appElement)
+        })
+        #expect(secondConnected, "Second SSH session to same host should connect.")
+        guard secondConnected else { return }
+
+        let noDisconnectedError = waitUntil(timeout: 8, {
+            findElement(
+                in: appElement,
+                matching: { element in
+                    (title(of: element) ?? "").localizedCaseInsensitiveContains("SSH client is not connected")
+                }
+            ) == nil
+        })
+        #expect(noDisconnectedError, "File Manager should not report 'SSH client is not connected' after opening second session.")
+    }
+
+    @Test
     func terminalAcceptsKeyboardInputAndShowsCommandOutput() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return
