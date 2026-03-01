@@ -125,6 +125,15 @@ final class FileTransferViewModel: ObservableObject {
         var fetchedAt: Date
     }
 
+    private struct RemoteBindingState {
+        var remoteDirectoryPath: String
+        var remoteDirectoryHistory: [String]
+        var remoteDirectoryHistoryIndex: Int
+        var remoteDirectoryCache: [String: CachedRemoteDirectory]
+        var remoteEntries: [RemoteFileEntry]
+        var remoteLoadErrorMessage: String?
+    }
+
     @Published var localDirectoryURL: URL
     @Published var remoteDirectoryPath: String
     @Published var isTerminalDirectorySyncEnabled: Bool = false
@@ -145,6 +154,8 @@ final class FileTransferViewModel: ObservableObject {
     private let remoteDirectoryCacheTTL: TimeInterval = 2
     private var remoteDirectoryHistory: [String] = []
     private var remoteDirectoryHistoryIndex: Int = 0
+    private var activeRemoteBindingKey = "__default"
+    private var remoteBindingStates: [String: RemoteBindingState] = [:]
     private let logger = Logger(subsystem: "io.lighting-tech.remora", category: "file-transfer")
 
     init(
@@ -211,17 +222,36 @@ final class FileTransferViewModel: ObservableObject {
 
     func bindSFTPClient(
         _ client: SFTPClientProtocol,
+        bindingKey: String = "__default",
         initialRemoteDirectory: String? = nil
     ) {
+        let normalizedBindingKey = normalizedRemoteBindingKey(bindingKey)
+        remoteBindingStates[activeRemoteBindingKey] = makeCurrentRemoteBindingState()
+
         sftpClient = client
+        activeRemoteBindingKey = normalizedBindingKey
         remoteClipboard = nil
         transferQueue.removeAll()
-        remoteEntries = []
-        remoteLoadErrorMessage = nil
-        remoteDirectoryCache.removeAll()
         remoteRefreshInFlightPaths.removeAll()
         isRemoteLoading = false
 
+        if let saved = remoteBindingStates[normalizedBindingKey] {
+            applyRemoteBindingState(saved)
+            if remoteEntries.isEmpty && remoteLoadErrorMessage == nil {
+                Task {
+                    await refreshRemoteEntries(
+                        path: remoteDirectoryPath,
+                        preferCachedFirst: true,
+                        deduplicateInFlight: true
+                    )
+                }
+            }
+            return
+        }
+
+        remoteEntries = []
+        remoteLoadErrorMessage = nil
+        remoteDirectoryCache.removeAll()
         let initialPath = normalizeRemoteDirectoryPath(initialRemoteDirectory ?? "/")
         setRemoteDirectory(path: initialPath, recordHistory: false, resetHistory: true)
 
@@ -1077,5 +1107,37 @@ final class FileTransferViewModel: ObservableObject {
     private func updateRemoteLoadingState() {
         let currentPath = normalizeRemoteDirectoryPath(remoteDirectoryPath)
         isRemoteLoading = remoteRefreshInFlightPaths.contains(currentPath)
+    }
+
+    private func makeCurrentRemoteBindingState() -> RemoteBindingState {
+        RemoteBindingState(
+            remoteDirectoryPath: remoteDirectoryPath,
+            remoteDirectoryHistory: remoteDirectoryHistory,
+            remoteDirectoryHistoryIndex: remoteDirectoryHistoryIndex,
+            remoteDirectoryCache: remoteDirectoryCache,
+            remoteEntries: remoteEntries,
+            remoteLoadErrorMessage: remoteLoadErrorMessage
+        )
+    }
+
+    private func applyRemoteBindingState(_ state: RemoteBindingState) {
+        remoteDirectoryPath = normalizeRemoteDirectoryPath(state.remoteDirectoryPath)
+        remoteDirectoryHistory = state.remoteDirectoryHistory.isEmpty
+            ? [remoteDirectoryPath]
+            : state.remoteDirectoryHistory.map { normalizeRemoteDirectoryPath($0) }
+        remoteDirectoryHistoryIndex = min(
+            max(state.remoteDirectoryHistoryIndex, 0),
+            max(remoteDirectoryHistory.count - 1, 0)
+        )
+        remoteDirectoryCache = state.remoteDirectoryCache
+        remoteEntries = state.remoteEntries
+        remoteLoadErrorMessage = state.remoteLoadErrorMessage
+        updateRemoteNavigationAvailability()
+        updateRemoteLoadingState()
+    }
+
+    private func normalizedRemoteBindingKey(_ rawKey: String) -> String {
+        let trimmed = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "__default" : trimmed
     }
 }

@@ -1048,30 +1048,36 @@ struct ContentView: View {
 
     private func syncFileManagerSFTPBinding() {
         guard let runtime = workspace.activePane?.runtime else {
-            bindDisconnectedSFTPIfNeeded()
+            bindDisconnectedSFTPIfNeeded(bindingKey: "disconnected:none")
             return
         }
 
         let isConnectedSSH = runtime.connectionMode == .ssh
             && runtime.connectionState.hasPrefix("Connected")
         if isConnectedSSH, let host = runtime.connectedSSHHost {
-            let signature = "ssh:\(Self.sftpHostSignature(for: host))"
-            guard fileManagerSFTPBindingKey != signature else { return }
-            fileManagerSFTPBindingKey = signature
+            let bindingKey = Self.fileManagerBindingKey(for: runtime, host: host)
+            guard fileManagerSFTPBindingKey != bindingKey else { return }
+            fileManagerSFTPBindingKey = bindingKey
             fileTransfer.bindSFTPClient(
                 SystemSFTPClient(host: host),
+                bindingKey: bindingKey,
                 initialRemoteDirectory: runtime.workingDirectory ?? "/"
             )
             return
         }
 
-        bindDisconnectedSFTPIfNeeded()
+        let disconnectedBindingKey = Self.fileManagerDisconnectedBindingKey(for: runtime)
+        bindDisconnectedSFTPIfNeeded(bindingKey: disconnectedBindingKey)
     }
 
-    private func bindDisconnectedSFTPIfNeeded() {
-        guard fileManagerSFTPBindingKey != "disconnected" else { return }
-        fileManagerSFTPBindingKey = "disconnected"
-        fileTransfer.bindSFTPClient(DisconnectedSFTPClient(), initialRemoteDirectory: "/")
+    private func bindDisconnectedSFTPIfNeeded(bindingKey: String) {
+        guard fileManagerSFTPBindingKey != bindingKey else { return }
+        fileManagerSFTPBindingKey = bindingKey
+        fileTransfer.bindSFTPClient(
+            DisconnectedSFTPClient(),
+            bindingKey: bindingKey,
+            initialRemoteDirectory: "/"
+        )
     }
 
     private static func sftpHostSignature(for host: RemoraCore.Host) -> String {
@@ -1084,6 +1090,18 @@ struct ContentView: View {
             host.auth.keyReference ?? "",
             host.auth.passwordReference ?? "",
         ].joined(separator: "|")
+    }
+
+    private static func runtimeSignature(for runtime: TerminalRuntime) -> String {
+        String(describing: ObjectIdentifier(runtime))
+    }
+
+    private static func fileManagerBindingKey(for runtime: TerminalRuntime, host: RemoraCore.Host) -> String {
+        "runtime:\(runtimeSignature(for: runtime))|ssh:\(sftpHostSignature(for: host))"
+    }
+
+    private static func fileManagerDisconnectedBindingKey(for runtime: TerminalRuntime) -> String {
+        "runtime:\(runtimeSignature(for: runtime))|disconnected"
     }
 
     private var importProgressSheet: some View {

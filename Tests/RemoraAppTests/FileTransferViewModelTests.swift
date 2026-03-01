@@ -414,6 +414,36 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func bindSFTPClientRestoresRemoteStatePerBindingKey() async throws {
+        let clientA = CountingMockSFTPClient(listDelayMS: 0)
+        let clientB = MockSFTPClient()
+        let vm = FileTransferViewModel(sftpClient: DisconnectedSFTPClient(), remoteDirectoryPath: "/")
+
+        vm.bindSFTPClient(clientA, bindingKey: "session-a", initialRemoteDirectory: "/")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.remoteEntries.contains(where: { $0.path == "/README.txt" })
+        }
+
+        vm.navigateRemote(to: "/logs")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.remoteDirectoryPath == "/logs" && vm.remoteEntries.contains(where: { $0.path == "/logs/app.log" })
+        }
+        let callsBeforeSwitch = await clientA.listCallCount()
+
+        vm.bindSFTPClient(clientB, bindingKey: "session-b", initialRemoteDirectory: "/")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.remoteDirectoryPath == "/" && vm.remoteEntries.contains(where: { $0.path == "/README.txt" })
+        }
+
+        vm.bindSFTPClient(clientA, bindingKey: "session-a", initialRemoteDirectory: "/")
+        #expect(vm.remoteDirectoryPath == "/logs")
+        #expect(vm.remoteEntries.contains(where: { $0.path == "/logs/app.log" }))
+
+        let callsAfterSwitch = await clientA.listCallCount()
+        #expect(callsAfterSwitch == callsBeforeSwitch)
+    }
+
+    @Test
     func openRemoteUsesEntryAbsolutePathWithoutDuplicatingParent() async {
         let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/home")
         let absoluteEntry = RemoteFileEntry(
