@@ -37,6 +37,10 @@ struct RemoraUIAutomationTests {
             .activate(options: [.activateAllWindows])
 
         let appElement = AXUIElementCreateApplication(process.processIdentifier)
+        guard ensureSessionAvailable(in: appElement, timeout: 8) else {
+            Issue.record("Could not create an initial session before opening File Manager.")
+            return
+        }
 
         guard let fileManagerButton = waitForElement(
             in: appElement,
@@ -1164,7 +1168,18 @@ struct RemoraUIAutomationTests {
         _ = AXUIElementPerformAction(addSessionButton, kAXPressAction as CFString)
         _ = AXUIElementPerformAction(addSessionButton, kAXPressAction as CFString)
 
-        let sessionTitles = ["Session 1", "Session 2", "Session 3"]
+        let baseSessionTitle: String = {
+            let candidates = ["Session 1", "jump-box", "prod-api", "staging-api"]
+            for candidate in candidates {
+                if findElement(in: appElement, matching: { element in
+                    role(of: element) == kAXButtonRole as String && title(of: element) == candidate
+                }) != nil {
+                    return candidate
+                }
+            }
+            return "Session 1"
+        }()
+        let sessionTitles = [baseSessionTitle, "Session 2", "Session 3"]
         for title in sessionTitles {
             guard selectSessionTab(title, in: appElement) else {
                 Issue.record("Could not select tab \(title)")
@@ -1179,9 +1194,9 @@ struct RemoraUIAutomationTests {
         }
 
         let round1Markers = [
-            "Session 1": "s1_round1_marker_101",
-            "Session 2": "s2_round1_marker_202",
-            "Session 3": "s3_round1_marker_303",
+            sessionTitles[0]: "s1_round1_marker_101",
+            sessionTitles[1]: "s2_round1_marker_202",
+            sessionTitles[2]: "s3_round1_marker_303",
         ]
 
         for title in sessionTitles {
@@ -1202,8 +1217,8 @@ struct RemoraUIAutomationTests {
             guard echoed else { return }
         }
 
-        guard selectSessionTab("Session 2", in: appElement), focusActiveTerminal(in: appElement) else {
-            Issue.record("Could not focus Session 2 for clear.")
+        guard selectSessionTab(sessionTitles[1], in: appElement), focusActiveTerminal(in: appElement) else {
+            Issue.record("Could not focus \(sessionTitles[1]) for clear.")
             return
         }
         let beforeClearTranscript = activeTranscriptText(in: appElement) ?? ""
@@ -1212,10 +1227,10 @@ struct RemoraUIAutomationTests {
             guard let transcript = activeTranscriptText(in: appElement) else { return false }
             return transcript != beforeClearTranscript
         })
-        #expect(session2ProcessedClear, "Session 2 should process clear command input.")
+        #expect(session2ProcessedClear, "\(sessionTitles[1]) should process clear command input.")
         guard session2ProcessedClear else { return }
 
-        for title in ["Session 1", "Session 3"] {
+        for title in [sessionTitles[0], sessionTitles[2]] {
             guard let marker = round1Markers[title], selectSessionTab(title, in: appElement) else {
                 Issue.record("Could not select \(title) to verify isolation after clear.")
                 return
@@ -1224,13 +1239,13 @@ struct RemoraUIAutomationTests {
                 guard let transcript = activeTranscriptText(in: appElement) else { return false }
                 return transcript.contains("command not found: \(marker)") && !transcript.contains("\nclear")
             })
-            #expect(unaffected, "\(title) should keep its own marker after Session 2 clear.")
+            #expect(unaffected, "\(title) should keep its own marker after \(sessionTitles[1]) clear.")
         }
 
         let round2Markers = [
-            "Session 1": "s1_round2_marker_404",
-            "Session 2": "s2_round2_marker_505",
-            "Session 3": "s3_round2_marker_606",
+            sessionTitles[0]: "s1_round2_marker_404",
+            sessionTitles[1]: "s2_round2_marker_505",
+            sessionTitles[2]: "s3_round2_marker_606",
         ]
 
         for title in sessionTitles {
@@ -1304,6 +1319,8 @@ struct RemoraUIAutomationTests {
     }
 
     private func expandFileManager(in appElement: AXUIElement) -> Bool {
+        guard ensureSessionAvailable(in: appElement, timeout: 8) else { return false }
+
         guard let fileManagerButton = waitForElement(
             in: appElement,
             timeout: 8,
@@ -1398,20 +1415,55 @@ struct RemoraUIAutomationTests {
             return true
         }
 
-        let hasTerminal = findElement(in: appElement, matching: { identifier(of: $0) == "terminal-view" }) != nil
-        if !hasTerminal,
-           let addSessionButton = waitForElement(
-               in: appElement,
-               timeout: 4,
-               matching: { self.identifier(of: $0) == "session-tab-add" }
-           )
-        {
-            _ = AXUIElementPerformAction(addSessionButton, kAXPressAction as CFString)
-        }
+        guard ensureSessionAvailable(in: appElement, timeout: timeout) else { return false }
 
         return waitUntil(timeout: timeout) {
             hasConnectedStatus(in: appElement)
         }
+    }
+
+    private func ensureSessionAvailable(in appElement: AXUIElement, timeout: TimeInterval) -> Bool {
+        if findElement(in: appElement, matching: { identifier(of: $0) == "terminal-view" }) != nil {
+            return true
+        }
+
+        if let addSessionButton = waitForElement(
+            in: appElement,
+            timeout: 2,
+            matching: { self.identifier(of: $0) == "session-tab-add" }
+        ) {
+            _ = AXUIElementPerformAction(addSessionButton, kAXPressAction as CFString)
+        } else if !openHostInSidebar(named: "jump-box", in: appElement) {
+            _ = openFirstSidebarHost(in: appElement)
+        }
+
+        return waitUntil(timeout: timeout) {
+            findElement(in: appElement, matching: { identifier(of: $0) == "terminal-view" }) != nil
+        }
+    }
+
+    private func openHostInSidebar(named hostName: String, in appElement: AXUIElement) -> Bool {
+        guard let hostRow = waitForElement(
+            in: appElement,
+            timeout: 3,
+            matching: { element in
+                role(of: element) == kAXStaticTextRole as String && title(of: element) == hostName
+            }
+        ), let hostFrame = frame(of: hostRow) else {
+            return false
+        }
+        doubleClick(point: CGPoint(x: hostFrame.midX, y: hostFrame.midY))
+        return true
+    }
+
+    private func openFirstSidebarHost(in appElement: AXUIElement) -> Bool {
+        let candidates = ["prod-api", "staging-api"]
+        for name in candidates {
+            if openHostInSidebar(named: name, in: appElement) {
+                return true
+            }
+        }
+        return false
     }
 
     private func findElements(

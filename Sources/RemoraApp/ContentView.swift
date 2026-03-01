@@ -380,16 +380,20 @@ struct ContentView: View {
         VStack(spacing: VisualStyle.panelSpacing) {
             sessionContainer
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            fileManagerDisclosure
+            if !workspace.tabs.isEmpty {
+                fileManagerDisclosure
+            }
         }
         .padding(VisualStyle.pagePadding)
     }
 
     private var sessionContainer: some View {
         VStack(spacing: 0) {
-            sessionTabBar
-            Divider()
-                .overlay(VisualStyle.borderSoft)
+            if !workspace.tabs.isEmpty {
+                sessionTabBar
+                Divider()
+                    .overlay(VisualStyle.borderSoft)
+            }
             Group {
                 if workspace.tabs.isEmpty {
                     emptySessionPlaceholder
@@ -412,33 +416,27 @@ struct ContentView: View {
     }
 
     private var emptySessionPlaceholder: some View {
-        ContentUnavailableView {
-            Label("No Session Open", systemImage: "rectangle.stack.badge.plus")
-        } description: {
-            Text("Create a local session or open the selected SSH host.")
-        } actions: {
-            HStack(spacing: 8) {
-                Button("New Local Session") {
-                    workspace.createTab()
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("session-placeholder-new-local")
+        VStack(spacing: 14) {
+            Image(systemName: "bolt.horizontal.circle")
+                .font(.system(size: 40, weight: .regular))
+                .foregroundStyle(VisualStyle.textSecondary)
 
-                Button("Open Selected Host") {
-                    guard let selectedHostID else { return }
-                    openHostInNewSession(selectedHostID)
-                }
-                .buttonStyle(.bordered)
-                .disabled(selectedHostID == nil)
-                .accessibilityIdentifier("session-placeholder-open-selected-host")
-            }
+            Text("Welcome to Remora")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(VisualStyle.textPrimary)
+
+            Text("Create an SSH connection to start your first session.")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(VisualStyle.textSecondary)
 
             Button("New SSH Connection") {
                 beginCreateHostInPreferredGroup()
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
             .accessibilityIdentifier("session-placeholder-new-ssh")
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var sessionTabBar: some View {
