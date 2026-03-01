@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Remora",
+    defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "RemoraCore", targets: ["RemoraCore"]),
@@ -29,6 +30,9 @@ let package = Package(
         .executableTarget(
             name: "RemoraApp",
             dependencies: ["RemoraCore", "RemoraTerminal"],
+            resources: [
+                .process("Resources"),
+            ],
             linkerSettings: [
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("AppKit"),

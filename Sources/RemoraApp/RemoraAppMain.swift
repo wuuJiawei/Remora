@@ -87,7 +87,10 @@ struct RemoraAppMain: App {
         }
         .windowResizability(.contentSize)
 
-        Window("Settings", id: "settings") {
+        Window(
+            L10n.tr("Settings", fallback: "Settings"),
+            id: "settings"
+        ) {
             RemoraSettingsSheet()
         }
         .defaultSize(width: 660, height: 410)

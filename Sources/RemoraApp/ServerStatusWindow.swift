@@ -27,7 +27,7 @@ final class ServerStatusWindowManager: ObservableObject {
         let rootView = ServerStatusWindowView(context: context, metricsCenter: metricsCenter)
         let hostingController = NSHostingController(rootView: rootView)
         let nextWindow = NSWindow(contentViewController: hostingController)
-        nextWindow.title = "Server Status"
+        nextWindow.title = L10n.tr("Server Status", fallback: "Server Status")
         nextWindow.identifier = NSUserInterfaceItemIdentifier("remora.server-status-window")
         nextWindow.styleMask = [.titled, .closable, .miniaturizable]
         nextWindow.setContentSize(NSSize(width: 300, height: 620))
