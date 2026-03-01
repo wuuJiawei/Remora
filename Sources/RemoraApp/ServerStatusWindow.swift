@@ -29,9 +29,9 @@ final class ServerStatusWindowManager: ObservableObject {
         let nextWindow = NSWindow(contentViewController: hostingController)
         nextWindow.title = "Server Status"
         nextWindow.identifier = NSUserInterfaceItemIdentifier("remora.server-status-window")
-        nextWindow.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        nextWindow.setContentSize(NSSize(width: 360, height: 620))
-        nextWindow.minSize = NSSize(width: 320, height: 480)
+        nextWindow.styleMask = [.titled, .closable, .miniaturizable]
+        nextWindow.setContentSize(NSSize(width: 300, height: 620))
+        nextWindow.minSize = NSSize(width: 300, height: 480)
         nextWindow.isReleasedWhenClosed = false
         window = nextWindow
     }
@@ -102,7 +102,8 @@ private struct ServerStatusWindowView: View {
                 )
             }
         }
-        .frame(minWidth: 320, minHeight: 480)
+        .frame(minWidth: 300, minHeight: 480)
+        .frame(width: 300)
     }
 
     private func statusContent(for host: RemoraCore.Host) -> some View {

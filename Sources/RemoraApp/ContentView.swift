@@ -2160,7 +2160,7 @@ private struct SessionMetricHoverCard: View {
                     .foregroundStyle(VisualStyle.textSecondary)
             }
         }
-        .frame(width: 250, alignment: .leading)
+        .frame(width: 214, alignment: .leading)
     }
 }
 
