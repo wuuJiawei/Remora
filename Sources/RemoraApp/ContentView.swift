@@ -264,12 +264,14 @@ struct ContentView: View {
                                 onArchiveThread: { hostID in
                                     archiveHost(hostID)
                                 },
+                                onCopyConnectionInfo: { host in
+                                    copyConnectionInfo(host)
+                                },
                                 onCopyAddress: { host in
                                     copyToPasteboard(host.address)
                                 },
                                 onCopySSHCommand: { host in
-                                    let command = "ssh \(host.username)@\(host.address) -p \(host.port)"
-                                    copyToPasteboard(command)
+                                    copyToPasteboard(HostConnectionClipboardBuilder.sshCommand(for: host))
                                 },
                                 onDeleteThread: { hostID in
                                     deleteHost(hostID)
@@ -909,6 +911,15 @@ struct ContentView: View {
         pasteboard.setString(text, forType: .string)
     }
 
+    private func copyConnectionInfo(_ host: RemoraCore.Host) {
+        Task {
+            let text = await HostConnectionClipboardBuilder.connectionInfoText(for: host)
+            await MainActor.run {
+                copyToPasteboard(text)
+            }
+        }
+    }
+
     private func connectSelectedHost(to tabID: UUID) {
         guard let host = selectedHost else { return }
         workspace.selectTab(tabID)
@@ -1086,6 +1097,7 @@ private struct SidebarGroupSectionView: View {
     let onPinThread: (UUID) -> Void
     let onEditThread: (UUID) -> Void
     let onArchiveThread: (UUID) -> Void
+    let onCopyConnectionInfo: (RemoraCore.Host) -> Void
     let onCopyAddress: (RemoraCore.Host) -> Void
     let onCopySSHCommand: (RemoraCore.Host) -> Void
     let onDeleteThread: (UUID) -> Void
@@ -1167,6 +1179,9 @@ private struct SidebarGroupSectionView: View {
                             onArchive: {
                                 onArchiveThread(host.id)
                             },
+                            onCopyConnectionInfo: {
+                                onCopyConnectionInfo(host)
+                            },
                             onCopyAddress: {
                                 onCopyAddress(host)
                             },
@@ -1192,6 +1207,7 @@ private struct SidebarHostRow: View {
     let onPin: () -> Void
     let onEdit: () -> Void
     let onArchive: () -> Void
+    let onCopyConnectionInfo: () -> Void
     let onCopyAddress: () -> Void
     let onCopySSHCommand: () -> Void
     let onDelete: () -> Void
@@ -1277,6 +1293,9 @@ private struct SidebarHostRow: View {
                 onArchive()
             }
             Divider()
+            Button("Copy connection info") {
+                onCopyConnectionInfo()
+            }
             Button("Copy address") {
                 onCopyAddress()
             }
