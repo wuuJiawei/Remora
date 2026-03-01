@@ -92,6 +92,8 @@ public actor MockSFTPClient: SFTPClientProtocol {
                     path: fullPath,
                     size: directory.size,
                     permissions: directory.permissions,
+                    owner: directory.owner,
+                    group: directory.group,
                     isDirectory: true,
                     modifiedAt: directory.modifiedAt
                 )
@@ -103,6 +105,8 @@ public actor MockSFTPClient: SFTPClientProtocol {
                     path: fullPath,
                     size: Int64(file.data.count),
                     permissions: file.attributes.permissions,
+                    owner: file.attributes.owner,
+                    group: file.attributes.group,
                     isDirectory: false,
                     modifiedAt: file.attributes.modifiedAt
                 )

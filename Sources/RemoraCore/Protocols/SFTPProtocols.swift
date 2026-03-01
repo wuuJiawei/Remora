@@ -80,6 +80,9 @@ public extension SFTPClientProtocol {
         }
 
         return RemoteFileAttributes(
+            permissions: entry.permissions,
+            owner: entry.owner,
+            group: entry.group,
             size: entry.size,
             modifiedAt: entry.modifiedAt,
             isDirectory: entry.isDirectory
@@ -105,6 +108,8 @@ public struct RemoteFileEntry: Equatable, Sendable {
     public var path: String
     public var size: Int64
     public var permissions: UInt16?
+    public var owner: String?
+    public var group: String?
     public var isDirectory: Bool
     public var modifiedAt: Date
 
@@ -113,6 +118,8 @@ public struct RemoteFileEntry: Equatable, Sendable {
         path: String,
         size: Int64,
         permissions: UInt16? = nil,
+        owner: String? = nil,
+        group: String? = nil,
         isDirectory: Bool,
         modifiedAt: Date = Date()
     ) {
@@ -120,6 +127,8 @@ public struct RemoteFileEntry: Equatable, Sendable {
         self.path = path
         self.size = size
         self.permissions = permissions
+        self.owner = owner
+        self.group = group
         self.isDirectory = isDirectory
         self.modifiedAt = modifiedAt
     }

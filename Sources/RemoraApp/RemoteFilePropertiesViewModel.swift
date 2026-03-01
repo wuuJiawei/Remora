@@ -17,27 +17,34 @@ final class RemoteFilePropertiesViewModel: ObservableObject {
     let path: String
 
     private let fileTransfer: FileTransferViewModel
+    private let initialAttributes: RemoteFileAttributes?
 
-    init(path: String, fileTransfer: FileTransferViewModel) {
+    init(path: String, fileTransfer: FileTransferViewModel, initialAttributes: RemoteFileAttributes? = nil) {
         self.path = path
         self.fileTransfer = fileTransfer
+        self.initialAttributes = initialAttributes
     }
 
     func load() async {
+        if let initialAttributes {
+            apply(attributes: initialAttributes)
+            errorMessage = nil
+            if !needsRemoteAttributeFetch(for: initialAttributes) {
+                return
+            }
+        }
+
         isLoading = true
         defer { isLoading = false }
 
         do {
             let attrs = try await fileTransfer.loadRemoteAttributes(path: path)
-            permissionsText = attrs.permissions.map { String($0, radix: 8) } ?? ""
-            ownerText = attrs.owner ?? ""
-            groupText = attrs.group ?? ""
-            modifiedAt = attrs.modifiedAt
-            isDirectory = attrs.isDirectory
-            size = attrs.size
+            apply(attributes: attrs)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if initialAttributes == nil {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -71,5 +78,18 @@ final class RemoteFilePropertiesViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func apply(attributes: RemoteFileAttributes) {
+        permissionsText = attributes.permissions.map { String($0, radix: 8) } ?? ""
+        ownerText = attributes.owner ?? ""
+        groupText = attributes.group ?? ""
+        modifiedAt = attributes.modifiedAt
+        isDirectory = attributes.isDirectory
+        size = attributes.size
+    }
+
+    private func needsRemoteAttributeFetch(for attributes: RemoteFileAttributes) -> Bool {
+        attributes.permissions == nil || attributes.owner == nil || attributes.group == nil
     }
 }

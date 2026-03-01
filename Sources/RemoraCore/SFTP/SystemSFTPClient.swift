@@ -392,6 +392,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 path: fullPath,
                 size: parsed.size,
                 permissions: parsed.permissions,
+                owner: parsed.owner,
+                group: parsed.group,
                 isDirectory: parsed.isDirectory,
                 modifiedAt: parsed.modifiedAt
             )

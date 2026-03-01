@@ -273,7 +273,11 @@ struct FileManagerPanelView: View {
             )
         ) {
             if let propertiesTargetPath {
-                RemoteFilePropertiesSheet(path: propertiesTargetPath, fileTransfer: viewModel)
+                RemoteFilePropertiesSheet(
+                    path: propertiesTargetPath,
+                    fileTransfer: viewModel,
+                    initialAttributes: cachedRemoteAttributes(for: propertiesTargetPath)
+                )
             }
         }
     }
@@ -496,6 +500,20 @@ struct FileManagerPanelView: View {
 
     private func kindString(for entry: RemoteFileEntry) -> String {
         entry.isDirectory ? "Directory" : "File"
+    }
+
+    private func cachedRemoteAttributes(for path: String) -> RemoteFileAttributes? {
+        guard let entry = viewModel.remoteEntries.first(where: { $0.path == path }) else {
+            return nil
+        }
+        return RemoteFileAttributes(
+            permissions: entry.permissions,
+            owner: entry.owner,
+            group: entry.group,
+            size: entry.size,
+            modifiedAt: entry.modifiedAt,
+            isDirectory: entry.isDirectory
+        )
     }
 
     private var remoteToolbar: some View {

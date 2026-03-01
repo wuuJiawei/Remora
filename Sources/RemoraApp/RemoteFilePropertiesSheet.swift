@@ -1,11 +1,18 @@
 import SwiftUI
+import RemoraCore
 
 struct RemoteFilePropertiesSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: RemoteFilePropertiesViewModel
 
-    init(path: String, fileTransfer: FileTransferViewModel) {
-        _viewModel = StateObject(wrappedValue: RemoteFilePropertiesViewModel(path: path, fileTransfer: fileTransfer))
+    init(path: String, fileTransfer: FileTransferViewModel, initialAttributes: RemoteFileAttributes? = nil) {
+        _viewModel = StateObject(
+            wrappedValue: RemoteFilePropertiesViewModel(
+                path: path,
+                fileTransfer: fileTransfer,
+                initialAttributes: initialAttributes
+            )
+        )
     }
 
     var body: some View {
