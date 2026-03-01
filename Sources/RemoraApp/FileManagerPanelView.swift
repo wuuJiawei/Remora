@@ -813,10 +813,26 @@ struct FileManagerPanelView: View {
             }
         }
 
-        Button("Download") {
-            viewModel.performContextAction(.download(paths: [entry.path]))
+        let selectedDownloadPaths = selectedRemoteFiles.map(\.path)
+        let shouldSplitDownloadActions = selectedDownloadPaths.count > 1
+            && selectedRemotePaths.contains(entry.path)
+
+        if shouldSplitDownloadActions {
+            Button("Download Current") {
+                viewModel.performContextAction(.download(paths: [entry.path]))
+            }
+            .disabled(entry.isDirectory)
+
+            Button("Download Selected (\(selectedDownloadPaths.count))") {
+                viewModel.performContextAction(.download(paths: selectedDownloadPaths))
+            }
+            .disabled(selectedDownloadPaths.isEmpty)
+        } else {
+            Button("Download") {
+                viewModel.performContextAction(.download(paths: [entry.path]))
+            }
+            .disabled(entry.isDirectory)
         }
-        .disabled(entry.isDirectory)
 
         Button("Move To") {
             moveSourcePaths = [entry.path]
