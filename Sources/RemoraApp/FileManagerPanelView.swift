@@ -35,6 +35,7 @@ struct FileManagerPanelView: View {
     }
 
     @ObservedObject var viewModel: FileTransferViewModel
+    var onEditDownloadPath: (() -> Void)?
 
     @State private var selectedRemotePaths: Set<String> = []
     @State private var hoveredRemotePath: String?
@@ -629,6 +630,16 @@ struct FileManagerPanelView: View {
                     .font(.caption.monospaced())
                     .foregroundStyle(VisualStyle.textSecondary)
                     .lineLimit(1)
+
+                Button {
+                    onEditDownloadPath?()
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+                .help("Edit download directory")
+                .accessibilityIdentifier("file-manager-open-download-settings")
 
                 Spacer()
 

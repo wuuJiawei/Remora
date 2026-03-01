@@ -648,7 +648,12 @@ struct ContentView: View {
                 Divider()
                     .overlay(VisualStyle.borderSoft)
                     .padding(.top, 2)
-                FileManagerPanelView(viewModel: fileTransfer)
+                FileManagerPanelView(
+                    viewModel: fileTransfer,
+                    onEditDownloadPath: {
+                        openSettingsAndFocusDownloadPath()
+                    }
+                )
                     .frame(minHeight: 280, maxHeight: 420, alignment: .top)
                     .padding(.top, 6)
             }
@@ -1047,6 +1052,13 @@ struct ContentView: View {
     private func disconnectSession(_ tabID: UUID) {
         workspace.selectTab(tabID)
         workspace.disconnectActivePane()
+    }
+
+    private func openSettingsAndFocusDownloadPath() {
+        openWindow(id: "settings")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            NotificationCenter.default.post(name: .remoraOpenDownloadDirectorySetting, object: nil)
+        }
     }
 
     private func syncFileManagerSFTPBinding() {

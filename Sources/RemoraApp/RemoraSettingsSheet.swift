@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
@@ -40,12 +41,21 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 }
 
 struct RemoraSettingsSheet: View {
+    private enum SettingsFocusField: Hashable {
+        case downloadDirectoryPath
+    }
+
     @State private var selectedPane: SettingsPane = .sidebar
+    @State private var downloadDirectoryDraft = ""
+    @State private var downloadDirectoryHighlight = false
+    @State private var downloadDirectoryJumpToken = 0
+    @FocusState private var focusedField: SettingsFocusField?
 
     @AppStorage("settings.general.openSessionOnLaunch") private var openSessionOnLaunch = true
     @AppStorage("settings.general.confirmBeforeClosingTab") private var confirmBeforeClosingTab = true
     @AppStorage("settings.general.reopenLastWorkspace") private var reopenLastWorkspace = true
     @AppStorage("settings.general.defaultShell") private var defaultShell = "/bin/zsh"
+    @AppStorage(AppSettings.downloadDirectoryPathKey) private var downloadDirectoryPath = AppSettings.defaultDownloadDirectoryURL().path
 
     @AppStorage("settings.tags.enableThreadTags") private var enableThreadTags = true
     @AppStorage("settings.tags.showColoredDots") private var showColoredDots = true
@@ -70,6 +80,12 @@ struct RemoraSettingsSheet: View {
         .frame(minWidth: 660, minHeight: 410)
         .background(Color(nsColor: .windowBackgroundColor))
         .accessibilityIdentifier("settings-window")
+        .onAppear {
+            syncDownloadDirectoryDraftFromStorage()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .remoraOpenDownloadDirectorySetting)) { _ in
+            focusDownloadDirectorySetting()
+        }
     }
 
     private var header: some View {
@@ -155,6 +171,56 @@ struct RemoraSettingsSheet: View {
             }
             .formStyle(.grouped)
             .font(.system(size: 13))
+
+            Text("File Manager")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(VisualStyle.textPrimary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Download directory")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textPrimary)
+
+                HStack(spacing: 8) {
+                    TextField("Download directory", text: $downloadDirectoryDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption.monospaced())
+                        .focused($focusedField, equals: .downloadDirectoryPath)
+                        .onSubmit {
+                            applyDownloadDirectoryDraft()
+                        }
+                        .accessibilityIdentifier("settings-download-path-field")
+
+                    Button("Choose…") {
+                        chooseDownloadDirectory()
+                    }
+                    .controlSize(.small)
+                    .accessibilityIdentifier("settings-download-path-choose")
+                }
+
+                Text("Used by File Manager downloads and transfer queue.")
+                    .font(.caption)
+                    .foregroundStyle(VisualStyle.textSecondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(downloadDirectoryHighlight ? 0.95 : 0.84))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(downloadDirectoryHighlight ? Color.accentColor : VisualStyle.borderSoft, lineWidth: downloadDirectoryHighlight ? 1.6 : 1)
+            )
+            .animation(.easeInOut(duration: 0.2), value: downloadDirectoryHighlight)
+            .accessibilityIdentifier("settings-download-path-row")
+
+            Spacer(minLength: 0)
+        }
+        .onChange(of: downloadDirectoryJumpToken) {
+            focusedField = .downloadDirectoryPath
+            pulseDownloadDirectoryHighlight()
         }
         .accessibilityIdentifier("settings-section-general")
     }
@@ -254,6 +320,70 @@ struct RemoraSettingsSheet: View {
                 .foregroundStyle(VisualStyle.textSecondary)
         }
         .accessibilityIdentifier("settings-section-advanced")
+    }
+
+    private func focusDownloadDirectorySetting() {
+        syncDownloadDirectoryDraftFromStorage()
+        withAnimation(.easeInOut(duration: 0.12)) {
+            selectedPane = .general
+        }
+        DispatchQueue.main.async {
+            downloadDirectoryJumpToken += 1
+        }
+    }
+
+    private func chooseDownloadDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        panel.directoryURL = resolvedDownloadDirectoryURL(from: downloadDirectoryDraft)
+
+        guard panel.runModal() == .OK, let selectedURL = panel.url else {
+            return
+        }
+        downloadDirectoryDraft = selectedURL.standardizedFileURL.path
+        applyDownloadDirectoryDraft()
+    }
+
+    private func applyDownloadDirectoryDraft() {
+        let resolvedURL = resolvedDownloadDirectoryURL(from: downloadDirectoryDraft)
+        downloadDirectoryDraft = resolvedURL.path
+        guard downloadDirectoryPath != resolvedURL.path else { return }
+        downloadDirectoryPath = resolvedURL.path
+        NotificationCenter.default.post(
+            name: .remoraDownloadDirectoryDidChange,
+            object: resolvedURL.path,
+            userInfo: ["path": resolvedURL.path]
+        )
+    }
+
+    private func syncDownloadDirectoryDraftFromStorage() {
+        let resolvedURL = resolvedDownloadDirectoryURL(from: downloadDirectoryPath)
+        if downloadDirectoryPath != resolvedURL.path {
+            downloadDirectoryPath = resolvedURL.path
+            NotificationCenter.default.post(
+                name: .remoraDownloadDirectoryDidChange,
+                object: resolvedURL.path,
+                userInfo: ["path": resolvedURL.path]
+            )
+        }
+        if downloadDirectoryDraft != resolvedURL.path {
+            downloadDirectoryDraft = resolvedURL.path
+        }
+    }
+
+    private func resolvedDownloadDirectoryURL(from rawPath: String) -> URL {
+        AppSettings.resolvedDownloadDirectoryURL(from: rawPath)
+    }
+
+    private func pulseDownloadDirectoryHighlight() {
+        downloadDirectoryHighlight = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            downloadDirectoryHighlight = false
+        }
     }
 
 }

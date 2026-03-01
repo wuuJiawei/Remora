@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import OSLog
 import RemoraCore
@@ -160,21 +161,32 @@ final class FileTransferViewModel: ObservableObject {
     // the latest generation before mutating published state, preventing stale
     // results from old session bindings from overwriting the current UI.
     private var sftpBindingGeneration: Int = 0
+    private var downloadDirectoryChangeCancellable: AnyCancellable?
     private let logger = Logger(subsystem: "io.lighting-tech.remora", category: "file-transfer")
 
     init(
         sftpClient: SFTPClientProtocol = DisconnectedSFTPClient(),
-        localDirectoryURL: URL = FileTransferViewModel.defaultLocalDirectoryURL(),
+        localDirectoryURL: URL = FileTransferViewModel.configuredLocalDirectoryURL(),
         remoteDirectoryPath: String = "/",
         maxConcurrentTransfers: Int = 2
     ) {
         self.sftpClient = sftpClient
-        self.localDirectoryURL = localDirectoryURL
+        self.localDirectoryURL = Self.resolveWritableLocalDirectory(from: localDirectoryURL)
         self.remoteDirectoryPath = Self.normalizeStaticRemoteDirectoryPath(remoteDirectoryPath)
         self.transferCenter = TransferCenter(maxConcurrentTransfers: maxConcurrentTransfers)
         self.remoteDirectoryHistory = [self.remoteDirectoryPath]
         self.remoteDirectoryHistoryIndex = 0
         updateRemoteNavigationAvailability()
+
+        downloadDirectoryChangeCancellable = NotificationCenter.default.publisher(
+            for: .remoraDownloadDirectoryDidChange
+        )
+        .sink { [weak self] notification in
+            guard let self else { return }
+            let path = (notification.object as? String)
+                ?? (notification.userInfo?["path"] as? String)
+            self.applyConfiguredDownloadDirectory(path)
+        }
 
         refreshLocalEntries()
         Task {
@@ -182,46 +194,43 @@ final class FileTransferViewModel: ObservableObject {
         }
     }
 
-    private static func defaultLocalDirectoryURL(fileManager: FileManager = .default) -> URL {
-        if let downloads = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first {
-            if !fileManager.fileExists(atPath: downloads.path) {
-                try? fileManager.createDirectory(at: downloads, withIntermediateDirectories: true)
-            }
-            if isWritableDirectory(downloads, fileManager: fileManager) {
-                return downloads
-            }
-        }
-
-        let current = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .standardizedFileURL
-        if isWritableDirectory(current, fileManager: fileManager) {
-            return current
-        }
-
-        let home = fileManager.homeDirectoryForCurrentUser
-        if isWritableDirectory(home, fileManager: fileManager) {
-            return home
-        }
-
-        return fileManager.homeDirectoryForCurrentUser
+    private static func configuredLocalDirectoryURL(
+        defaults: UserDefaults = .standard,
+        fileManager: FileManager = .default
+    ) -> URL {
+        AppSettings.resolvedDownloadDirectoryURL(
+            from: defaults.string(forKey: AppSettings.downloadDirectoryPathKey),
+            fileManager: fileManager
+        )
     }
 
-    private static func isWritableDirectory(_ url: URL, fileManager: FileManager = .default) -> Bool {
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            return false
+    private static func resolveWritableLocalDirectory(
+        from candidate: URL,
+        fileManager: FileManager = .default
+    ) -> URL {
+        let normalized = candidate.standardizedFileURL
+        if AppSettings.isWritableDirectory(normalized, fileManager: fileManager) {
+            return normalized
         }
-        return fileManager.isWritableFile(atPath: url.path)
+        return configuredLocalDirectoryURL(defaults: .standard, fileManager: fileManager)
     }
 
     private func ensureWritableLocalDirectory() -> URL {
-        if Self.isWritableDirectory(localDirectoryURL) {
+        if AppSettings.isWritableDirectory(localDirectoryURL) {
             return localDirectoryURL
         }
-        let fallback = Self.defaultLocalDirectoryURL()
+        let fallback = AppSettings.defaultDownloadDirectoryURL()
         localDirectoryURL = fallback
         refreshLocalEntries()
         return fallback
+    }
+
+    private func applyConfiguredDownloadDirectory(_ path: String?) {
+        let rawPath = path ?? UserDefaults.standard.string(forKey: AppSettings.downloadDirectoryPathKey)
+        let resolved = AppSettings.resolvedDownloadDirectoryURL(from: rawPath)
+        guard localDirectoryURL.standardizedFileURL != resolved.standardizedFileURL else { return }
+        localDirectoryURL = resolved
+        refreshLocalEntries()
     }
 
     func bindSFTPClient(
