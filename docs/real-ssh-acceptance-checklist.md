@@ -30,6 +30,12 @@ Use this checklist for manual acceptance on at least two real SSH hosts (for exa
 - [ ] Commands in session A do not appear in session B/C
 - [ ] Switching tabs keeps each session transcript intact
 
+## File Manager Session Binding
+- [ ] Keep File Manager expanded, open same SSH host in a second session, and verify no `SSH client is not connected` error
+- [ ] Slow-connection second-session path still binds File Manager to the new session
+- [ ] Switching between two active SSH sessions does not leak stale File Manager error overlays
+- [ ] Returning to a previously opened SSH session restores its remote directory state
+
 ## Stability
 - [ ] Run 20+ commands continuously without transcript disappearing
 - [ ] Trigger at least one network interruption and verify failure message

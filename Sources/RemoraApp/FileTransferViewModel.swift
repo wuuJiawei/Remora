@@ -156,6 +156,9 @@ final class FileTransferViewModel: ObservableObject {
     private var remoteDirectoryHistoryIndex: Int = 0
     private var activeRemoteBindingKey = "__default"
     private var remoteBindingStates: [String: RemoteBindingState] = [:]
+    // Increments on every bindSFTPClient call. Async remote-load tasks must match
+    // the latest generation before mutating published state, preventing stale
+    // results from old session bindings from overwriting the current UI.
     private var sftpBindingGeneration: Int = 0
     private let logger = Logger(subsystem: "io.lighting-tech.remora", category: "file-transfer")
 
@@ -999,6 +1002,7 @@ final class FileTransferViewModel: ObservableObject {
         bindingGeneration: Int? = nil
     ) async {
         let bindingGeneration = bindingGeneration ?? sftpBindingGeneration
+        // Drop stale async work from previous bindings.
         guard isActiveBindingGeneration(bindingGeneration) else { return }
         let path = normalizeRemoteDirectoryPath(rawPath)
 
