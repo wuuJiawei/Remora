@@ -70,25 +70,26 @@ struct RemoraSettingsSheet: View {
             Divider()
             footer
         }
-        .frame(width: 720, height: 500)
+        .frame(width: 700, height: 460)
         .background(VisualStyle.leftSidebarBackground)
         .accessibilityIdentifier("settings-sheet")
     }
 
     private var header: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             Text("Preferences")
-                .font(.system(size: 30, weight: .bold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
-                .padding(.top, 18)
+                .padding(.top, 12)
                 .accessibilityIdentifier("settings-sheet-title")
 
-            HStack(spacing: 20) {
+            HStack(spacing: 14) {
                 ForEach(SettingsPane.allCases) { pane in
                     paneButton(pane)
                 }
             }
-            .padding(.bottom, 14)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
         }
         .frame(maxWidth: .infinity)
     }
@@ -107,7 +108,8 @@ struct RemoraSettingsSheet: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(22)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
     }
 
     private var footer: some View {
@@ -124,7 +126,7 @@ struct RemoraSettingsSheet: View {
             .accessibilityIdentifier("settings-done")
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
     }
 
     private func paneButton(_ pane: SettingsPane) -> some View {
@@ -136,25 +138,27 @@ struct RemoraSettingsSheet: View {
         } label: {
             VStack(spacing: 8) {
                 Image(systemName: pane.icon)
-                    .font(.system(size: 28, weight: .regular))
+                    .font(.system(size: 24, weight: .regular))
                 Text(pane.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .medium))
             }
             .foregroundStyle(isSelected ? Color.accentColor : VisualStyle.textSecondary)
-            .frame(width: 110, height: 88)
+            .frame(width: 124, height: 82)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelected ? Color.white.opacity(0.9) : Color.clear)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .accessibilityIdentifier(pane.accessibilityIdentifier)
     }
 
     private var generalPane: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Session")
-                .font(.system(size: 28, weight: .bold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
             Form {
                 Toggle("Open one local terminal session on launch", isOn: $openSessionOnLaunch)
@@ -172,14 +176,15 @@ struct RemoraSettingsSheet: View {
                 .frame(maxWidth: 260, alignment: .leading)
             }
             .formStyle(.grouped)
+            .font(.system(size: 13))
         }
         .accessibilityIdentifier("settings-section-general")
     }
 
     private var tagsPane: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Tagging")
-                .font(.system(size: 28, weight: .bold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
             Form {
                 Toggle("Enable tags for SSH threads", isOn: $enableThreadTags)
@@ -196,17 +201,18 @@ struct RemoraSettingsSheet: View {
                 .frame(maxWidth: 220, alignment: .leading)
             }
             .formStyle(.grouped)
+            .font(.system(size: 13))
         }
         .accessibilityIdentifier("settings-section-tags")
     }
 
     private var sidebarPane: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Show these items in the sidebar:")
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 Toggle("Recent", isOn: $showRecentInSidebar)
                     .toggleStyle(.checkbox)
                 Toggle("Shared", isOn: $showSharedInSidebar)
@@ -216,15 +222,16 @@ struct RemoraSettingsSheet: View {
                 Toggle("Archived", isOn: $showArchivedInSidebar)
                     .toggleStyle(.checkbox)
             }
-            .font(.system(size: 16, weight: .semibold))
-            .padding(20)
+            .font(.system(size: 14, weight: .regular))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color.white.opacity(0.82))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(VisualStyle.borderSoft, lineWidth: 1)
             )
 
@@ -241,9 +248,9 @@ struct RemoraSettingsSheet: View {
     }
 
     private var advancedPane: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Advanced")
-                .font(.system(size: 28, weight: .bold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
 
             Form {
@@ -262,6 +269,7 @@ struct RemoraSettingsSheet: View {
                 }
             }
             .formStyle(.grouped)
+            .font(.system(size: 13))
 
             Text("These options are intended for troubleshooting and larger team setups.")
                 .font(.system(size: 12))
