@@ -47,6 +47,21 @@ struct TerminalPaneView: View {
 
                 Spacer()
 
+                if runtime.connectionMode == .ssh {
+                    Button {
+                        onSelect()
+                        runtime.reconnectSSHSession()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(canReconnect ? VisualStyle.textSecondary : VisualStyle.textTertiary)
+                    .disabled(!canReconnect)
+                    .help(tr("Reconnect SSH"))
+                    .accessibilityIdentifier("terminal-reconnect")
+                }
+
                 Image(systemName: isFocused ? "cursorarrow.motionlines" : "cursorarrow")
                     .font(.caption)
                     .foregroundStyle(VisualStyle.textSecondary)
@@ -95,5 +110,13 @@ struct TerminalPaneView: View {
             return .orange
         }
         return .secondary
+    }
+
+    private var canReconnect: Bool {
+        guard runtime.reconnectableSSHHost != nil else { return false }
+        if runtime.connectionState == "Connecting" || runtime.connectionState.hasPrefix("Waiting") {
+            return false
+        }
+        return true
     }
 }

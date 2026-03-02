@@ -34,6 +34,7 @@ final class TerminalRuntime: ObservableObject {
     @Published var hostKeyPromptMessage: String?
     @Published private(set) var workingDirectory: String?
     @Published private(set) var connectedSSHHost: RemoraCore.Host?
+    @Published private(set) var lastConnectedSSHHost: RemoraCore.Host?
 
     private let localSessionManager: SessionManager
     private let sshSessionManager: SessionManager
@@ -132,6 +133,15 @@ final class TerminalRuntime: ObservableObject {
         )
     }
 
+    var reconnectableSSHHost: RemoraCore.Host? {
+        connectedSSHHost ?? lastConnectedSSHHost
+    }
+
+    func reconnectSSHSession() {
+        guard let host = reconnectableSSHHost else { return }
+        connectSSH(host: host)
+    }
+
     func connect(using config: TerminalConnectConfig) {
         Task {
             await stopActiveSessionIfNeeded()
@@ -153,6 +163,9 @@ final class TerminalRuntime: ObservableObject {
 
             await MainActor.run {
                 activeSSHHostAddress = host.address
+                if config.mode == .ssh {
+                    lastConnectedSSHHost = host
+                }
             }
 
             let manager = await MainActor.run(body: { sessionManager(for: config.mode) })

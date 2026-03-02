@@ -232,6 +232,7 @@
 "Read-only" = "Read-only";
 "Reading file" = "Reading file";
 "Reject" = "Reject";
+"Reconnect SSH" = "Reconnect SSH";
 "Rename Session" = "Rename Session";
 "Resize failed" = "Resize failed";
 "Reveal Downloaded File" = "Reveal Downloaded File";

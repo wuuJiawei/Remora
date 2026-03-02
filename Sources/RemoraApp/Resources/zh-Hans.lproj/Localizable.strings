@@ -229,6 +229,7 @@
 "Read-only" = "只读";
 "Reading file" = "正在读取文件";
 "Reject" = "拒绝";
+"Reconnect SSH" = "重连 SSH";
 "Rename Session" = "重命名会话";
 "Resize failed" = "调整大小失败";
 "Reveal Downloaded File" = "在访达中显示已下载文件";

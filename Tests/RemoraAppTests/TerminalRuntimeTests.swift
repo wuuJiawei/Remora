@@ -92,6 +92,34 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func reconnectSSHSessionRestoresConnectionAfterDisconnect() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+        let firstConnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)") && runtime.connectedSSHHost?.address == "127.0.0.1"
+        }
+        #expect(firstConnected)
+        guard firstConnected else { return }
+
+        runtime.disconnect()
+        let disconnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState == "Disconnected" && runtime.connectedSSHHost == nil
+        }
+        #expect(disconnected)
+        guard disconnected else { return }
+        #expect(runtime.reconnectableSSHHost?.address == "127.0.0.1")
+
+        runtime.reconnectSSHSession()
+        let reconnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)") && runtime.connectedSSHHost?.address == "127.0.0.1"
+        }
+        #expect(reconnected, "Runtime should reconnect SSH with the last successful host.")
+        runtime.disconnect()
+    }
+
+    @Test
     func connectDisconnectAndReconnectLifecycle() async {
         let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
         let runtime = TerminalRuntime(
