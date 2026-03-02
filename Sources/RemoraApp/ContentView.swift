@@ -43,7 +43,7 @@ struct ContentView: View {
     @State private var exportAlertMessage = ""
     @State private var isImportProgressSheetPresented = false
     @State private var importSourceFilename = ""
-    @State private var importProgress = HostConnectionImportProgress(phase: "Preparing", completed: 0, total: 1)
+    @State private var importProgress = HostConnectionImportProgress(phase: tr("Preparing"), completed: 0, total: 1)
     @State private var importResultMessage: String?
     @State private var importErrorMessage: String?
     @State private var isRenameSessionSheetPresented = false
@@ -195,7 +195,7 @@ struct ContentView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             SidebarActionRowButton(
-                title: "New SSH Connection",
+                title: tr("New SSH Connection"),
                 systemImage: "plus"
             ) {
                 beginCreateHostInPreferredGroup()
@@ -206,7 +206,7 @@ struct ContentView: View {
             .padding(.bottom, 6)
 
             SidebarActionRowButton(
-                title: isExportingHosts ? "Exporting..." : "Export Connections",
+                title: isExportingHosts ? tr("Exporting...") : tr("Export Connections"),
                 systemImage: "square.and.arrow.up"
             ) {
                 beginExportAllHosts()
@@ -216,7 +216,7 @@ struct ContentView: View {
             .padding(.bottom, 6)
 
             SidebarActionRowButton(
-                title: isImportingHosts ? "Importing..." : "Import Connections",
+                title: isImportingHosts ? tr("Importing...") : tr("Import Connections"),
                 systemImage: "square.and.arrow.down"
             ) {
                 beginImportHosts()
@@ -226,7 +226,7 @@ struct ContentView: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 10)
 
-            TextField("Search SSH host", text: $hostSearchQuery)
+            TextField(tr("Search SSH host"), text: $hostSearchQuery)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .foregroundStyle(VisualStyle.textPrimary)
@@ -244,7 +244,7 @@ struct ContentView: View {
                 .padding(.bottom, 10)
 
             HStack(spacing: 8) {
-                Text("SSH Threads")
+                Text(tr("SSH Threads"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(VisualStyle.textSecondary)
                 Spacer()
@@ -260,7 +260,7 @@ struct ContentView: View {
                     VStack(spacing: 10) {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Loading SSH connections...")
+                        Text(tr("Loading SSH connections..."))
                             .font(.system(size: 12))
                             .foregroundStyle(VisualStyle.textSecondary)
                     }
@@ -328,7 +328,7 @@ struct ContentView: View {
             Spacer(minLength: 8)
 
             SidebarActionRowButton(
-                title: "Settings",
+                title: tr("Settings"),
                 systemImage: "gearshape"
             ) {
                 openWindow(id: "settings")
@@ -345,22 +345,22 @@ struct ContentView: View {
         }
         .navigationSplitViewColumnWidth(min: 250, ideal: 300, max: 340)
         .confirmationDialog(
-            "Export SSH Connections",
+            tr("Export SSH Connections"),
             isPresented: $isExportFormatDialogPresented,
             titleVisibility: .visible
         ) {
-            Button("Export as JSON") {
+            Button(tr("Export as JSON")) {
                 startExport(format: .json)
             }
-            Button("Export as CSV") {
+            Button(tr("Export as CSV")) {
                 startExport(format: .csv)
             }
-            Button("Cancel", role: .cancel) {}
+            Button(tr("Cancel"), role: .cancel) {}
         } message: {
-            Text(pendingExportScope?.label ?? "Choose format")
+            Text(pendingExportScope?.label ?? tr("Choose format"))
         }
         .alert(exportAlertTitle, isPresented: $isExportResultAlertPresented) {
-            Button("OK", role: .cancel) {}
+            Button(tr("OK"), role: .cancel) {}
         } message: {
             Text(exportAlertMessage)
         }
@@ -396,8 +396,8 @@ struct ContentView: View {
         }
         .sheet(isPresented: $isRenameSessionSheetPresented) {
             SidebarRenameSheet(
-                title: "Rename Session",
-                fieldTitle: "Session title",
+                title: tr("Rename Session"),
+                fieldTitle: tr("Session title"),
                 value: $renameSessionDraft,
                 onCancel: {
                     isRenameSessionSheetPresented = false
@@ -469,15 +469,15 @@ struct ContentView: View {
             .frame(width: 72, height: 72)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-            Text("Welcome to Remora")
+            Text(tr("Welcome to Remora"))
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
 
-            Text("Create an SSH connection to start your first session.")
+            Text(tr("Create an SSH connection to start your first session."))
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(VisualStyle.textSecondary)
 
-            Button("New SSH Connection") {
+            Button(tr("New SSH Connection")) {
                 beginCreateHostInPreferredGroup()
             }
             .buttonStyle(.borderedProminent)
@@ -588,48 +588,48 @@ struct ContentView: View {
             return workspace.tabs.contains { $0.id != activeTabID }
         }()
 
-        Button("New Session") {
+        Button(tr("New Session")) {
             workspace.createTab()
         }
 
-        Button("Rename Session") {
+        Button(tr("Rename Session")) {
             beginRenameSession(tab.id)
         }
 
         Divider()
 
-        Button("Close Current Session", role: .destructive) {
+        Button(tr("Close Current Session"), role: .destructive) {
             workspace.closeTab(tab.id)
         }
 
-        Button("Close All Sessions", role: .destructive) {
+        Button(tr("Close All Sessions"), role: .destructive) {
             workspace.closeAllTabs()
         }
 
-        Button("Close All Non-Active Sessions", role: .destructive) {
+        Button(tr("Close All Non-Active Sessions"), role: .destructive) {
             workspace.closeAllInactiveTabs()
         }
         .disabled(!canCloseInactiveTabs)
 
-        Button("Close Sessions to the Left", role: .destructive) {
+        Button(tr("Close Sessions to the Left"), role: .destructive) {
             workspace.closeTabsLeft(of: tab.id)
         }
         .disabled(!hasTabsOnLeft)
 
-        Button("Close Sessions to the Right", role: .destructive) {
+        Button(tr("Close Sessions to the Right"), role: .destructive) {
             workspace.closeTabsRight(of: tab.id)
         }
         .disabled(!hasTabsOnRight)
 
         Divider()
 
-        Button("Split Horizontal") {
+        Button(tr("Split Horizontal")) {
             workspace.selectTab(tab.id)
             workspace.splitActiveTab(orientation: .horizontal)
         }
         .disabled(tab.panes.count > 1)
 
-        Button("Split Vertical") {
+        Button(tr("Split Vertical")) {
             workspace.selectTab(tab.id)
             workspace.splitActiveTab(orientation: .vertical)
         }
@@ -637,10 +637,10 @@ struct ContentView: View {
 
         if selectedHost != nil {
             Divider()
-            Button("Connect Selected SSH Host") {
+            Button(tr("Connect Selected SSH Host")) {
                 connectSelectedHost(to: tab.id)
             }
-            Button("Disconnect Session") {
+            Button(tr("Disconnect Session")) {
                 disconnectSession(tab.id)
             }
         }
@@ -664,9 +664,9 @@ struct ContentView: View {
             }
         } else {
             ContentUnavailableView(
-                "Invalid Session State",
+                tr("Invalid Session State"),
                 systemImage: "exclamationmark.triangle",
-                description: Text("Session pane count is not supported.")
+                description: Text(tr("Session pane count is not supported."))
             )
         }
     }
@@ -682,7 +682,7 @@ struct ContentView: View {
                     Image(systemName: isFilePanelVisible ? "chevron.down" : "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(VisualStyle.textSecondary)
-                    Label("File Manager", systemImage: "folder")
+                    Label(tr("File Manager"), systemImage: "folder")
                         .panelTitleStyle()
                     Spacer(minLength: 0)
                 }
@@ -875,13 +875,13 @@ struct ContentView: View {
 
     private func testHostConnection() {
         guard let port = hostEditorDraft.port else {
-            hostEditorTestState = .failure("Port must be between 1 and 65535.")
+            hostEditorTestState = .failure(tr("Port must be between 1 and 65535."))
             return
         }
 
         let address = hostEditorDraft.address
         guard !address.isEmpty else {
-            hostEditorTestState = .failure("Host cannot be empty.")
+            hostEditorTestState = .failure(tr("Host cannot be empty."))
             return
         }
 
@@ -956,14 +956,14 @@ struct ContentView: View {
                     format: format
                 )
                 await MainActor.run {
-                    exportAlertTitle = "Export Complete"
-                    exportAlertMessage = "Saved to \(outputURL.path)"
+                    exportAlertTitle = tr("Export Complete")
+                    exportAlertMessage = "\(tr("Saved to")) \(outputURL.path)"
                     isExportResultAlertPresented = true
                     isExportingHosts = false
                 }
             } catch {
                 await MainActor.run {
-                    exportAlertTitle = "Export Failed"
+                    exportAlertTitle = tr("Export Failed")
                     exportAlertMessage = error.localizedDescription
                     isExportResultAlertPresented = true
                     isExportingHosts = false
@@ -976,8 +976,8 @@ struct ContentView: View {
         guard !isImportingHosts else { return }
 
         let panel = NSOpenPanel()
-        panel.title = "Import SSH Connections"
-        panel.prompt = "Import"
+        panel.title = tr("Import SSH Connections")
+        panel.prompt = tr("Import")
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
@@ -992,7 +992,7 @@ struct ContentView: View {
         guard !isImportingHosts else { return }
         isImportingHosts = true
         importSourceFilename = fileURL.lastPathComponent
-        importProgress = HostConnectionImportProgress(phase: "Preparing", completed: 0, total: 1)
+        importProgress = HostConnectionImportProgress(phase: tr("Preparing"), completed: 0, total: 1)
         importResultMessage = nil
         importErrorMessage = nil
         isImportProgressSheetPresented = true
@@ -1014,11 +1014,11 @@ struct ContentView: View {
 
                 await MainActor.run {
                     importProgress = HostConnectionImportProgress(
-                        phase: "Completed",
+                        phase: tr("Completed"),
                         completed: max(summary.total, 1),
                         total: max(summary.total, 1)
                     )
-                    importResultMessage = "Imported \(summary.created) new, updated \(summary.updated), total \(summary.total)."
+                    importResultMessage = "\(tr("Imported")) \(summary.created) \(tr("new")), \(tr("updated")) \(summary.updated), \(tr("total")) \(summary.total)."
                     importErrorMessage = nil
                     isImportingHosts = false
                 }
@@ -1256,7 +1256,7 @@ struct ContentView: View {
 
     private var importProgressSheet: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Import SSH Connections")
+            Text(tr("Import SSH Connections"))
                 .font(.headline)
 
             Text(importSourceFilename)
@@ -1285,7 +1285,7 @@ struct ContentView: View {
 
             HStack {
                 Spacer()
-                Button("Close") {
+                Button(tr("Close")) {
                     isImportProgressSheetPresented = false
                 }
                 .buttonStyle(.borderedProminent)
@@ -1405,27 +1405,27 @@ private struct SidebarGroupSectionView: View {
             .padding(.horizontal, 4)
             .frame(height: 22)
             .contextMenu {
-                Button("Create connection") {
+                Button(tr("Create connection")) {
                     onAddThread()
                 }
-                Button(isCollapsed ? "Expand group" : "Collapse group") {
+                Button(isCollapsed ? tr("Expand group") : tr("Collapse group")) {
                     onToggleCollapsed()
                 }
-                Button("Edit group") {
+                Button(tr("Edit group")) {
                     onEditGroup()
                 }
-                Button("Export group") {
+                Button(tr("Export group")) {
                     onExportGroup()
                 }
                 Divider()
-                Button("Delete group", role: .destructive) {
+                Button(tr("Delete group"), role: .destructive) {
                     onDeleteGroup()
                 }
             }
 
             if !isCollapsed {
                 if section.hosts.isEmpty {
-                    Text("No SSH threads")
+                    Text(tr("No SSH threads"))
                         .font(.system(size: 12))
                         .foregroundStyle(VisualStyle.textTertiary)
                         .padding(.horizontal, 10)
@@ -1497,29 +1497,29 @@ private struct SidebarHostRow: View {
         .accessibilityIdentifier("sidebar-host-row-\(host.name)")
         .animation(nil, value: isSelected)
         .contextMenu {
-            Button(host.favorite ? "Unpin connection" : "Pin connection") {
+            Button(host.favorite ? tr("Unpin connection") : tr("Pin connection")) {
                 onPin()
             }
-            Button("Edit connection") {
+            Button(tr("Edit connection")) {
                 onEdit()
             }
-            Button("Archive connection") {
+            Button(tr("Archive connection")) {
                 onArchive()
             }
             Divider()
-            Menu("Copy") {
-                Button("Copy connection info") {
+            Menu(tr("Copy")) {
+                Button(tr("Copy connection info")) {
                     onCopyConnectionInfo()
                 }
-                Button("Copy address") {
+                Button(tr("Copy address")) {
                     onCopyAddress()
                 }
-                Button("Copy SSH command") {
+                Button(tr("Copy SSH command")) {
                     onCopySSHCommand()
                 }
             }
             Divider()
-            Button("Delete connection", role: .destructive) {
+            Button(tr("Delete connection"), role: .destructive) {
                 onDelete()
             }
         }
@@ -1604,18 +1604,18 @@ private enum SidebarGroupEditorMode {
     var title: String {
         switch self {
         case .create:
-            return "New Thread Group"
+            return tr("New Thread Group")
         case .edit:
-            return "Edit Thread Group"
+            return tr("Edit Thread Group")
         }
     }
 
     var confirmTitle: String {
         switch self {
         case .create:
-            return "Create"
+            return tr("Create")
         case .edit:
-            return "Save"
+            return tr("Save")
         }
     }
 }
@@ -1627,18 +1627,18 @@ private enum SidebarHostEditorMode {
     var title: String {
         switch self {
         case .create:
-            return "New SSH Connection"
+            return tr("New SSH Connection")
         case .edit:
-            return "Edit SSH Connection"
+            return tr("Edit SSH Connection")
         }
     }
 
     var confirmTitle: String {
         switch self {
         case .create:
-            return "Create"
+            return tr("Create")
         case .edit:
-            return "Save"
+            return tr("Save")
         }
     }
 }
@@ -1802,14 +1802,14 @@ private enum HostConnectionTester {
                         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
                     if process.terminationStatus == 0 {
-                        continuation.resume(returning: .success("Connection test passed (\(host):\(port))."))
+                        continuation.resume(returning: .success("\(tr("Connection test passed")) (\(host):\(port))."))
                     } else if !errorText.isEmpty {
                         continuation.resume(returning: .failure(errorText))
                     } else {
-                        continuation.resume(returning: .failure("Cannot reach \(host):\(port)."))
+                        continuation.resume(returning: .failure("\(tr("Cannot reach")) \(host):\(port)."))
                     }
                 } catch {
-                    continuation.resume(returning: .failure("Connection test failed: \(error.localizedDescription)"))
+                    continuation.resume(returning: .failure("\(tr("Connection test failed")): \(error.localizedDescription)"))
                 }
             }
         }
@@ -1828,12 +1828,12 @@ private struct SidebarGroupEditorSheet: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
 
-            TextField("Group name", text: $value)
+            TextField(tr("Group name"), text: $value)
                 .textFieldStyle(.roundedBorder)
 
             HStack {
                 Spacer()
-                Button("Cancel", action: onCancel)
+                Button(tr("Cancel"), action: onCancel)
                 Button(mode.confirmTitle, action: onConfirm)
                     .buttonStyle(.borderedProminent)
                     .disabled(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -1861,18 +1861,18 @@ private struct SidebarHostEditorSheet: View {
                 .accessibilityIdentifier("host-editor-title")
 
             Group {
-                TextField("Connection name", text: $draft.connectionName)
-                TextField("Host", text: $draft.hostAddress)
+                TextField(tr("Connection name"), text: $draft.connectionName)
+                TextField(tr("Host"), text: $draft.hostAddress)
 
                 HStack(spacing: 10) {
-                    TextField("Port", text: $draft.portText)
+                    TextField(tr("Port"), text: $draft.portText)
                         .frame(width: 90)
-                    TextField("Username", text: $draft.usernameText)
+                    TextField(tr("Username"), text: $draft.usernameText)
                 }
 
-                TextField("Group", text: $draft.groupText)
+                TextField(tr("Group"), text: $draft.groupText)
 
-                Picker("Auth", selection: $draft.authMethod) {
+                Picker(tr("Auth"), selection: $draft.authMethod) {
                     ForEach(SidebarHostAuthMethod.allCases) { method in
                         Text(method.rawValue).tag(method)
                     }
@@ -1880,16 +1880,16 @@ private struct SidebarHostEditorSheet: View {
                 .pickerStyle(.menu)
 
                 if draft.authMethod == .privateKey {
-                    TextField("Private key path", text: $draft.privateKeyPath)
+                    TextField(tr("Private key path"), text: $draft.privateKeyPath)
                 }
 
                 if draft.authMethod == .password {
                     HStack(spacing: 8) {
                         Group {
                             if isPasswordVisible {
-                                TextField("Password", text: $draft.password)
+                                TextField(tr("Password"), text: $draft.password)
                             } else {
-                                SecureField("Password", text: $draft.password)
+                                SecureField(tr("Password"), text: $draft.password)
                             }
                         }
 
@@ -1902,17 +1902,17 @@ private struct SidebarHostEditorSheet: View {
                                 .frame(width: 18, height: 18)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
-                        .help(isPasswordVisible ? "Hide password" : "Show password")
+                        .accessibilityLabel(isPasswordVisible ? tr("Hide password") : tr("Show password"))
+                        .help(isPasswordVisible ? tr("Hide password") : tr("Show password"))
                     }
-                    Toggle("Save password", isOn: $draft.savePassword)
+                    Toggle(tr("Save password"), isOn: $draft.savePassword)
                         .toggleStyle(.checkbox)
                 }
             }
             .textFieldStyle(.roundedBorder)
 
             HStack(spacing: 8) {
-                Button("Test Connection", action: onTestConnection)
+                Button(tr("Test Connection"), action: onTestConnection)
                     .disabled(!draft.canTestConnection || testState.isTesting)
 
                 if testState.isTesting {
@@ -1929,7 +1929,7 @@ private struct SidebarHostEditorSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", action: onCancel)
+                Button(tr("Cancel"), action: onCancel)
                 Button(mode.confirmTitle, action: onConfirm)
                     .buttonStyle(.borderedProminent)
                     .disabled(!draft.canSave)
@@ -1963,10 +1963,10 @@ private struct SidebarRenameSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") {
+                Button(tr("Cancel")) {
                     onCancel()
                 }
-                Button("Save") {
+                Button(tr("Save")) {
                     onConfirm()
                 }
                 .buttonStyle(.borderedProminent)
@@ -2027,14 +2027,14 @@ private struct SessionTabBarItem: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(runtime.connectedSSHHost == nil)
-                .help("Open server status window")
+                .help(tr("Open server status window"))
                 .onHover { hovering in
                     isMetricsPopoverPresented = hovering
                 }
                 .popover(isPresented: $isMetricsPopoverPresented, arrowEdge: .bottom) {
                     SessionMetricHoverCard(
                         hostTitle: hostDisplayTitle,
-                        connectionState: runtime.connectionState,
+                        connectionState: localizedConnectionState(runtime.connectionState),
                         snapshot: metricsState?.snapshot,
                         isLoading: metricsState?.isLoading ?? false,
                         errorMessage: metricsState?.errorMessage
@@ -2132,19 +2132,19 @@ private struct SessionMetricHoverCard: View {
 
             HStack(alignment: .bottom, spacing: 12) {
                 SessionMetricDetailBar(
-                    title: "CPU",
+                    title: tr("CPU"),
                     fraction: snapshot?.cpuFraction,
                     color: .green,
                     isLoading: isLoading
                 )
                 SessionMetricDetailBar(
-                    title: "MEM",
+                    title: tr("MEM"),
                     fraction: snapshot?.memoryFraction,
                     color: .orange,
                     isLoading: isLoading
                 )
                 SessionMetricDetailBar(
-                    title: "DISK",
+                    title: tr("DISK"),
                     fraction: snapshot?.diskFraction,
                     color: .blue,
                     isLoading: isLoading
@@ -2153,14 +2153,14 @@ private struct SessionMetricHoverCard: View {
 
             if let snapshot {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Memory: \(formatByteValue(snapshot.memoryUsedBytes))/\(formatByteValue(snapshot.memoryTotalBytes))")
-                    Text("Disk: \(formatByteValue(snapshot.diskUsedBytes))/\(formatByteValue(snapshot.diskTotalBytes))")
-                    Text("Sampled: \(formatSampleTimestamp(snapshot.sampledAt))")
+                    Text("\(tr("Memory")): \(formatByteValue(snapshot.memoryUsedBytes))/\(formatByteValue(snapshot.memoryTotalBytes))")
+                    Text("\(tr("Disk")): \(formatByteValue(snapshot.diskUsedBytes))/\(formatByteValue(snapshot.diskTotalBytes))")
+                    Text("\(tr("Sampled")): \(formatSampleTimestamp(snapshot.sampledAt))")
                 }
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(VisualStyle.textSecondary)
             } else if isLoading {
-                Text("Loading server metrics…")
+                Text(tr("Loading server metrics…"))
                     .font(.system(size: 11))
                     .foregroundStyle(VisualStyle.textSecondary)
             } else if let errorMessage, !errorMessage.isEmpty {
@@ -2169,7 +2169,7 @@ private struct SessionMetricHoverCard: View {
                     .foregroundStyle(.red)
                     .lineLimit(3)
             } else {
-                Text("No metrics yet.")
+                Text(tr("No metrics yet."))
                     .font(.system(size: 11))
                     .foregroundStyle(VisualStyle.textSecondary)
             }

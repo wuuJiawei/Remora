@@ -24,9 +24,9 @@ enum HostExportScope: Equatable {
     var label: String {
         switch self {
         case .all:
-            return "All Connections"
+            return tr("All Connections")
         case .group(let groupName):
-            return "Group: \(groupName)"
+            return "\(tr("Group")): \(groupName)"
         }
     }
 
@@ -63,7 +63,7 @@ enum HostConnectionExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .downloadsDirectoryUnavailable:
-            return "Cannot locate Downloads directory."
+            return tr("Cannot locate Downloads directory.")
         }
     }
 }

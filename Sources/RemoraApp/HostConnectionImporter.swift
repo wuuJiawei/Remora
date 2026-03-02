@@ -10,13 +10,13 @@ enum HostConnectionImportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .emptyFile:
-            return "Import file is empty."
+            return tr("Import file is empty.")
         case .unsupportedFormat:
-            return "Unsupported import format. Please select a Remora JSON/CSV export file."
+            return tr("Unsupported import format. Please select a Remora JSON/CSV export file.")
         case .invalidJSON:
-            return "Invalid JSON import file."
+            return tr("Invalid JSON import file.")
         case .invalidCSVHeader:
-            return "Invalid CSV header."
+            return tr("Invalid CSV header.")
         }
     }
 }
@@ -43,12 +43,12 @@ struct HostConnectionImporter {
         credentialStore: CredentialStore = CredentialStore(),
         progress: (@Sendable (HostConnectionImportProgress) -> Void)? = nil
     ) async throws -> [RemoraCore.Host] {
-        progress?(.init(phase: "Reading file", completed: 0, total: 1))
+        progress?(.init(phase: tr("Reading file"), completed: 0, total: 1))
         let data = try Data(contentsOf: url)
         guard !data.isEmpty else { throw HostConnectionImportError.emptyFile }
 
         let records = try parseRecords(from: data)
-        progress?(.init(phase: "Parsing records", completed: 0, total: max(records.count, 1)))
+        progress?(.init(phase: tr("Parsing records"), completed: 0, total: max(records.count, 1)))
 
         var hosts: [RemoraCore.Host] = []
         hosts.reserveCapacity(records.count)
@@ -58,7 +58,7 @@ struct HostConnectionImporter {
             let host = await host(from: record, credentialStore: credentialStore)
             hosts.append(host)
             completed += 1
-            progress?(.init(phase: "Importing hosts", completed: completed, total: max(records.count, 1)))
+            progress?(.init(phase: tr("Importing hosts"), completed: completed, total: max(records.count, 1)))
         }
 
         return hosts

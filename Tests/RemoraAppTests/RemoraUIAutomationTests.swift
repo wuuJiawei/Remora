@@ -1536,7 +1536,11 @@ struct RemoraUIAutomationTests {
     }
 
     private var uiAutomationLaunchArguments: [String] {
-        ["-AppleLanguages", "(en)", "-AppleLocale", "en_US_POSIX"]
+        [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US_POSIX",
+            "-settings.language.mode", "english",
+        ]
     }
 
     private func expandFileManager(in appElement: AXUIElement) -> Bool {

@@ -109,9 +109,9 @@ private struct ServerStatusWindowView: View {
                 statusContent(for: host)
             } else {
                 ContentUnavailableView(
-                    "No Server Selected",
+                    tr("No Server Selected"),
                     systemImage: "waveform.path.ecg",
-                    description: Text("Click metrics bars in a session tab to inspect server status.")
+                    description: Text(tr("Click metrics bars in a session tab to inspect server status."))
                 )
             }
         }
@@ -125,30 +125,30 @@ private struct ServerStatusWindowView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Server Status")
+                    Text(tr("Server Status"))
                         .font(.system(size: 21, weight: .bold))
                         .foregroundStyle(VisualStyle.textPrimary)
                     Text("\(host.username)@\(host.address):\(host.port)")
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(VisualStyle.textSecondary)
-                    Text(context.runtime?.connectionState ?? "Disconnected")
+                    Text(localizedConnectionState(context.runtime?.connectionState ?? "Disconnected"))
                         .font(.system(size: 12))
                         .foregroundStyle(VisualStyle.textSecondary)
                 }
 
                 HStack(alignment: .bottom, spacing: 16) {
                     ServerStatusMetricColumn(
-                        title: "CPU",
+                        title: tr("CPU"),
                         fraction: snapshot?.cpuFraction,
                         color: .green
                     )
                     ServerStatusMetricColumn(
-                        title: "MEM",
+                        title: tr("MEM"),
                         fraction: snapshot?.memoryFraction,
                         color: .orange
                     )
                     ServerStatusMetricColumn(
-                        title: "DISK",
+                        title: tr("DISK"),
                         fraction: snapshot?.diskFraction,
                         color: .blue
                     )
@@ -159,35 +159,35 @@ private struct ServerStatusWindowView: View {
                     .overlay(VisualStyle.borderSoft)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    statusLine("Memory", "\(formatBytes(snapshot?.memoryUsedBytes))/\(formatBytes(snapshot?.memoryTotalBytes))")
-                    statusLine("Disk", "\(formatBytes(snapshot?.diskUsedBytes))/\(formatBytes(snapshot?.diskTotalBytes))")
-                    statusLine("Load(1m)", formatLoad(snapshot?.loadAverage1))
-                    statusLine("Uptime", formatUptime(snapshot?.uptimeSeconds))
-                    statusLine("Sampled", snapshot.map { formatTimestamp($0.sampledAt) } ?? "--")
+                    statusLine(tr("Memory"), "\(formatBytes(snapshot?.memoryUsedBytes))/\(formatBytes(snapshot?.memoryTotalBytes))")
+                    statusLine(tr("Disk"), "\(formatBytes(snapshot?.diskUsedBytes))/\(formatBytes(snapshot?.diskTotalBytes))")
+                    statusLine(tr("Load(1m)"), formatLoad(snapshot?.loadAverage1))
+                    statusLine(tr("Uptime"), formatUptime(snapshot?.uptimeSeconds))
+                    statusLine(tr("Sampled"), snapshot.map { formatTimestamp($0.sampledAt) } ?? "--")
                 }
                 .font(.system(size: 12, design: .monospaced))
 
                 DisclosureGroup(isExpanded: $isExtendedMetricsExpanded) {
                     VStack(alignment: .leading, spacing: 5) {
-                        statusLine("Processes", formatCount(snapshot?.processCount))
-                        statusLine("Net RX", formatBytes(snapshot?.networkRXBytes))
-                        statusLine("Net TX", formatBytes(snapshot?.networkTXBytes))
-                        statusLine("Disk Read", formatBytes(snapshot?.diskReadBytes))
-                        statusLine("Disk Write", formatBytes(snapshot?.diskWriteBytes))
-                        Text("Network and disk IO values are cumulative since server boot.")
+                        statusLine(tr("Processes"), formatCount(snapshot?.processCount))
+                        statusLine(tr("Net RX"), formatBytes(snapshot?.networkRXBytes))
+                        statusLine(tr("Net TX"), formatBytes(snapshot?.networkTXBytes))
+                        statusLine(tr("Disk Read"), formatBytes(snapshot?.diskReadBytes))
+                        statusLine(tr("Disk Write"), formatBytes(snapshot?.diskWriteBytes))
+                        Text(tr("Network and disk IO values are cumulative since server boot."))
                             .font(.system(size: 11))
                             .foregroundStyle(VisualStyle.textSecondary)
                     }
                     .padding(.top, 6)
                 } label: {
-                    Text("Process / Network / Disk IO")
+                    Text(tr("Process / Network / Disk IO"))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(VisualStyle.textPrimary)
                 }
                 .animation(.easeInOut(duration: 0.16), value: isExtendedMetricsExpanded)
 
                 if state.isLoading {
-                    Text("Refreshing metrics…")
+                    Text(tr("Refreshing metrics…"))
                         .font(.system(size: 12))
                         .foregroundStyle(VisualStyle.textSecondary)
                 }

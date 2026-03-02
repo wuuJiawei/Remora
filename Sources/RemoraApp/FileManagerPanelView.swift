@@ -10,9 +10,9 @@ struct FileManagerPanelView: View {
         var title: String {
             switch self {
             case .file:
-                return "New File"
+                return tr("New File")
             case .directory:
-                return "New Folder"
+                return tr("New Folder")
             }
         }
 
@@ -21,7 +21,7 @@ struct FileManagerPanelView: View {
             case .file:
                 return "untitled.txt"
             case .directory:
-                return "New Folder"
+                return tr("New Folder")
             }
         }
     }
@@ -91,7 +91,7 @@ struct FileManagerPanelView: View {
     private var transferQueueSummary: TransferQueueSummary {
         let items = viewModel.transferQueue
         guard !items.isEmpty else {
-            return TransferQueueSummary(statusText: "Idle", progress: 0, statusColor: .secondary)
+            return TransferQueueSummary(statusText: tr("Idle"), progress: 0, statusColor: .secondary)
         }
 
         let hasRunning = items.contains { $0.status == .running || $0.status == .queued }
@@ -100,13 +100,13 @@ struct FileManagerPanelView: View {
         let statusText: String
         let statusColor: Color
         if hasRunning {
-            statusText = "Transferring"
+            statusText = tr("Transferring")
             statusColor = .orange
         } else if hasIssue {
-            statusText = "Finished with Issues"
+            statusText = tr("Finished with Issues")
             statusColor = .red
         } else {
-            statusText = "Completed"
+            statusText = tr("Completed")
             statusColor = .green
         }
 
@@ -169,7 +169,7 @@ struct FileManagerPanelView: View {
                         Button {
                             viewModel.performContextAction(.download(paths: selectedRemoteFiles.map(\.path)))
                         } label: {
-                            Label("Download", systemImage: "arrow.down.circle.fill")
+                            Label(tr("Download"), systemImage: "arrow.down.circle.fill")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -181,7 +181,7 @@ struct FileManagerPanelView: View {
                             selectedRemotePaths.removeAll()
                             selectionAnchorRemotePath = nil
                         } label: {
-                            Label("Delete", systemImage: "trash")
+                            Label(tr("Delete"), systemImage: "trash")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -193,14 +193,14 @@ struct FileManagerPanelView: View {
                             moveTargetPath = viewModel.remoteDirectoryPath
                             isMoveSheetPresented = true
                         } label: {
-                            Label("Move To", systemImage: "folder")
+                            Label(tr("Move To"), systemImage: "folder")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(selectedRemotePaths.isEmpty)
                         .accessibilityIdentifier("file-manager-move")
 
-                        Button("Retry Failed") {
+                        Button(tr("Retry Failed")) {
                             viewModel.retryFailedTransfers()
                         }
                         .buttonStyle(.bordered)
@@ -208,7 +208,7 @@ struct FileManagerPanelView: View {
                         .disabled(!hasRetryableTransfers)
                         .accessibilityIdentifier("file-manager-retry-failed")
 
-                        Button("Paste") {
+                        Button(tr("Paste")) {
                             viewModel.performContextAction(.paste(destinationDirectory: currentDestinationDirectoryForPaste))
                         }
                         .buttonStyle(.bordered)
@@ -354,7 +354,7 @@ struct FileManagerPanelView: View {
                         VStack(spacing: 8) {
                             ProgressView()
                                 .controlSize(.small)
-                            Text("Loading directory...")
+                            Text(tr("Loading directory..."))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
                         }
@@ -372,7 +372,7 @@ struct FileManagerPanelView: View {
                         VStack(spacing: 6) {
                             Image(systemName: "exclamationmark.triangle")
                                 .foregroundStyle(.orange)
-                            Text("Failed to load remote directory")
+                            Text(tr("Failed to load remote directory"))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
                             Text(message)
@@ -396,23 +396,23 @@ struct FileManagerPanelView: View {
 
     private var remoteListHeader: some View {
         HStack(spacing: 10) {
-            sortHeaderButton("Name", column: .name)
+            sortHeaderButton(tr("Name"), column: .name)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Divider()
                 .frame(height: 14)
-            sortHeaderButton("Permission", column: .permission)
+            sortHeaderButton(tr("Permission"), column: .permission)
                 .frame(width: 120, alignment: .leading)
             Divider()
                 .frame(height: 14)
-            sortHeaderButton("Date", column: .date)
+            sortHeaderButton(tr("Date"), column: .date)
                 .frame(width: 170, alignment: .leading)
             Divider()
                 .frame(height: 14)
-            sortHeaderButton("Size", column: .size)
+            sortHeaderButton(tr("Size"), column: .size)
                 .frame(width: 90, alignment: .trailing)
             Divider()
                 .frame(height: 14)
-            sortHeaderButton("Kind", column: .kind)
+            sortHeaderButton(tr("Kind"), column: .kind)
                 .frame(width: 90, alignment: .leading)
         }
         .font(.caption.weight(.semibold))
@@ -513,7 +513,7 @@ struct FileManagerPanelView: View {
     }
 
     private func kindString(for entry: RemoteFileEntry) -> String {
-        entry.isDirectory ? "Folder" : "File"
+        entry.isDirectory ? tr("Folder") : tr("File")
     }
 
     private func cachedRemoteAttributes(for path: String) -> RemoteFileAttributes? {
@@ -535,7 +535,7 @@ struct FileManagerPanelView: View {
             toolbarIconButton(
                 "chevron.backward",
                 accessibilityIdentifier: "file-manager-back",
-                helpText: "Back",
+                helpText: tr("Back"),
                 disabled: !viewModel.canNavigateRemoteBack
             ) {
                 viewModel.navigateRemoteBack()
@@ -544,7 +544,7 @@ struct FileManagerPanelView: View {
             toolbarIconButton(
                 "chevron.forward",
                 accessibilityIdentifier: "file-manager-forward",
-                helpText: "Forward",
+                helpText: tr("Forward"),
                 disabled: !viewModel.canNavigateRemoteForward
             ) {
                 viewModel.navigateRemoteForward()
@@ -553,7 +553,7 @@ struct FileManagerPanelView: View {
             toolbarIconButton(
                 "house",
                 accessibilityIdentifier: "file-manager-root",
-                helpText: "Go to Root",
+                helpText: tr("Go to Root"),
                 disabled: viewModel.remoteDirectoryPath == "/"
             ) {
                 navigateToRoot()
@@ -562,7 +562,7 @@ struct FileManagerPanelView: View {
             toolbarIconButton(
                 "arrow.clockwise",
                 accessibilityIdentifier: "file-manager-refresh",
-                helpText: "Refresh",
+                helpText: tr("Refresh"),
                 disabled: false
             ) {
                 viewModel.performContextAction(.refresh)
@@ -581,13 +581,13 @@ struct FileManagerPanelView: View {
             toolbarIconButton(
                 "arrow.right.circle",
                 accessibilityIdentifier: "file-manager-go",
-                helpText: "Go",
+                helpText: tr("Go"),
                 disabled: false
             ) {
                 jumpToRemotePath()
             }
 
-            Toggle("Sync Terminal", isOn: $viewModel.isTerminalDirectorySyncEnabled)
+            Toggle(tr("Sync Terminal"), isOn: $viewModel.isTerminalDirectorySyncEnabled)
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .font(.caption)
@@ -621,7 +621,7 @@ struct FileManagerPanelView: View {
     private var transferQueueExpandedPanel: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Transfer Queue")
+                Text(tr("Transfer Queue"))
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text("\(Int(transferQueueSummary.progress * 100))%")
@@ -634,12 +634,12 @@ struct FileManagerPanelView: View {
                         .font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.borderless)
-                .help("Collapse Transfer Queue")
+                .help(tr("Collapse Transfer Queue"))
                 .accessibilityIdentifier("file-manager-transfer-collapse")
             }
 
             HStack(spacing: 8) {
-                Text("Save To: \(abbreviatedLocalDirectoryPath)")
+                Text("\(tr("Save To:")) \(abbreviatedLocalDirectoryPath)")
                     .font(.caption.monospaced())
                     .foregroundStyle(VisualStyle.textSecondary)
                     .lineLimit(1)
@@ -651,12 +651,12 @@ struct FileManagerPanelView: View {
                         .font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.borderless)
-                .help("Edit download directory")
+                .help(tr("Edit download directory"))
                 .accessibilityIdentifier("file-manager-open-download-settings")
 
                 Spacer()
 
-                Button("Open Folder") {
+                Button(tr("Open Folder")) {
                     revealInFinder(path: viewModel.localDirectoryURL.path)
                 }
                 .buttonStyle(.borderless)
@@ -669,13 +669,13 @@ struct FileManagerPanelView: View {
                 .controlSize(.small)
 
             if viewModel.transferQueue.isEmpty {
-                Text("No transfer tasks")
+                Text(tr("No transfer tasks"))
                     .monoMetaStyle()
             } else {
                 List(viewModel.transferQueue) { item in
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 8) {
-                            Text(item.direction.rawValue)
+                            Text(tr(item.direction.rawValue))
                                 .font(.caption.monospaced())
                                 .frame(width: 70, alignment: .leading)
                                 .foregroundStyle(VisualStyle.textSecondary)
@@ -692,7 +692,7 @@ struct FileManagerPanelView: View {
                                 }
                                 .buttonStyle(.borderless)
                                 .disabled(!FileManager.default.fileExists(atPath: item.destinationPath))
-                                .help("Reveal Downloaded File")
+                                .help(tr("Reveal Downloaded File"))
                                 .accessibilityIdentifier("file-manager-transfer-reveal-\(item.id.uuidString)")
                             }
                             Text(transferStatusText(for: item))
@@ -741,42 +741,42 @@ struct FileManagerPanelView: View {
 
     @ViewBuilder
     private var panelContextMenu: some View {
-        Button("Refresh") {
+        Button(tr("Refresh")) {
             viewModel.performContextAction(.refresh)
         }
 
         Divider()
 
-        Button("New File") {
+        Button(tr("New File")) {
             beginCreateRemote(kind: .file, in: viewModel.remoteDirectoryPath)
         }
 
-        Button("New Folder") {
+        Button(tr("New Folder")) {
             beginCreateRemote(kind: .directory, in: viewModel.remoteDirectoryPath)
         }
 
         Divider()
 
         if viewModel.canPaste(into: viewModel.remoteDirectoryPath) {
-            Button("Paste") {
+            Button(tr("Paste")) {
                 viewModel.performContextAction(.paste(destinationDirectory: viewModel.remoteDirectoryPath))
             }
         }
 
-        Button("Upload To Current Directory") {
+        Button(tr("Upload To Current Directory")) {
             presentUploadPanel(targetDirectory: viewModel.remoteDirectoryPath)
         }
     }
 
     @ViewBuilder
     private func rowContextMenu(for entry: RemoteFileEntry) -> some View {
-        Button("Refresh") {
+        Button(tr("Refresh")) {
             viewModel.performContextAction(.refresh)
         }
 
         Divider()
 
-        Button("Delete", role: .destructive) {
+        Button(tr("Delete"), role: .destructive) {
             viewModel.performContextAction(.delete(paths: [entry.path]))
             selectedRemotePaths.remove(entry.path)
             if selectionAnchorRemotePath == entry.path {
@@ -784,31 +784,31 @@ struct FileManagerPanelView: View {
             }
         }
 
-        Button("Rename") {
+        Button(tr("Rename")) {
             beginRename(path: entry.path)
         }
 
-        Button("Copy") {
+        Button(tr("Copy")) {
             viewModel.performContextAction(.copy(paths: [entry.path]))
         }
 
-        Button("Cut") {
+        Button(tr("Cut")) {
             viewModel.performContextAction(.cut(paths: [entry.path]))
         }
 
         if viewModel.canPaste(into: entry.isDirectory ? entry.path : viewModel.remoteDirectoryPath) {
-            Button("Paste") {
+            Button(tr("Paste")) {
                 let destination = entry.isDirectory ? entry.path : viewModel.remoteDirectoryPath
                 viewModel.performContextAction(.paste(destinationDirectory: destination))
             }
         }
 
         if entry.isDirectory {
-            Button("New File Here") {
+            Button(tr("New File Here")) {
                 beginCreateRemote(kind: .file, in: entry.path)
             }
 
-            Button("New Folder Here") {
+            Button(tr("New Folder Here")) {
                 beginCreateRemote(kind: .directory, in: entry.path)
             }
         }
@@ -818,23 +818,23 @@ struct FileManagerPanelView: View {
             && selectedRemotePaths.contains(entry.path)
 
         if shouldSplitDownloadActions {
-            Button("Download Current") {
+            Button(tr("Download Current")) {
                 viewModel.performContextAction(.download(paths: [entry.path]))
             }
             .disabled(entry.isDirectory)
 
-            Button("Download Selected (\(selectedDownloadPaths.count))") {
+            Button("\(tr("Download Selected")) (\(selectedDownloadPaths.count))") {
                 viewModel.performContextAction(.download(paths: selectedDownloadPaths))
             }
             .disabled(selectedDownloadPaths.isEmpty)
         } else {
-            Button("Download") {
+            Button(tr("Download")) {
                 viewModel.performContextAction(.download(paths: [entry.path]))
             }
             .disabled(entry.isDirectory)
         }
 
-        Button("Move To") {
+        Button(tr("Move To")) {
             moveSourcePaths = [entry.path]
             moveTargetPath = viewModel.remoteDirectoryPath
             isMoveSheetPresented = true
@@ -843,26 +843,26 @@ struct FileManagerPanelView: View {
         Divider()
 
         if !entry.isDirectory {
-            Button("Edit") {
+            Button(tr("Edit")) {
                 editorTargetPath = entry.path
             }
         }
 
-        Button("Copy Path") {
+        Button(tr("Copy Path")) {
             copyToPasteboard(entry.path)
         }
 
-        Button("Copy Name") {
+        Button(tr("Copy Name")) {
             copyToPasteboard(entry.name)
         }
 
-        Button("Properties") {
+        Button(tr("Properties")) {
             propertiesTargetPath = entry.path
         }
 
         if entry.isDirectory {
             Divider()
-            Button("Upload To Current Directory") {
+            Button(tr("Upload To Current Directory")) {
                 presentUploadPanel(targetDirectory: entry.path)
             }
         }
@@ -884,14 +884,15 @@ struct FileManagerPanelView: View {
     }
 
     private func transferStatusText(for item: TransferItem) -> String {
+        let localizedStatus = tr(item.status.rawValue)
         switch item.status {
         case .failed, .skipped:
             if let message = item.message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "\(item.status.rawValue): \(message)"
+                return "\(localizedStatus): \(message)"
             }
-            return item.status.rawValue
+            return localizedStatus
         default:
-            return item.status.rawValue
+            return localizedStatus
         }
     }
 
@@ -1026,17 +1027,17 @@ struct FileManagerPanelView: View {
     @ViewBuilder
     private func transferContextMenu(for item: TransferItem) -> some View {
         if item.direction == .download {
-            Button("Copy Local Path") {
+            Button(tr("Copy Local Path")) {
                 copyToPasteboard(item.destinationPath)
             }
 
             if FileManager.default.fileExists(atPath: item.destinationPath) {
-                Button("Reveal in Finder") {
+                Button(tr("Reveal in Finder")) {
                     revealInFinder(path: item.destinationPath)
                 }
             }
         } else {
-            Button("Copy Destination Path") {
+            Button(tr("Copy Destination Path")) {
                 copyToPasteboard(item.destinationPath)
             }
         }
@@ -1061,7 +1062,7 @@ struct FileManagerPanelView: View {
             Text(createRemoteKind.title)
                 .font(.headline)
 
-            Text("Directory")
+            Text(tr("Directory"))
                 .font(.subheadline)
                 .foregroundStyle(VisualStyle.textSecondary)
 
@@ -1069,16 +1070,16 @@ struct FileManagerPanelView: View {
                 .font(.caption.monospaced())
                 .lineLimit(1)
 
-            TextField("Name", text: $createRemoteNameDraft)
+            TextField(tr("Name"), text: $createRemoteNameDraft)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("file-manager-create-name")
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) {
+                Button(tr("Cancel"), role: .cancel) {
                     isCreateRemoteSheetPresented = false
                 }
-                Button("Create") {
+                Button(tr("Create")) {
                     commitCreateRemote()
                 }
                 .buttonStyle(.borderedProminent)
@@ -1092,18 +1093,18 @@ struct FileManagerPanelView: View {
 
     private var renameSheet: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Rename")
+            Text(tr("Rename"))
                 .font(.headline)
 
-            TextField("New name", text: $renameDraft)
+            TextField(tr("New name"), text: $renameDraft)
                 .textFieldStyle(.roundedBorder)
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) {
+                Button(tr("Cancel"), role: .cancel) {
                     isRenameSheetPresented = false
                 }
-                Button("Save") {
+                Button(tr("Save")) {
                     commitRename()
                 }
                 .buttonStyle(.borderedProminent)
@@ -1116,10 +1117,10 @@ struct FileManagerPanelView: View {
 
     private var moveSheet: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Move Selected Files")
+            Text(tr("Move Selected Files"))
                 .font(.headline)
 
-            Text("Destination Directory")
+            Text(tr("Destination Directory"))
                 .font(.subheadline)
                 .foregroundStyle(VisualStyle.textSecondary)
 
@@ -1128,10 +1129,10 @@ struct FileManagerPanelView: View {
                 .font(.body.monospaced())
 
             HStack(spacing: 8) {
-                Text("Conflict")
+                Text(tr("Conflict"))
                     .font(.subheadline.weight(.semibold))
 
-                Picker("Conflict", selection: $viewModel.conflictStrategy) {
+                Picker(tr("Conflict"), selection: $viewModel.conflictStrategy) {
                     ForEach(TransferConflictStrategy.allCases) { strategy in
                         Text(strategy.title).tag(strategy)
                     }
@@ -1144,11 +1145,11 @@ struct FileManagerPanelView: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) {
+                Button(tr("Cancel"), role: .cancel) {
                     moveSourcePaths.removeAll()
                     isMoveSheetPresented = false
                 }
-                Button("Move") {
+                Button(tr("Move")) {
                     viewModel.moveRemoteEntries(
                         paths: moveSourcePaths,
                         toDirectory: moveTargetPath

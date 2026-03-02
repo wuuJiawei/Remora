@@ -31,7 +31,7 @@ struct TerminalPaneView: View {
                     .fill(statusColor)
                     .frame(width: 8, height: 8)
 
-                Text(runtime.connectionState)
+                Text(localizedConnectionState(runtime.connectionState))
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(1)
                     .foregroundStyle(VisualStyle.textPrimary)
@@ -72,15 +72,15 @@ struct TerminalPaneView: View {
         .contentShape(Rectangle())
         .animation(.spring(response: 0.24, dampingFraction: 0.85), value: isFocused)
         .animation(.easeInOut(duration: 0.18), value: runtime.connectionState)
-        .alert("Trust SSH Host Key?", isPresented: hostKeyPromptBinding) {
-            Button("Reject", role: .destructive) {
+        .alert(tr("Trust SSH Host Key?"), isPresented: hostKeyPromptBinding) {
+            Button(tr("Reject"), role: .destructive) {
                 runtime.respondToHostKeyPrompt(accept: false)
             }
-            Button("Trust") {
+            Button(tr("Trust")) {
                 runtime.respondToHostKeyPrompt(accept: true)
             }
         } message: {
-            Text(runtime.hostKeyPromptMessage ?? "The server requested host key confirmation.")
+            Text(runtime.hostKeyPromptMessage ?? tr("The server requested host key confirmation."))
         }
     }
 
