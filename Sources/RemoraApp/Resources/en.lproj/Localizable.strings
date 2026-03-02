@@ -54,6 +54,8 @@
 "SSH Threads" = "SSH Threads";
 "Settings" = "Settings";
 "Create an SSH connection to start your first session." = "Create an SSH connection to start your first session.";
+"No SSH connections yet" = "No SSH connections yet";
+"Click \"New SSH Connection\" to create your first connection." = "Click \"New SSH Connection\" to create your first connection.";
 
 "Transfer Queue" = "Transfer Queue";
 "Save To:" = "Save To:";

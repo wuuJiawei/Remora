@@ -52,6 +52,8 @@
 "Search SSH host" = "搜索 SSH 主机";
 "SSH Threads" = "SSH 线程";
 "Create an SSH connection to start your first session." = "创建一个 SSH 连接以开始第一个会话。";
+"No SSH connections yet" = "当前无 SSH 连接";
+"Click \"New SSH Connection\" to create your first connection." = "请点击“新建 SSH 连接”创建你的第一个连接。";
 
 "Transfer Queue" = "传输队列";
 "Save To:" = "保存到：";

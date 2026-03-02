@@ -268,6 +268,10 @@ struct ContentView: View {
                     .accessibilityIdentifier("sidebar-hosts-loading")
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
+                } else if hostCatalog.hosts.isEmpty {
+                    sidebarEmptyState
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 8)
                 } else {
                     LazyVStack(spacing: 6) {
                         ForEach(visibleGroupSections) { section in
@@ -705,6 +709,31 @@ struct ContentView: View {
         .glassCard(fill: VisualStyle.rightPanelBackground, border: VisualStyle.borderSoft)
     }
 
+    private var sidebarEmptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "server.rack")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(VisualStyle.textTertiary)
+
+            Text(tr("No SSH connections yet"))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(VisualStyle.textSecondary)
+
+            Text(tr("Click \"New SSH Connection\" to create your first connection."))
+                .font(.system(size: 12))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(VisualStyle.textTertiary)
+
+            Button(tr("New SSH Connection")) {
+                beginCreateHostInPreferredGroup()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, minHeight: 220)
+        .padding(.horizontal, 10)
+    }
+
     private func paneView(_ pane: TerminalPaneModel, tabID: UUID) -> some View {
         TerminalPaneView(
             pane: pane,
@@ -735,7 +764,7 @@ struct ContentView: View {
     }
 
     private func beginCreateHostInPreferredGroup() {
-        let preferredGroup = selectedHost?.group ?? hostCatalog.groups.first ?? "Default"
+        let preferredGroup = selectedHost?.group ?? hostCatalog.groups.first ?? "New Group"
         beginCreateHost(in: preferredGroup)
     }
 
@@ -1631,7 +1660,7 @@ private struct SidebarHostEditorDraft {
     var password: String
     var savePassword: Bool
 
-    init(preferredGroup: String = "Default") {
+    init(preferredGroup: String = "New Group") {
         self.connectionName = ""
         self.hostAddress = "127.0.0.1"
         self.portText = "22"
@@ -1683,7 +1712,7 @@ private struct SidebarHostEditorDraft {
 
     var groupName: String {
         let trimmed = groupText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Default" : trimmed
+        return trimmed.isEmpty ? "New Group" : trimmed
     }
 
     var port: Int? {

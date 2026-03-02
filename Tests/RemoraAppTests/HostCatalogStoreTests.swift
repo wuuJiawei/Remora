@@ -5,8 +5,35 @@ import RemoraCore
 @MainActor
 struct HostCatalogStoreTests {
     @Test
+    func startsWithEmptyCatalogByDefault() {
+        let store = HostCatalogStore()
+        #expect(store.hosts.isEmpty)
+        #expect(store.groups.isEmpty)
+    }
+
+    @Test
     func quickConnectSupportsExactAndFuzzyMatch() {
         let store = HostCatalogStore()
+        _ = store.addHost(
+            Host(
+                name: "prod-api",
+                address: "10.0.0.10",
+                username: "deploy",
+                group: "Production",
+                tags: ["api"],
+                auth: HostAuth(method: .agent)
+            )
+        )
+        _ = store.addHost(
+            Host(
+                name: "staging-api",
+                address: "10.0.1.10",
+                username: "deploy",
+                group: "Staging",
+                tags: ["api"],
+                auth: HostAuth(method: .agent)
+            )
+        )
 
         let exact = store.quickConnectMatch(input: "prod-api")
         #expect(exact?.name == "prod-api")
@@ -21,8 +48,24 @@ struct HostCatalogStoreTests {
     @Test
     func marksRecentHostsInOrder() {
         let store = HostCatalogStore()
-        let first = store.hosts[0]
-        let second = store.hosts[1]
+        let first = store.addHost(
+            Host(
+                name: "first",
+                address: "10.0.0.1",
+                username: "root",
+                group: "Ops",
+                auth: HostAuth(method: .agent)
+            )
+        )
+        let second = store.addHost(
+            Host(
+                name: "second",
+                address: "10.0.0.2",
+                username: "root",
+                group: "Ops",
+                auth: HostAuth(method: .agent)
+            )
+        )
 
         store.markConnected(hostID: first.id)
         store.markConnected(hostID: second.id)
@@ -70,6 +113,15 @@ struct HostCatalogStoreTests {
     @Test
     func supportsDetailedHostCreateAndEdit() {
         let store = HostCatalogStore()
+        _ = store.addHost(
+            Host(
+                name: "prod-api",
+                address: "10.0.0.10",
+                username: "deploy",
+                group: "Production",
+                auth: HostAuth(method: .agent)
+            )
+        )
 
         let created = store.addHost(
             Host(
@@ -105,7 +157,15 @@ struct HostCatalogStoreTests {
     @Test
     func importsHostsAndUpdatesExistingRecords() {
         let store = HostCatalogStore()
-        let existing = store.hosts[0]
+        let existing = store.addHost(
+            Host(
+                name: "existing",
+                address: "10.0.0.10",
+                username: "deploy",
+                group: "Production",
+                auth: HostAuth(method: .agent)
+            )
+        )
 
         let updatedExisting = Host(
             id: existing.id,

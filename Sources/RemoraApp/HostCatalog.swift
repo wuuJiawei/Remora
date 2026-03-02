@@ -339,6 +339,19 @@ final class HostCatalogStore: ObservableObject {
     }
 
     private static func makeDefaultCatalog() -> PersistedHostCatalog {
+        if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" {
+            return makeUIAutomationSeedCatalog()
+        }
+
+        return PersistedHostCatalog(
+            hosts: [],
+            templates: [],
+            recentHostIDs: [],
+            groups: []
+        )
+    }
+
+    private static func makeUIAutomationSeedCatalog() -> PersistedHostCatalog {
         let production = RemoraCore.Host(
             name: "prod-api",
             address: "10.0.0.10",
