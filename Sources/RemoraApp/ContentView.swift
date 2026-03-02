@@ -516,6 +516,8 @@ struct ContentView: View {
             visitedPaths.insert(standardizedPath)
 
             let iconCandidates = [
+                // Brand logo for welcome placeholder.
+                directory.appendingPathComponent("logo.png"),
                 directory.appendingPathComponent("Resources/AppIcon.icns"),
                 directory.appendingPathComponent("AppIcon.icns"),
             ]
