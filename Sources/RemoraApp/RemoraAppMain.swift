@@ -6,6 +6,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         applyDockIconIfAvailable()
         NSApp.activate(ignoringOtherApps: true)
+        Task { @MainActor in
+            AppKeyboardShortcutStore.shared.reportConflictsAtLaunchIfNeeded()
+        }
         print("[RemoraApp] launched")
     }
 
@@ -80,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct RemoraAppMain: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var keyboardShortcutStore = AppKeyboardShortcutStore.shared
     @AppStorage(AppSettings.appearanceModeKey) private var appearanceModeRawValue = AppAppearanceMode.system.rawValue
     @AppStorage(AppSettings.languageModeKey) private var languageModeRawValue = AppLanguageMode.system.rawValue
 
@@ -96,6 +100,7 @@ struct RemoraAppMain: App {
             ContentView()
                 .preferredColorScheme(preferredScheme)
                 .environment(\.locale, preferredLocale)
+                .environmentObject(keyboardShortcutStore)
         }
         .windowResizability(.contentSize)
 
@@ -106,6 +111,7 @@ struct RemoraAppMain: App {
             RemoraSettingsSheet()
                 .preferredColorScheme(preferredScheme)
                 .environment(\.locale, preferredLocale)
+                .environmentObject(keyboardShortcutStore)
         }
         .defaultSize(width: 660, height: 410)
         .windowResizability(.contentSize)
@@ -113,30 +119,36 @@ struct RemoraAppMain: App {
 
         .commands {
             CommandGroup(replacing: .appSettings) {
-                Button(L10n.tr("Settings", fallback: "Settings")) {
-                    NotificationCenter.default.post(name: .remoraOpenSettingsCommand, object: nil)
-                }
-                .keyboardShortcut(",", modifiers: .command)
+                commandButton(for: .openSettings)
             }
 
             CommandGroup(after: .newItem) {
-                Button(L10n.tr("New SSH Connection", fallback: "New SSH Connection")) {
-                    NotificationCenter.default.post(name: .remoraNewSSHConnectionCommand, object: nil)
-                }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
+                commandButton(for: .newSSHConnection)
             }
 
             CommandGroup(after: .importExport) {
-                Button(L10n.tr("Import Connections", fallback: "Import Connections")) {
-                    NotificationCenter.default.post(name: .remoraImportConnectionsCommand, object: nil)
-                }
-                .keyboardShortcut("i", modifiers: .command)
-
-                Button(L10n.tr("Export Connections", fallback: "Export Connections")) {
-                    NotificationCenter.default.post(name: .remoraExportConnectionsCommand, object: nil)
-                }
-                .keyboardShortcut("e", modifiers: .command)
+                commandButton(for: .importConnections)
+                commandButton(for: .exportConnections)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func commandButton(for command: AppShortcutCommand) -> some View {
+        Button(L10n.tr(command.titleKey, fallback: command.fallbackTitle)) {
+            NotificationCenter.default.post(name: command.notificationName, object: nil)
+        }
+        .appKeyboardShortcut(keyboardShortcutStore.shortcut(for: command))
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func appKeyboardShortcut(_ shortcut: AppKeyboardShortcut?) -> some View {
+        if let shortcut, let keyEquivalent = shortcut.keyEquivalent {
+            keyboardShortcut(keyEquivalent, modifiers: shortcut.eventModifiers)
+        } else {
+            self
         }
     }
 }
