@@ -326,6 +326,71 @@ final class TerminalRuntime: ObservableObject {
         }
     }
 
+    // MARK: - PTY Input Helpers
+
+    /// Send left arrow key (move cursor left)
+    func sendLeftArrow(count: Int = 1) {
+        let sequence = String(repeating: "\u{001B}[D", count: count)
+        enqueueInput(Data(sequence.utf8))
+    }
+
+    /// Send right arrow key (move cursor right)
+    func sendRightArrow(count: Int = 1) {
+        let sequence = String(repeating: "\u{001B}[C", count: count)
+        enqueueInput(Data(sequence.utf8))
+    }
+
+    /// Send Ctrl-A (move to line start - works in bash/readline)
+    func sendCtrlA() {
+        enqueueInput(Data([0x01])) // Ctrl-A
+    }
+
+    /// Send Ctrl-K (delete to line end - works in bash/readline)
+    func sendCtrlK() {
+        enqueueInput(Data([0x0B])) // Ctrl-K
+    }
+
+    /// Send Ctrl-U (delete entire line)
+    func sendCtrlU() {
+        enqueueInput(Data([0x15])) // Ctrl-U
+    }
+
+    /// Send Delete key
+    func sendDelete(count: Int = 1) {
+        let sequence = String(repeating: "\u{001B}[3~", count: count)
+        enqueueInput(Data(sequence.utf8))
+    }
+
+    /// Send text with optional bracketed paste
+    func sendText(_ text: String, bracketedPaste: Bool = false) {
+        if bracketedPaste {
+            let start = "\u{001B}[200~"
+            let end = "\u{001B}[201~"
+            enqueueInput(Data((start + text + end).utf8))
+        } else {
+            enqueueInput(Data(text.utf8))
+        }
+    }
+
+    /// Replace current input line with text and position cursor
+    func replaceCurrentInputLine(with text: String, cursorAt relativeIndex: Int? = nil) {
+        // Strategy: Ctrl-A (go to start) + Ctrl-K (clear to end) + paste + position
+        sendCtrlA()
+        sendCtrlK()
+
+        // Determine if we should use bracketed paste
+        let useBracketedPaste = true // Could check parser.bracketedPasteEnabled
+        sendText(text, bracketedPaste: useBracketedPaste)
+
+        // Position cursor at relative index (default: end of text)
+        let targetIndex = relativeIndex ?? text.count
+        if targetIndex > 0 && targetIndex < text.count {
+            // Move from start to target position
+            let forwardCount = targetIndex
+            sendRightArrow(count: forwardCount)
+        }
+    }
+
     private func drainInputQueue() async {
         defer {
             inputDrainerTask = nil
