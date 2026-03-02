@@ -11,23 +11,23 @@ struct HostConnectionClipboardBuilder {
         credentialStore: CredentialStore = CredentialStore()
     ) async -> String {
         var lines = [
-            "Host: \(host.address)",
-            "Port: \(host.port)",
-            "Username: \(host.username)",
+            "\(tr("Host")): \(host.address)",
+            "\(tr("Port")): \(host.port)",
+            "\(tr("Username")): \(host.username)",
         ]
 
         switch host.auth.method {
         case .password:
-            lines.append("Auth: Password")
+            lines.append("\(tr("Auth")): \(tr("Password"))")
             let password = await resolvedPassword(for: host, credentialStore: credentialStore)
-            lines.append("Password: \(password)")
+            lines.append("\(tr("Password")): \(password)")
         case .privateKey:
-            lines.append("Auth: Private Key")
-            let keyPath = normalized(host.auth.keyReference) ?? "(not set)"
-            lines.append("Private Key Path: \(keyPath)")
+            lines.append("\(tr("Auth")): \(tr("Private Key"))")
+            let keyPath = normalized(host.auth.keyReference) ?? tr("(not set)")
+            lines.append("\(tr("Private Key Path")): \(keyPath)")
         case .agent:
-            lines.append("Auth: SSH Agent")
-            lines.append("Credential: Managed by local SSH agent")
+            lines.append("\(tr("Auth")): \(tr("SSH Agent"))")
+            lines.append("\(tr("Credential")): \(tr("Managed by local SSH agent"))")
         }
 
         return lines.joined(separator: "\n")
@@ -38,13 +38,13 @@ struct HostConnectionClipboardBuilder {
         credentialStore: CredentialStore
     ) async -> String {
         guard let reference = normalized(host.auth.passwordReference) else {
-            return "(not saved)"
+            return tr("(not saved)")
         }
 
         guard let password = await credentialStore.secret(for: reference),
               !password.isEmpty
         else {
-            return "(not saved)"
+            return tr("(not saved)")
         }
         return password
     }

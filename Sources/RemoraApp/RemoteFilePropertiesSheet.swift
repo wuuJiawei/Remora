@@ -17,7 +17,7 @@ struct RemoteFilePropertiesSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("File Properties")
+            Text(tr("File Properties"))
                 .font(.headline)
 
             Text(viewModel.path)
@@ -27,18 +27,18 @@ struct RemoteFilePropertiesSheet: View {
 
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                 GridRow {
-                    Text("Permissions")
+                    Text(tr("Permissions"))
                     TextField("755", text: $viewModel.permissionsText)
                         .textFieldStyle(.roundedBorder)
                         .font(.body.monospaced())
                 }
                 GridRow {
-                    Text("Date")
+                    Text(tr("Date"))
                     Text(viewModel.modifiedAtDisplayText)
                         .font(.caption.monospaced())
                 }
                 GridRow {
-                    Text("Size")
+                    Text(tr("Size"))
                     Text(viewModel.sizeDisplayText)
                         .font(.caption.monospaced())
                 }
@@ -58,9 +58,9 @@ struct RemoteFilePropertiesSheet: View {
 
             HStack {
                 Spacer()
-                Button("Close") { dismiss() }
+                Button(tr("Close")) { dismiss() }
                     .buttonStyle(.bordered)
-                Button("Save") {
+                Button(tr("Save")) {
                     Task { await viewModel.save() }
                 }
                 .buttonStyle(.borderedProminent)

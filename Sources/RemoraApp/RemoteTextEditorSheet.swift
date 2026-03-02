@@ -12,7 +12,7 @@ struct RemoteTextEditorSheet: View {
         VStack(spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Edit File")
+                    Text(tr("Edit File"))
                         .font(.headline)
                     Text(viewModel.path)
                         .font(.caption.monospaced())
@@ -45,23 +45,23 @@ struct RemoteTextEditorSheet: View {
 
             HStack {
                 if viewModel.isReadOnly {
-                    Text("Read-only")
+                    Text(tr("Read-only"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if viewModel.hasUnsavedChanges {
-                    Text("Unsaved changes")
+                    Text(tr("Unsaved changes"))
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
 
                 Spacer()
 
-                Button("Close") {
+                Button(tr("Close")) {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
 
-                Button("Save") {
+                Button(tr("Save")) {
                     Task { await viewModel.save() }
                 }
                 .buttonStyle(.borderedProminent)

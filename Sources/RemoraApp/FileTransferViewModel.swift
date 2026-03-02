@@ -26,11 +26,11 @@ enum TransferConflictStrategy: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .overwrite:
-            return "Overwrite"
+            return tr("Overwrite")
         case .skip:
-            return "Skip"
+            return tr("Skip")
         case .rename:
-            return "Rename"
+            return tr("Rename")
         }
     }
 }
