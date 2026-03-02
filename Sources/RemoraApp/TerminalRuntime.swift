@@ -374,22 +374,24 @@ final class TerminalRuntime: ObservableObject {
 
     /// Replace current input line with text and position cursor
     func replaceCurrentInputLine(with text: String, cursorAt relativeIndex: Int? = nil) {
-        // Strategy: Ctrl-A (go to start) + Ctrl-K (clear to end) + paste + position
+        // Strategy: Ctrl-A + Ctrl-K + paste + Ctrl-A + Right(target)
         sendCtrlA()
         sendCtrlK()
-
-        // Determine if we should use bracketed paste
-        let useBracketedPaste = true // Could check parser.bracketedPasteEnabled
-        sendText(text, bracketedPaste: useBracketedPaste)
-
-        // Position cursor at relative index (default: end of text)
+        sendText(text, bracketedPaste: false)
+        
+        // Go back to start and move to target
+        sendCtrlA()
         let targetIndex = relativeIndex ?? text.count
-        if targetIndex > 0 && targetIndex < text.count {
-            // Move from start to target position
-            let forwardCount = targetIndex
-            sendRightArrow(count: forwardCount)
+        if targetIndex > 0 {
+            sendRightArrow(count: targetIndex)
         }
     }
+    
+    func setBracketedPasteEnabled(_ enabled: Bool) {
+        bracketedPasteEnabled = enabled
+    }
+    
+    private var bracketedPasteEnabled = false
 
     private func drainInputQueue() async {
         defer {
