@@ -63,8 +63,14 @@ public final class CoreTextTerminalRenderer {
         for col in 0 ..< line.count {
             let cell = line[col]
             let x = horizontalInset + CGFloat(col) * cellWidth
-            let fg = color(for: cell.attributes.foreground, isBackground: false)
-            let bg = color(for: cell.attributes.background, isBackground: true)
+            var fg = color(for: cell.attributes.foreground, isBackground: false)
+            var bg = color(for: cell.attributes.background, isBackground: true)
+            if cell.attributes.inverse {
+                swap(&fg, &bg)
+            }
+            if cell.attributes.dim {
+                fg = fg.withAlphaComponent(0.65)
+            }
 
             context.setFillColor(bg.cgColor)
             context.fill(CGRect(x: x, y: rowY, width: cellWidth, height: lineHeight))

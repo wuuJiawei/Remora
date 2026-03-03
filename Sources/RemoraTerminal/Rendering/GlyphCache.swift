@@ -14,6 +14,7 @@ public final class GlyphCache {
         var fontName: String
         var fontSize: CGFloat
         var bold: Bool
+        var italic: Bool
         var underline: Bool
         var foreground: ColorSignature
         var background: ColorSignature
@@ -34,6 +35,7 @@ public final class GlyphCache {
             fontName: font.fontName,
             fontSize: font.pointSize,
             bold: cell.attributes.bold,
+            italic: cell.attributes.italic,
             underline: cell.attributes.underline,
             foreground: colorSignature(foreground),
             background: colorSignature(background)
@@ -44,8 +46,14 @@ public final class GlyphCache {
         }
 
         let resolvedFont: NSFont = {
-            guard cell.attributes.bold else { return font }
-            return NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
+            var converted = font
+            if cell.attributes.bold {
+                converted = NSFontManager.shared.convert(converted, toHaveTrait: .boldFontMask)
+            }
+            if cell.attributes.italic {
+                converted = NSFontManager.shared.convert(converted, toHaveTrait: .italicFontMask)
+            }
+            return converted
         }()
 
         let attrs: [NSAttributedString.Key: Any] = [

@@ -129,12 +129,23 @@ public final class ScreenBuffer {
                 activeAttributes = .default
             case 1:
                 activeAttributes.bold = true
+            case 2:
+                activeAttributes.dim = true
+            case 3:
+                activeAttributes.italic = true
             case 4:
                 activeAttributes.underline = true
+            case 7:
+                activeAttributes.inverse = true
             case 22:
                 activeAttributes.bold = false
+                activeAttributes.dim = false
+            case 23:
+                activeAttributes.italic = false
             case 24:
                 activeAttributes.underline = false
+            case 27:
+                activeAttributes.inverse = false
             case 30 ... 37:
                 activeAttributes.foreground = .indexed(UInt8(code - 30))
             case 39:
@@ -315,26 +326,25 @@ public final class ScreenBuffer {
         case 0:
             // Clear from cursor to end of screen
             for col in cursorColumn..<columns {
-                lines[cursorRow][col] = TerminalCell(character: " ", attributes: .default)
+                lines[cursorRow][col] = TerminalCell(character: " ", attributes: activeAttributes)
             }
             for row in (cursorRow + 1)..<rows {
-                lines[row] = TerminalLine(columns: columns, attributes: .default)
+                lines[row] = TerminalLine(columns: columns, attributes: activeAttributes)
             }
         case 1:
             // Clear from start to cursor
             for row in 0..<cursorRow {
-                lines[row] = TerminalLine(columns: columns, attributes: .default)
+                lines[row] = TerminalLine(columns: columns, attributes: activeAttributes)
             }
             for col in 0...cursorColumn {
-                lines[cursorRow][col] = TerminalCell(character: " ", attributes: .default)
+                lines[cursorRow][col] = TerminalCell(character: " ", attributes: activeAttributes)
             }
         case 2:
             // Clear entire screen
-            lines = Array(repeating: TerminalLine(columns: columns, attributes: .default), count: rows)
+            lines = Array(repeating: TerminalLine(columns: columns, attributes: activeAttributes), count: rows)
         default:
             return
         }
-        activeAttributes = .default
         markAllDirty()
     }
 

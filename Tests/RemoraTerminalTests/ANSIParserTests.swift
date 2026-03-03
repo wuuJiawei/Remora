@@ -221,6 +221,52 @@ struct ANSIParserTests {
     }
 
     @Test
+    func parserAppliesInverseDimAndItalicStyles() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 2, columns: 8)
+
+        parser.parse(Data("\u{001B}[2;3;7mX".utf8), into: screen)
+        let styled = screen.line(at: 0)[0].attributes
+        #expect(styled.dim == true)
+        #expect(styled.italic == true)
+        #expect(styled.inverse == true)
+
+        parser.parse(Data("\u{001B}[22;23;27mY".utf8), into: screen)
+        let reset = screen.line(at: 0)[1].attributes
+        #expect(reset.dim == false)
+        #expect(reset.bold == false)
+        #expect(reset.italic == false)
+        #expect(reset.inverse == false)
+    }
+
+    @Test
+    func parserClearScreenKeepsActiveAttributes() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 8)
+
+        parser.parse(Data("\u{001B}[31;44m\u{001B}[2JX".utf8), into: screen)
+
+        let cell = screen.line(at: 0)[0]
+        #expect(cell.character == "X")
+        #expect(cell.attributes.foreground == .indexed(1))
+        #expect(cell.attributes.background == .indexed(4))
+        #expect(screen.activeAttributes.foreground == .indexed(1))
+        #expect(screen.activeAttributes.background == .indexed(4))
+    }
+
+    @Test
+    func parserTracksFocusReportingMode() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 2, columns: 8)
+
+        parser.parse(Data("\u{001B}[?1004h".utf8), into: screen)
+        #expect(parser.focusReportingEnabled == true)
+
+        parser.parse(Data("\u{001B}[?1004l".utf8), into: screen)
+        #expect(parser.focusReportingEnabled == false)
+    }
+
+    @Test
     func parserHandlesReverseIndexInScrollRegion() {
         let parser = ANSIParser()
         let screen = ScreenBuffer(rows: 5, columns: 4)
