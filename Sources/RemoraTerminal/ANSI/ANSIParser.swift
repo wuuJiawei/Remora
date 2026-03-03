@@ -4,6 +4,7 @@ public final class ANSIParser {
     // Terminal modes
     public var mouseReportingEnabled: Bool = false
     public var bracketedPasteEnabled: Bool = false
+    public var focusReportingEnabled: Bool = false
 
     // Callbacks for terminal queries
     public var onDSR: ((_ row: Int, _ col: Int) -> Void)?
@@ -253,6 +254,9 @@ public final class ANSIParser {
             case "1000", "1002", "1003":
                 // Mouse tracking modes
                 mouseReportingEnabled = true
+            case "1004":
+                // Focus in/out reporting (CSI I / CSI O)
+                focusReportingEnabled = true
             case "2004":
                 // Bracketed paste
                 bracketedPasteEnabled = true
@@ -286,6 +290,9 @@ public final class ANSIParser {
             case "1000", "1002", "1003":
                 // Disable mouse tracking
                 mouseReportingEnabled = false
+            case "1004":
+                // Disable focus reporting.
+                focusReportingEnabled = false
             case "2004":
                 // Disable bracketed paste
                 bracketedPasteEnabled = false

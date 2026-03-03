@@ -16,7 +16,7 @@ public struct TerminalSelection: Equatable {
     }
 }
 
-public final class TerminalView: NSView {
+public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     public var onInput: (@Sendable (Data) -> Void)?
     public var onFocus: (() -> Void)?
     public var onResize: ((Int, Int) -> Void)?
@@ -60,6 +60,9 @@ public final class TerminalView: NSView {
     private var flushSequence: UInt64 = 0
     private var accessibilityTextSnapshot = ""
     private var scrollbackOffset = 0
+    private var markedText: NSAttributedString = .init(string: "")
+    private var focusReportingEnabled = false
+    private var bracketedPasteEnabled = false
 
     // Double-click tracking
     private var lastClickTime: TimeInterval = 0
@@ -111,8 +114,26 @@ public final class TerminalView: NSView {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.window?.makeFirstResponder(self)
-            self.onFocus?()
         }
+    }
+
+    public override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        guard accepted else { return false }
+        onFocus?()
+        if focusReportingEnabled {
+            onInput?(Data("\u{001B}[I".utf8))
+        }
+        return true
+    }
+
+    public override func resignFirstResponder() -> Bool {
+        let accepted = super.resignFirstResponder()
+        guard accepted else { return false }
+        if focusReportingEnabled {
+            onInput?(Data("\u{001B}[O".utf8))
+        }
+        return true
     }
 
     deinit {
@@ -147,17 +168,28 @@ public final class TerminalView: NSView {
             return
         }
 
-        guard let input = inputMapper.map(event: event) else {
-            super.keyDown(with: event)
+        if shouldSendRawControlInput(event) {
+            guard let input = inputMapper.map(event: event) else {
+                super.keyDown(with: event)
+                return
+            }
+            scrollToBottom()
+            onInput?(input)
             return
         }
+
         scrollToBottom()
-        onInput?(input)
+        interpretKeyEvents([event])
     }
 
     public func paste(_ sender: Any?) {
         scrollToBottom()
         guard let value = NSPasteboard.general.string(forType: .string) else { return }
+        if bracketedPasteEnabled {
+            let wrapped = "\u{001B}[200~" + value + "\u{001B}[201~"
+            onInput?(Data(wrapped.utf8))
+            return
+        }
         onInput?(Data(value.utf8))
     }
 
@@ -268,6 +300,8 @@ public final class TerminalView: NSView {
 
         parser.parse(chunk, into: screenBuffer)
         inputMapper.applicationCursorKeysEnabled = parser.applicationCursorKeysEnabled
+        focusReportingEnabled = parser.focusReportingEnabled
+        bracketedPasteEnabled = parser.bracketedPasteEnabled
         let maxOffset = screenBuffer.maxViewportOffset()
         if scrollbackOffset > maxOffset {
             scrollbackOffset = maxOffset
@@ -464,5 +498,98 @@ public final class TerminalView: NSView {
         scrollbackOffset = 0
         screenBuffer.setViewportOffset(0)
         needsDisplay = true
+    }
+
+    private func shouldSendRawControlInput(_ event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
+        if modifiers.contains(.command) {
+            return false
+        }
+        return modifiers.contains(.control)
+    }
+
+    private func sendInputString(_ value: String) {
+        guard !value.isEmpty else { return }
+        onInput?(Data(value.utf8))
+    }
+
+    private func plainString(from value: Any) -> String {
+        if let string = value as? String {
+            return string
+        }
+        if let attributed = value as? NSAttributedString {
+            return attributed.string
+        }
+        return String(describing: value)
+    }
+
+    // MARK: - NSTextInputClient
+
+    public func hasMarkedText() -> Bool {
+        markedText.length > 0
+    }
+
+    public func markedRange() -> NSRange {
+        hasMarkedText() ? NSRange(location: 0, length: markedText.length) : NSRange(location: NSNotFound, length: 0)
+    }
+
+    public func selectedRange() -> NSRange {
+        NSRange(location: NSNotFound, length: 0)
+    }
+
+    public func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        if let attributed = string as? NSAttributedString {
+            markedText = attributed
+        } else if let plain = string as? String {
+            markedText = NSAttributedString(string: plain)
+        } else {
+            markedText = NSAttributedString(string: String(describing: string))
+        }
+    }
+
+    public func unmarkText() {
+        markedText = NSAttributedString(string: "")
+    }
+
+    public func validAttributesForMarkedText() -> [NSAttributedString.Key] {
+        []
+    }
+
+    public func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
+        nil
+    }
+
+    public func insertText(_ string: Any, replacementRange: NSRange) {
+        markedText = NSAttributedString(string: "")
+        sendInputString(plainString(from: string))
+    }
+
+    public override func insertText(_ insertString: Any) {
+        insertText(insertString, replacementRange: NSRange(location: NSNotFound, length: 0))
+    }
+
+    public override func doCommand(by selector: Selector) {
+        if let input = inputMapper.map(command: selector) {
+            onInput?(input)
+            return
+        }
+        super.doCommand(by: selector)
+    }
+
+    public func characterIndex(for point: NSPoint) -> Int {
+        NSNotFound
+    }
+
+    public func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+        actualRange?.pointee = NSRange(location: NSNotFound, length: 0)
+        let caretRect = CGRect(
+            x: renderer.horizontalInset + CGFloat(screenBuffer.cursorColumn) * renderer.cellWidth,
+            y: bounds.height - CGFloat(screenBuffer.cursorRow + 1) * renderer.lineHeight,
+            width: renderer.cellWidth,
+            height: renderer.lineHeight
+        )
+        let rectInWindow = convert(caretRect, to: nil)
+        guard let window else { return .zero }
+        return window.convertToScreen(rectInWindow)
     }
 }
