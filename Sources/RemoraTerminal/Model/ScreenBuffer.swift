@@ -177,17 +177,94 @@ public final class ScreenBuffer {
             wrapPending = false
         }
 
+        let characterWidth = UnicodeCellWidth.width(of: character)
+        if characterWidth == 0 {
+            appendCombiningCharacter(character)
+            return
+        }
+
         if cursorRow >= rows { cursorRow = rows - 1 }
         if cursorColumn >= columns { cursorColumn = columns - 1 }
 
-        lines[cursorRow][cursorColumn] = TerminalCell(character: character, attributes: activeAttributes)
-        markDirty(row: cursorRow)
-        if cursorColumn == columns - 1 {
+        if characterWidth == 2, columns > 1 {
+            putDoubleWidthCharacter(character)
+        } else {
+            putSingleWidthCharacter(character)
+        }
+    }
+
+    private func putSingleWidthCharacter(_ character: Character) {
+        let row = cursorRow
+        let col = cursorColumn
+        clearWideArtifacts(row: row, column: col)
+
+        lines[row][col] = TerminalCell(
+            character: character,
+            attributes: activeAttributes,
+            displayWidth: 1
+        )
+        markDirty(row: row)
+
+        if col == columns - 1 {
+            cursorColumn = col
             wrapPending = true
         } else {
-            cursorColumn += 1
+            cursorColumn = col + 1
             wrapPending = false
         }
+    }
+
+    private func putDoubleWidthCharacter(_ character: Character) {
+        if cursorColumn + 2 > columns {
+            lineFeed()
+            carriageReturn()
+        }
+
+        let row = cursorRow
+        let col = min(cursorColumn, columns - 2)
+        clearWideArtifacts(row: row, column: col)
+        clearWideArtifacts(row: row, column: col + 1)
+
+        lines[row][col] = TerminalCell(
+            character: character,
+            attributes: activeAttributes,
+            displayWidth: 2
+        )
+        lines[row][col + 1] = TerminalCell(
+            character: " ",
+            attributes: activeAttributes,
+            displayWidth: 0
+        )
+        markDirty(row: row)
+
+        if col + 1 == columns - 1 {
+            cursorColumn = columns - 1
+            wrapPending = true
+        } else {
+            cursorColumn = col + 2
+            wrapPending = false
+        }
+    }
+
+    private func appendCombiningCharacter(_ character: Character) {
+        guard let column = combiningTargetColumn() else { return }
+        var targetCell = lines[cursorRow][column]
+        let combinedText = String(targetCell.character) + String(character)
+        if let combinedCharacter = combinedText.first {
+            targetCell.character = combinedCharacter
+            lines[cursorRow][column] = targetCell
+            markDirty(row: cursorRow)
+        }
+    }
+
+    private func combiningTargetColumn() -> Int? {
+        guard cursorColumn > 0 else { return nil }
+        var target = cursorColumn - 1
+        if lines[cursorRow][target].displayWidth == 0 {
+            guard target > 0 else { return nil }
+            target -= 1
+        }
+        return target
     }
 
     public func lineFeed() {
@@ -369,6 +446,37 @@ public final class ScreenBuffer {
     private func markDirty(row: Int) {
         guard row >= 0, row < rows else { return }
         dirtyRows.insert(row)
+    }
+
+    private func clearWideArtifacts(row: Int, column: Int) {
+        guard row >= 0, row < rows, column >= 0, column < columns else { return }
+        var touched = false
+
+        if column > 0, lines[row][column].displayWidth == 0 {
+            lines[row][column - 1] = TerminalCell(
+                character: " ",
+                attributes: .default,
+                displayWidth: 1
+            )
+            touched = true
+        }
+
+        if lines[row][column].displayWidth == 2, column + 1 < columns {
+            lines[row][column + 1] = TerminalCell(
+                character: " ",
+                attributes: .default,
+                displayWidth: 1
+            )
+            touched = true
+        }
+
+        if touched {
+            lines[row][column] = TerminalCell(
+                character: " ",
+                attributes: .default,
+                displayWidth: 1
+            )
+        }
     }
 
     private func clampViewportOffset() {

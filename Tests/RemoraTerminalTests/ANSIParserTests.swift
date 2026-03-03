@@ -281,6 +281,50 @@ struct ANSIParserTests {
         #expect(screen.cursorColumn == 0)
     }
 
+    @Test
+    func parserTracksWideCharacterCells() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 2, columns: 8)
+
+        parser.parse(Data("A你B".utf8), into: screen)
+
+        let line = screen.line(at: 0)
+        #expect(line[0].character == "A")
+        #expect(line[1].character == "你")
+        #expect(line[1].displayWidth == 2)
+        #expect(line[2].displayWidth == 0)
+        #expect(line[3].character == "B")
+    }
+
+    @Test
+    func parserWrapsBeforeWideCharacterAtLastColumn() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 4)
+
+        parser.parse(Data("ABC你Z".utf8), into: screen)
+
+        let row0 = screen.line(at: 0)
+        let row1 = screen.line(at: 1)
+        #expect(rstrip(String(row0.cells.map(\.character))) == "ABC")
+        #expect(row1[0].character == "你")
+        #expect(row1[0].displayWidth == 2)
+        #expect(row1[1].displayWidth == 0)
+        #expect(row1[2].character == "Z")
+    }
+
+    @Test
+    func parserKeepsCombiningMarkInSingleCell() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 2, columns: 8)
+
+        parser.parse(Data("e\u{0301}x".utf8), into: screen)
+
+        let line = screen.line(at: 0)
+        #expect(line[0].displayWidth == 1)
+        #expect(line[1].character == "x")
+        #expect(screen.cursorColumn == 2)
+    }
+
     private func rstrip(_ text: String) -> String {
         var output = text
         while output.last == " " {

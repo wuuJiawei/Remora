@@ -69,7 +69,7 @@ public final class CoreTextTerminalRenderer {
             context.setFillColor(bg.cgColor)
             context.fill(CGRect(x: x, y: rowY, width: cellWidth, height: lineHeight))
 
-            if cell.character == " " {
+            if cell.displayWidth == 0 || cell.character == " " {
                 continue
             }
 

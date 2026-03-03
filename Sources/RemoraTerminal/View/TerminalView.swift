@@ -209,6 +209,9 @@ public final class TerminalView: NSView {
         let line = screenBuffer.line(at: row)
         var text = ""
         for i in 0..<line.count {
+            if line[i].displayWidth == 0 {
+                continue
+            }
             text.append(line[i].character)
         }
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -407,7 +410,7 @@ public final class TerminalView: NSView {
 
         for row in startRow ..< screenBuffer.rows {
             let line = screenBuffer.line(at: row)
-            var text = String(line.cells.map(\.character))
+            var text = String(line.cells.filter { $0.displayWidth != 0 }.map(\.character))
             while text.last == " " {
                 text.removeLast()
             }
@@ -444,7 +447,8 @@ public final class TerminalView: NSView {
             let endCol = row == maxRow ? maxCol : screenBuffer.columns - 1
             guard startCol <= endCol else { continue }
 
-            let characters = (startCol ... endCol).map { line[$0].character }
+            let characters = (startCol ... endCol)
+                .compactMap { line[$0].displayWidth == 0 ? nil : line[$0].character }
             var text = String(characters)
             while text.last == " " {
                 text.removeLast()
