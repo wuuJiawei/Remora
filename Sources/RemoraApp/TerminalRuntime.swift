@@ -266,11 +266,28 @@ final class TerminalRuntime: ObservableObject {
         hostKeyPromptMessage = nil
     }
 
+    // Debug: Capture first PTY output for analysis
+    private var _debugFirstOutputLogged = false
+    
     private func bindOutput(for id: UUID, manager: SessionManager) {
         streamTask?.cancel()
+        _debugFirstOutputLogged = false  // Reset for new connection
         streamTask = Task {
             let stream = await manager.sessionOutputStream(sessionID: id)
             for await data in stream {
+                // Debug: Log first chunk of PTY output
+                if !_debugFirstOutputLogged {
+                    let maxBytes = min(data.count, 2048)
+                    let chunk = data.prefix(maxBytes)
+                    let hex = chunk.map { String(format: "%02X", $0) }.joined(separator: " ")
+                    let ascii = String(data: Data(chunk), encoding: .utf8) ?? "(non-utf8)"
+                    print("========== PTY FIRST OUTPUT (first \(maxBytes) bytes) ==========")
+                    print("HEX: \(hex)")
+                    print("ASCII: \(ascii)")
+                    print("==============================================================")
+                    _debugFirstOutputLogged = true
+                }
+                
                 await MainActor.run {
                     appendTranscript(data)
                     updateAuthenticationState(with: data)
