@@ -294,25 +294,32 @@ final class TerminalRuntime: ObservableObject {
         }
     }
     
-    private var _debugFirstOutputLogged = false
+    private var _debugChunkCount = 0
+    private let _maxDebugChunks = 30
     
     private func bindOutput(for id: UUID, manager: SessionManager) {
         streamTask?.cancel()
-        _debugFirstOutputLogged = false  // Reset for new connection
+        _debugChunkCount = 0  // Reset for new connection
         streamTask = Task {
             let stream = await manager.sessionOutputStream(sessionID: id)
             for await data in stream {
-                // Debug: Log first chunk of PTY output
-                if !_debugFirstOutputLogged {
-                    let maxBytes = min(data.count, 2048)
+                // Debug: Log first 30 chunks or until we see ESC
+                if _debugChunkCount < _maxDebugChunks {
+                    let maxBytes = min(data.count, 256)
                     let chunk = data.prefix(maxBytes)
                     let hex = chunk.map { String(format: "%02X", $0) }.joined(separator: " ")
                     let ascii = String(data: Data(chunk), encoding: .utf8) ?? "(non-utf8)"
-                    Self.logPTYDebug("========== PTY FIRST OUTPUT (first \(maxBytes) bytes) ==========")
+                    let hasESC = chunk.contains(0x1B)
+                    Self.logPTYDebug("-------- PTY CHUNK #\(_debugChunkCount) (first \(maxBytes) bytes, hasESC=\(hasESC)) --------")
                     Self.logPTYDebug("HEX: \(hex)")
                     Self.logPTYDebug("ASCII: \(ascii)")
-                    Self.logPTYDebug("==============================================================")
-                    _debugFirstOutputLogged = true
+                    _debugChunkCount += 1
+                    
+                    // Stop after we capture ESC sequences
+                    if hasESC {
+                        Self.logPTYDebug("========== ESC DETECTED - Stopping debug logging ==========")
+                        _debugChunkCount = _maxDebugChunks  // Stop logging
+                    }
                 }
                 
                 await MainActor.run {
