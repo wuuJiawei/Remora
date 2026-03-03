@@ -28,6 +28,7 @@ public final class ScreenBuffer {
     private var viewportOffset: Int = 0
     private var scrollRegionTop: Int = 0
     private var scrollRegionBottom: Int
+    private var wrapPending: Bool = false
 
     // Alternate screen buffer support
     private var alternateLines: [TerminalLine]?
@@ -108,6 +109,7 @@ public final class ScreenBuffer {
         columns = targetColumns
         cursorRow = min(cursorRow, rows - 1)
         cursorColumn = min(cursorColumn, columns - 1)
+        wrapPending = false
         resetScrollingRegion()
         clampViewportOffset()
         markAllDirty()
@@ -161,6 +163,7 @@ public final class ScreenBuffer {
         if let column {
             cursorColumn = min(max(0, column), columns - 1)
         }
+        wrapPending = false
     }
 
     public func moveCursor(deltaRow: Int = 0, deltaColumn: Int = 0) {
@@ -168,23 +171,27 @@ public final class ScreenBuffer {
     }
 
     public func put(character: Character) {
-        if cursorRow >= rows { cursorRow = rows - 1 }
-        if cursorColumn >= columns {
+        if wrapPending {
             lineFeed()
             carriageReturn()
+            wrapPending = false
         }
+
+        if cursorRow >= rows { cursorRow = rows - 1 }
+        if cursorColumn >= columns { cursorColumn = columns - 1 }
 
         lines[cursorRow][cursorColumn] = TerminalCell(character: character, attributes: activeAttributes)
         markDirty(row: cursorRow)
-        cursorColumn += 1
-
-        if cursorColumn >= columns {
-            lineFeed()
-            carriageReturn()
+        if cursorColumn == columns - 1 {
+            wrapPending = true
+        } else {
+            cursorColumn += 1
+            wrapPending = false
         }
     }
 
     public func lineFeed() {
+        wrapPending = false
         if cursorRow == scrollRegionBottom {
             scrollUp(lines: 1)
             return
@@ -194,6 +201,7 @@ public final class ScreenBuffer {
     }
 
     public func reverseIndex() {
+        wrapPending = false
         if cursorRow == scrollRegionTop {
             scrollDown(lines: 1)
             return
@@ -204,15 +212,18 @@ public final class ScreenBuffer {
 
     public func carriageReturn() {
         cursorColumn = 0
+        wrapPending = false
     }
 
     public func backspace() {
+        wrapPending = false
         cursorColumn = max(0, cursorColumn - 1)
         lines[cursorRow][cursorColumn] = TerminalCell(character: " ", attributes: activeAttributes)
         markDirty(row: cursorRow)
     }
 
     public func horizontalTab(tabWidth: Int = 8) {
+        wrapPending = false
         let width = max(1, tabWidth)
         let nextStop = ((cursorColumn / width) + 1) * width
         if nextStop >= columns {
@@ -224,6 +235,7 @@ public final class ScreenBuffer {
     }
 
     public func clearScreen(mode: Int = 0) {
+        wrapPending = false
         switch mode {
         case 0:
             // Clear from cursor to end of screen
@@ -252,6 +264,7 @@ public final class ScreenBuffer {
     }
 
     public func clearLine(mode: Int) {
+        wrapPending = false
         let lineIndex = cursorRow
         switch mode {
         case 0:
@@ -295,12 +308,14 @@ public final class ScreenBuffer {
         let clampedBottom = min(max(clampedTop, bottom), rows - 1)
         scrollRegionTop = clampedTop
         scrollRegionBottom = clampedBottom
+        wrapPending = false
         moveCursor(row: 0, column: 0)
     }
 
     public func resetScrollingRegion() {
         scrollRegionTop = 0
         scrollRegionBottom = rows - 1
+        wrapPending = false
     }
 
     public func scrollUp(lines count: Int = 1) {
@@ -433,6 +448,7 @@ public final class ScreenBuffer {
         cursorColumn = 0
         activeAttributes = .default
         viewportOffset = 0
+        wrapPending = false
         resetScrollingRegion()
         isAlternateBuffer = true
         
@@ -454,6 +470,7 @@ public final class ScreenBuffer {
             viewportOffset = saved.viewportOffset
             scrollRegionTop = saved.scrollRegionTop
             scrollRegionBottom = saved.scrollRegionBottom
+            wrapPending = false
             savedMainState = nil
         }
         
@@ -472,6 +489,7 @@ public final class ScreenBuffer {
         cursorRow = saved.row
         cursorColumn = saved.column
         activeAttributes = saved.attributes
+        wrapPending = false
         savedCursor = nil
         markAllDirty()
     }

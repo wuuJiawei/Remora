@@ -230,6 +230,34 @@ struct ANSIParserTests {
         #expect(row4 == "5")
     }
 
+    @Test
+    func parserUsesDelayedAutoWrapAtLineEnd() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 4)
+
+        parser.parse(Data("ABCD".utf8), into: screen)
+        #expect(screen.cursorRow == 0)
+        #expect(screen.cursorColumn == 3)
+
+        parser.parse(Data("E".utf8), into: screen)
+        let row0 = rstrip(String(screen.line(at: 0).cells.map(\.character)))
+        let row1 = rstrip(String(screen.line(at: 1).cells.map(\.character)))
+        #expect(row0 == "ABCD")
+        #expect(row1 == "E")
+    }
+
+    @Test
+    func carriageReturnCancelsPendingAutoWrap() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 4)
+
+        parser.parse(Data("ABCD\rZ".utf8), into: screen)
+        let row0 = rstrip(String(screen.line(at: 0).cells.map(\.character)))
+        let row1 = rstrip(String(screen.line(at: 1).cells.map(\.character)))
+        #expect(row0 == "ZBCD")
+        #expect(row1.isEmpty)
+    }
+
     private func rstrip(_ text: String) -> String {
         var output = text
         while output.last == " " {
