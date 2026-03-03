@@ -73,6 +73,34 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func connectSSHHostPreservesOriginalHostIdentity() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let host = Host(
+            name: "prod-api",
+            address: "47.100.100.215",
+            username: "root",
+            group: "Production",
+            auth: HostAuth(method: .agent),
+            quickCommands: [
+                HostQuickCommand(name: "Deploy", command: "cd /srv/app && ./deploy.sh")
+            ]
+        )
+
+        runtime.connectSSH(host: host)
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)") && runtime.connectedSSHHost != nil
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        #expect(runtime.connectedSSHHost?.id == host.id)
+        #expect(runtime.connectedSSHHost?.name == host.name)
+        #expect(runtime.connectedSSHHost?.quickCommands.count == host.quickCommands.count)
+        runtime.disconnect()
+    }
+
+    @Test
     func disconnectClearsConnectedSSHHost() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)

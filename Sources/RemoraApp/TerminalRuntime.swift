@@ -24,6 +24,7 @@ struct TerminalConnectConfig: Sendable {
     var authMethod: AuthenticationMethod
     var keyReference: String?
     var passwordReference: String?
+    var sourceHost: RemoraCore.Host?
 }
 
 @MainActor
@@ -117,7 +118,8 @@ final class TerminalRuntime: ObservableObject {
                 username: NSUserName(),
                 authMethod: .agent,
                 keyReference: nil,
-                passwordReference: nil
+                passwordReference: nil,
+                sourceHost: nil
             )
         )
     }
@@ -131,7 +133,8 @@ final class TerminalRuntime: ObservableObject {
                 username: username,
                 authMethod: privateKeyPath == nil ? .agent : .privateKey,
                 keyReference: privateKeyPath,
-                passwordReference: nil
+                passwordReference: nil,
+                sourceHost: nil
             )
         )
     }
@@ -145,7 +148,8 @@ final class TerminalRuntime: ObservableObject {
                 username: host.username,
                 authMethod: host.auth.method,
                 keyReference: host.auth.keyReference,
-                passwordReference: host.auth.passwordReference
+                passwordReference: host.auth.passwordReference,
+                sourceHost: host
             )
         )
     }
@@ -657,13 +661,24 @@ final class TerminalRuntime: ObservableObject {
             }
         }()
 
-        return RemoraCore.Host(
-            name: trimmedHost,
-            address: trimmedHost,
-            port: config.hostPort,
-            username: trimmedUser,
-            auth: auth
-        )
+        var host = config.sourceHost
+            ?? RemoraCore.Host(
+                name: trimmedHost,
+                address: trimmedHost,
+                port: config.hostPort,
+                username: trimmedUser,
+                auth: auth
+            )
+
+        host.address = trimmedHost
+        host.port = config.hostPort
+        host.username = trimmedUser
+        host.auth = auth
+        if host.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            host.name = trimmedHost
+        }
+
+        return host
     }
 
     private func enqueuePendingOutput(_ data: Data) {
