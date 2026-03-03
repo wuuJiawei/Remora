@@ -266,7 +266,34 @@ final class TerminalRuntime: ObservableObject {
         hostKeyPromptMessage = nil
     }
 
-    // Debug: Capture first PTY output for analysis
+    // PTY Debug Logging
+    private static let ptyDebugQueue = DispatchQueue(label: "io.lighting-tech.remora.pty-diagnostics")
+    private static let ptyDebugLogURL: URL = {
+        let fm = FileManager.default
+        let baseDirectory = fm.urls(for: .libraryDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Logs", isDirectory: true)
+            .appendingPathComponent("Remora", isDirectory: true)
+            ?? fm.temporaryDirectory.appendingPathComponent("Remora", isDirectory: true)
+        try? fm.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
+        return baseDirectory.appendingPathComponent("pty-diagnostics.log")
+    }()
+    
+    private static func logPTYDebug(_ message: String) {
+        ptyDebugQueue.sync {
+            let timestamp = ISO8601DateFormatter().string(from: Date())
+            let data = Data(("[\(timestamp)] \(message)\n").utf8)
+            if FileManager.default.fileExists(atPath: ptyDebugLogURL.path) {
+                if let handle = try? FileHandle(forWritingTo: ptyDebugLogURL) {
+                    defer { try? handle.close() }
+                    try? handle.seekToEnd()
+                    try? handle.write(contentsOf: data)
+                    return
+                }
+            }
+            try? data.write(to: ptyDebugLogURL, options: [.atomic])
+        }
+    }
+    
     private var _debugFirstOutputLogged = false
     
     private func bindOutput(for id: UUID, manager: SessionManager) {
@@ -281,10 +308,10 @@ final class TerminalRuntime: ObservableObject {
                     let chunk = data.prefix(maxBytes)
                     let hex = chunk.map { String(format: "%02X", $0) }.joined(separator: " ")
                     let ascii = String(data: Data(chunk), encoding: .utf8) ?? "(non-utf8)"
-                    print("========== PTY FIRST OUTPUT (first \(maxBytes) bytes) ==========")
-                    print("HEX: \(hex)")
-                    print("ASCII: \(ascii)")
-                    print("==============================================================")
+                    Self.logPTYDebug("========== PTY FIRST OUTPUT (first \(maxBytes) bytes) ==========")
+                    Self.logPTYDebug("HEX: \(hex)")
+                    Self.logPTYDebug("ASCII: \(ascii)")
+                    Self.logPTYDebug("==============================================================")
                     _debugFirstOutputLogged = true
                 }
                 
