@@ -13,7 +13,9 @@ public final class ANSIParser {
     public var onCUD: (() -> Void)?  // Cursor down
     public var onCUF: (() -> Void)?  // Cursor forward
     public var onCUB: (() -> Void)?  // Cursor back
+    public var onKittyKeyboardQuery: ((_ flags: Int) -> Void)?
     public private(set) var applicationCursorKeysEnabled: Bool = false
+    public private(set) var kittyKeyboardFlags: Int = 0
     
     private enum State {
         case ground
@@ -27,6 +29,11 @@ public final class ANSIParser {
     private var state: State = .ground
     private var pendingUTF8Bytes: [UInt8] = []
     private var expectedUTF8ByteCount: Int?
+    private var kittyMainFlags: Int = 0
+    private var kittyAltFlags: Int = 0
+    private var kittyMainStack: [Int] = []
+    private var kittyAltStack: [Int] = []
+    private var kittyAlternateBufferActive: Bool = false
 
     public init() {}
 
@@ -219,8 +226,11 @@ public final class ANSIParser {
                 onCUU?()  // Notify (same as ESC 7)
             }
         case UInt8(ascii: "u"):
+            // Kitty keyboard protocol and RCP overlap on final byte 'u'.
+            if handleKittyKeyboardControl(paramsString) {
+                break
+            }
             // RCP - Restore Cursor Position (alternative to ESC 8).
-            // Guard against private/proprietary forms like CSI ?u / CSI >7u.
             if paramsString.isEmpty || paramsString == "0" {
                 screen.restoreCursor()
                 onCUD?()  // Notify (same as ESC 8)
@@ -236,35 +246,42 @@ public final class ANSIParser {
     private func handlePrivateModeSet(paramsString: String, screen: ScreenBuffer) {
         // Handle ?XXXXh sequences
         if paramsString.hasPrefix("?") {
-            let modeStr = String(paramsString.dropFirst())
-            
-            switch modeStr {
-            case "1":
-                // DECCKM - application cursor keys mode.
-                applicationCursorKeysEnabled = true
-            case "25":
-                // Show cursor.
-                screen.setCursorVisible(true)
-            case "1049":
-                // Enter alternate screen buffer
-                screen.enterAlternateBuffer()
-            case "1048":
-                // Save cursor (handled by ESC 7)
-                screen.saveCursor()
-            case "1000", "1002", "1003":
-                // Mouse tracking modes
-                mouseReportingEnabled = true
-            case "1004":
-                // Focus in/out reporting (CSI I / CSI O)
-                focusReportingEnabled = true
-            case "2004":
-                // Bracketed paste
-                bracketedPasteEnabled = true
-            case "2026":
-                // Synchronized updates.
-                screen.beginSynchronizedUpdate()
-            default:
-                break
+            let modes = paramsString.dropFirst().split(separator: ";").map(String.init)
+            for modeStr in modes {
+                switch modeStr {
+                case "1":
+                    // DECCKM - application cursor keys mode.
+                    applicationCursorKeysEnabled = true
+                case "25":
+                    // Show cursor.
+                    screen.setCursorVisible(true)
+                case "1049":
+                    // Alt screen + save cursor.
+                    activateKittyAltFlags()
+                    screen.saveCursor()
+                    screen.enterAlternateBuffer()
+                case "47", "1047":
+                    // Alt screen (no cursor save).
+                    activateKittyAltFlags()
+                    screen.enterAlternateBuffer()
+                case "1048":
+                    // Save cursor (handled by ESC 7)
+                    screen.saveCursor()
+                case "1000", "1002", "1003":
+                    // Mouse tracking modes
+                    mouseReportingEnabled = true
+                case "1004":
+                    // Focus in/out reporting (CSI I / CSI O)
+                    focusReportingEnabled = true
+                case "2004":
+                    // Bracketed paste
+                    bracketedPasteEnabled = true
+                case "2026":
+                    // Synchronized updates.
+                    screen.beginSynchronizedUpdate()
+                default:
+                    break
+                }
             }
         }
     }
@@ -272,35 +289,42 @@ public final class ANSIParser {
     private func handlePrivateModeReset(paramsString: String, screen: ScreenBuffer) {
         // Handle ?XXXXl sequences
         if paramsString.hasPrefix("?") {
-            let modeStr = String(paramsString.dropFirst())
-            
-            switch modeStr {
-            case "1":
-                // DECCKM - normal cursor keys mode.
-                applicationCursorKeysEnabled = false
-            case "25":
-                // Hide cursor.
-                screen.setCursorVisible(false)
-            case "1049":
-                // Leave alternate screen buffer
-                screen.leaveAlternateBuffer()
-            case "1048":
-                // Restore cursor (handled by ESC 8)
-                screen.restoreCursor()
-            case "1000", "1002", "1003":
-                // Disable mouse tracking
-                mouseReportingEnabled = false
-            case "1004":
-                // Disable focus reporting.
-                focusReportingEnabled = false
-            case "2004":
-                // Disable bracketed paste
-                bracketedPasteEnabled = false
-            case "2026":
-                // End synchronized updates and force full redraw.
-                screen.endSynchronizedUpdate()
-            default:
-                break
+            let modes = paramsString.dropFirst().split(separator: ";").map(String.init)
+            for modeStr in modes {
+                switch modeStr {
+                case "1":
+                    // DECCKM - normal cursor keys mode.
+                    applicationCursorKeysEnabled = false
+                case "25":
+                    // Hide cursor.
+                    screen.setCursorVisible(false)
+                case "1049":
+                    // Leave alt screen + restore cursor.
+                    screen.leaveAlternateBuffer()
+                    deactivateKittyAltFlags()
+                    screen.restoreCursor()
+                case "47", "1047":
+                    // Leave alt screen.
+                    screen.leaveAlternateBuffer()
+                    deactivateKittyAltFlags()
+                case "1048":
+                    // Restore cursor (handled by ESC 8)
+                    screen.restoreCursor()
+                case "1000", "1002", "1003":
+                    // Disable mouse tracking
+                    mouseReportingEnabled = false
+                case "1004":
+                    // Disable focus reporting.
+                    focusReportingEnabled = false
+                case "2004":
+                    // Disable bracketed paste
+                    bracketedPasteEnabled = false
+                case "2026":
+                    // End synchronized updates and force full redraw.
+                    screen.endSynchronizedUpdate()
+                default:
+                    break
+                }
             }
         }
     }
@@ -308,6 +332,107 @@ public final class ANSIParser {
     private func parseParams(_ raw: String) -> [Int] {
         if raw.isEmpty { return [] }
         return raw.split(separator: ";").map { Int($0) ?? 0 }
+    }
+
+    // MARK: - Kitty Keyboard Protocol (CSI ... u)
+
+    private func handleKittyKeyboardControl(_ paramsString: String) -> Bool {
+        if let params = parsePrefixedParams(paramsString, prefix: "=") {
+            let flags = params.first ?? 0
+            let mode = params.dropFirst().first ?? 1
+            switch mode {
+            case 1:
+                kittyKeyboardFlags = flags
+            case 2:
+                kittyKeyboardFlags |= flags
+            case 3:
+                kittyKeyboardFlags &= ~flags
+            default:
+                break
+            }
+            syncKittyFlagsForActiveBuffer()
+            return true
+        }
+
+        if let params = parsePrefixedParams(paramsString, prefix: "?") {
+            if params.isEmpty {
+                onKittyKeyboardQuery?(kittyKeyboardFlags)
+                return true
+            }
+            return false
+        }
+
+        if let params = parsePrefixedParams(paramsString, prefix: ">") {
+            let flags = params.first ?? 0
+            if kittyAlternateBufferActive {
+                if kittyAltStack.count >= 16 {
+                    kittyAltStack.removeFirst()
+                }
+                kittyAltStack.append(kittyAltFlags)
+            } else {
+                if kittyMainStack.count >= 16 {
+                    kittyMainStack.removeFirst()
+                }
+                kittyMainStack.append(kittyMainFlags)
+            }
+            kittyKeyboardFlags = flags
+            syncKittyFlagsForActiveBuffer()
+            return true
+        }
+
+        if let params = parsePrefixedParams(paramsString, prefix: "<") {
+            let count = max(1, params.first ?? 1)
+            if kittyAlternateBufferActive {
+                var popped = false
+                for _ in 0..<count where !kittyAltStack.isEmpty {
+                    kittyKeyboardFlags = kittyAltStack.removeLast()
+                    popped = true
+                }
+                if !popped {
+                    kittyKeyboardFlags = 0
+                }
+            } else {
+                var popped = false
+                for _ in 0..<count where !kittyMainStack.isEmpty {
+                    kittyKeyboardFlags = kittyMainStack.removeLast()
+                    popped = true
+                }
+                if !popped {
+                    kittyKeyboardFlags = 0
+                }
+            }
+            syncKittyFlagsForActiveBuffer()
+            return true
+        }
+
+        return false
+    }
+
+    private func parsePrefixedParams(_ raw: String, prefix: Character) -> [Int]? {
+        guard raw.first == prefix else { return nil }
+        let payload = String(raw.dropFirst())
+        guard !payload.isEmpty else { return [] }
+        return payload.split(separator: ";", omittingEmptySubsequences: false).map { Int($0) ?? 0 }
+    }
+
+    private func activateKittyAltFlags() {
+        kittyMainFlags = kittyKeyboardFlags
+        kittyKeyboardFlags = kittyAltFlags
+        kittyAlternateBufferActive = true
+    }
+
+    private func deactivateKittyAltFlags() {
+        kittyAltFlags = kittyKeyboardFlags
+        kittyKeyboardFlags = kittyMainFlags
+        kittyAlternateBufferActive = false
+    }
+
+    private func syncKittyFlagsForActiveBuffer() {
+        if kittyAlternateBufferActive {
+            kittyAltFlags = kittyKeyboardFlags
+        } else {
+            kittyMainFlags = kittyKeyboardFlags
+        }
     }
 
     private func consumeUTF8(byte: UInt8, screen: ScreenBuffer) {

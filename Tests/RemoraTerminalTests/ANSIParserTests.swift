@@ -267,6 +267,49 @@ struct ANSIParserTests {
     }
 
     @Test
+    func parserHandlesKittyKeyboardSetPushPopAndQuery() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 2, columns: 8)
+        var queriedFlags: [Int] = []
+        parser.onKittyKeyboardQuery = { queriedFlags.append($0) }
+
+        parser.parse(Data("\u{001B}[=7;1u".utf8), into: screen)
+        #expect(parser.kittyKeyboardFlags == 7)
+
+        parser.parse(Data("\u{001B}[>2u".utf8), into: screen)
+        #expect(parser.kittyKeyboardFlags == 2)
+
+        parser.parse(Data("\u{001B}[<u".utf8), into: screen)
+        #expect(parser.kittyKeyboardFlags == 7)
+
+        parser.parse(Data("\u{001B}[?u".utf8), into: screen)
+        #expect(queriedFlags == [7])
+    }
+
+    @Test
+    func parserSwapsKittyKeyboardFlagsAcrossAlternateBuffer() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 10)
+
+        parser.parse(Data("\u{001B}[=3;1u".utf8), into: screen)
+        #expect(parser.kittyKeyboardFlags == 3)
+
+        parser.parse(Data("\u{001B}[?1049h".utf8), into: screen)
+        #expect(parser.kittyKeyboardFlags == 0)
+        #expect(screen.isAlternateBuffer == true)
+
+        parser.parse(Data("\u{001B}[=5;1u".utf8), into: screen)
+        #expect(parser.kittyKeyboardFlags == 5)
+
+        parser.parse(Data("\u{001B}[?1049l".utf8), into: screen)
+        #expect(parser.kittyKeyboardFlags == 3)
+        #expect(screen.isAlternateBuffer == false)
+
+        parser.parse(Data("\u{001B}[?1049h".utf8), into: screen)
+        #expect(parser.kittyKeyboardFlags == 5)
+    }
+
+    @Test
     func parserHandlesReverseIndexInScrollRegion() {
         let parser = ANSIParser()
         let screen = ScreenBuffer(rows: 5, columns: 4)

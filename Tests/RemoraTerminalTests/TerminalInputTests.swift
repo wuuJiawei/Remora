@@ -46,4 +46,18 @@ struct TerminalInputTests {
         let application = mapper.map(command: #selector(NSResponder.moveUp(_:)))
         #expect(application == Data("\u{1B}OA".utf8))
     }
+
+    @Test
+    func inputMapperUsesKittyCSIUForCommandSelectorsWhenEnabled() {
+        let mapper = TerminalInputMapper()
+        mapper.kittyKeyboardFlags = 1 // DISAMBIGUATE_ESCAPE_CODES
+
+        let enter = mapper.map(command: #selector(NSResponder.insertNewline(_:)))
+        let backspace = mapper.map(command: #selector(NSResponder.deleteBackward(_:)))
+        let escape = mapper.map(command: #selector(NSResponder.cancelOperation(_:)))
+
+        #expect(enter == Data("\u{1B}[13u".utf8))
+        #expect(backspace == Data("\u{1B}[127u".utf8))
+        #expect(escape == Data("\u{1B}[27u".utf8))
+    }
 }
