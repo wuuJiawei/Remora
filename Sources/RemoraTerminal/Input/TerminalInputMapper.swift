@@ -7,6 +7,18 @@ public final class TerminalInputMapper {
 
     public init() {}
 
+    public func mapLegacyControl(event: NSEvent) -> Data? {
+        guard event.modifierFlags.contains(.control) else { return nil }
+        guard !event.modifierFlags.contains(.option), !event.modifierFlags.contains(.command) else { return nil }
+        guard let chars = event.charactersIgnoringModifiers, chars.count == 1,
+              let scalar = chars.unicodeScalars.first
+        else {
+            return nil
+        }
+        let value = UInt8(scalar.value) & 0x1F
+        return Data([value])
+    }
+
     public func map(event: NSEvent) -> Data? {
         if useKittyProtocol,
            let kittySequence = mapKitty(event: event, eventType: event.isARepeat ? .repeatPress : .press)
@@ -25,11 +37,8 @@ public final class TerminalInputMapper {
             break
         }
 
-        if event.modifierFlags.contains(.control), let chars = event.charactersIgnoringModifiers, chars.count == 1,
-           let scalar = chars.unicodeScalars.first
-        {
-            let value = UInt8(scalar.value) & 0x1F
-            return Data([value])
+        if let legacyControl = mapLegacyControl(event: event) {
+            return legacyControl
         }
 
         guard let chars = event.characters else { return nil }

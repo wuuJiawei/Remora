@@ -109,6 +109,25 @@ struct TerminalInputTests {
         #expect(shiftedA == Data("\u{1B}[97:65;2;65u".utf8))
     }
 
+    @Test
+    func inputMapperLegacyControlProducesETXEvenWhenKittyEnabled() {
+        let mapper = TerminalInputMapper()
+        mapper.kittyKeyboardFlags = 7
+
+        let ctrlC = keyEvent(
+            keyCode: 8,
+            modifierFlags: .control,
+            characters: "\u{03}",
+            charactersIgnoringModifiers: "c"
+        )
+
+        let legacy = mapper.mapLegacyControl(event: ctrlC)
+        let kitty = mapper.mapKittyKeyDown(event: ctrlC)
+
+        #expect(legacy == Data([0x03]))
+        #expect(kitty == Data("\u{1B}[99;5u".utf8))
+    }
+
     private func keyEvent(
         type: NSEvent.EventType = .keyDown,
         keyCode: UInt16 = 0,

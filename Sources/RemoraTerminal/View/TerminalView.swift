@@ -175,6 +175,12 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
             return
         }
 
+        if let legacyControl = inputMapper.mapLegacyControl(event: event) {
+            scrollToBottom()
+            onInput?(legacyControl)
+            return
+        }
+
         if let input = inputMapper.mapKittyKeyDown(event: event) {
             scrollToBottom()
             onInput?(input)
