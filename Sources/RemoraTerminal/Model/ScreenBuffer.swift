@@ -26,10 +26,20 @@ public final class ScreenBuffer {
     private var lines: [TerminalLine]
     private var dirtyRows: Set<Int> = []
     private var viewportOffset: Int = 0
+    private var scrollRegionTop: Int = 0
+    private var scrollRegionBottom: Int
 
     // Alternate screen buffer support
     private var alternateLines: [TerminalLine]?
-    private var savedMainState: (lines: [TerminalLine], cursorRow: Int, cursorColumn: Int, attributes: TerminalAttributes, viewportOffset: Int)?
+    private var savedMainState: (
+        lines: [TerminalLine],
+        cursorRow: Int,
+        cursorColumn: Int,
+        attributes: TerminalAttributes,
+        viewportOffset: Int,
+        scrollRegionTop: Int,
+        scrollRegionBottom: Int
+    )?
     private var savedCursor: CursorState?
     public private(set) var isAlternateBuffer: Bool = false
 
@@ -38,6 +48,7 @@ public final class ScreenBuffer {
         self.columns = max(1, columns)
         self.scrollback = ScrollbackStore(segmentSize: scrollbackSegmentSize)
         self.lines = Array(repeating: TerminalLine(columns: max(1, columns)), count: max(1, rows))
+        self.scrollRegionBottom = max(1, rows) - 1
     }
 
     public func line(at row: Int) -> TerminalLine {
@@ -97,6 +108,7 @@ public final class ScreenBuffer {
         columns = targetColumns
         cursorRow = min(cursorRow, rows - 1)
         cursorColumn = min(cursorColumn, columns - 1)
+        resetScrollingRegion()
         clampViewportOffset()
         markAllDirty()
     }
@@ -164,16 +176,12 @@ public final class ScreenBuffer {
     }
 
     public func lineFeed() {
-        if cursorRow == rows - 1 {
-            scrollback.append(lines[0])
-            lines.removeFirst()
-            lines.append(TerminalLine(columns: columns, attributes: activeAttributes))
-            clampViewportOffset()
-            markAllDirty()
-        } else {
-            cursorRow += 1
-            markDirty(row: cursorRow)
+        if cursorRow == scrollRegionBottom {
+            scrollUp(lines: 1)
+            return
         }
+        cursorRow = min(rows - 1, cursorRow + 1)
+        markDirty(row: cursorRow)
     }
 
     public func carriageReturn() {
@@ -264,6 +272,40 @@ public final class ScreenBuffer {
         markAllDirty()
     }
 
+    public func setScrollingRegion(top: Int, bottom: Int) {
+        let clampedTop = min(max(0, top), rows - 1)
+        let clampedBottom = min(max(clampedTop, bottom), rows - 1)
+        scrollRegionTop = clampedTop
+        scrollRegionBottom = clampedBottom
+        moveCursor(row: 0, column: 0)
+    }
+
+    public func resetScrollingRegion() {
+        scrollRegionTop = 0
+        scrollRegionBottom = rows - 1
+    }
+
+    public func scrollUp(lines count: Int = 1) {
+        let requested = max(1, count)
+        let regionHeight = scrollRegionBottom - scrollRegionTop + 1
+        guard regionHeight > 0 else { return }
+        let iterations = min(requested, regionHeight)
+        let isFullScreenRegion = scrollRegionTop == 0 && scrollRegionBottom == rows - 1
+
+        for _ in 0 ..< iterations {
+            let removedLine = lines.remove(at: scrollRegionTop)
+            lines.insert(
+                TerminalLine(columns: columns, attributes: .default),
+                at: scrollRegionBottom
+            )
+            if isFullScreenRegion {
+                scrollback.append(removedLine)
+                clampViewportOffset()
+            }
+        }
+        markAllDirty()
+    }
+
     public func maxViewportOffset() -> Int {
         let totalLineCount = scrollback.lineCount() + lines.count
         return max(0, totalLineCount - rows)
@@ -308,7 +350,9 @@ public final class ScreenBuffer {
             cursorRow: cursorRow,
             cursorColumn: cursorColumn,
             attributes: activeAttributes,
-            viewportOffset: viewportOffset
+            viewportOffset: viewportOffset,
+            scrollRegionTop: scrollRegionTop,
+            scrollRegionBottom: scrollRegionBottom
         )
         
         // Switch to alternate buffer (blank screen)
@@ -318,6 +362,7 @@ public final class ScreenBuffer {
         cursorColumn = 0
         activeAttributes = .default
         viewportOffset = 0
+        resetScrollingRegion()
         isAlternateBuffer = true
         
         markAllDirty()
@@ -336,6 +381,8 @@ public final class ScreenBuffer {
             cursorColumn = saved.cursorColumn
             activeAttributes = saved.attributes
             viewportOffset = saved.viewportOffset
+            scrollRegionTop = saved.scrollRegionTop
+            scrollRegionBottom = saved.scrollRegionBottom
             savedMainState = nil
         }
         

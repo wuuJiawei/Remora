@@ -159,6 +159,18 @@ public final class ANSIParser {
             screen.moveCursor(deltaColumn: params.first ?? 1)
         case UInt8(ascii: "D"):
             screen.moveCursor(deltaColumn: -(params.first ?? 1))
+        case UInt8(ascii: "r"):
+            if params.isEmpty {
+                screen.resetScrollingRegion()
+            } else {
+                let rawTop = params.first ?? 1
+                let rawBottom = params.dropFirst().first ?? screen.rows
+                let top = rawTop <= 0 ? 1 : rawTop
+                let bottom = max(top, rawBottom <= 0 ? screen.rows : rawBottom)
+                screen.setScrollingRegion(top: top - 1, bottom: bottom - 1)
+            }
+        case UInt8(ascii: "S"):
+            screen.scrollUp(lines: params.first ?? 1)
         case UInt8(ascii: "h"):
             // Private mode set (DECSET)
             handlePrivateModeSet(paramsString: paramsString, screen: screen)

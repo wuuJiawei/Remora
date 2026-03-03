@@ -141,6 +141,30 @@ struct ANSIParserTests {
         #expect(dirtyRows == Set(0 ..< screen.rows))
     }
 
+    @Test
+    func parserAppliesScrollingRegionAndScrollUp() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 5, columns: 8)
+        parser.parse(Data("1\r\n2\r\n3\r\n4\r\n5".utf8), into: screen)
+
+        parser.parse(Data("\u{001B}[1;3r".utf8), into: screen)
+        parser.parse(Data("\u{001B}[3;1H".utf8), into: screen)
+        parser.parse(Data("\u{001B}[1S".utf8), into: screen)
+        parser.parse(Data("\u{001B}[r".utf8), into: screen)
+
+        let row0 = rstrip(String(screen.line(at: 0).cells.map(\.character)))
+        let row1 = rstrip(String(screen.line(at: 1).cells.map(\.character)))
+        let row2 = rstrip(String(screen.line(at: 2).cells.map(\.character)))
+        let row3 = rstrip(String(screen.line(at: 3).cells.map(\.character)))
+        let row4 = rstrip(String(screen.line(at: 4).cells.map(\.character)))
+
+        #expect(row0 == "2")
+        #expect(row1 == "3")
+        #expect(row2.isEmpty)
+        #expect(row3 == "4")
+        #expect(row4 == "5")
+    }
+
     private func rstrip(_ text: String) -> String {
         var output = text
         while output.last == " " {
