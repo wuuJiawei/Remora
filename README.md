@@ -152,6 +152,14 @@ Contributions are welcome.
 - Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a PR.
 - For bugs/feature requests, use [GitHub Issues](https://github.com/wuuJiawei/Remora/issues).
 
+## Security
+
+Please read [`SECURITY.md`](./SECURITY.md) for responsible disclosure.
+
+## Open Source Checklist
+
+See [`docs/OPEN_SOURCE_CHECKLIST.md`](./docs/OPEN_SOURCE_CHECKLIST.md) for the pre-public checklist.
+
 ## License
 
 Licensed under the Apache License 2.0. See [`LICENSE`](./LICENSE).
