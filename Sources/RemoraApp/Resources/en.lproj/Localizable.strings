@@ -37,6 +37,16 @@
 "Edit path" = "Edit path";
 "New path" = "New path";
 "Path cannot be empty." = "Path cannot be empty.";
+"Command" = "Command";
+"Quick commands" = "Quick commands";
+"No quick commands" = "No quick commands";
+"Manage quick commands" = "Manage quick commands";
+"Run SSH quick command" = "Run SSH quick command";
+"No quick commands yet." = "No quick commands yet.";
+"Edit command" = "Edit command";
+"New command" = "New command";
+"Command cannot be empty." = "Command cannot be empty.";
+"Cancel edit" = "Cancel edit";
 "Open one local terminal session on launch" = "Open one local terminal session on launch";
 "Confirm before closing an active session tab" = "Confirm before closing an active session tab";
 "Reopen the last selected workspace on launch" = "Reopen the last selected workspace on launch";

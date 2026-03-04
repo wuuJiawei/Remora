@@ -36,6 +36,16 @@
 "Edit path" = "编辑路径";
 "New path" = "新建路径";
 "Path cannot be empty." = "路径不能为空。";
+"Command" = "命令";
+"Quick commands" = "快捷命令";
+"No quick commands" = "暂无快捷命令";
+"Manage quick commands" = "管理快捷命令";
+"Run SSH quick command" = "执行 SSH 快捷命令";
+"No quick commands yet." = "还没有快捷命令。";
+"Edit command" = "编辑命令";
+"New command" = "新建命令";
+"Command cannot be empty." = "命令不能为空。";
+"Cancel edit" = "取消编辑";
 "Open one local terminal session on launch" = "启动时打开一个本地终端会话";
 "Confirm before closing an active session tab" = "关闭活动会话标签前确认";
 "Reopen the last selected workspace on launch" = "启动时恢复上次选中的工作区";
