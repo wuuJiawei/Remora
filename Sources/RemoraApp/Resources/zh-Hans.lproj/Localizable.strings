@@ -26,6 +26,16 @@
 "Shortcut update canceled." = "快捷键修改已取消。";
 "Shortcut must include Command, Option, or Control." = "快捷键必须包含 Command、Option 或 Control。";
 "updated to" = "已更新为";
+"Root" = "根目录";
+"Quick paths" = "快捷路径";
+"No quick paths" = "暂无快捷路径";
+"Add current path" = "添加当前路径";
+"Manage quick paths" = "管理快捷路径";
+"Open quick paths" = "打开快捷路径";
+"No quick paths yet." = "还没有快捷路径。";
+"Edit path" = "编辑路径";
+"New path" = "新建路径";
+"Path cannot be empty." = "路径不能为空。";
 "Open one local terminal session on launch" = "启动时打开一个本地终端会话";
 "Confirm before closing an active session tab" = "关闭活动会话标签前确认";
 "Reopen the last selected workspace on launch" = "启动时恢复上次选中的工作区";

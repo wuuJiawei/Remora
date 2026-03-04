@@ -203,6 +203,53 @@ struct HostCatalogStoreTests {
     }
 
     @Test
+    func supportsQuickPathCrud() {
+        let store = HostCatalogStore()
+        let host = store.addHost(
+            Host(
+                name: "ops",
+                address: "10.0.0.21",
+                username: "root",
+                group: "Ops",
+                auth: HostAuth(method: .agent)
+            )
+        )
+
+        let first = store.addQuickPath(hostID: host.id, name: "Logs", path: " /var/log ")
+        #expect(first?.name == "Logs")
+        #expect(first?.path == "/var/log")
+
+        let second = store.addQuickPath(hostID: host.id, name: "Logs", path: "/srv/app")
+        #expect(second?.name == "Logs 2")
+
+        let updated = store.updateQuickPath(
+            hostID: host.id,
+            quickPath: HostQuickPath(
+                id: first?.id ?? UUID(),
+                name: "Logs 2",
+                path: "tmp"
+            )
+        )
+        #expect(updated?.name == "Logs 2 2")
+        #expect(updated?.path == "/tmp")
+
+        let rejected = store.updateQuickPath(
+            hostID: host.id,
+            quickPath: HostQuickPath(
+                id: first?.id ?? UUID(),
+                name: "Invalid",
+                path: "   "
+            )
+        )
+        #expect(rejected == nil)
+
+        if let second {
+            store.deleteQuickPath(hostID: host.id, quickPathID: second.id)
+        }
+        #expect(store.quickPaths(for: host.id).count == 1)
+    }
+
+    @Test
     func normalizesQuickCommandsDuringHostSave() {
         let store = HostCatalogStore()
         let host = store.addHost(
@@ -225,6 +272,31 @@ struct HostCatalogStoreTests {
         let commands = host.quickCommands.map(\.command)
         #expect(names == ["Command", "Deploy", "Deploy 2"])
         #expect(commands == ["ls -la", "echo one", "echo two"])
+    }
+
+    @Test
+    func normalizesQuickPathsDuringHostSave() {
+        let store = HostCatalogStore()
+        let host = store.addHost(
+            Host(
+                name: "qa",
+                address: "10.0.0.31",
+                username: "qa",
+                group: "QA",
+                auth: HostAuth(method: .agent),
+                quickPaths: [
+                    HostQuickPath(name: " ", path: " /var/log "),
+                    HostQuickPath(name: "Logs", path: "/srv/app"),
+                    HostQuickPath(name: "Logs", path: "srv/app/releases"),
+                    HostQuickPath(name: "Drop", path: "   "),
+                ]
+            )
+        )
+
+        let names = host.quickPaths.map(\.name)
+        let paths = host.quickPaths.map(\.path)
+        #expect(names == ["Path", "Logs", "Logs 2"])
+        #expect(paths == ["/var/log", "/srv/app", "/srv/app/releases"])
     }
 
     @Test

@@ -93,6 +93,11 @@ final class HostCatalogStore: ObservableObject {
         return host.quickCommands
     }
 
+    func quickPaths(for hostID: UUID?) -> [HostQuickPath] {
+        guard let hostID, let host = host(id: hostID) else { return [] }
+        return host.quickPaths
+    }
+
     @discardableResult
     func addQuickCommand(
         hostID: UUID,
@@ -144,6 +149,56 @@ final class HostCatalogStore: ObservableObject {
     func deleteQuickCommand(hostID: UUID, quickCommandID: UUID) {
         guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return }
         hosts[hostIndex].quickCommands.removeAll { $0.id == quickCommandID }
+    }
+
+    @discardableResult
+    func addQuickPath(
+        hostID: UUID,
+        name: String,
+        path: String
+    ) -> HostQuickPath? {
+        guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return nil }
+        guard let normalizedPath = normalizeQuickPathValue(path) else { return nil }
+
+        let normalizedName = uniqueQuickPathName(
+            base: normalizeQuickPathName(name),
+            in: hosts[hostIndex].quickPaths,
+            excludingID: nil
+        )
+
+        let quickPath = HostQuickPath(name: normalizedName, path: normalizedPath)
+        hosts[hostIndex].quickPaths.append(quickPath)
+        return quickPath
+    }
+
+    @discardableResult
+    func updateQuickPath(
+        hostID: UUID,
+        quickPath: HostQuickPath
+    ) -> HostQuickPath? {
+        guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return nil }
+        guard let pathIndex = hosts[hostIndex].quickPaths.firstIndex(where: { $0.id == quickPath.id }) else {
+            return nil
+        }
+        guard let normalizedPath = normalizeQuickPathValue(quickPath.path) else { return nil }
+
+        let normalizedName = uniqueQuickPathName(
+            base: normalizeQuickPathName(quickPath.name),
+            in: hosts[hostIndex].quickPaths,
+            excludingID: quickPath.id
+        )
+
+        hosts[hostIndex].quickPaths[pathIndex] = HostQuickPath(
+            id: quickPath.id,
+            name: normalizedName,
+            path: normalizedPath
+        )
+        return hosts[hostIndex].quickPaths[pathIndex]
+    }
+
+    func deleteQuickPath(hostID: UUID, quickPathID: UUID) {
+        guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return }
+        hosts[hostIndex].quickPaths.removeAll { $0.id == quickPathID }
     }
 
     func markConnected(hostID: UUID) {
@@ -552,6 +607,20 @@ final class HostCatalogStore: ObservableObject {
             )
         }
 
+        let existingQuickPaths = normalized.quickPaths
+        normalized.quickPaths = []
+        for quickPath in existingQuickPaths {
+            guard let path = normalizeQuickPathValue(quickPath.path) else { continue }
+            let name = uniqueQuickPathName(
+                base: normalizeQuickPathName(quickPath.name),
+                in: normalized.quickPaths,
+                excludingID: nil
+            )
+            normalized.quickPaths.append(
+                HostQuickPath(id: quickPath.id, name: name, path: path)
+            )
+        }
+
         return normalized
     }
 
@@ -564,6 +633,19 @@ final class HostCatalogStore: ObservableObject {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private func normalizeQuickPathName(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Path" : trimmed
+    }
+
+    private func normalizeQuickPathValue(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let prefixed = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        let collapsed = prefixed.replacingOccurrences(of: "//", with: "/")
+        return collapsed.isEmpty ? nil : collapsed
+    }
+
     private func uniqueQuickCommandName(
         base: String,
         in commands: [HostQuickCommand],
@@ -574,6 +656,30 @@ final class HostCatalogStore: ObservableObject {
                 .filter { command in
                     guard let excludingID else { return true }
                     return command.id != excludingID
+                }
+                .map { $0.name.lowercased() }
+        )
+        if !existing.contains(base.lowercased()) {
+            return base
+        }
+
+        var index = 2
+        while existing.contains("\(base) \(index)".lowercased()) {
+            index += 1
+        }
+        return "\(base) \(index)"
+    }
+
+    private func uniqueQuickPathName(
+        base: String,
+        in quickPaths: [HostQuickPath],
+        excludingID: UUID?
+    ) -> String {
+        let existing = Set(
+            quickPaths
+                .filter { quickPath in
+                    guard let excludingID else { return true }
+                    return quickPath.id != excludingID
                 }
                 .map { $0.name.lowercased() }
         )

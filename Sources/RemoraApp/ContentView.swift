@@ -54,6 +54,11 @@ struct ContentView: View {
     @State private var quickCommandNameDraft = ""
     @State private var quickCommandBodyDraft = ""
     @State private var quickCommandValidationMessage: String?
+    @State private var quickPathEditorHostID: UUID?
+    @State private var quickPathEditingID: UUID?
+    @State private var quickPathNameDraft = ""
+    @State private var quickPathValueDraft = ""
+    @State private var quickPathValidationMessage: String?
     @State private var fileManagerSFTPBindingKey = "disconnected"
     @State private var fileManagerSFTPBootstrapTask: Task<Void, Never>?
     @AppStorage(AppSettings.serverMetricsActiveRefreshSecondsKey)
@@ -72,12 +77,27 @@ struct ContentView: View {
         hostCatalog.host(id: quickCommandEditorHostID)
     }
 
+    private var quickPathEditorHost: RemoraCore.Host? {
+        hostCatalog.host(id: quickPathEditorHostID)
+    }
+
     private var quickCommandEditorBinding: Binding<Bool> {
         Binding(
             get: { quickCommandEditorHostID != nil },
             set: { isPresented in
                 if !isPresented {
                     dismissQuickCommandEditor()
+                }
+            }
+        )
+    }
+
+    private var quickPathEditorBinding: Binding<Bool> {
+        Binding(
+            get: { quickPathEditorHostID != nil },
+            set: { isPresented in
+                if !isPresented {
+                    dismissQuickPathEditor()
                 }
             }
         )
@@ -442,6 +462,9 @@ struct ContentView: View {
         .sheet(isPresented: quickCommandEditorBinding) {
             quickCommandManagerSheet
         }
+        .sheet(isPresented: quickPathEditorBinding) {
+            quickPathManagerSheet
+        }
         .sheet(isPresented: $isImportProgressSheetPresented) {
             importProgressSheet
                 .interactiveDismissDisabled(isImportingHosts)
@@ -746,8 +769,21 @@ struct ContentView: View {
                 Divider()
                     .overlay(VisualStyle.borderSoft)
                     .padding(.top, 2)
+                let fileManagerHostID = workspace.activePane?.runtime.reconnectableSSHHost?.id
                 FileManagerPanelView(
                     viewModel: fileTransfer,
+                    quickPaths: hostCatalog.quickPaths(for: fileManagerHostID),
+                    onRunQuickPath: { quickPath in
+                        runQuickPath(quickPath)
+                    },
+                    onManageQuickPaths: {
+                        guard let fileManagerHostID else { return }
+                        beginManageQuickPaths(for: fileManagerHostID)
+                    },
+                    onAddCurrentQuickPath: { currentPath in
+                        guard let fileManagerHostID else { return }
+                        addCurrentPathToQuickPaths(currentPath, hostID: fileManagerHostID)
+                    },
                     onEditDownloadPath: {
                         openSettingsAndFocusDownloadPath()
                     }
@@ -839,6 +875,47 @@ struct ContentView: View {
                     .foregroundStyle(VisualStyle.textSecondary)
                 Button(tr("Close")) {
                     dismissQuickCommandEditor()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(20)
+            .frame(width: 460, height: 220)
+        }
+    }
+
+    @ViewBuilder
+    private var quickPathManagerSheet: some View {
+        if let host = quickPathEditorHost {
+            HostQuickPathEditorSheet(
+                host: host,
+                quickPaths: hostCatalog.quickPaths(for: host.id),
+                editingPathID: quickPathEditingID,
+                nameDraft: $quickPathNameDraft,
+                pathDraft: $quickPathValueDraft,
+                validationMessage: quickPathValidationMessage,
+                onClose: {
+                    dismissQuickPathEditor()
+                },
+                onSave: {
+                    commitQuickPathDraft()
+                },
+                onStartEdit: { quickPath in
+                    beginEditQuickPath(quickPath)
+                },
+                onDelete: { quickPathID in
+                    deleteQuickPath(quickPathID, hostID: host.id)
+                },
+                onCancelEdit: {
+                    resetQuickPathDraft()
+                }
+            )
+        } else {
+            VStack(spacing: 12) {
+                Text(tr("No SSH host selected."))
+                    .font(.system(size: 13))
+                    .foregroundStyle(VisualStyle.textSecondary)
+                Button(tr("Close")) {
+                    dismissQuickPathEditor()
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -1252,6 +1329,79 @@ struct ContentView: View {
         let body = quickCommand.command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
         runtime.sendText("\(body)\n")
+    }
+
+    private func beginManageQuickPaths(for hostID: UUID) {
+        quickPathEditorHostID = hostID
+        resetQuickPathDraft()
+    }
+
+    private func dismissQuickPathEditor() {
+        quickPathEditorHostID = nil
+        resetQuickPathDraft()
+    }
+
+    private func resetQuickPathDraft() {
+        quickPathEditingID = nil
+        quickPathNameDraft = ""
+        quickPathValueDraft = ""
+        quickPathValidationMessage = nil
+    }
+
+    private func beginEditQuickPath(_ quickPath: HostQuickPath) {
+        quickPathEditingID = quickPath.id
+        quickPathNameDraft = quickPath.name
+        quickPathValueDraft = quickPath.path
+        quickPathValidationMessage = nil
+    }
+
+    private func commitQuickPathDraft() {
+        guard let hostID = quickPathEditorHostID else { return }
+        let name = quickPathNameDraft
+        let path = quickPathValueDraft
+
+        if let editingID = quickPathEditingID {
+            let updated = hostCatalog.updateQuickPath(
+                hostID: hostID,
+                quickPath: HostQuickPath(id: editingID, name: name, path: path)
+            )
+            guard updated != nil else {
+                quickPathValidationMessage = tr("Path cannot be empty.")
+                return
+            }
+        } else {
+            let added = hostCatalog.addQuickPath(hostID: hostID, name: name, path: path)
+            guard added != nil else {
+                quickPathValidationMessage = tr("Path cannot be empty.")
+                return
+            }
+        }
+
+        resetQuickPathDraft()
+    }
+
+    private func deleteQuickPath(_ quickPathID: UUID, hostID: UUID) {
+        hostCatalog.deleteQuickPath(hostID: hostID, quickPathID: quickPathID)
+        if quickPathEditingID == quickPathID {
+            resetQuickPathDraft()
+        }
+    }
+
+    private func runQuickPath(_ quickPath: HostQuickPath) {
+        fileTransfer.navigateRemote(to: quickPath.path)
+    }
+
+    private func addCurrentPathToQuickPaths(_ currentPath: String, hostID: UUID) {
+        let normalized = currentPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        let name = defaultQuickPathName(for: normalized)
+        _ = hostCatalog.addQuickPath(hostID: hostID, name: name, path: normalized)
+    }
+
+    private func defaultQuickPathName(for path: String) -> String {
+        if path == "/" { return tr("Root") }
+        let fileName = URL(fileURLWithPath: path).lastPathComponent
+        return fileName.isEmpty ? path : fileName
     }
 
     private func copyToPasteboard(_ text: String) {
@@ -2240,6 +2390,126 @@ private struct HostQuickCommandEditorSheet: View {
                     .textFieldStyle(.roundedBorder)
 
                 TextField(tr("Command"), text: $commandDraft)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+
+                if let validationMessage {
+                    Text(validationMessage)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red)
+                }
+            }
+
+            HStack {
+                if isEditing {
+                    Button(tr("Cancel edit")) {
+                        onCancelEdit()
+                    }
+                }
+                Spacer()
+                Button(tr("Close")) {
+                    onClose()
+                }
+                Button(isEditing ? tr("Save") : tr("Add")) {
+                    onSave()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canSaveDraft)
+            }
+        }
+        .padding(16)
+        .frame(width: 560)
+    }
+}
+
+private struct HostQuickPathEditorSheet: View {
+    let host: RemoraCore.Host
+    let quickPaths: [HostQuickPath]
+    let editingPathID: UUID?
+    @Binding var nameDraft: String
+    @Binding var pathDraft: String
+    let validationMessage: String?
+    let onClose: () -> Void
+    let onSave: () -> Void
+    let onStartEdit: (HostQuickPath) -> Void
+    let onDelete: (UUID) -> Void
+    let onCancelEdit: () -> Void
+
+    private var isEditing: Bool {
+        editingPathID != nil
+    }
+
+    private var canSaveDraft: Bool {
+        !pathDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("\(tr("Quick paths")) · \(host.name)")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(VisualStyle.textPrimary)
+
+            Group {
+                if quickPaths.isEmpty {
+                    Text(tr("No quick paths yet."))
+                        .font(.system(size: 12))
+                        .foregroundStyle(VisualStyle.textTertiary)
+                        .frame(maxWidth: .infinity, minHeight: 96, alignment: .center)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(VisualStyle.mutedSurfaceBackground)
+                        )
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(quickPaths) { quickPath in
+                                HStack(spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(quickPath.name)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(VisualStyle.textPrimary)
+                                            .lineLimit(1)
+                                        Text(quickPath.path)
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .foregroundStyle(VisualStyle.textSecondary)
+                                            .lineLimit(1)
+                                    }
+
+                                    Spacer(minLength: 8)
+
+                                    Button(tr("Edit")) {
+                                        onStartEdit(quickPath)
+                                    }
+                                    .buttonStyle(.borderless)
+
+                                    Button(tr("Delete"), role: .destructive) {
+                                        onDelete(quickPath.id)
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(VisualStyle.elevatedSurfaceBackground)
+                                )
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .frame(minHeight: 96, maxHeight: 220)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(isEditing ? tr("Edit path") : tr("New path"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textSecondary)
+
+                TextField(tr("Name"), text: $nameDraft)
+                    .textFieldStyle(.roundedBorder)
+
+                TextField("/path/to/dir", text: $pathDraft)
                     .font(.system(size: 12, design: .monospaced))
                     .textFieldStyle(.roundedBorder)
 

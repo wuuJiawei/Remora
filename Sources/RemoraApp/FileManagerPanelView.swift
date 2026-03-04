@@ -35,6 +35,10 @@ struct FileManagerPanelView: View {
     }
 
     @ObservedObject var viewModel: FileTransferViewModel
+    var quickPaths: [HostQuickPath] = []
+    var onRunQuickPath: (HostQuickPath) -> Void = { _ in }
+    var onManageQuickPaths: () -> Void = {}
+    var onAddCurrentQuickPath: (String) -> Void = { _ in }
     var onEditDownloadPath: (() -> Void)?
 
     @State private var selectedRemotePaths: Set<String> = []
@@ -567,6 +571,33 @@ struct FileManagerPanelView: View {
             ) {
                 viewModel.performContextAction(.refresh)
             }
+
+            Menu {
+                if quickPaths.isEmpty {
+                    Text(tr("No quick paths"))
+                } else {
+                    ForEach(quickPaths) { quickPath in
+                        Button(quickPath.name) {
+                            onRunQuickPath(quickPath)
+                        }
+                    }
+                }
+                Divider()
+                Button(tr("Add current path")) {
+                    onAddCurrentQuickPath(viewModel.remoteDirectoryPath)
+                }
+                Button(tr("Manage quick paths")) {
+                    onManageQuickPaths()
+                }
+            } label: {
+                Image(systemName: "bookmark.circle")
+                    .font(.caption.weight(.semibold))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .foregroundStyle(VisualStyle.textSecondary)
+            .help(tr("Open quick paths"))
+            .accessibilityIdentifier("file-manager-quick-paths")
 
             TextField("/path/to/dir", text: $remotePathDraft)
                 .textFieldStyle(.roundedBorder)

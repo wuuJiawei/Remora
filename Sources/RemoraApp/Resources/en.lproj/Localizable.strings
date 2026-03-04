@@ -27,6 +27,16 @@
 "Shortcut update canceled." = "Shortcut update canceled.";
 "Shortcut must include Command, Option, or Control." = "Shortcut must include Command, Option, or Control.";
 "updated to" = "updated to";
+"Root" = "Root";
+"Quick paths" = "Quick paths";
+"No quick paths" = "No quick paths";
+"Add current path" = "Add current path";
+"Manage quick paths" = "Manage quick paths";
+"Open quick paths" = "Open quick paths";
+"No quick paths yet." = "No quick paths yet.";
+"Edit path" = "Edit path";
+"New path" = "New path";
+"Path cannot be empty." = "Path cannot be empty.";
 "Open one local terminal session on launch" = "Open one local terminal session on launch";
 "Confirm before closing an active session tab" = "Confirm before closing an active session tab";
 "Reopen the last selected workspace on launch" = "Reopen the last selected workspace on launch";

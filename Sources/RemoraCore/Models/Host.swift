@@ -16,6 +16,22 @@ public struct HostQuickCommand: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+public struct HostQuickPath: Codable, Equatable, Identifiable, Sendable {
+    public let id: UUID
+    public var name: String
+    public var path: String
+
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        path: String
+    ) {
+        self.id = id
+        self.name = name
+        self.path = path
+    }
+}
+
 public struct Host: Codable, Equatable, Identifiable, Sendable {
     public let id: UUID
     public var name: String
@@ -31,6 +47,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
     public var auth: HostAuth
     public var policies: HostPolicies
     public var quickCommands: [HostQuickCommand]
+    public var quickPaths: [HostQuickPath]
 
     public init(
         id: UUID = UUID(),
@@ -46,7 +63,8 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         connectCount: Int = 0,
         auth: HostAuth,
         policies: HostPolicies = .init(),
-        quickCommands: [HostQuickCommand] = []
+        quickCommands: [HostQuickCommand] = [],
+        quickPaths: [HostQuickPath] = []
     ) {
         self.id = id
         self.name = name
@@ -62,6 +80,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         self.auth = auth
         self.policies = policies
         self.quickCommands = quickCommands
+        self.quickPaths = quickPaths
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -79,6 +98,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         case auth
         case policies
         case quickCommands
+        case quickPaths
     }
 
     public init(from decoder: Decoder) throws {
@@ -97,6 +117,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         auth = try container.decode(HostAuth.self, forKey: .auth)
         policies = try container.decodeIfPresent(HostPolicies.self, forKey: .policies) ?? .init()
         quickCommands = try container.decodeIfPresent([HostQuickCommand].self, forKey: .quickCommands) ?? []
+        quickPaths = try container.decodeIfPresent([HostQuickPath].self, forKey: .quickPaths) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -115,6 +136,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         try container.encode(auth, forKey: .auth)
         try container.encode(policies, forKey: .policies)
         try container.encode(quickCommands, forKey: .quickCommands)
+        try container.encode(quickPaths, forKey: .quickPaths)
     }
 }
 
