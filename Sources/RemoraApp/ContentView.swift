@@ -505,12 +505,21 @@ struct ContentView: View {
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(VisualStyle.textSecondary)
 
-            Button(tr("New SSH Connection")) {
-                beginCreateHostInPreferredGroup()
+            HStack(spacing: 10) {
+                Button(tr("New SSH Connection")) {
+                    beginCreateHostInPreferredGroup()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("session-placeholder-new-ssh")
+
+                Button(tr("Open Local Session")) {
+                    workspace.createTab()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .accessibilityIdentifier("session-placeholder-open-local")
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityIdentifier("session-placeholder-new-ssh")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

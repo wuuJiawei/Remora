@@ -62,6 +62,7 @@
 
 "Remora" = "Remora";
 "New SSH Connection" = "新建 SSH 连接";
+"Open Local Session" = "打开本地会话";
 "Export Connections" = "导出连接";
 "Import Connections" = "导入连接";
 "Search SSH host" = "搜索 SSH 主机";

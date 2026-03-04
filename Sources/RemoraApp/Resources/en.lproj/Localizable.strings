@@ -63,6 +63,7 @@
 
 "Remora" = "Remora";
 "New SSH Connection" = "New SSH Connection";
+"Open Local Session" = "Open Local Session";
 "Export Connections" = "Export Connections";
 "Import Connections" = "Import Connections";
 "Search SSH host" = "Search SSH host";
