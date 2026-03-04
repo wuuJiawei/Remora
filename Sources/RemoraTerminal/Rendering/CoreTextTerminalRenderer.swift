@@ -67,6 +67,9 @@ public final class CoreTextTerminalRenderer {
 
         for col in 0 ..< line.count {
             let cell = line[col]
+            if cell.displayWidth == 0 {
+                continue
+            }
             let x = horizontalInset + CGFloat(col) * cellWidth
             var fg = color(for: cell.attributes.foreground, isBackground: false)
             var bg = color(for: cell.attributes.background, isBackground: true)
@@ -77,10 +80,18 @@ public final class CoreTextTerminalRenderer {
                 fg = fg.withAlphaComponent(0.65)
             }
 
+            let cellSpan = max(1, Int(cell.displayWidth))
             context.setFillColor(bg.cgColor)
-            context.fill(CGRect(x: x, y: rowY, width: cellWidth, height: lineHeight))
+            context.fill(
+                CGRect(
+                    x: x,
+                    y: rowY,
+                    width: cellWidth * CGFloat(cellSpan),
+                    height: lineHeight
+                )
+            )
 
-            if cell.displayWidth == 0 || cell.character == " " {
+            if cell.character == " " {
                 continue
             }
 
