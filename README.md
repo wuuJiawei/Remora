@@ -11,12 +11,12 @@
 </p>
 
 <p align="center">
+  <a href="./README_ZH.md">简体中文</a> •
   <a href="#features">Features</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#project-structure">Project Structure</a> •
   <a href="#testing">Testing</a> •
-  <a href="#roadmap">Roadmap</a> •
   <a href="#contributing">Contributing</a>
 </p>
 
@@ -35,16 +35,7 @@ Remora focuses on a practical split:
 ### Terminal & Session
 
 - Native terminal view (`NSView`) hosted inside SwiftUI.
-- ANSI/VT support for common modern TUIs:
-  - SGR colors (16/256/truecolor), cursor movement, screen/line erase.
-  - Alternate screen buffer (`?47/?1047/?1049`).
-  - Scrolling region and reverse index.
-  - UTF-8 streaming decode (cross-chunk safe), wide chars, combining chars.
-  - Synchronized updates (`CSI ? 2026 h/l`).
-  - Focus reporting (`?1004`), bracketed paste (`?2004`).
-  - Mouse reporting (`?1000/?1002/?1003`, SGR `?1006`) with Option-forced local selection.
-  - Kitty keyboard protocol (`CSI ... u`) and cursor key mode (`DECCKM`).
-  - OSC 8 hyperlinks with safe `cmd+click` opening.
+- ANSI/VT support for common modern TUIs.
 - Selection experience inspired by xterm-style behavior:
   - Drag selection, double-click word selection.
   - Triple-click logical line selection.
@@ -145,20 +136,7 @@ REMORA_RUN_UI_TESTS=1 REMORA_APP_BINARY=/abs/path/to/RemoraApp swift test --filt
 - `Sources/RemoraApp`: SwiftUI app, workspace UI, settings, file manager.
 - `Sources/TerminalStressTool`: terminal throughput/stress utility.
 - `Tests/*`: core, terminal, and app tests.
-- `docs/`: design/tasks/checklists and operational notes.
-
-## Roadmap
-
-Current focus:
-
-- More integration coverage for real-host flows.
-- Performance guardrails and regressions.
-- Pre-open-source hardening (security, docs, release process).
-
-See:
-
-- [`docs/TASKS.md`](./docs/TASKS.md)
-- [`docs/DESIGN.md`](./docs/DESIGN.md)
+- `docs/`: checklists, screenshots, and operational notes.
 
 ## Contributing
 
