@@ -58,6 +58,10 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
             }
         }
     }
+    public var wordSeparators: CharacterSet = CharacterSet(charactersIn: " ()[]{}'\"`")
+    public var scrollSensitivity: Double = 1.0
+    public var fastScrollSensitivity: Double = 5.0
+    public var scrollOnUserInput: Bool = true
 
     private let screenBuffer: ScreenBuffer
     private let parser = ANSIParser()
@@ -78,6 +82,7 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     private var isSelectingWithMouse = false
     private var isMouseReportingDrag = false
     private var mouseReportingButtonCode: Int?
+    private var scrollLineAccumulator: Double = 0
 
     private let flushScheduleLock = NSLock()
     nonisolated(unsafe) private var flushScheduled = false
@@ -182,13 +187,13 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         }
 
         if let legacyControl = inputMapper.mapLegacyControl(event: event) {
-            scrollToBottom()
+            scrollToBottomOnUserInputIfNeeded()
             onInput?(legacyControl)
             return
         }
 
         if let input = inputMapper.mapKittyKeyDown(event: event) {
-            scrollToBottom()
+            scrollToBottomOnUserInputIfNeeded()
             onInput?(input)
             return
         }
@@ -198,12 +203,12 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
                 super.keyDown(with: event)
                 return
             }
-            scrollToBottom()
+            scrollToBottomOnUserInputIfNeeded()
             onInput?(input)
             return
         }
 
-        scrollToBottom()
+        scrollToBottomOnUserInputIfNeeded()
         interpretKeyEvents([event])
     }
 
@@ -216,7 +221,7 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     }
 
     public func paste(_ sender: Any?) {
-        scrollToBottom()
+        scrollToBottomOnUserInputIfNeeded()
         guard let value = NSPasteboard.general.string(forType: .string) else { return }
         if bracketedPasteEnabled {
             let wrapped = "\u{001B}[200~" + value + "\u{001B}[201~"
@@ -284,15 +289,24 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
             return
         }
 
-        let deltaY = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 10
-        guard deltaY != 0 else { return }
+        let sensitivity = event.modifierFlags.contains(.option) ? fastScrollSensitivity : scrollSensitivity
+        let baseDelta = event.hasPreciseScrollingDeltas
+            ? Double(event.scrollingDeltaY) / 8.0
+            : Double(event.deltaY)
+        let scaledDelta = baseDelta * max(0.1, sensitivity)
+        guard scaledDelta != 0 else { return }
 
-        let step = max(Int(abs(deltaY) / 8), 1)
+        scrollLineAccumulator += scaledDelta
+        let step = Int(abs(scrollLineAccumulator))
+        guard step > 0 else { return }
+
         let maxOffset = screenBuffer.maxViewportOffset()
-        if deltaY > 0 {
+        if scrollLineAccumulator > 0 {
             scrollbackOffset = min(maxOffset, scrollbackOffset + step)
+            scrollLineAccumulator -= Double(step)
         } else {
             scrollbackOffset = max(0, scrollbackOffset - step)
+            scrollLineAccumulator += Double(step)
         }
         screenBuffer.setViewportOffset(scrollbackOffset)
         needsDisplay = true
@@ -333,7 +347,14 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
             mouseReportingButtonCode = 2
             return
         }
-        super.rightMouseDown(with: event)
+        onFocus?()
+        window?.makeFirstResponder(self)
+        screenBuffer.setViewportOffset(scrollbackOffset)
+        let point = convert(event.locationInWindow, from: nil)
+        let location = bufferCellLocation(from: point)
+        selectWord(atBufferRow: location.row, column: location.column)
+        isSelectingWithMouse = false
+        needsDisplay = true
     }
 
     public override func rightMouseUp(with event: NSEvent) {
@@ -612,12 +633,13 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     }
 
     private func isWordCharacter(_ character: Character) -> Bool {
-        let underscore = CharacterSet(charactersIn: "_")
         for scalar in character.unicodeScalars {
-            if CharacterSet.alphanumerics.contains(scalar) || underscore.contains(scalar) {
-                continue
+            if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+                return false
             }
-            return false
+            if wordSeparators.contains(scalar) {
+                return false
+            }
         }
         return true
     }
@@ -744,8 +766,14 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     private func scrollToBottom() {
         guard scrollbackOffset != 0 else { return }
         scrollbackOffset = 0
+        scrollLineAccumulator = 0
         screenBuffer.setViewportOffset(0)
         needsDisplay = true
+    }
+
+    private func scrollToBottomOnUserInputIfNeeded() {
+        guard scrollOnUserInput else { return }
+        scrollToBottom()
     }
 
     private func shouldRouteMouseEventToPTY(_ event: NSEvent) -> Bool {
@@ -877,6 +905,7 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
 
     public func insertText(_ string: Any, replacementRange: NSRange) {
         markedText = NSAttributedString(string: "")
+        scrollToBottomOnUserInputIfNeeded()
         sendInputString(plainString(from: string))
     }
 
@@ -886,6 +915,7 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
 
     public override func doCommand(by selector: Selector) {
         if let input = inputMapper.map(command: selector) {
+            scrollToBottomOnUserInputIfNeeded()
             onInput?(input)
             return
         }
