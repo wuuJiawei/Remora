@@ -15,6 +15,11 @@ public final class CoreTextTerminalRenderer {
     public var horizontalInset: CGFloat = 10
 
     private let glyphCache = GlyphCache()
+    private var baselineOffset: CGFloat = 2
+
+    var baselineOffsetForTesting: CGFloat {
+        baselineOffset
+    }
 
     public init(font: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)) {
         self.font = font
@@ -58,7 +63,7 @@ public final class CoreTextTerminalRenderer {
         guard screen.validRowRange().contains(row) else { return }
         let line = screen.line(at: row)
         let rowY = bounds.height - CGFloat(row + 1) * lineHeight
-        let baselineY = rowY + 2
+        let baselineY = rowY + baselineOffset
 
         for col in 0 ..< line.count {
             let cell = line[col]
@@ -90,10 +95,21 @@ public final class CoreTextTerminalRenderer {
     }
 
     private func recalculateMetrics() {
+        let ctFont = font as CTFont
+        let ascent = ceil(CTFontGetAscent(ctFont))
+        let descent = ceil(CTFontGetDescent(ctFont))
+        let leading = ceil(CTFontGetLeading(ctFont))
+
         let sample = "W" as NSString
         let size = sample.size(withAttributes: [.font: font])
-        cellWidth = ceil(size.width)
-        lineHeight = ceil(size.height + 2)
+        cellWidth = max(1, ceil(size.width))
+
+        let contentHeight = max(1, ascent + descent)
+        let naturalLineHeight = max(contentHeight + leading, ceil(font.boundingRectForFont.height))
+        lineHeight = max(1, ceil(naturalLineHeight + 2))
+
+        let verticalPadding = max(0, lineHeight - contentHeight)
+        baselineOffset = max(1, floor(descent + (verticalPadding * 0.5)))
     }
 
     private func indexedColor(_ index: UInt8) -> NSColor {
