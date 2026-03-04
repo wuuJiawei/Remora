@@ -128,6 +128,34 @@ struct TerminalInputTests {
         #expect(kitty == Data("\u{1B}[99;5u".utf8))
     }
 
+    @Test
+    func terminalViewBuildsSGRMousePayload() {
+        let view = TerminalView(rows: 10, columns: 10)
+        let payload = view.mouseReportPayload(
+            buttonCode: 0,
+            row: 1,
+            column: 2,
+            isRelease: false,
+            useSGR: true
+        )
+
+        #expect(payload == Data("\u{1B}[<0;3;2M".utf8))
+    }
+
+    @Test
+    func terminalViewBuildsLegacyMousePayload() {
+        let view = TerminalView(rows: 10, columns: 10)
+        let payload = view.mouseReportPayload(
+            buttonCode: 0,
+            row: 1,
+            column: 2,
+            isRelease: false,
+            useSGR: false
+        )
+
+        #expect(payload == Data([0x1B, 0x5B, 0x4D, 32, 35, 34]))
+    }
+
     private func keyEvent(
         type: NSEvent.EventType = .keyDown,
         keyCode: UInt16 = 0,

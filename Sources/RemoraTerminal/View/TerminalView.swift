@@ -76,6 +76,8 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     private var focusReportingEnabled = false
     private var bracketedPasteEnabled = false
     private var isSelectingWithMouse = false
+    private var isMouseReportingDrag = false
+    private var mouseReportingButtonCode: Int?
 
     private let flushScheduleLock = NSLock()
     nonisolated(unsafe) private var flushScheduled = false
@@ -240,6 +242,15 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         screenBuffer.setViewportOffset(scrollbackOffset)
         let point = convert(event.locationInWindow, from: nil)
         let location = bufferCellLocation(from: point)
+        if shouldRouteMouseEventToPTY(event) {
+            sendMouseButtonEvent(buttonCode: 0, event: event, isRelease: false)
+            isMouseReportingDrag = true
+            mouseReportingButtonCode = 0
+            isSelectingWithMouse = false
+            selection = nil
+            needsDisplay = true
+            return
+        }
         let isColumnSelection = event.modifierFlags.contains(.option)
 
         if event.clickCount >= 3 {
@@ -268,6 +279,11 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     }
 
     public override func scrollWheel(with event: NSEvent) {
+        if shouldRouteMouseEventToPTY(event) {
+            sendMouseWheelEvent(event)
+            return
+        }
+
         let deltaY = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 10
         guard deltaY != 0 else { return }
 
@@ -283,6 +299,12 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     }
 
     public override func mouseDragged(with event: NSEvent) {
+        if isMouseReportingDrag {
+            let baseCode = mouseReportingButtonCode ?? 0
+            sendMouseButtonEvent(buttonCode: baseCode + 32, event: event, isRelease: false)
+            return
+        }
+
         guard isSelectingWithMouse, var current = selection else { return }
         screenBuffer.setViewportOffset(scrollbackOffset)
         let point = convert(event.locationInWindow, from: nil)
@@ -294,8 +316,34 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     }
 
     public override func mouseUp(with event: NSEvent) {
+        if isMouseReportingDrag {
+            sendMouseButtonEvent(buttonCode: 3, event: event, isRelease: true)
+            isMouseReportingDrag = false
+            mouseReportingButtonCode = nil
+            return
+        }
         super.mouseUp(with: event)
         isSelectingWithMouse = false
+    }
+
+    public override func rightMouseDown(with event: NSEvent) {
+        if shouldRouteMouseEventToPTY(event) {
+            sendMouseButtonEvent(buttonCode: 2, event: event, isRelease: false)
+            isMouseReportingDrag = true
+            mouseReportingButtonCode = 2
+            return
+        }
+        super.rightMouseDown(with: event)
+    }
+
+    public override func rightMouseUp(with event: NSEvent) {
+        if isMouseReportingDrag, mouseReportingButtonCode == 2 {
+            sendMouseButtonEvent(buttonCode: 3, event: event, isRelease: true)
+            isMouseReportingDrag = false
+            mouseReportingButtonCode = nil
+            return
+        }
+        super.rightMouseUp(with: event)
     }
 
     public override func setFrameSize(_ newSize: NSSize) {
@@ -698,6 +746,58 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         scrollbackOffset = 0
         screenBuffer.setViewportOffset(0)
         needsDisplay = true
+    }
+
+    private func shouldRouteMouseEventToPTY(_ event: NSEvent) -> Bool {
+        parser.mouseReportingEnabled && !event.modifierFlags.contains(.option)
+    }
+
+    private func sendMouseWheelEvent(_ event: NSEvent) {
+        let deltaY = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY * 10
+        guard deltaY != 0 else { return }
+        let steps = max(Int(abs(deltaY) / 8), 1)
+        let code = deltaY > 0 ? 64 : 65
+        for _ in 0 ..< steps {
+            sendMouseButtonEvent(buttonCode: code, event: event, isRelease: false)
+        }
+    }
+
+    private func sendMouseButtonEvent(buttonCode: Int, event: NSEvent, isRelease: Bool) {
+        let point = convert(event.locationInWindow, from: nil)
+        let location = viewportCellLocation(from: point)
+        guard let payload = mouseReportPayload(
+            buttonCode: buttonCode,
+            row: location.row,
+            column: location.column,
+            isRelease: isRelease,
+            useSGR: parser.sgrMouseModeEnabled
+        ) else { return }
+        onInput?(payload)
+    }
+
+    func mouseReportPayload(
+        buttonCode: Int,
+        row: Int,
+        column: Int,
+        isRelease: Bool,
+        useSGR: Bool
+    ) -> Data? {
+        let clampedRow = min(max(0, row), max(0, screenBuffer.rows - 1))
+        let clampedCol = min(max(0, column), max(0, screenBuffer.columns - 1))
+        let oneBasedRow = clampedRow + 1
+        let oneBasedCol = clampedCol + 1
+
+        if useSGR {
+            let final = isRelease ? "m" : "M"
+            let sequence = "\u{001B}[<\(buttonCode);\(oneBasedCol);\(oneBasedRow)\(final)"
+            return Data(sequence.utf8)
+        }
+
+        let cb = buttonCode + 32
+        let cx = oneBasedCol + 32
+        let cy = oneBasedRow + 32
+        guard cb <= 255, cx <= 255, cy <= 255 else { return nil }
+        return Data([0x1B, 0x5B, 0x4D, UInt8(cb), UInt8(cx), UInt8(cy)])
     }
 
     nonisolated private func markFlushScheduled() -> Bool {

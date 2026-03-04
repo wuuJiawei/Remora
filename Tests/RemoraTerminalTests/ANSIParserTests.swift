@@ -267,6 +267,18 @@ struct ANSIParserTests {
     }
 
     @Test
+    func parserTracksSGRMouseMode() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 2, columns: 8)
+
+        parser.parse(Data("\u{001B}[?1006h".utf8), into: screen)
+        #expect(parser.sgrMouseModeEnabled == true)
+
+        parser.parse(Data("\u{001B}[?1006l".utf8), into: screen)
+        #expect(parser.sgrMouseModeEnabled == false)
+    }
+
+    @Test
     func parserHandlesKittyKeyboardSetPushPopAndQuery() {
         let parser = ANSIParser()
         let screen = ScreenBuffer(rows: 2, columns: 8)
