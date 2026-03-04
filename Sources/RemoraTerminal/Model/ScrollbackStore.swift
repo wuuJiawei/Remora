@@ -25,6 +25,18 @@ public final class ScrollbackStore {
         segments.flatMap { $0 }
     }
 
+    public func line(at index: Int) -> TerminalLine? {
+        guard index >= 0 else { return nil }
+        var remaining = index
+        for segment in segments {
+            if remaining < segment.count {
+                return segment[remaining]
+            }
+            remaining -= segment.count
+        }
+        return nil
+    }
+
     public func lineCount() -> Int {
         segments.reduce(into: 0) { $0 += $1.count }
     }

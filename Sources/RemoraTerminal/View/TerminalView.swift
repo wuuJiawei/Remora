@@ -3,6 +3,7 @@ import Foundation
 import RemoraCore
 
 public struct TerminalSelection: Equatable {
+    // Buffer-space coordinates (absolute row across scrollback + visible lines).
     public var startRow: Int
     public var startColumn: Int
     public var endRow: Int
@@ -20,8 +21,6 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     public var onInput: (@Sendable (Data) -> Void)?
     public var onFocus: (() -> Void)?
     public var onResize: ((Int, Int) -> Void)?
-    /// Callback when user double-clicks on a line: (text, clickColumnIndex)
-    public var onDoubleClick: ((String, Int) -> Void)?
     /// Callback for terminal query responses (DSR, DA, etc) - injects response back to PTY
     public var onTerminalQueryResponse: ((Data) -> Void)? {
         didSet {
@@ -69,10 +68,6 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     private var focusReportingEnabled = false
     private var bracketedPasteEnabled = false
 
-    // Double-click tracking
-    private var lastClickTime: TimeInterval = 0
-    private var lastClickRow: Int = -1
-    private let doubleClickInterval: TimeInterval = 0.3
     private let flushScheduleLock = NSLock()
     nonisolated(unsafe) private var flushScheduled = false
 
@@ -232,28 +227,17 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     public override func mouseDown(with event: NSEvent) {
         onFocus?()
         window?.makeFirstResponder(self)
-        
+
+        screenBuffer.setViewportOffset(scrollbackOffset)
         let point = convert(event.locationInWindow, from: nil)
-        let location = cellLocation(from: point)
-        
-        // Check for double-click
-        let now = Date().timeIntervalSince1970
-        let isDoubleClick = (now - lastClickTime) < doubleClickInterval 
-                            && location.row == lastClickRow
-        
-        lastClickTime = now
-        lastClickRow = location.row
-        
-        if isDoubleClick {
-            // Double-click: extract text from the clicked line and trigger callback
-            let lineText = extractTextFromLine(at: location.row)
-            if !lineText.isEmpty {
-                onDoubleClick?(lineText, location.column)
-            }
+        let location = bufferCellLocation(from: point)
+
+        if event.clickCount >= 2 {
+            selectWord(atBufferRow: location.row, column: location.column)
+            needsDisplay = true
             return
         }
-        
-        // Single click: start selection
+
         selection = TerminalSelection(
             startRow: location.row,
             startColumn: location.column,
@@ -261,19 +245,6 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
             endColumn: location.column
         )
         needsDisplay = true
-    }
-    
-    /// Extract plain text from a screen line
-    private func extractTextFromLine(at row: Int) -> String {
-        let line = screenBuffer.line(at: row)
-        var text = ""
-        for i in 0..<line.count {
-            if line[i].displayWidth == 0 {
-                continue
-            }
-            text.append(line[i].character)
-        }
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public override func scrollWheel(with event: NSEvent) {
@@ -293,8 +264,9 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
 
     public override func mouseDragged(with event: NSEvent) {
         guard var current = selection else { return }
+        screenBuffer.setViewportOffset(scrollbackOffset)
         let point = convert(event.locationInWindow, from: nil)
-        let location = cellLocation(from: point)
+        let location = bufferCellLocation(from: point)
         current.endRow = location.row
         current.endColumn = location.column
         selection = current
@@ -418,19 +390,30 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     private func drawSelection(in context: CGContext) {
         guard let selection else { return }
         guard screenBuffer.rows > 0, screenBuffer.columns > 0 else { return }
+        screenBuffer.setViewportOffset(scrollbackOffset)
+        let ordered = orderedSelection(selection)
+        let totalLineCount = screenBuffer.totalBufferLineCount()
+        guard totalLineCount > 0 else { return }
 
-        let minRow = min(selection.startRow, selection.endRow)
-        let maxRow = max(selection.startRow, selection.endRow)
-        let minCol = min(selection.startColumn, selection.endColumn)
-        let maxCol = max(selection.startColumn, selection.endColumn)
+        let minRow = min(max(0, ordered.startRow), totalLineCount - 1)
+        let maxRow = min(max(0, ordered.endRow), totalLineCount - 1)
+        guard minRow <= maxRow else { return }
 
-        let clampedMinRow = max(0, min(minRow, screenBuffer.rows - 1))
-        let clampedMaxRow = max(0, min(maxRow, screenBuffer.rows - 1))
-        let clampedMinCol = max(0, min(minCol, screenBuffer.columns - 1))
-        let clampedMaxCol = max(0, min(maxCol, screenBuffer.columns - 1))
+        let viewportStart = screenBuffer.viewportStartBufferRow()
+        let viewportEnd = viewportStart + screenBuffer.rows - 1
+        let visibleStart = max(minRow, viewportStart)
+        let visibleEnd = min(maxRow, viewportEnd)
+        guard visibleStart <= visibleEnd else { return }
 
         context.setFillColor(NSColor.systemBlue.withAlphaComponent(0.25).cgColor)
-        for row in clampedMinRow ... clampedMaxRow {
+        for bufferRow in visibleStart ... visibleEnd {
+            let row = bufferRow - viewportStart
+            let rowStartCol = (bufferRow == minRow) ? ordered.startColumn : 0
+            let rowEndCol = (bufferRow == maxRow) ? ordered.endColumn : screenBuffer.columns - 1
+            let clampedMinCol = max(0, min(rowStartCol, screenBuffer.columns - 1))
+            let clampedMaxCol = max(0, min(rowEndCol, screenBuffer.columns - 1))
+            guard clampedMinCol <= clampedMaxCol else { continue }
+
             let rect = CGRect(
                 x: renderer.horizontalInset + CGFloat(clampedMinCol) * renderer.cellWidth,
                 y: bounds.height - CGFloat(row + 1) * renderer.lineHeight,
@@ -441,11 +424,108 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         }
     }
 
-    private func cellLocation(from point: CGPoint) -> (row: Int, column: Int) {
+    private func viewportCellLocation(from point: CGPoint) -> (row: Int, column: Int) {
         let contentX = max(point.x - renderer.horizontalInset, 0)
         let col = max(Int(contentX / renderer.cellWidth), 0)
         let row = max(Int((bounds.height - point.y) / renderer.lineHeight), 0)
         return (min(row, screenBuffer.rows - 1), min(col, screenBuffer.columns - 1))
+    }
+
+    private func bufferCellLocation(from point: CGPoint) -> (row: Int, column: Int) {
+        let viewportLocation = viewportCellLocation(from: point)
+        let bufferRow = screenBuffer.bufferRow(forViewportRow: viewportLocation.row)
+        let normalizedColumn = normalizedColumn(atBufferRow: bufferRow, column: viewportLocation.column)
+        return (bufferRow, normalizedColumn)
+    }
+
+    private func normalizedColumn(atBufferRow row: Int, column: Int) -> Int {
+        let line = screenBuffer.line(atBufferRow: row)
+        guard line.count > 0 else { return 0 }
+
+        var normalized = min(max(0, column), line.count - 1)
+        while normalized > 0, line[normalized].displayWidth == 0 {
+            normalized -= 1
+        }
+        return normalized
+    }
+
+    private func orderedSelection(_ selection: TerminalSelection) -> TerminalSelection {
+        if selection.startRow < selection.endRow {
+            return selection
+        }
+        if selection.startRow > selection.endRow {
+            return TerminalSelection(
+                startRow: selection.endRow,
+                startColumn: selection.endColumn,
+                endRow: selection.startRow,
+                endColumn: selection.startColumn
+            )
+        }
+        if selection.startColumn <= selection.endColumn {
+            return selection
+        }
+        return TerminalSelection(
+            startRow: selection.endRow,
+            startColumn: selection.endColumn,
+            endRow: selection.startRow,
+            endColumn: selection.startColumn
+        )
+    }
+
+    private enum WordClass {
+        case whitespace
+        case word
+        case symbol
+    }
+
+    private func selectWord(atBufferRow row: Int, column: Int) {
+        let line = screenBuffer.line(atBufferRow: row)
+        guard line.count > 0 else { return }
+
+        let seedColumn = normalizedColumn(atBufferRow: row, column: column)
+        let seedClass = wordClass(in: line, at: seedColumn)
+        var start = seedColumn
+        var end = seedColumn
+
+        while start > 0, wordClass(in: line, at: start - 1) == seedClass {
+            start -= 1
+        }
+        while end + 1 < line.count, wordClass(in: line, at: end + 1) == seedClass {
+            end += 1
+        }
+
+        selection = TerminalSelection(
+            startRow: row,
+            startColumn: start,
+            endRow: row,
+            endColumn: end
+        )
+    }
+
+    private func wordClass(in line: TerminalLine, at column: Int) -> WordClass {
+        guard column >= 0, column < line.count else { return .whitespace }
+
+        var targetColumn = column
+        while targetColumn > 0, line[targetColumn].displayWidth == 0 {
+            targetColumn -= 1
+        }
+
+        let character = line[targetColumn].character
+        if character.isWhitespace {
+            return .whitespace
+        }
+        return isWordCharacter(character) ? .word : .symbol
+    }
+
+    private func isWordCharacter(_ character: Character) -> Bool {
+        let underscore = CharacterSet(charactersIn: "_")
+        for scalar in character.unicodeScalars {
+            if CharacterSet.alphanumerics.contains(scalar) || underscore.contains(scalar) {
+                continue
+            }
+            return false
+        }
+        return true
     }
 
     private static func durationToMilliseconds(_ duration: Duration) -> Double {
@@ -461,12 +541,18 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
 
     private func clampSelectionIfNeeded() {
         guard var selection else { return }
-        guard screenBuffer.rows > 0, screenBuffer.columns > 0 else {
+        guard screenBuffer.columns > 0 else {
             self.selection = nil
             return
         }
 
-        let maxRow = screenBuffer.rows - 1
+        let totalLineCount = screenBuffer.totalBufferLineCount()
+        guard totalLineCount > 0 else {
+            self.selection = nil
+            return
+        }
+
+        let maxRow = totalLineCount - 1
         let maxCol = screenBuffer.columns - 1
 
         selection.startRow = min(max(selection.startRow, 0), maxRow)
@@ -510,25 +596,29 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
 
     private func selectedText() -> String? {
         guard let selection else { return nil }
-        guard screenBuffer.rows > 0, screenBuffer.columns > 0 else { return nil }
+        guard screenBuffer.columns > 0 else { return nil }
+        let totalLineCount = screenBuffer.totalBufferLineCount()
+        guard totalLineCount > 0 else { return nil }
 
-        let minRow = max(0, min(selection.startRow, selection.endRow))
-        let maxRow = min(screenBuffer.rows - 1, max(selection.startRow, selection.endRow))
-        let minCol = max(0, min(selection.startColumn, selection.endColumn))
-        let maxCol = min(screenBuffer.columns - 1, max(selection.startColumn, selection.endColumn))
-
-        guard minRow <= maxRow, minCol <= maxCol else { return nil }
+        let ordered = orderedSelection(selection)
+        let minRow = min(max(ordered.startRow, 0), totalLineCount - 1)
+        let maxRow = min(max(ordered.endRow, 0), totalLineCount - 1)
+        guard minRow <= maxRow else { return nil }
 
         var rows: [String] = []
         rows.reserveCapacity(maxRow - minRow + 1)
 
         for row in minRow ... maxRow {
-            let line = screenBuffer.line(at: row)
-            let startCol = row == minRow ? minCol : 0
-            let endCol = row == maxRow ? maxCol : screenBuffer.columns - 1
-            guard startCol <= endCol else { continue }
+            let line = screenBuffer.line(atBufferRow: row)
+            guard line.count > 0 else { continue }
 
-            let characters = (startCol ... endCol)
+            let startCol = row == minRow ? ordered.startColumn : 0
+            let endCol = row == maxRow ? ordered.endColumn : (line.count - 1)
+            let clampedStartCol = min(max(0, startCol), line.count - 1)
+            let clampedEndCol = min(max(0, endCol), line.count - 1)
+            guard clampedStartCol <= clampedEndCol else { continue }
+
+            let characters = (clampedStartCol ... clampedEndCol)
                 .compactMap { line[$0].displayWidth == 0 ? nil : line[$0].character }
             var text = String(characters)
             while text.last == " " {

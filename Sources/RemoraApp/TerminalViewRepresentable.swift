@@ -12,9 +12,6 @@ struct TerminalViewRepresentable: NSViewRepresentable {
             runtime.resize(columns: columns, rows: rows)
         }
         runtime.attach(view: view)
-        view.onDoubleClick = { text, clickColumn in
-            runtime.replaceCurrentInputLine(with: text, cursorAt: clickColumn)
-        }
         return view
     }
 

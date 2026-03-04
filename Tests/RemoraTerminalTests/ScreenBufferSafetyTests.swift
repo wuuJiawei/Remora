@@ -67,4 +67,20 @@ struct ScreenBufferSafetyTests {
         #expect(screen.line(at: 0).count == 24)
         #expect(screen.line(at: 0)[23].character == "X")
     }
+
+    @Test
+    func bufferRowMappingRespectsViewportOffset() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 2, columns: 8)
+
+        parser.parse(Data("one\r\ntwo\r\nthree\r\nfour".utf8), into: screen)
+        screen.setViewportOffset(1)
+
+        let startRow = screen.viewportStartBufferRow()
+        let firstVisible = screen.line(at: 0)
+        let mappedFirstVisible = screen.line(atBufferRow: startRow)
+
+        #expect(screen.bufferRow(forViewportRow: 0) == startRow)
+        #expect(firstVisible[0].character == mappedFirstVisible[0].character)
+    }
 }

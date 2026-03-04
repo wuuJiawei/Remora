@@ -74,6 +74,40 @@ public final class ScreenBuffer {
         return window[index]
     }
 
+    public func line(atBufferRow bufferRow: Int) -> TerminalLine {
+        let totalCount = totalBufferLineCount()
+        guard bufferRow >= 0, bufferRow < totalCount else {
+            return TerminalLine(columns: columns, attributes: .default)
+        }
+
+        let scrollbackCount = scrollback.lineCount()
+        if bufferRow < scrollbackCount, let line = scrollback.line(at: bufferRow) {
+            return line
+        }
+
+        let lineIndex = bufferRow - scrollbackCount
+        guard lineIndex >= 0, lineIndex < lines.count else {
+            return TerminalLine(columns: columns, attributes: .default)
+        }
+        return lines[lineIndex]
+    }
+
+    public func totalBufferLineCount() -> Int {
+        scrollback.lineCount() + lines.count
+    }
+
+    public func viewportStartBufferRow() -> Int {
+        let totalCount = totalBufferLineCount()
+        let clampedOffset = min(max(0, viewportOffset), maxViewportOffset())
+        let endExclusive = max(0, totalCount - clampedOffset)
+        return max(0, endExclusive - rows)
+    }
+
+    public func bufferRow(forViewportRow viewportRow: Int) -> Int {
+        let clampedViewportRow = min(max(0, viewportRow), rows - 1)
+        return viewportStartBufferRow() + clampedViewportRow
+    }
+
     public func validRowRange() -> Range<Int> {
         0 ..< rows
     }
