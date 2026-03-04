@@ -29,6 +29,7 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     public var onInput: (@Sendable (Data) -> Void)?
     public var onFocus: (() -> Void)?
     public var onResize: ((Int, Int) -> Void)?
+    public var onOpenExternalURL: ((URL) -> Void)?
     /// Callback for terminal query responses (DSR, DA, etc) - injects response back to PTY
     public var onTerminalQueryResponse: ((Data) -> Void)? {
         didSet {
@@ -247,6 +248,10 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         screenBuffer.setViewportOffset(scrollbackOffset)
         let point = convert(event.locationInWindow, from: nil)
         let location = bufferCellLocation(from: point)
+        if event.modifierFlags.contains(.command), openHyperlink(atBufferRow: location.row, column: location.column) {
+            isSelectingWithMouse = false
+            return
+        }
         if shouldRouteMouseEventToPTY(event) {
             sendMouseButtonEvent(buttonCode: 0, event: event, isRelease: false)
             isMouseReportingDrag = true
@@ -827,6 +832,39 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         guard cb <= 255, cx <= 255, cy <= 255 else { return nil }
         return Data([0x1B, 0x5B, 0x4D, UInt8(cb), UInt8(cx), UInt8(cy)])
     }
+
+    private func openHyperlink(atBufferRow row: Int, column: Int) -> Bool {
+        let line = screenBuffer.line(atBufferRow: row)
+        guard line.count > 0 else { return false }
+
+        let normalized = normalizedColumn(atBufferRow: row, column: column)
+        guard normalized < line.count else { return false }
+        let hyperlink = line[normalized].hyperlink
+            ?? ((line[normalized].displayWidth == 0 && normalized > 0) ? line[normalized - 1].hyperlink : nil)
+        guard let hyperlink else { return false }
+        guard let safeURL = safeExternalURL(from: hyperlink) else { return false }
+
+        if let onOpenExternalURL {
+            onOpenExternalURL(safeURL)
+        } else {
+            NSWorkspace.shared.open(safeURL)
+        }
+        return true
+    }
+
+    func safeExternalURL(from rawValue: String) -> URL? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              Self.allowedExternalURLSchemes.contains(scheme),
+              let url = components.url else {
+            return nil
+        }
+        return url
+    }
+
+    private static let allowedExternalURLSchemes: Set<String> = ["http", "https", "mailto", "ssh", "ftp", "sftp"]
 
     nonisolated private func markFlushScheduled() -> Bool {
         flushScheduleLock.lock()

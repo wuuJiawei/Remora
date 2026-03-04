@@ -79,6 +79,38 @@ struct ANSIParserTests {
     }
 
     @Test
+    func parserAppliesOSC8HyperlinkMetadata() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 64)
+        let data = Data("\u{001B}]8;;https://example.com\u{0007}hello\u{001B}]8;;\u{0007}".utf8)
+
+        parser.parse(data, into: screen)
+
+        let line = screen.line(at: 0)
+        #expect(line[0].character == "h")
+        #expect(line[0].hyperlink == "https://example.com")
+        #expect(screen.activeHyperlink == nil)
+    }
+
+    @Test
+    func parserParsesOSC8AcrossChunkBoundaries() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 3, columns: 64)
+        let payload = Data("\u{001B}]8;;https://example.com\u{001B}\\ab\u{001B}]8;;\u{001B}\\".utf8)
+
+        parser.parse(payload.prefix(7), into: screen)
+        parser.parse(payload.dropFirst(7).prefix(9), into: screen)
+        parser.parse(payload.dropFirst(16), into: screen)
+
+        let line = screen.line(at: 0)
+        #expect(line[0].character == "a")
+        #expect(line[0].hyperlink == "https://example.com")
+        #expect(line[1].character == "b")
+        #expect(line[1].hyperlink == "https://example.com")
+        #expect(screen.activeHyperlink == nil)
+    }
+
+    @Test
     func parserDecodesUTF8AcrossChunkBoundaries() {
         let parser = ANSIParser()
         let screen = ScreenBuffer(rows: 2, columns: 8)

@@ -19,6 +19,7 @@ public final class ScreenBuffer {
     public private(set) var cursorRow: Int = 0
     public private(set) var cursorColumn: Int = 0
     public private(set) var activeAttributes: TerminalAttributes = .default
+    public private(set) var activeHyperlink: String?
     public private(set) var isCursorVisible: Bool = true
     public private(set) var isSynchronizedUpdate: Bool = false
 
@@ -282,7 +283,8 @@ public final class ScreenBuffer {
         lines[row][col] = TerminalCell(
             character: character,
             attributes: activeAttributes,
-            displayWidth: 1
+            displayWidth: 1,
+            hyperlink: activeHyperlink
         )
         markDirty(row: row)
 
@@ -309,12 +311,14 @@ public final class ScreenBuffer {
         lines[row][col] = TerminalCell(
             character: character,
             attributes: activeAttributes,
-            displayWidth: 2
+            displayWidth: 2,
+            hyperlink: activeHyperlink
         )
         lines[row][col + 1] = TerminalCell(
             character: " ",
             attributes: activeAttributes,
-            displayWidth: 0
+            displayWidth: 0,
+            hyperlink: activeHyperlink
         )
         markDirty(row: row)
 
@@ -447,6 +451,10 @@ public final class ScreenBuffer {
         guard isCursorVisible != visible else { return }
         isCursorVisible = visible
         markDirty(row: cursorRow)
+    }
+
+    public func setActiveHyperlink(_ hyperlink: String?) {
+        activeHyperlink = hyperlink?.isEmpty == true ? nil : hyperlink
     }
 
     public func beginSynchronizedUpdate() {

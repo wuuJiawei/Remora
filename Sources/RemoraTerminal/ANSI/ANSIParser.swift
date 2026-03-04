@@ -23,8 +23,8 @@ public final class ANSIParser {
         case escape
         case csi([UInt8])
         case ss3
-        case osc
-        case oscEscape
+        case osc([UInt8])
+        case oscEscape([UInt8])
     }
 
     private var state: State = .ground
@@ -54,7 +54,7 @@ public final class ANSIParser {
             } else if byte == UInt8(ascii: "O") {
                 state = .ss3
             } else if byte == UInt8(ascii: "]") {
-                state = .osc
+                state = .osc([])
             } else if byte == UInt8(ascii: "7") {
                 // DECSC - Save Cursor
                 screen.saveCursor()
@@ -109,17 +109,29 @@ public final class ANSIParser {
                 break
             }
             state = .ground
-        case .osc:
+        case .osc(var bytes):
             if byte == 0x07 {
+                executeOSC(payload: bytes, screen: screen)
                 state = .ground
             } else if byte == 0x1B {
-                state = .oscEscape
+                state = .oscEscape(bytes)
+            } else {
+                bytes.append(byte)
+                state = .osc(bytes)
             }
-        case .oscEscape:
+        case .oscEscape(let bytes):
             if byte == UInt8(ascii: "\\") {
+                executeOSC(payload: bytes, screen: screen)
                 state = .ground
-            } else if byte != 0x1B {
-                state = .osc
+            } else {
+                var resumed = bytes
+                resumed.append(0x1B)
+                if byte != 0x1B {
+                    resumed.append(byte)
+                    state = .osc(resumed)
+                } else {
+                    state = .oscEscape(resumed)
+                }
             }
         }
     }
@@ -334,6 +346,28 @@ public final class ANSIParser {
                 }
             }
         }
+    }
+
+    private func executeOSC(payload: [UInt8], screen: ScreenBuffer) {
+        guard !payload.isEmpty else { return }
+        let value = String(decoding: payload, as: UTF8.self)
+        guard let separator = value.firstIndex(of: ";") else { return }
+        let command = String(value[..<separator])
+        let body = String(value[value.index(after: separator)...])
+
+        switch command {
+        case "8":
+            handleOSC8(body: body, screen: screen)
+        default:
+            break
+        }
+    }
+
+    private func handleOSC8(body: String, screen: ScreenBuffer) {
+        guard let separator = body.firstIndex(of: ";") else { return }
+        let uriStart = body.index(after: separator)
+        let uri = String(body[uriStart...])
+        screen.setActiveHyperlink(uri.isEmpty ? nil : uri)
     }
 
     private func parseParams(_ raw: String) -> [Int] {

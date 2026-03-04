@@ -156,6 +156,20 @@ struct TerminalInputTests {
         #expect(payload == Data([0x1B, 0x5B, 0x4D, 32, 35, 34]))
     }
 
+    @Test
+    func terminalViewAllowsSafeExternalURLSchemes() {
+        let view = TerminalView(rows: 4, columns: 20)
+        let safe = view.safeExternalURL(from: "https://example.com/path")
+        #expect(safe?.absoluteString == "https://example.com/path")
+    }
+
+    @Test
+    func terminalViewRejectsUnsafeExternalURLSchemes() {
+        let view = TerminalView(rows: 4, columns: 20)
+        #expect(view.safeExternalURL(from: "javascript:alert(1)") == nil)
+        #expect(view.safeExternalURL(from: "file:///tmp/demo") == nil)
+    }
+
     private func keyEvent(
         type: NSEvent.EventType = .keyDown,
         keyCode: UInt16 = 0,
