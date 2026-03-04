@@ -24,16 +24,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        image.isTemplate = false
-        NSApp.applicationIconImage = image
+        let normalized = normalizedDockIcon(from: image)
+        normalized.isTemplate = false
+        NSApp.applicationIconImage = normalized
         NSApp.dockTile.display()
         print("[RemoraApp] icon applied: \(logoURL.path)")
 
         // Some launch sequences render dock tile before icon is ready.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            NSApp.applicationIconImage = image
+            NSApp.applicationIconImage = normalized
             NSApp.dockTile.display()
         }
+    }
+
+    @MainActor
+    private func normalizedDockIcon(from image: NSImage) -> NSImage {
+        let width = image.size.width > 0 ? image.size.width : 512
+        let height = image.size.height > 0 ? image.size.height : 512
+        let canvasSize = NSSize(width: width, height: height)
+        let canvas = NSImage(size: canvasSize)
+
+        // Keep a margin so the dock visual weight matches standard macOS apps.
+        let insetRatio: CGFloat = 0.12
+        let insetRect = NSRect(
+            x: canvasSize.width * insetRatio,
+            y: canvasSize.height * insetRatio,
+            width: canvasSize.width * (1 - insetRatio * 2),
+            height: canvasSize.height * (1 - insetRatio * 2)
+        )
+
+        canvas.lockFocus()
+        image.draw(
+            in: insetRect,
+            from: NSRect(origin: .zero, size: image.size),
+            operation: .sourceOver,
+            fraction: 1,
+            respectFlipped: true,
+            hints: [.interpolation: NSImageInterpolation.high]
+        )
+        canvas.unlockFocus()
+        return canvas
     }
 
     private func resolveLogoURL() -> URL? {
