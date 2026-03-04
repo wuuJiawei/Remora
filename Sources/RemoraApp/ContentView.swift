@@ -1728,7 +1728,7 @@ private struct SidebarHostRow: View {
                     .foregroundStyle(VisualStyle.textTertiary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.white.opacity(0.45)))
+                    .background(Capsule().fill(VisualStyle.chipBackground))
             }
         }
         .padding(.horizontal, 10)
@@ -2172,7 +2172,7 @@ private struct HostQuickCommandEditorSheet: View {
                         .frame(maxWidth: .infinity, minHeight: 96, alignment: .center)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(Color.black.opacity(0.03))
+                                .fill(VisualStyle.mutedSurfaceBackground)
                         )
                 } else {
                     ScrollView {
@@ -2206,7 +2206,7 @@ private struct HostQuickCommandEditorSheet: View {
                                 .padding(.vertical, 7)
                                 .background(
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(Color.white.opacity(0.5))
+                                        .fill(VisualStyle.elevatedSurfaceBackground)
                                 )
                             }
                         }
@@ -2367,7 +2367,7 @@ private struct SessionMetricCompactBars: View {
             ForEach(Array(fractions.enumerated()), id: \.offset) { index, fraction in
                 ZStack(alignment: .bottom) {
                     RoundedRectangle(cornerRadius: 1.6, style: .continuous)
-                        .fill(Color.black.opacity(0.1))
+                        .fill(VisualStyle.metricTrackBackground)
                     RoundedRectangle(cornerRadius: 1.6, style: .continuous)
                         .fill(colors[index].opacity(0.9))
                         .frame(height: barHeight(for: fraction))
@@ -2379,7 +2379,7 @@ private struct SessionMetricCompactBars: View {
         .padding(.vertical, 3)
         .background(
             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color.white.opacity(0.4))
+                .fill(VisualStyle.elevatedSurfaceBackground)
         )
     }
 
@@ -2467,7 +2467,7 @@ private struct SessionMetricDetailBar: View {
         VStack(spacing: 4) {
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Color.black.opacity(0.12))
+                    .fill(VisualStyle.metricTrackBackground)
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(color.opacity(0.9))
                     .frame(height: resolvedHeight)

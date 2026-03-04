@@ -17,6 +17,11 @@ enum VisualStyle {
     static let settingsPaneBackground = Color(nsColor: .underPageBackgroundColor)
     static let settingsSurfaceBackground = Color(nsColor: .controlBackgroundColor)
     static let settingsSelectedTabBackground = Color(nsColor: .selectedContentBackgroundColor).opacity(0.24)
+    static let chipBackground = Color(nsColor: .separatorColor).opacity(0.22)
+    static let mutedSurfaceBackground = Color(nsColor: .quaternaryLabelColor).opacity(0.14)
+    static let elevatedSurfaceBackground = Color(nsColor: .controlBackgroundColor).opacity(0.78)
+    static let metricTrackBackground = Color(nsColor: .separatorColor).opacity(0.34)
+    static let overlayBackground = Color(nsColor: .controlBackgroundColor).opacity(0.92)
 
     static let textPrimary = Color(nsColor: .labelColor)
     static let textSecondary = Color(nsColor: .secondaryLabelColor)

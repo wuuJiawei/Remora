@@ -361,7 +361,7 @@ struct FileManagerPanelView: View {
                         .padding(12)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.black.opacity(0.04))
+                                .fill(VisualStyle.overlayBackground)
                         )
                         .padding(16)
                         .accessibilityIdentifier("file-manager-remote-loading")
@@ -384,7 +384,7 @@ struct FileManagerPanelView: View {
                         .padding(12)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.black.opacity(0.04))
+                                .fill(VisualStyle.overlayBackground)
                         )
                         .padding(16)
                         .accessibilityIdentifier("file-manager-remote-error")
@@ -1199,17 +1199,19 @@ struct FileManagerPanelView: View {
                 .opacity(0.9)
         }
         let stripe = rowIndex.isMultiple(of: 2)
-            ? NSColor.white
+            ? NSColor.controlBackgroundColor
             : NSColor.alternatingContentBackgroundColors.first ?? .controlBackgroundColor
         return Color(nsColor: stripe)
     }
 
     private func remotePrimaryTextColor(for path: String) -> Color {
-        selectedRemotePaths.contains(path) ? Color.white : VisualStyle.textPrimary
+        selectedRemotePaths.contains(path) ? Color(nsColor: .alternateSelectedControlTextColor) : VisualStyle.textPrimary
     }
 
     private func remoteSecondaryTextColor(for path: String) -> Color {
-        selectedRemotePaths.contains(path) ? Color.white.opacity(0.8) : VisualStyle.textSecondary
+        selectedRemotePaths.contains(path)
+            ? Color(nsColor: .alternateSelectedControlTextColor).opacity(0.8)
+            : VisualStyle.textSecondary
     }
 
     private func remoteRowIdentifier(_ path: String) -> String {

@@ -264,7 +264,7 @@ private struct ServerStatusMetricColumn: View {
         VStack(spacing: 6) {
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.black.opacity(0.1))
+                    .fill(VisualStyle.metricTrackBackground)
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(color.opacity(0.9))
                     .frame(height: max(2, CGFloat(clampedFraction) * 156))
