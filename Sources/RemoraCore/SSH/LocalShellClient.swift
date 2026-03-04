@@ -1,6 +1,11 @@
 import Foundation
 import Darwin
 
+enum LocalShellInterruptSignalTarget: Equatable {
+    case processGroup(pid_t)
+    case process(pid_t)
+}
+
 public actor LocalShellClient: SSHTransportClientProtocol {
     private var connectedHost: Host?
 
@@ -158,9 +163,79 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
 
         do {
             try masterHandle.write(contentsOf: data)
+            sendInterruptSignalIfNeeded(for: data)
         } catch {
             throw SSHError.connectionFailed("write failed: \(error.localizedDescription)")
         }
+    }
+
+    private func sendInterruptSignalIfNeeded(for data: Data) {
+        guard data.contains(0x03) else { return } // Ctrl-C / ETX
+
+        let appProcessGroup = getpgrp()
+        let state = stateQueue.sync { () -> (foregroundProcessGroup: pid_t?, shellProcessID: pid_t?, shellProcessGroup: pid_t?) in
+            let foreground = masterFileDescriptor.flatMap { fd -> pid_t? in
+                let value = tcgetpgrp(fd)
+                return value > 0 ? value : nil
+            }
+            let shellPID = process?.processIdentifier
+            let shellGroup = shellPID.flatMap { pid -> pid_t? in
+                let value = getpgid(pid)
+                return value > 0 ? value : nil
+            }
+            return (foreground, shellPID, shellGroup)
+        }
+
+        let targets = Self.interruptSignalTargets(
+            foregroundProcessGroup: state.foregroundProcessGroup,
+            shellProcessID: state.shellProcessID,
+            shellProcessGroup: state.shellProcessGroup,
+            appProcessGroup: appProcessGroup
+        )
+
+        for target in targets {
+            let result: Int32 = {
+                switch target {
+                case .processGroup(let processGroup):
+                    return kill(-processGroup, SIGINT)
+                case .process(let process):
+                    return kill(process, SIGINT)
+                }
+            }()
+            if result == 0 {
+                break
+            }
+        }
+    }
+
+    static func interruptSignalTargets(
+        foregroundProcessGroup: pid_t?,
+        shellProcessID: pid_t?,
+        shellProcessGroup: pid_t?,
+        appProcessGroup: pid_t
+    ) -> [LocalShellInterruptSignalTarget] {
+        var targets: [LocalShellInterruptSignalTarget] = []
+
+        if let foregroundProcessGroup,
+           foregroundProcessGroup > 0,
+           foregroundProcessGroup != appProcessGroup
+        {
+            targets.append(.processGroup(foregroundProcessGroup))
+        }
+
+        if let shellProcessGroup,
+           shellProcessGroup > 0,
+           shellProcessGroup != appProcessGroup,
+           !targets.contains(.processGroup(shellProcessGroup))
+        {
+            targets.append(.processGroup(shellProcessGroup))
+        }
+
+        if let shellProcessID, shellProcessID > 0 {
+            targets.append(.process(shellProcessID))
+        }
+
+        return targets
     }
 
     private func cleanupHandles() {
