@@ -275,6 +275,10 @@ Interaction and persistence:
 - Changes are applied immediately and stored locally in app settings.
 - The active session assistant reads defaults from settings when no session override exists.
 - Keep room for future provider-level credentials/endpoints, but do not require them in MVP.
+- Add a global AI switch (`enabled=true` by default). When disabled:
+  - hide AI sidecar entry, inline `@ai` entry, and smart assist cards
+  - block any outbound provider calls and context-pack assembly
+  - allow toggling at runtime without restart
 
 ## 11. Data, Privacy, and Audit
 

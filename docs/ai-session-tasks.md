@@ -37,6 +37,7 @@ Status allowed: `todo` | `in_progress` | `done`
 - [ ] `status: todo` `id: AI-401` `[P0]` 实现会话审计日志（建议/确认/执行摘要）；验收：可按 session 查看历史。
 - [ ] `status: todo` `id: AI-402` `[P0]` 增加策略档位：`ReadOnlyDefault`/`ConfirmedWrite`/`ProdStrict`；验收：策略切换即时生效。
 - [ ] `status: todo` `id: AI-403` `[P1]` Host 环境标签（prod/staging/dev）接入策略；验收：prod 默认进入 strict。
+- [ ] `status: todo` `id: AI-404` `[P0]` 增加 AI 全局开关（默认开启，可在 Settings 关闭）；验收：关闭后隐藏 sidecar/inline/smart assist 入口并阻断 provider 调用，运行时切换立即生效。
 
 ## Milestone M5 - Multi Provider and Settings
 
@@ -56,6 +57,7 @@ Status allowed: `todo` | `in_progress` | `done`
 
 - `AI-102` 是 `AI-103/AI-500/AI-501` 的前置。
 - `AI-503` 为 `AI-500` 的实现前置（先有通用 AI 设置入口，再做 session override）。
+- `AI-404` 依赖 `AI-503`（在 Settings 中提供 AI 总开关入口）。
 - `AI-104` 是 `AI-200/AI-201/AI-205` 的前置。
 - `AI-202` 是 `AI-203/AI-204` 的前置。
 - `AI-400` 是所有 provider 出站调用上线前置。
