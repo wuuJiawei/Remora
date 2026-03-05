@@ -10,7 +10,7 @@ Status allowed: `todo` | `in_progress` | `done`
 
 ## Milestone M1 - Session AI Skeleton (MVP Week 1)
 
-- [ ] `status: todo` `id: AI-100` `[P0]` 新增 `SessionAIAssistantCoordinator`（会话级状态机）；验收：可绑定到单个 session 并维持消息历史。
+- [x] `status: done` `id: AI-100` `[P0]` 新增 `SessionAIAssistantCoordinator`（会话级状态机）；验收：可绑定到单个 session 并维持消息历史。
 - [ ] `status: todo` `id: AI-101` `[P0]` 新增 Sidecar 面板 UI（可收起/展开）；验收：可发送消息并显示 AI 回复占位。
 - [x] `status: done` `id: AI-102` `[P0]` 定义 `LLMProvider` 协议与基础数据结构；验收：可通过 mock provider 走通一次问答。
 - [ ] `status: todo` `id: AI-103` `[P0]` 实现首个 provider adapter（建议 OpenAI）；验收：文本与流式响应可用。
