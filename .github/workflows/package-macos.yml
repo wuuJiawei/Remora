@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - "v*"
+      - "ci-test-*"
 
 permissions:
   contents: write
@@ -28,7 +29,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build RemoraApp (Release)
+      - name: Build Remora (Release)
         run: swift build -c release --arch "${{ matrix.arch }}" --product RemoraApp
 
       - name: Create app bundle and archive
@@ -56,7 +57,7 @@ jobs:
           APP_DIR="${STAGE_DIR}/Remora.app"
           mkdir -p "${APP_DIR}/Contents/MacOS" "${APP_DIR}/Contents/Resources"
 
-          cp "${BINARY_PATH}" "${APP_DIR}/Contents/MacOS/RemoraApp"
+          cp "${BINARY_PATH}" "${APP_DIR}/Contents/MacOS/Remora"
           cp -R "${RESOURCE_BUNDLE}" "${APP_DIR}/Contents/Resources/"
 
           if [[ -f "Resources/AppIcon.icns" ]]; then
@@ -71,7 +72,7 @@ jobs:
             <key>CFBundleDisplayName</key>
             <string>Remora</string>
             <key>CFBundleExecutable</key>
-            <string>RemoraApp</string>
+            <string>Remora</string>
             <key>CFBundleIdentifier</key>
             <string>io.github.wuujiawei.remora</string>
             <key>CFBundleIconFile</key>
@@ -102,7 +103,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "${ARCHIVE_PATH}"
           shasum -a 256 "${ARCHIVE_PATH}" > "${ARCHIVE_PATH}.sha256"
 
-          file "${APP_DIR}/Contents/MacOS/RemoraApp"
+          file "${APP_DIR}/Contents/MacOS/Remora"
           ls -lh "${ARCHIVE_PATH}" "${ARCHIVE_PATH}.sha256"
 
       - name: Upload build artifact
