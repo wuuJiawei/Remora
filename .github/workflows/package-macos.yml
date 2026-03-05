@@ -20,7 +20,7 @@ jobs:
           - runner: macos-14
             arch: arm64
             label: apple-silicon
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x86_64
             label: intel
 

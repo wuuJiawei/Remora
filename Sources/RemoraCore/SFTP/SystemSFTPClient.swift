@@ -272,12 +272,14 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         }
 
         if !sftpCommands.isEmpty {
+            let sftpCommandsSnapshot = sftpCommands
+            let sshCommandsSnapshot = sshCommands
             try await executeSFTPPrimaryWithSSHFallback(
                 sftpOperation: {
-                    _ = try await runSFTPBatch(commands: sftpCommands)
+                    _ = try await runSFTPBatch(commands: sftpCommandsSnapshot)
                 },
                 sshFallback: {
-                    for command in sshCommands {
+                    for command in sshCommandsSnapshot {
                         try await runSSHCommand(command)
                     }
                 }
@@ -307,9 +309,9 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         try await runSSHCommandOutput(command, timeout: timeout ?? shellFallbackTimeout)
     }
 
-    private func executeSFTPPrimaryWithSSHFallback<T>(
-        sftpOperation: () async throws -> T,
-        sshFallback: () async throws -> T
+    private func executeSFTPPrimaryWithSSHFallback<T: Sendable>(
+        sftpOperation: @Sendable () async throws -> T,
+        sshFallback: @Sendable () async throws -> T
     ) async throws -> T {
         do {
             return try await sftpOperation()
