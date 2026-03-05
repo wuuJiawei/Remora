@@ -43,6 +43,7 @@ Status allowed: `todo` | `in_progress` | `done`
 - [ ] `status: todo` `id: AI-500` `[P1]` provider/model 选择设置项；验收：session 可持久化 provider 偏好。
 - [ ] `status: todo` `id: AI-501` `[P1]` 增加第 2 个 provider（Anthropic 或 Qwen）；验收：切换后可同等走通 Plan->Reflect。
 - [ ] `status: todo` `id: AI-502` `[P1]` 统一限流、重试、费用统计接口；验收：Provider 层暴露一致指标。
+- [ ] `status: todo` `id: AI-503` `[P0]` Settings 新增 AI 栏目（provider/model id/model display name/temperature/max output tokens/streaming）；验收：设置项可持久化且重启后保留。
 
 ## Milestone M6 - Testing and Release Gate
 
@@ -54,6 +55,7 @@ Status allowed: `todo` | `in_progress` | `done`
 ## Dependency Notes
 
 - `AI-102` 是 `AI-103/AI-500/AI-501` 的前置。
+- `AI-503` 为 `AI-500` 的实现前置（先有通用 AI 设置入口，再做 session override）。
 - `AI-104` 是 `AI-200/AI-201/AI-205` 的前置。
 - `AI-202` 是 `AI-203/AI-204` 的前置。
 - `AI-400` 是所有 provider 出站调用上线前置。

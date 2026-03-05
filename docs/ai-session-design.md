@@ -254,6 +254,28 @@ AI explains output, states whether goal met, and proposes next step.
 - Inline prompt keeps terminal-native feel and writes result back to sidecar timeline.
 - All run actions include visible “from AI suggestion” badge for transparency.
 
+### 10.1 Settings: AI Pane
+
+Add a dedicated `AI` pane in app settings to align with common LLM tooling UX.
+
+Core fields for MVP:
+
+- Provider:
+  - enum selector (`OpenAI`, `Anthropic`, `Gemini`, `Qwen`, `Custom`)
+- Model:
+  - model id (e.g. `gpt-4.1`, `claude-3-7-sonnet`, `gemini-2.0-flash`)
+  - model display name (user-friendly alias)
+- Inference controls:
+  - temperature (`0.0 ~ 2.0`, clamped)
+  - max output tokens (`256 ~ 8192`, clamped)
+  - streaming response toggle
+
+Interaction and persistence:
+
+- Changes are applied immediately and stored locally in app settings.
+- The active session assistant reads defaults from settings when no session override exists.
+- Keep room for future provider-level credentials/endpoints, but do not require them in MVP.
+
 ## 11. Data, Privacy, and Audit
 
 - Redact secrets before provider call.
