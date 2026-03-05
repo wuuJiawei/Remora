@@ -45,4 +45,20 @@ struct AppSettingsTests {
         #expect(AppSettings.clampedServerMetricsMaxConcurrentFetches(0) == 1)
         #expect(AppSettings.clampedServerMetricsMaxConcurrentFetches(99) == 6)
     }
+
+    @Test
+    func aiSettingsResolveDefaultsAndClampRanges() {
+        #expect(AppSettings.resolvedAIProvider(from: nil) == .openAI)
+        #expect(AppSettings.resolvedAIProvider(from: "unknown-provider") == .openAI)
+        #expect(AppSettings.resolvedAIProvider(from: "anthropic") == .anthropic)
+
+        #expect(AppSettings.defaultAIModelID(for: .openAI) == "gpt-4.1")
+        #expect(AppSettings.defaultAIModelDisplayName(for: .openAI) == "GPT-4.1")
+
+        #expect(AppSettings.clampedAITemperature(-10) == 0.0)
+        #expect(AppSettings.clampedAITemperature(10) == 2.0)
+
+        #expect(AppSettings.clampedAIMaxOutputTokens(1) == 256)
+        #expect(AppSettings.clampedAIMaxOutputTokens(99_999) == 8_192)
+    }
 }

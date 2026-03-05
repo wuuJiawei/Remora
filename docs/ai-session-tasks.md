@@ -43,7 +43,7 @@ Status allowed: `todo` | `in_progress` | `done`
 - [ ] `status: todo` `id: AI-500` `[P1]` provider/model 选择设置项；验收：session 可持久化 provider 偏好。
 - [ ] `status: todo` `id: AI-501` `[P1]` 增加第 2 个 provider（Anthropic 或 Qwen）；验收：切换后可同等走通 Plan->Reflect。
 - [ ] `status: todo` `id: AI-502` `[P1]` 统一限流、重试、费用统计接口；验收：Provider 层暴露一致指标。
-- [ ] `status: todo` `id: AI-503` `[P0]` Settings 新增 AI 栏目（provider/model id/model display name/temperature/max output tokens/streaming）；验收：设置项可持久化且重启后保留。
+- [x] `status: done` `id: AI-503` `[P0]` Settings 新增 AI 栏目（provider/model id/model display name/temperature/max output tokens/streaming）；验收：设置项可持久化且重启后保留。
 
 ## Milestone M6 - Testing and Release Gate
 

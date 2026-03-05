@@ -3,6 +3,7 @@ import SwiftUI
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
     case general
+    case ai
     case shortcuts
     case advanced
 
@@ -12,6 +13,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return "General"
+        case .ai:
+            return "AI"
         case .shortcuts:
             return "Shortcuts"
         case .advanced:
@@ -23,6 +26,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return "gearshape"
+        case .ai:
+            return "sparkles"
         case .shortcuts:
             return "keyboard"
         case .advanced:
@@ -61,6 +66,18 @@ struct RemoraSettingsSheet: View {
     private var serverMetricsInactiveRefreshSeconds = AppSettings.defaultServerMetricsInactiveRefreshSeconds
     @AppStorage(AppSettings.serverMetricsMaxConcurrentFetchesKey)
     private var serverMetricsMaxConcurrentFetches = AppSettings.defaultServerMetricsMaxConcurrentFetches
+    @AppStorage(AppSettings.aiProviderKey)
+    private var aiProviderRawValue = AppSettings.defaultAIProvider.rawValue
+    @AppStorage(AppSettings.aiModelIDKey)
+    private var aiModelID = AppSettings.defaultAIModelID
+    @AppStorage(AppSettings.aiModelDisplayNameKey)
+    private var aiModelDisplayName = AppSettings.defaultAIModelDisplayName
+    @AppStorage(AppSettings.aiTemperatureKey)
+    private var aiTemperature = AppSettings.defaultAITemperature
+    @AppStorage(AppSettings.aiMaxOutputTokensKey)
+    private var aiMaxOutputTokens = AppSettings.defaultAIMaxOutputTokens
+    @AppStorage(AppSettings.aiStreamingEnabledKey)
+    private var aiStreamingEnabled = AppSettings.defaultAIStreamingEnabled
 
     var body: some View {
         VStack(spacing: 0) {
@@ -74,6 +91,7 @@ struct RemoraSettingsSheet: View {
         .onAppear {
             syncDownloadDirectoryDraftFromStorage()
             normalizeServerMetricsSettings()
+            normalizeAISettings()
         }
         .onReceive(NotificationCenter.default.publisher(for: .remoraOpenDownloadDirectorySetting)) { _ in
             focusDownloadDirectorySetting()
@@ -89,6 +107,12 @@ struct RemoraSettingsSheet: View {
         }
         .onChange(of: serverMetricsMaxConcurrentFetches) {
             normalizeServerMetricsSettings()
+        }
+        .onChange(of: aiTemperature) {
+            normalizeAISettings()
+        }
+        .onChange(of: aiMaxOutputTokens) {
+            normalizeAISettings()
         }
     }
 
@@ -109,6 +133,8 @@ struct RemoraSettingsSheet: View {
             switch selectedPane {
             case .general:
                 generalPane
+            case .ai:
+                aiPane
             case .shortcuts:
                 shortcutsPane
             case .advanced:
@@ -256,6 +282,91 @@ struct RemoraSettingsSheet: View {
         .accessibilityIdentifier("settings-section-general")
     }
 
+    private var aiPane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                settingsSectionCard(
+                    title: tr("AI Provider & Model"),
+                    message: tr("Set provider and model defaults used by session AI when no per-session override is configured.")
+                ) {
+                    compactSettingRow(title: tr("Provider")) {
+                        Picker(tr("Provider"), selection: aiProviderBinding) {
+                            ForEach(AIProviderOption.allCases) { provider in
+                                Text(tr(provider.title)).tag(provider)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 220, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-provider")
+                    }
+
+                    compactSettingRow(title: tr("Recommended model")) {
+                        Picker(tr("Recommended model"), selection: suggestedModelSelectionBinding) {
+                            ForEach(selectedAIProvider.suggestedModels) { model in
+                                Text(model.displayName).tag(model.id)
+                            }
+                            Text(tr("Custom model")).tag(customModelSelectionTag)
+                        }
+                        .labelsHidden()
+                        .frame(width: 220, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-model-recommended")
+                    }
+
+                    compactSettingRow(title: tr("Model ID")) {
+                        TextField(tr("Model ID"), text: $aiModelID)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(width: 220, alignment: .trailing)
+                            .accessibilityIdentifier("settings-ai-model-id")
+                    }
+
+                    compactSettingRow(title: tr("Model display name")) {
+                        TextField(tr("Model display name"), text: $aiModelDisplayName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 220, alignment: .trailing)
+                            .accessibilityIdentifier("settings-ai-model-name")
+                    }
+                }
+
+                settingsSectionCard(
+                    title: tr("AI Inference"),
+                    message: tr("Use conservative defaults first and tune based on quality and cost.")
+                ) {
+                    compactSettingRow(title: tr("Temperature")) {
+                        HStack(spacing: 8) {
+                            Slider(value: $aiTemperature, in: 0.0...2.0, step: 0.05)
+                                .frame(width: 150)
+                            Text(String(format: "%.2f", aiTemperature))
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(VisualStyle.textSecondary)
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                        .accessibilityIdentifier("settings-ai-temperature")
+                    }
+
+                    compactSettingRow(title: tr("Max output tokens")) {
+                        Stepper(value: $aiMaxOutputTokens, in: 256...8_192, step: 128) {
+                            Text("\(aiMaxOutputTokens)")
+                                .font(.system(.body, design: .monospaced))
+                        }
+                        .frame(width: 160, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-max-output-tokens")
+                    }
+
+                    compactSettingRow(title: tr("Stream responses")) {
+                        Toggle(tr("Stream responses"), isOn: $aiStreamingEnabled)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-ai-streaming")
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .scrollIndicators(.hidden)
+        .accessibilityIdentifier("settings-section-ai")
+    }
+
     private var advancedPane: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
@@ -378,6 +489,42 @@ struct RemoraSettingsSheet: View {
             control()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var customModelSelectionTag: String {
+        "__custom_model__"
+    }
+
+    private var selectedAIProvider: AIProviderOption {
+        AppSettings.resolvedAIProvider(from: aiProviderRawValue)
+    }
+
+    private var aiProviderBinding: Binding<AIProviderOption> {
+        Binding(
+            get: { selectedAIProvider },
+            set: { provider in
+                aiProviderRawValue = provider.rawValue
+                aiModelID = AppSettings.defaultAIModelID(for: provider)
+                aiModelDisplayName = AppSettings.defaultAIModelDisplayName(for: provider)
+            }
+        )
+    }
+
+    private var suggestedModelSelectionBinding: Binding<String> {
+        Binding(
+            get: {
+                if selectedAIProvider.suggestedModels.contains(where: { $0.id == aiModelID }) {
+                    return aiModelID
+                }
+                return customModelSelectionTag
+            },
+            set: { selected in
+                guard selected != customModelSelectionTag else { return }
+                guard let preset = selectedAIProvider.suggestedModels.first(where: { $0.id == selected }) else { return }
+                aiModelID = preset.id
+                aiModelDisplayName = preset.displayName
+            }
+        )
     }
 
     private var shortcutConflictsCard: some View {
@@ -628,6 +775,37 @@ struct RemoraSettingsSheet: View {
         }
         if normalizedConcurrent != serverMetricsMaxConcurrentFetches {
             serverMetricsMaxConcurrentFetches = normalizedConcurrent
+        }
+    }
+
+    private func normalizeAISettings() {
+        let resolvedProvider = AppSettings.resolvedAIProvider(from: aiProviderRawValue)
+        if resolvedProvider.rawValue != aiProviderRawValue {
+            aiProviderRawValue = resolvedProvider.rawValue
+        }
+
+        let normalizedTemperature = AppSettings.clampedAITemperature(aiTemperature)
+        if normalizedTemperature != aiTemperature {
+            aiTemperature = normalizedTemperature
+        }
+
+        let normalizedMaxOutputTokens = AppSettings.clampedAIMaxOutputTokens(aiMaxOutputTokens)
+        if normalizedMaxOutputTokens != aiMaxOutputTokens {
+            aiMaxOutputTokens = normalizedMaxOutputTokens
+        }
+
+        let trimmedModelID = aiModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedModelID.isEmpty {
+            aiModelID = AppSettings.defaultAIModelID(for: resolvedProvider)
+        } else if trimmedModelID != aiModelID {
+            aiModelID = trimmedModelID
+        }
+
+        let trimmedDisplayName = aiModelDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedDisplayName.isEmpty {
+            aiModelDisplayName = AppSettings.defaultAIModelDisplayName(for: resolvedProvider)
+        } else if trimmedDisplayName != aiModelDisplayName {
+            aiModelDisplayName = trimmedDisplayName
         }
     }
 

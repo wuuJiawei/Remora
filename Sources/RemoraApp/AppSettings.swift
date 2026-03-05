@@ -12,10 +12,22 @@ enum AppSettings {
     static let serverMetricsActiveRefreshSecondsKey = "settings.metrics.activeRefreshSeconds"
     static let serverMetricsInactiveRefreshSecondsKey = "settings.metrics.inactiveRefreshSeconds"
     static let serverMetricsMaxConcurrentFetchesKey = "settings.metrics.maxConcurrentFetches"
+    static let aiProviderKey = "settings.ai.provider"
+    static let aiModelIDKey = "settings.ai.model.id"
+    static let aiModelDisplayNameKey = "settings.ai.model.displayName"
+    static let aiTemperatureKey = "settings.ai.temperature"
+    static let aiMaxOutputTokensKey = "settings.ai.maxOutputTokens"
+    static let aiStreamingEnabledKey = "settings.ai.streamingEnabled"
 
     static let defaultServerMetricsActiveRefreshSeconds = 4
     static let defaultServerMetricsInactiveRefreshSeconds = 10
     static let defaultServerMetricsMaxConcurrentFetches = 2
+    static let defaultAIProvider: AIProviderOption = .openAI
+    static let defaultAIModelID = defaultAIProvider.defaultModel.id
+    static let defaultAIModelDisplayName = defaultAIProvider.defaultModel.displayName
+    static let defaultAITemperature = 0.2
+    static let defaultAIMaxOutputTokens = 2_048
+    static let defaultAIStreamingEnabled = true
     static let defaultTerminalWordSeparators = " ()[]{}'\"`"
     static let defaultTerminalScrollSensitivity = 1.0
     static let defaultTerminalFastScrollSensitivity = 5.0
@@ -78,6 +90,29 @@ enum AppSettings {
 
     static func clampedServerMetricsMaxConcurrentFetches(_ value: Int) -> Int {
         min(max(value, 1), 6)
+    }
+
+    static func resolvedAIProvider(from rawValue: String?) -> AIProviderOption {
+        guard let rawValue else { return defaultAIProvider }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return defaultAIProvider }
+        return AIProviderOption.resolved(from: trimmed)
+    }
+
+    static func defaultAIModelID(for provider: AIProviderOption) -> String {
+        provider.defaultModel.id
+    }
+
+    static func defaultAIModelDisplayName(for provider: AIProviderOption) -> String {
+        provider.defaultModel.displayName
+    }
+
+    static func clampedAITemperature(_ value: Double) -> Double {
+        min(max(value, 0.0), 2.0)
+    }
+
+    static func clampedAIMaxOutputTokens(_ value: Int) -> Int {
+        min(max(value, 256), 8_192)
     }
 
     static func resolvedTerminalWordSeparators(defaults: UserDefaults = .standard) -> String {
