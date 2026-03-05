@@ -4,6 +4,19 @@ import Testing
 
 struct AppSettingsTests {
     @Test
+    func aiEnabledDefaultsToTrueWhenUnset() {
+        let defaultsName = "remora.ai.enabled.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: defaultsName)!
+        defer {
+            defaults.removePersistentDomain(forName: defaultsName)
+        }
+
+        #expect(AppSettings.resolvedAIEnabled(defaults: defaults) == true)
+        defaults.set(false, forKey: AppSettings.aiEnabledKey)
+        #expect(AppSettings.resolvedAIEnabled(defaults: defaults) == false)
+    }
+
+    @Test
     func resolvedDownloadDirectoryUsesProvidedWritableDirectory() throws {
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("remora-app-settings-\(UUID().uuidString)")

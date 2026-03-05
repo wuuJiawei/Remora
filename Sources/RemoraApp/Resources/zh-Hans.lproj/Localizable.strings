@@ -4,6 +4,10 @@
 "Sidebar" = "边栏";
 "Advanced" = "高级";
 "AI" = "AI";
+"AI Availability" = "AI 可用性";
+"Disable AI to prevent sending server context to any model provider." = "关闭 AI 可避免把服务器上下文发送给任何模型服务商。";
+"Enable AI features" = "启用 AI 功能";
+"AI is currently disabled. Sidecar and other AI entry points are hidden immediately." = "AI 当前已关闭，Sidecar 与其他 AI 入口会立即隐藏。";
 "AI Provider & Model" = "AI Provider 与模型";
 "AI Provider Profile" = "AI 供应商信息";
 "Configure provider identity fields for easier account and endpoint management." = "配置供应商信息，便于区分账号与管理接口地址。";

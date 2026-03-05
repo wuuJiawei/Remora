@@ -21,6 +21,7 @@ struct AISessionMessage: Identifiable, Equatable, Sendable {
 enum SessionAIAssistantCoordinatorError: LocalizedError, Equatable, Sendable {
     case sessionNotBound
     case emptyInput
+    case aiDisabled
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +29,8 @@ enum SessionAIAssistantCoordinatorError: LocalizedError, Equatable, Sendable {
             "Session is not bound for AI assistant."
         case .emptyInput:
             "Input cannot be empty."
+        case .aiDisabled:
+            "AI features are disabled in Settings."
         }
     }
 }
@@ -39,10 +42,17 @@ final class SessionAIAssistantCoordinator: ObservableObject {
     @Published private(set) var isResponding: Bool
 
     private let provider: any LLMProvider
+    private let isAIEnabled: @Sendable () -> Bool
     private var historyBySession: [UUID: [AISessionMessage]]
 
-    init(provider: any LLMProvider = MockLLMProvider()) {
+    init(
+        provider: any LLMProvider = MockLLMProvider(),
+        isAIEnabled: @escaping @Sendable () -> Bool = {
+            AppSettings.resolvedAIEnabled()
+        }
+    ) {
         self.provider = provider
+        self.isAIEnabled = isAIEnabled
         self.boundSessionID = nil
         self.messages = []
         self.isResponding = false
@@ -55,6 +65,10 @@ final class SessionAIAssistantCoordinator: ObservableObject {
     }
 
     func sendUserMessage(_ text: String, options: LLMOptions = .default) async throws {
+        guard isAIEnabled() else {
+            throw SessionAIAssistantCoordinatorError.aiDisabled
+        }
+
         guard let sessionID = boundSessionID else {
             throw SessionAIAssistantCoordinatorError.sessionNotBound
         }

@@ -8,6 +8,7 @@ struct TerminalPaneView: View {
     @State private var aiInputText = ""
     @State private var isAISidecarExpanded = true
     @State private var aiErrorMessage: String?
+    @AppStorage(AppSettings.aiEnabledKey) private var isAIEnabled = AppSettings.defaultAIEnabled
     var quickCommands: [HostQuickCommand]
     var isFocused: Bool
     var onSelect: () -> Void
@@ -78,6 +79,15 @@ struct TerminalPaneView: View {
         .onChange(of: pane.id) { _, _ in
             bindAISessionIfNeeded()
         }
+        .onChange(of: isAIEnabled) { _, enabled in
+            if !enabled {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isAISidecarExpanded = false
+                }
+                aiInputText = ""
+                aiErrorMessage = nil
+            }
+        }
     }
 
     private var headerBar: some View {
@@ -141,18 +151,20 @@ struct TerminalPaneView: View {
                 .accessibilityIdentifier("terminal-reconnect")
             }
 
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isAISidecarExpanded.toggle()
+            if isAIEnabled {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isAISidecarExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: isAISidecarExpanded ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
+                        .font(.caption.weight(.semibold))
                 }
-            } label: {
-                Image(systemName: isAISidecarExpanded ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
-                    .font(.caption.weight(.semibold))
+                .buttonStyle(.plain)
+                .foregroundStyle(VisualStyle.textSecondary)
+                .help(tr("Toggle AI sidecar"))
+                .accessibilityIdentifier("terminal-ai-toggle")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(VisualStyle.textSecondary)
-            .help(tr("Toggle AI sidecar"))
-            .accessibilityIdentifier("terminal-ai-toggle")
 
             Image(systemName: isFocused ? "cursorarrow.motionlines" : "cursorarrow")
                 .font(.caption)
@@ -169,7 +181,7 @@ struct TerminalPaneView: View {
                 .background(VisualStyle.terminalBackground)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if isAISidecarExpanded {
+            if isAIEnabled && isAISidecarExpanded {
                 Divider()
                     .overlay(VisualStyle.borderSoft)
 

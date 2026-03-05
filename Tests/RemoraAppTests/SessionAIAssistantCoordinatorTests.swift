@@ -48,4 +48,17 @@ struct SessionAIAssistantCoordinatorTests {
             try await coordinator.sendUserMessage("   ")
         }
     }
+
+    @Test
+    func sendMessageFailsWhenAIDisabled() async {
+        let coordinator = SessionAIAssistantCoordinator(
+            provider: MockLLMProvider(),
+            isAIEnabled: { false }
+        )
+        coordinator.bind(to: UUID())
+
+        await #expect(throws: SessionAIAssistantCoordinatorError.aiDisabled) {
+            try await coordinator.sendUserMessage("whoami")
+        }
+    }
 }

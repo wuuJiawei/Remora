@@ -4,6 +4,10 @@
 "Sidebar" = "Sidebar";
 "Advanced" = "Advanced";
 "AI" = "AI";
+"AI Availability" = "AI Availability";
+"Disable AI to prevent sending server context to any model provider." = "Disable AI to prevent sending server context to any model provider.";
+"Enable AI features" = "Enable AI features";
+"AI is currently disabled. Sidecar and other AI entry points are hidden immediately." = "AI is currently disabled. Sidecar and other AI entry points are hidden immediately.";
 "AI Provider & Model" = "AI Provider & Model";
 "AI Provider Profile" = "AI Provider Profile";
 "Configure provider identity fields for easier account and endpoint management." = "Configure provider identity fields for easier account and endpoint management.";

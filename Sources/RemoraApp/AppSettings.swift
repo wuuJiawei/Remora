@@ -13,6 +13,7 @@ enum AppSettings {
     static let serverMetricsInactiveRefreshSecondsKey = "settings.metrics.inactiveRefreshSeconds"
     static let serverMetricsMaxConcurrentFetchesKey = "settings.metrics.maxConcurrentFetches"
     static let aiProviderKey = "settings.ai.provider"
+    static let aiEnabledKey = "settings.ai.enabled"
     static let aiProviderDisplayNameKey = "settings.ai.provider.displayName"
     static let aiProviderNoteKey = "settings.ai.provider.note"
     static let aiProviderWebsiteURLKey = "settings.ai.provider.websiteURL"
@@ -30,6 +31,7 @@ enum AppSettings {
     static let defaultServerMetricsInactiveRefreshSeconds = 10
     static let defaultServerMetricsMaxConcurrentFetches = 2
     static let defaultAIProvider: AIProviderOption = .openAI
+    static let defaultAIEnabled = true
     static let defaultAIProviderDisplayName = "OpenAI Official"
     static let defaultAIProviderNote = ""
     static let defaultAIProviderWebsiteURL = ""
@@ -111,6 +113,13 @@ enum AppSettings {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return defaultAIProvider }
         return AIProviderOption.resolved(from: trimmed)
+    }
+
+    static func resolvedAIEnabled(defaults: UserDefaults = .standard) -> Bool {
+        if defaults.object(forKey: aiEnabledKey) == nil {
+            return defaultAIEnabled
+        }
+        return defaults.bool(forKey: aiEnabledKey)
     }
 
     static func defaultAIModelID(for provider: AIProviderOption) -> String {

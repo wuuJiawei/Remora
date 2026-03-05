@@ -67,6 +67,8 @@ struct RemoraSettingsSheet: View {
     private var serverMetricsInactiveRefreshSeconds = AppSettings.defaultServerMetricsInactiveRefreshSeconds
     @AppStorage(AppSettings.serverMetricsMaxConcurrentFetchesKey)
     private var serverMetricsMaxConcurrentFetches = AppSettings.defaultServerMetricsMaxConcurrentFetches
+    @AppStorage(AppSettings.aiEnabledKey)
+    private var aiEnabled = AppSettings.defaultAIEnabled
     @AppStorage(AppSettings.aiProviderKey)
     private var aiProviderRawValue = AppSettings.defaultAIProvider.rawValue
     @AppStorage(AppSettings.aiProviderDisplayNameKey)
@@ -316,6 +318,23 @@ struct RemoraSettingsSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 settingsSectionCard(
+                    title: tr("AI Availability"),
+                    message: tr("Disable AI to prevent sending server context to any model provider.")
+                ) {
+                    compactSettingRow(title: tr("Enable AI features")) {
+                        Toggle(tr("Enable AI features"), isOn: $aiEnabled)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-ai-enabled")
+                    }
+
+                    if !aiEnabled {
+                        Text(tr("AI is currently disabled. Sidecar and other AI entry points are hidden immediately."))
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.orange)
+                    }
+                }
+
+                settingsSectionCard(
                     title: tr("AI Provider Profile"),
                     message: tr("Configure provider identity fields for easier account and endpoint management.")
                 ) {
@@ -352,6 +371,8 @@ struct RemoraSettingsSheet: View {
                             .accessibilityIdentifier("settings-ai-provider-website")
                     }
                 }
+                .disabled(!aiEnabled)
+                .opacity(aiEnabled ? 1 : 0.55)
 
                 settingsSectionCard(
                     title: tr("AI API Access"),
@@ -408,6 +429,8 @@ struct RemoraSettingsSheet: View {
                         .accessibilityIdentifier("settings-ai-api-format")
                     }
                 }
+                .disabled(!aiEnabled)
+                .opacity(aiEnabled ? 1 : 0.55)
 
                 settingsSectionCard(
                     title: tr("AI Provider & Model"),
@@ -440,6 +463,8 @@ struct RemoraSettingsSheet: View {
                             .accessibilityIdentifier("settings-ai-model-name")
                     }
                 }
+                .disabled(!aiEnabled)
+                .opacity(aiEnabled ? 1 : 0.55)
 
                 settingsSectionCard(
                     title: tr("AI Inference"),
@@ -491,6 +516,8 @@ struct RemoraSettingsSheet: View {
                             .accessibilityIdentifier("settings-ai-config-json")
                     }
                 }
+                .disabled(!aiEnabled)
+                .opacity(aiEnabled ? 1 : 0.55)
             }
             .padding(.vertical, 2)
             .frame(maxWidth: .infinity, alignment: .topLeading)
