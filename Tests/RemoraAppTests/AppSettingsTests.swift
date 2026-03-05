@@ -61,4 +61,29 @@ struct AppSettingsTests {
         #expect(AppSettings.clampedAIMaxOutputTokens(1) == 256)
         #expect(AppSettings.clampedAIMaxOutputTokens(99_999) == 8_192)
     }
+
+    @Test
+    func aiApiFormatAndEndpointAreNormalized() {
+        #expect(AppSettings.resolvedAIAPIFormat(from: nil) == .openAIResponses)
+        #expect(AppSettings.resolvedAIAPIFormat(from: "invalid") == .openAIResponses)
+        #expect(AppSettings.resolvedAIAPIFormat(from: "anthropic_messages") == .anthropicMessages)
+
+        #expect(
+            AppSettings.defaultAIEndpointURL(for: .openAI, format: .openAIResponses)
+                == "https://api.openai.com/v1"
+        )
+        #expect(
+            AppSettings.defaultAIEndpointURL(for: .anthropic, format: .anthropicMessages)
+                == "https://api.anthropic.com"
+        )
+        #expect(
+            AppSettings.defaultAIEndpointURL(for: .gemini, format: .geminiGenerateContent)
+                == "https://generativelanguage.googleapis.com"
+        )
+
+        #expect(
+            AppSettings.normalizedAIEndpointURL("  https://api.openai.com/v1/  ")
+                == "https://api.openai.com/v1"
+        )
+    }
 }

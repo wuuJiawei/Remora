@@ -53,6 +53,7 @@ struct RemoraSettingsSheet: View {
     @State private var shortcutRecorderMonitor: Any?
     @State private var shortcutRecorderMessage: String?
     @State private var shortcutRecorderIsError = false
+    @State private var isAIAPIKeyRevealed = false
     @FocusState private var focusedField: SettingsFocusField?
     @EnvironmentObject private var keyboardShortcutStore: AppKeyboardShortcutStore
     @Environment(\.openURL) private var openURL
@@ -68,10 +69,24 @@ struct RemoraSettingsSheet: View {
     private var serverMetricsMaxConcurrentFetches = AppSettings.defaultServerMetricsMaxConcurrentFetches
     @AppStorage(AppSettings.aiProviderKey)
     private var aiProviderRawValue = AppSettings.defaultAIProvider.rawValue
+    @AppStorage(AppSettings.aiProviderDisplayNameKey)
+    private var aiProviderDisplayName = AppSettings.defaultAIProviderDisplayName
+    @AppStorage(AppSettings.aiProviderNoteKey)
+    private var aiProviderNote = AppSettings.defaultAIProviderNote
+    @AppStorage(AppSettings.aiProviderWebsiteURLKey)
+    private var aiProviderWebsiteURL = AppSettings.defaultAIProviderWebsiteURL
+    @AppStorage(AppSettings.aiAPIKeyKey)
+    private var aiAPIKey = AppSettings.defaultAIAPIKey
+    @AppStorage(AppSettings.aiAPIFormatKey)
+    private var aiAPIFormatRawValue = AppSettings.defaultAIAPIFormat.rawValue
+    @AppStorage(AppSettings.aiEndpointURLKey)
+    private var aiEndpointURL = AppSettings.defaultAIEndpointURL
     @AppStorage(AppSettings.aiModelIDKey)
     private var aiModelID = AppSettings.defaultAIModelID
     @AppStorage(AppSettings.aiModelDisplayNameKey)
     private var aiModelDisplayName = AppSettings.defaultAIModelDisplayName
+    @AppStorage(AppSettings.aiProviderConfigJSONKey)
+    private var aiProviderConfigJSON = AppSettings.defaultAIProviderConfigJSON
     @AppStorage(AppSettings.aiTemperatureKey)
     private var aiTemperature = AppSettings.defaultAITemperature
     @AppStorage(AppSettings.aiMaxOutputTokensKey)
@@ -112,6 +127,21 @@ struct RemoraSettingsSheet: View {
             normalizeAISettings()
         }
         .onChange(of: aiMaxOutputTokens) {
+            normalizeAISettings()
+        }
+        .onChange(of: aiProviderDisplayName) {
+            normalizeAISettings()
+        }
+        .onChange(of: aiProviderWebsiteURL) {
+            normalizeAISettings()
+        }
+        .onChange(of: aiEndpointURL) {
+            normalizeAISettings()
+        }
+        .onChange(of: aiModelID) {
+            normalizeAISettings()
+        }
+        .onChange(of: aiModelDisplayName) {
             normalizeAISettings()
         }
     }
@@ -286,8 +316,8 @@ struct RemoraSettingsSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 settingsSectionCard(
-                    title: tr("AI Provider & Model"),
-                    message: tr("Set provider and model defaults used by session AI when no per-session override is configured.")
+                    title: tr("AI Provider Profile"),
+                    message: tr("Configure provider identity fields for easier account and endpoint management.")
                 ) {
                     compactSettingRow(title: tr("Provider")) {
                         Picker(tr("Provider"), selection: aiProviderBinding) {
@@ -300,6 +330,89 @@ struct RemoraSettingsSheet: View {
                         .accessibilityIdentifier("settings-ai-provider")
                     }
 
+                    compactSettingRow(title: tr("Provider name")) {
+                        TextField(tr("Provider name"), text: $aiProviderDisplayName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 220, alignment: .trailing)
+                            .accessibilityIdentifier("settings-ai-provider-name")
+                    }
+
+                    compactSettingRow(title: tr("Note")) {
+                        TextField(tr("Note"), text: $aiProviderNote)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 220, alignment: .trailing)
+                            .accessibilityIdentifier("settings-ai-provider-note")
+                    }
+
+                    compactSettingRow(title: tr("Website")) {
+                        TextField("https://example.com", text: $aiProviderWebsiteURL)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(width: 220, alignment: .trailing)
+                            .accessibilityIdentifier("settings-ai-provider-website")
+                    }
+                }
+
+                settingsSectionCard(
+                    title: tr("AI API Access"),
+                    message: tr("Set endpoint and authentication required to call provider APIs.")
+                ) {
+                    compactSettingRow(title: tr("API Key")) {
+                        HStack(spacing: 8) {
+                            if isAIAPIKeyRevealed {
+                                TextField(tr("API Key"), text: $aiAPIKey)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 12, design: .monospaced))
+                            } else {
+                                SecureField(tr("API Key"), text: $aiAPIKey)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 12, design: .monospaced))
+                            }
+
+                            Button {
+                                isAIAPIKeyRevealed.toggle()
+                            } label: {
+                                Image(systemName: isAIAPIKeyRevealed ? "eye.slash" : "eye")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(VisualStyle.textSecondary)
+                            .help(tr("Show/Hide API Key"))
+                            .accessibilityIdentifier("settings-ai-api-key-visibility")
+                        }
+                        .frame(width: 220, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-api-key")
+                    }
+
+                    compactSettingRow(title: tr("Endpoint URL")) {
+                        TextField("https://your-api-endpoint.com", text: $aiEndpointURL)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(width: 220, alignment: .trailing)
+                            .accessibilityIdentifier("settings-ai-endpoint")
+                    }
+
+                    if endpointHasTrailingSlash {
+                        Text(tr("Endpoint should not end with '/'; it is normalized automatically."))
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.orange)
+                    }
+
+                    compactSettingRow(title: tr("API format")) {
+                        Picker(tr("API format"), selection: aiAPIFormatBinding) {
+                            ForEach(AIAPIFormatOption.allCases) { format in
+                                Text(tr(format.title)).tag(format)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 220, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-api-format")
+                    }
+                }
+
+                settingsSectionCard(
+                    title: tr("AI Provider & Model"),
+                    message: tr("Set provider and model defaults used by session AI when no per-session override is configured.")
+                ) {
                     compactSettingRow(title: tr("Recommended model")) {
                         Picker(tr("Recommended model"), selection: suggestedModelSelectionBinding) {
                             ForEach(selectedAIProvider.suggestedModels) { model in
@@ -357,6 +470,25 @@ struct RemoraSettingsSheet: View {
                         Toggle(tr("Stream responses"), isOn: $aiStreamingEnabled)
                             .labelsHidden()
                             .accessibilityIdentifier("settings-ai-streaming")
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(tr("Provider config JSON"))
+                            .font(.system(size: 13))
+                            .foregroundStyle(VisualStyle.textPrimary)
+                        TextEditor(text: $aiProviderConfigJSON)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(minHeight: 96, maxHeight: 120)
+                            .padding(4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(VisualStyle.inputFieldBackground)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(VisualStyle.borderSoft, lineWidth: 1)
+                            )
+                            .accessibilityIdentifier("settings-ai-config-json")
                     }
                 }
             }
@@ -499,13 +631,39 @@ struct RemoraSettingsSheet: View {
         AppSettings.resolvedAIProvider(from: aiProviderRawValue)
     }
 
+    private var selectedAIAPIFormat: AIAPIFormatOption {
+        AppSettings.resolvedAIAPIFormat(from: aiAPIFormatRawValue)
+    }
+
+    private var endpointHasTrailingSlash: Bool {
+        aiEndpointURL.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("/")
+    }
+
     private var aiProviderBinding: Binding<AIProviderOption> {
         Binding(
             get: { selectedAIProvider },
             set: { provider in
                 aiProviderRawValue = provider.rawValue
+                aiProviderDisplayName = AppSettings.defaultAIProviderDisplayName(for: provider)
+                let format = AppSettings.defaultAIAPIFormat(for: provider)
+                aiAPIFormatRawValue = format.rawValue
+                aiEndpointURL = AppSettings.defaultAIEndpointURL(for: provider, format: format)
                 aiModelID = AppSettings.defaultAIModelID(for: provider)
                 aiModelDisplayName = AppSettings.defaultAIModelDisplayName(for: provider)
+            }
+        )
+    }
+
+    private var aiAPIFormatBinding: Binding<AIAPIFormatOption> {
+        Binding(
+            get: { selectedAIAPIFormat },
+            set: { format in
+                aiAPIFormatRawValue = format.rawValue
+                let fallbackEndpoint = AppSettings.defaultAIEndpointURL(for: selectedAIProvider, format: format)
+                let normalizedCurrent = AppSettings.normalizedAIEndpointURL(aiEndpointURL)
+                if normalizedCurrent.isEmpty || normalizedCurrent == AppSettings.defaultAIEndpointURL(for: selectedAIProvider, format: selectedAIAPIFormat) {
+                    aiEndpointURL = fallbackEndpoint
+                }
             }
         )
     }
@@ -784,6 +942,40 @@ struct RemoraSettingsSheet: View {
             aiProviderRawValue = resolvedProvider.rawValue
         }
 
+        let resolvedFormat = AppSettings.resolvedAIAPIFormat(from: aiAPIFormatRawValue)
+        if resolvedFormat.rawValue != aiAPIFormatRawValue {
+            aiAPIFormatRawValue = resolvedFormat.rawValue
+        }
+
+        let trimmedProviderDisplayName = aiProviderDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedProviderDisplayName.isEmpty {
+            aiProviderDisplayName = AppSettings.defaultAIProviderDisplayName(for: resolvedProvider)
+        } else if trimmedProviderDisplayName != aiProviderDisplayName {
+            aiProviderDisplayName = trimmedProviderDisplayName
+        }
+
+        let trimmedProviderNote = aiProviderNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedProviderNote != aiProviderNote {
+            aiProviderNote = trimmedProviderNote
+        }
+
+        let trimmedWebsite = aiProviderWebsiteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedWebsite != aiProviderWebsiteURL {
+            aiProviderWebsiteURL = trimmedWebsite
+        }
+
+        let trimmedAPIKey = aiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedAPIKey != aiAPIKey {
+            aiAPIKey = trimmedAPIKey
+        }
+
+        let normalizedEndpoint = AppSettings.normalizedAIEndpointURL(aiEndpointURL)
+        if normalizedEndpoint.isEmpty {
+            aiEndpointURL = AppSettings.defaultAIEndpointURL(for: resolvedProvider, format: resolvedFormat)
+        } else if normalizedEndpoint != aiEndpointURL {
+            aiEndpointURL = normalizedEndpoint
+        }
+
         let normalizedTemperature = AppSettings.clampedAITemperature(aiTemperature)
         if normalizedTemperature != aiTemperature {
             aiTemperature = normalizedTemperature
@@ -806,6 +998,13 @@ struct RemoraSettingsSheet: View {
             aiModelDisplayName = AppSettings.defaultAIModelDisplayName(for: resolvedProvider)
         } else if trimmedDisplayName != aiModelDisplayName {
             aiModelDisplayName = trimmedDisplayName
+        }
+
+        let trimmedConfig = aiProviderConfigJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedConfig.isEmpty {
+            aiProviderConfigJSON = AppSettings.defaultAIProviderConfigJSON
+        } else if trimmedConfig != aiProviderConfigJSON {
+            aiProviderConfigJSON = trimmedConfig
         }
     }
 

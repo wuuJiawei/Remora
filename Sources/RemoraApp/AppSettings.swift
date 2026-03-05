@@ -13,8 +13,15 @@ enum AppSettings {
     static let serverMetricsInactiveRefreshSecondsKey = "settings.metrics.inactiveRefreshSeconds"
     static let serverMetricsMaxConcurrentFetchesKey = "settings.metrics.maxConcurrentFetches"
     static let aiProviderKey = "settings.ai.provider"
+    static let aiProviderDisplayNameKey = "settings.ai.provider.displayName"
+    static let aiProviderNoteKey = "settings.ai.provider.note"
+    static let aiProviderWebsiteURLKey = "settings.ai.provider.websiteURL"
+    static let aiAPIKeyKey = "settings.ai.apiKey"
+    static let aiAPIFormatKey = "settings.ai.api.format"
+    static let aiEndpointURLKey = "settings.ai.api.endpointURL"
     static let aiModelIDKey = "settings.ai.model.id"
     static let aiModelDisplayNameKey = "settings.ai.model.displayName"
+    static let aiProviderConfigJSONKey = "settings.ai.provider.configJSON"
     static let aiTemperatureKey = "settings.ai.temperature"
     static let aiMaxOutputTokensKey = "settings.ai.maxOutputTokens"
     static let aiStreamingEnabledKey = "settings.ai.streamingEnabled"
@@ -23,8 +30,15 @@ enum AppSettings {
     static let defaultServerMetricsInactiveRefreshSeconds = 10
     static let defaultServerMetricsMaxConcurrentFetches = 2
     static let defaultAIProvider: AIProviderOption = .openAI
+    static let defaultAIProviderDisplayName = "OpenAI Official"
+    static let defaultAIProviderNote = ""
+    static let defaultAIProviderWebsiteURL = ""
+    static let defaultAIAPIKey = ""
+    static let defaultAIAPIFormat = defaultAIProvider.defaultAPIFormat
+    static let defaultAIEndpointURL = defaultAIProvider.defaultEndpoint(for: defaultAIAPIFormat)
     static let defaultAIModelID = defaultAIProvider.defaultModel.id
     static let defaultAIModelDisplayName = defaultAIProvider.defaultModel.displayName
+    static let defaultAIProviderConfigJSON = "{\n  \"env\": {\n    \"API_TIMEOUT_MS\": \"300000\"\n  }\n}"
     static let defaultAITemperature = 0.2
     static let defaultAIMaxOutputTokens = 2_048
     static let defaultAIStreamingEnabled = true
@@ -105,6 +119,33 @@ enum AppSettings {
 
     static func defaultAIModelDisplayName(for provider: AIProviderOption) -> String {
         provider.defaultModel.displayName
+    }
+
+    static func defaultAIProviderDisplayName(for provider: AIProviderOption) -> String {
+        "\(provider.title) Official"
+    }
+
+    static func resolvedAIAPIFormat(from rawValue: String?) -> AIAPIFormatOption {
+        guard let rawValue else { return defaultAIAPIFormat }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return defaultAIAPIFormat }
+        return AIAPIFormatOption.resolved(from: trimmed)
+    }
+
+    static func defaultAIAPIFormat(for provider: AIProviderOption) -> AIAPIFormatOption {
+        provider.defaultAPIFormat
+    }
+
+    static func defaultAIEndpointURL(for provider: AIProviderOption, format: AIAPIFormatOption? = nil) -> String {
+        provider.defaultEndpoint(for: format)
+    }
+
+    static func normalizedAIEndpointURL(_ value: String) -> String {
+        var normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        while normalized.hasSuffix("/") {
+            normalized.removeLast()
+        }
+        return normalized
     }
 
     static func clampedAITemperature(_ value: Double) -> Double {

@@ -5,6 +5,35 @@ struct AIModelPreset: Identifiable, Equatable, Sendable {
     let displayName: String
 }
 
+enum AIAPIFormatOption: String, CaseIterable, Identifiable, Sendable {
+    case openAIResponses = "openai_responses"
+    case openAIChatCompletions = "openai_chat_completions"
+    case anthropicMessages = "anthropic_messages"
+    case geminiGenerateContent = "gemini_generate_content"
+    case compatibleCustom = "compatible_custom"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .openAIResponses:
+            return "OpenAI Responses"
+        case .openAIChatCompletions:
+            return "OpenAI Chat Completions"
+        case .anthropicMessages:
+            return "Anthropic Messages"
+        case .geminiGenerateContent:
+            return "Gemini GenerateContent"
+        case .compatibleCustom:
+            return "Compatible Custom"
+        }
+    }
+
+    static func resolved(from rawValue: String) -> AIAPIFormatOption {
+        AIAPIFormatOption(rawValue: rawValue) ?? .openAIResponses
+    }
+}
+
 enum AIProviderOption: String, CaseIterable, Identifiable, Sendable {
     case openAI = "openai"
     case anthropic = "anthropic"
@@ -63,6 +92,38 @@ enum AIProviderOption: String, CaseIterable, Identifiable, Sendable {
             return first
         }
         return AIModelPreset(id: "custom-model", displayName: "Custom Model")
+    }
+
+    var defaultAPIFormat: AIAPIFormatOption {
+        switch self {
+        case .openAI:
+            return .openAIResponses
+        case .anthropic:
+            return .anthropicMessages
+        case .gemini:
+            return .geminiGenerateContent
+        case .qwen:
+            return .openAIChatCompletions
+        case .custom:
+            return .compatibleCustom
+        }
+    }
+
+    func defaultEndpoint(for format: AIAPIFormatOption? = nil) -> String {
+        let resolvedFormat = format ?? defaultAPIFormat
+        switch resolvedFormat {
+        case .openAIResponses, .openAIChatCompletions:
+            if self == .qwen {
+                return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            }
+            return "https://api.openai.com/v1"
+        case .anthropicMessages:
+            return "https://api.anthropic.com"
+        case .geminiGenerateContent:
+            return "https://generativelanguage.googleapis.com"
+        case .compatibleCustom:
+            return self == .custom ? "" : defaultEndpoint(for: defaultAPIFormat)
+        }
     }
 
     static func resolved(from rawValue: String) -> AIProviderOption {
