@@ -1,0 +1,134 @@
+name: Package macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+            label: apple-silicon
+          - runner: macos-13
+            arch: x86_64
+            label: intel
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build RemoraApp (Release)
+        run: swift build -c release --arch "${{ matrix.arch }}" --product RemoraApp
+
+      - name: Create app bundle and archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ARCH="${{ matrix.arch }}"
+          LABEL="${{ matrix.label }}"
+          VERSION="${GITHUB_REF_NAME:-dev-${GITHUB_SHA::7}}"
+          PRODUCT_DIR=".build/${ARCH}-apple-macosx/release"
+          BINARY_PATH="${PRODUCT_DIR}/RemoraApp"
+          RESOURCE_BUNDLE="$(find "${PRODUCT_DIR}" -maxdepth 1 -type d -name '*_RemoraApp.bundle' | head -n 1 || true)"
+
+          if [[ ! -x "${BINARY_PATH}" ]]; then
+            echo "Missing binary at ${BINARY_PATH}" >&2
+            exit 1
+          fi
+          if [[ -z "${RESOURCE_BUNDLE}" ]]; then
+            echo "Missing SwiftPM resource bundle in ${PRODUCT_DIR}" >&2
+            exit 1
+          fi
+
+          STAGE_DIR="dist/${LABEL}"
+          APP_DIR="${STAGE_DIR}/Remora.app"
+          mkdir -p "${APP_DIR}/Contents/MacOS" "${APP_DIR}/Contents/Resources"
+
+          cp "${BINARY_PATH}" "${APP_DIR}/Contents/MacOS/RemoraApp"
+          cp -R "${RESOURCE_BUNDLE}" "${APP_DIR}/Contents/Resources/"
+
+          if [[ -f "Resources/AppIcon.icns" ]]; then
+            cp "Resources/AppIcon.icns" "${APP_DIR}/Contents/Resources/AppIcon.icns"
+          fi
+
+          cat > "${APP_DIR}/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleDisplayName</key>
+            <string>Remora</string>
+            <key>CFBundleExecutable</key>
+            <string>RemoraApp</string>
+            <key>CFBundleIdentifier</key>
+            <string>io.github.wuujiawei.remora</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon.icns</string>
+            <key>CFBundleName</key>
+            <string>Remora</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>0.0.0</string>
+            <key>CFBundleVersion</key>
+            <string>0</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>14.0</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION#v}" "${APP_DIR}/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${GITHUB_RUN_NUMBER}" "${APP_DIR}/Contents/Info.plist"
+
+          # Ad-hoc sign for cleaner local launch after download.
+          codesign --force --deep --sign - "${APP_DIR}"
+
+          ARCHIVE_PATH="dist/Remora-${VERSION}-macos-${LABEL}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "${ARCHIVE_PATH}"
+          shasum -a 256 "${ARCHIVE_PATH}" > "${ARCHIVE_PATH}.sha256"
+
+          file "${APP_DIR}/Contents/MacOS/RemoraApp"
+          ls -lh "${ARCHIVE_PATH}" "${ARCHIVE_PATH}.sha256"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: remora-${{ matrix.label }}
+          path: |
+            dist/Remora-*.zip
+            dist/Remora-*.zip.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release Assets
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach assets to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Remora-*.zip
+            dist/Remora-*.zip.sha256
