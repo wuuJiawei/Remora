@@ -28,12 +28,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Swift 6.0
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+
+      - name: Show Swift version
+        run: swift --version
+
       - name: Verify tag commit is on main
         id: ref_guard
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags --depth=1 origin main
+          git fetch --no-tags origin main
           if git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
             echo "tag_on_main=true" >> "$GITHUB_OUTPUT"
             echo "Tag commit is on main."
@@ -145,7 +153,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags --depth=1 origin main
+          git fetch --no-tags origin main
           if git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
             echo "tag_on_main=true" >> "$GITHUB_OUTPUT"
             echo "Tag commit is on main."
