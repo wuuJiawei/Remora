@@ -17,6 +17,7 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#project-structure">Project Structure</a> •
   <a href="#testing">Testing</a> •
+  <a href="#community">Community</a> •
   <a href="#contributing">Contributing</a>
 </p>
 
@@ -32,48 +33,20 @@ Remora focuses on a practical split:
 
 ## Features
 
-### Terminal & Session
+- Fantastic: Local-first SSH + SFTP workspace, ANSI/VT support for modern TUIs, xterm-style selection, quick commands/quick paths, drag-and-drop transfers.
+- Beautiful: Native macOS UI with clean split layout, light/dark/system themes, and distraction-free terminal focus.
+- Fast: Swift 6 native architecture with a custom terminal engine (buffer + parser + renderer), built to outperform typical Electron-based terminal apps under heavy TUI/scroll workloads.
+- Simple: Lightweight app with a 99% Swift-native stack, keyboard-driven workflows, and practical defaults that work out of the box.
 
-- Native terminal view (`NSView`) hosted inside SwiftUI.
-- ANSI/VT support for common modern TUIs.
-- Selection experience inspired by xterm-style behavior:
-  - Drag selection, double-click word selection.
-  - Triple-click logical line selection.
-  - Option/Alt column (rectangular) selection.
-  - Selection anchored to buffer space (stable across scrolling).
-- Local shell and SSH session support.
-- Multi-session tabs and pane-based workspace layout.
-- Reconnect entry point for SSH sessions.
+### What You Can Do Today
 
-### SSH Host Management
-
-- Host catalog with groups, search, templates, favorites, recent connections.
-- Quick connect and quick actions from sidebar/top-level workflow.
-- Host auth methods (agent/password/private key) with secure storage paths.
-- Host key trust prompt flow.
-- Per-host quick commands.
-
-### SFTP / File Manager
-
-- Local + remote file browser panel.
-- Remote operations: create file/folder, rename, move, delete, copy/cut/paste, download/upload.
-- Transfer queue with progress/state and retry support.
-- Drag-and-drop upload:
-  - Drop on directory row -> upload into that directory.
-  - Drop on file row or blank list area -> upload into current directory.
-  - Visual destination hint (`Drop to upload to <path>`) and drop-target highlight.
-- File manager operation toasts for immediate feedback (copy/cut/delete/paste/upload/download/etc.).
-- Optional terminal-directory sync with file manager navigation.
-- Per-host quick paths for FTP/SFTP workflows.
-
-### App Experience
-
-- Simplified Chinese + English localization.
-- Light/Dark/System appearance support.
-- Customizable app keyboard shortcuts (with conflict detection).
-- Settings UI for language, appearance, file manager path, metrics sampling, and shortcuts.
-- Built-in project/about links and issue entry points.
-- Server metrics/status panel for connected SSH hosts.
+- Run local shell and SSH sessions with multi-tab/pane workspace.
+- Manage hosts with groups, search, favorites, and quick connect.
+- Use SFTP file manager for create/rename/move/delete/copy/paste/upload/download.
+- Drag files onto directories or current path with visual upload target hints.
+- Get immediate operation feedback via toasts and retry failed transfer tasks.
+- Sync terminal directory with file manager navigation when needed.
+- Configure language, appearance, shortcuts, and metrics in settings.
 
 ## Screenshots
 
@@ -144,6 +117,12 @@ Contributions are welcome.
 
 - Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a PR.
 - For bugs/feature requests, use [GitHub Issues](https://github.com/wuuJiawei/Remora/issues).
+
+## Community
+
+- GitHub: [wuuJiawei/Remora](https://github.com/wuuJiawei/Remora)
+- Issues: [Report a bug / request a feature](https://github.com/wuuJiawei/Remora/issues)
+- X (updates): [@1Javeys](https://x.com/1Javeys)
 
 ## Security
 

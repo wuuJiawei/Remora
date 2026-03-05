@@ -17,6 +17,7 @@
   <a href="#快速开始">快速开始</a> •
   <a href="#项目结构">项目结构</a> •
   <a href="#测试">测试</a> •
+  <a href="#社区">社区</a> •
   <a href="#参与贡献">参与贡献</a>
 </p>
 
@@ -32,48 +33,20 @@ Remora 聚焦在一个实用组合：
 
 ## 功能特性
 
-### 终端与会话
+- Fantastic：本地优先的 SSH + SFTP 工作区，支持现代 TUI 所需 ANSI/VT、xterm 风格选择、快捷命令/快捷路径、拖拽传输。
+- Beautiful：原生 macOS 视觉与交互，布局简洁，支持浅色/深色/跟随系统，终端专注无干扰。
+- Fast：Swift 6 原生实现 + 自研终端引擎（buffer/parser/renderer），在高频 TUI 与滚动场景下目标体验优于典型 Electron 终端应用。
+- Simple：轻量设计，99% Swift-native 技术栈，默认配置即可开箱使用，并支持键盘快捷工作流。
 
-- SwiftUI 中内嵌原生终端视图（`NSView`）。
-- 支持现代 TUI 常用的 ANSI/VT 能力。
-- 参考 xterm 风格的文本选择体验：
-  - 拖拽选择、双击选词。
-  - 三击按逻辑行选择。
-  - Option/Alt 矩形列选择。
-  - 选择锚定到缓冲区（滚动时保持稳定）。
-- 支持本地 Shell 与 SSH 会话。
-- 支持多会话标签页与分栏工作区。
-- 支持 SSH 会话快速重连入口。
+### 你现在就可以做的事
 
-### SSH 主机管理
-
-- 主机目录支持分组、搜索、模板、收藏、最近连接。
-- 侧边栏与顶部流程支持快速连接和快捷操作。
-- 支持 Agent/密码/私钥认证，配合安全存储路径。
-- 支持主机密钥信任确认流程。
-- 支持按主机维护快捷命令（Quick Commands）。
-
-### SFTP / 文件管理
-
-- 本地 + 远程双面板文件浏览。
-- 远程操作：新建文件/文件夹、重命名、移动、删除、复制/剪切/粘贴、上传/下载。
-- 传输队列支持进度、状态与失败重试。
-- 拖拽上传：
-  - 拖到目录行：上传到该目录。
-  - 拖到文件行或空白区：上传到当前目录。
-  - 提供目标高亮与浮层文案提示（如 `上传到 /var/log`）。
-- 文件操作提供即时反馈（copy/cut/delete/paste/upload/download 等）。
-- 可选终端目录与文件管理目录同步。
-- 支持按主机维护 FTP/SFTP 快捷路径（Quick Paths）。
-
-### 应用体验
-
-- 支持简体中文与英文。
-- 支持浅色/深色/跟随系统外观。
-- 支持可自定义快捷键（含冲突检测）。
-- 设置页支持语言、外观、下载目录、指标采样与快捷键配置。
-- 内置项目主页与问题反馈入口。
-- 已连接 SSH 主机支持服务器指标/状态面板。
+- 在同一工作区里运行本地 Shell 与 SSH 会话（多标签/分栏）。
+- 管理主机分组、搜索、收藏，并使用快速连接。
+- 通过 SFTP 文件管理器执行新建、重命名、移动、删除、复制/粘贴、上传/下载。
+- 拖拽上传到目录或当前路径，带目标高亮与提示。
+- 获取即时操作反馈（toast）并重试失败传输。
+- 需要时开启终端目录与文件管理目录同步。
+- 在设置中配置语言、外观、快捷键和指标采样。
 
 ## 截图
 
@@ -144,6 +117,12 @@ REMORA_RUN_UI_TESTS=1 REMORA_APP_BINARY=/abs/path/to/RemoraApp swift test --filt
 
 - 提交 PR 前请先阅读 [`CONTRIBUTING.md`](./CONTRIBUTING.md)。
 - Bug 或功能建议请使用 [GitHub Issues](https://github.com/wuuJiawei/Remora/issues)。
+
+## 社区
+
+- GitHub: [wuuJiawei/Remora](https://github.com/wuuJiawei/Remora)
+- Issues: [提交 Bug / 功能建议](https://github.com/wuuJiawei/Remora/issues)
+- X（更新公告）: [@1Javeys](https://x.com/1Javeys)
 
 ## 安全
 
