@@ -81,10 +81,18 @@ jobs:
           mkdir -p "${APP_DIR}/Contents/MacOS" "${APP_DIR}/Contents/Resources"
 
           cp "${BINARY_PATH}" "${APP_DIR}/Contents/MacOS/Remora"
-          cp -R "${RESOURCE_BUNDLE}" "${APP_DIR}/Contents/Resources/"
+          RESOURCE_BUNDLE_NAME="$(basename "${RESOURCE_BUNDLE}")"
+          # SwiftPM's Bundle.module accessor for executable targets resolves
+          # resources relative to Bundle.main.bundleURL (the .app root).
+          cp -R "${RESOURCE_BUNDLE}" "${APP_DIR}/${RESOURCE_BUNDLE_NAME}"
 
           if [[ -f "Resources/AppIcon.icns" ]]; then
             cp "Resources/AppIcon.icns" "${APP_DIR}/Contents/Resources/AppIcon.icns"
+          fi
+
+          if [[ ! -d "${APP_DIR}/${RESOURCE_BUNDLE_NAME}" ]]; then
+            echo "Missing bundled resources at ${APP_DIR}/${RESOURCE_BUNDLE_NAME}" >&2
+            exit 1
           fi
 
           cat > "${APP_DIR}/Contents/Info.plist" <<'PLIST'
