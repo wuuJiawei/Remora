@@ -188,9 +188,9 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
             return
         }
 
-        if isShellLineNavigationShortcut(event),
-           let input = inputMapper.map(event: event)
+        if let input = directTerminalControlInput(for: event)
         {
+            discardMarkedText()
             scrollToBottomOnUserInputIfNeeded()
             onInput?(input)
             return
@@ -220,6 +220,16 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
 
         scrollToBottomOnUserInputIfNeeded()
         interpretKeyEvents([event])
+    }
+
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard let input = keyEquivalentTerminalInput(for: event) else {
+            return super.performKeyEquivalent(with: event)
+        }
+        discardMarkedText()
+        scrollToBottomOnUserInputIfNeeded()
+        onInput?(input)
+        return true
     }
 
     public override func keyUp(with event: NSEvent) {
@@ -253,6 +263,7 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
     public override func mouseDown(with event: NSEvent) {
         onFocus?()
         window?.makeFirstResponder(self)
+        discardMarkedText()
 
         screenBuffer.setViewportOffset(scrollbackOffset)
         let point = convert(event.locationInWindow, from: nil)
@@ -403,6 +414,7 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         }
         onFocus?()
         window?.makeFirstResponder(self)
+        discardMarkedText()
         screenBuffer.setViewportOffset(scrollbackOffset)
         let point = convert(event.locationInWindow, from: nil)
         let location = bufferCellLocation(from: point)
@@ -835,6 +847,26 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         return event.keyCode == 123 || event.keyCode == 124
     }
 
+    private func shouldHandleDirectTerminalControlKey(_ event: NSEvent) -> Bool {
+        switch event.keyCode {
+        case 51, 115, 116, 117, 119, 121, 123, 124, 125, 126:
+            return true
+        default:
+            return isShellLineNavigationShortcut(event)
+        }
+    }
+
+    private func directTerminalControlInput(for event: NSEvent) -> Data? {
+        guard shouldHandleDirectTerminalControlKey(event) else { return nil }
+        return inputMapper.map(event: event)
+    }
+
+    private func keyEquivalentTerminalInput(for event: NSEvent) -> Data? {
+        guard event.type == .keyDown else { return nil }
+        guard isShellLineNavigationShortcut(event) else { return nil }
+        return inputMapper.map(event: event)
+    }
+
     private func shouldHandleShellCursorClick(
         event: NSEvent,
         location: (row: Int, column: Int)
@@ -995,6 +1027,13 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         return String(describing: value)
     }
 
+    private func discardMarkedText() {
+        guard hasMarkedText() || inputContext != nil else { return }
+        markedText = NSAttributedString(string: "")
+        inputContext?.discardMarkedText()
+        inputContext?.invalidateCharacterCoordinates()
+    }
+
     // MARK: - NSTextInputClient
 
     public func hasMarkedText() -> Bool {
@@ -1081,5 +1120,14 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
 
     func shellCursorRepositionInputForTesting(targetBufferRow: Int, targetColumn: Int) -> Data? {
         shellCursorRepositionInput(targetBufferRow: targetBufferRow, targetColumn: targetColumn)
+    }
+
+    func pointForBufferCellForTesting(row: Int, column: Int) -> CGPoint {
+        screenBuffer.setViewportOffset(scrollbackOffset)
+        let viewportRow = row - screenBuffer.viewportStartBufferRow()
+        return CGPoint(
+            x: renderer.horizontalInset + (CGFloat(column) + 0.5) * renderer.cellWidth,
+            y: bounds.height - (CGFloat(viewportRow) + 0.5) * renderer.lineHeight
+        )
     }
 }

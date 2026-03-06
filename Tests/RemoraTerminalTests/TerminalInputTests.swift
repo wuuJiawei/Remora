@@ -140,6 +140,56 @@ struct TerminalInputTests {
     }
 
     @Test
+    func terminalViewKeyDownSendsArrowInputToPTY() {
+        let view = TerminalView(rows: 4, columns: 20)
+        let capture = DataCapture()
+        view.onInput = { capture.append($0) }
+
+        view.keyDown(with: arrowKeyEvent(keyCode: 123))
+        view.keyDown(with: arrowKeyEvent(keyCode: 124))
+
+        #expect(capture.values == [Data("\u{1B}[D".utf8), Data("\u{1B}[C".utf8)])
+    }
+
+    @Test
+    func terminalViewKeyDownSendsCommandArrowLineBoundariesToPTY() {
+        let view = TerminalView(rows: 4, columns: 20)
+        let capture = DataCapture()
+        view.onInput = { capture.append($0) }
+
+        view.keyDown(with: arrowKeyEvent(keyCode: 123, modifierFlags: .command))
+        view.keyDown(with: arrowKeyEvent(keyCode: 124, modifierFlags: .command))
+
+        #expect(capture.values == [Data([0x01]), Data([0x05])])
+    }
+
+    @Test
+    func terminalViewPerformKeyEquivalentSendsCommandArrowLineBoundariesToPTY() {
+        let view = TerminalView(rows: 4, columns: 20)
+        let capture = DataCapture()
+        view.onInput = { capture.append($0) }
+
+        let handledLeft = view.performKeyEquivalent(with: arrowKeyEvent(keyCode: 123, modifierFlags: .command))
+        let handledRight = view.performKeyEquivalent(with: arrowKeyEvent(keyCode: 124, modifierFlags: .command))
+
+        #expect(handledLeft)
+        #expect(handledRight)
+        #expect(capture.values == [Data([0x01]), Data([0x05])])
+    }
+
+    @Test
+    func terminalViewDoCommandSendsLineBoundarySelectorsToPTY() {
+        let view = TerminalView(rows: 4, columns: 20)
+        let capture = DataCapture()
+        view.onInput = { capture.append($0) }
+
+        view.doCommand(by: #selector(NSResponder.moveToBeginningOfLine(_:)))
+        view.doCommand(by: #selector(NSResponder.moveToEndOfLine(_:)))
+
+        #expect(capture.values == [Data([0x01]), Data([0x05])])
+    }
+
+    @Test
     func terminalViewBuildsSGRMousePayload() {
         let view = TerminalView(rows: 10, columns: 10)
         let payload = view.mouseReportPayload(
@@ -222,6 +272,27 @@ struct TerminalInputTests {
         #expect(payload == nil)
     }
 
+    @Test
+    func terminalViewBackspaceStillWorksAfterShellCursorClick() {
+        let view = makeShellPromptViewForTesting(command: "hello")
+        view.setFrameSize(NSSize(width: 400, height: 120))
+        let capture = DataCapture()
+        view.onInput = { capture.append($0) }
+
+        let cursor = view.cursorBufferPositionForTesting()
+        let point = view.pointForBufferCellForTesting(row: cursor.row, column: 2)
+
+        view.mouseDown(with: mouseEvent(type: .leftMouseDown, location: point))
+        view.mouseUp(with: mouseEvent(type: .leftMouseUp, location: point))
+        view.insertText("a", replacementRange: NSRange(location: NSNotFound, length: 0))
+        view.keyDown(with: backspaceEvent())
+
+        let values = capture.values
+        #expect(values.count >= 3)
+        #expect(values[values.count - 2] == Data("a".utf8))
+        #expect(values.last == Data([0x7F]))
+    }
+
     private func keyEvent(
         type: NSEvent.EventType = .keyDown,
         keyCode: UInt16 = 0,
@@ -244,6 +315,58 @@ struct TerminalInputTests {
         )
         guard let event else {
             fatalError("Failed to create test key event")
+        }
+        return event
+    }
+
+    private func arrowKeyEvent(
+        keyCode: UInt16,
+        modifierFlags: NSEvent.ModifierFlags = []
+    ) -> NSEvent {
+        let scalar: UnicodeScalar
+        switch keyCode {
+        case 123:
+            scalar = UnicodeScalar(NSLeftArrowFunctionKey)!
+        case 124:
+            scalar = UnicodeScalar(NSRightArrowFunctionKey)!
+        case 125:
+            scalar = UnicodeScalar(NSDownArrowFunctionKey)!
+        case 126:
+            scalar = UnicodeScalar(NSUpArrowFunctionKey)!
+        default:
+            fatalError("Unsupported arrow key code \(keyCode)")
+        }
+
+        let text = String(scalar)
+        return keyEvent(
+            keyCode: keyCode,
+            modifierFlags: modifierFlags,
+            characters: text,
+            charactersIgnoringModifiers: text
+        )
+    }
+
+    private func backspaceEvent() -> NSEvent {
+        keyEvent(
+            keyCode: 51,
+            characters: String(UnicodeScalar(NSBackspaceCharacter)!),
+            charactersIgnoringModifiers: String(UnicodeScalar(NSBackspaceCharacter)!)
+        )
+    }
+
+    private func mouseEvent(type: NSEvent.EventType, location: CGPoint) -> NSEvent {
+        guard let event = NSEvent.mouseEvent(
+            with: type,
+            location: location,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ) else {
+            fatalError("Failed to create mouse event")
         }
         return event
     }
