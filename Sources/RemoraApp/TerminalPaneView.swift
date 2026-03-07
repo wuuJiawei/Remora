@@ -248,18 +248,20 @@ struct TerminalPaneView: View {
     private var commandComposerSection: some View {
         VStack(spacing: 0) {
             Divider()
-                .overlay(VisualStyle.borderSoft)
+                .overlay(Color.white.opacity(0.08))
             CommandComposerView(
                 text: commandComposerTextBinding,
                 selection: commandComposerSelectionBinding,
                 isFocused: isFocused && runtime.isCommandComposerVisible,
-                onSubmit: runtime.submitCommandComposer
+                onSubmit: runtime.submitCommandComposer,
+                onRequestShellCompletion: runtime.requestCommandComposerCompletion
             )
             .frame(minHeight: 48, idealHeight: 72, maxHeight: 144)
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(VisualStyle.rightPanelBackground)
+            .padding(.vertical, 6)
+            .background(VisualStyle.terminalBackground)
             .accessibilityIdentifier("terminal-command-composer")
         }
+        .background(VisualStyle.terminalBackground)
     }
 }

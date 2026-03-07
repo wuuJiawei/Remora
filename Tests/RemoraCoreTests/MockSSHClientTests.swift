@@ -76,6 +76,27 @@ struct MockSSHClientTests {
         #expect(output.contains("\u{001B}[?1049h"))
         #expect(output.contains("\u{001B}[?1049l"))
     }
+
+    @Test
+    func mockShellSessionCompletesKnownPathsOnTab() async throws {
+        let capture = OutputCapture()
+        let session = MockShellSession(
+            host: Host(
+                name: "demo",
+                address: "127.0.0.1",
+                username: "tester",
+                auth: HostAuth(method: .agent)
+            ),
+            pty: .init(columns: 120, rows: 30)
+        )
+        session.onOutput = { capture.append($0) }
+
+        try await session.start()
+        try await session.write(Data("cd /t\t".utf8))
+
+        let output = capture.combinedString
+        #expect(output.contains("cd /tmp"))
+    }
 }
 
 private final class OutputCapture: @unchecked Sendable {

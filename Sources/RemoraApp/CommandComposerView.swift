@@ -3,6 +3,7 @@ import SwiftUI
 
 final class CommandComposerTextView: NSTextView {
     var onSubmit: ((String) -> Void)?
+    var onRequestShellCompletion: (() -> Void)?
 
     override convenience init(frame frameRect: NSRect) {
         self.init(frame: frameRect, textContainer: nil)
@@ -32,6 +33,12 @@ final class CommandComposerTextView: NSTextView {
         backgroundColor = .clear
         drawsBackground = false
         font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+        textColor = NSColor(calibratedWhite: 0.9, alpha: 1)
+        insertionPointColor = NSColor(calibratedWhite: 0.9, alpha: 1)
+        selectedTextAttributes = [
+            .backgroundColor: NSColor(calibratedWhite: 1.0, alpha: 0.16),
+            .foregroundColor: NSColor(calibratedWhite: 0.96, alpha: 1.0),
+        ]
     }
 
     @available(*, unavailable)
@@ -43,6 +50,8 @@ final class CommandComposerTextView: NSTextView {
         switch selector {
         case #selector(NSResponder.insertNewline(_:)):
             onSubmit?(string)
+        case #selector(NSResponder.insertTab(_:)):
+            onRequestShellCompletion?()
         case #selector(NSResponder.insertLineBreak(_:)),
              #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
             insertText("\n", replacementRange: selectedRange())
@@ -57,6 +66,7 @@ struct CommandComposerView: NSViewRepresentable {
     @Binding var selection: NSRange
     var isFocused: Bool = false
     var onSubmit: () -> Void
+    var onRequestShellCompletion: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -73,6 +83,7 @@ struct CommandComposerView: NSViewRepresentable {
         let textView = CommandComposerTextView(frame: .zero)
         textView.delegate = context.coordinator
         textView.onSubmit = { _ in onSubmit() }
+        textView.onRequestShellCompletion = onRequestShellCompletion
         textView.string = text
         textView.setSelectedRange(selection)
         textView.setAccessibilityIdentifier("terminal-command-composer-editor")
@@ -86,6 +97,7 @@ struct CommandComposerView: NSViewRepresentable {
         guard let textView = nsView.documentView as? CommandComposerTextView else { return }
         context.coordinator.parent = self
         textView.onSubmit = { _ in onSubmit() }
+        textView.onRequestShellCompletion = onRequestShellCompletion
 
         if textView.string != text {
             textView.string = text

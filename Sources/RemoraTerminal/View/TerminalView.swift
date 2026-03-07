@@ -22,6 +22,16 @@ public struct TerminalInteractionState: Equatable, Sendable {
     }
 }
 
+public struct TerminalShellInputSnapshot: Equatable, Sendable {
+    public var logicalLineText: String
+    public var cursorColumn: Int
+
+    public init(logicalLineText: String, cursorColumn: Int) {
+        self.logicalLineText = logicalLineText
+        self.cursorColumn = cursorColumn
+    }
+}
+
 public struct TerminalSelection: Equatable {
     // Buffer-space coordinates (absolute row across scrollback + visible lines).
     public var startRow: Int
@@ -871,6 +881,36 @@ public final class TerminalView: NSView, @preconcurrency NSTextInputClient {
         }
 
         return output
+    }
+
+    public func shellInputSnapshot() -> TerminalShellInputSnapshot? {
+        guard scrollbackOffset == 0 else { return nil }
+        guard !screenBuffer.isAlternateBuffer else { return nil }
+
+        screenBuffer.setViewportOffset(scrollbackOffset)
+        let currentBufferRow = screenBuffer.viewportStartBufferRow() + screenBuffer.cursorRow
+        let logicalRange = screenBuffer.wrappedLogicalLineRange(containingBufferRow: currentBufferRow)
+
+        var renderedText = ""
+        for row in logicalRange {
+            let line = screenBuffer.line(atBufferRow: row)
+            let rowText = String(
+                line.cells.compactMap { cell in
+                    cell.displayWidth == 0 ? nil : cell.character
+                }
+            )
+            renderedText.append(rowText)
+        }
+
+        let cursorColumn = (currentBufferRow - logicalRange.lowerBound) * screenBuffer.columns + screenBuffer.cursorColumn
+        let trimmedLength = max(cursorColumn, renderedText.lastIndex(where: { $0 != " " }).map {
+            renderedText.distance(from: renderedText.startIndex, to: renderedText.index(after: $0))
+        } ?? 0)
+        let logicalLineText = String(renderedText.prefix(trimmedLength))
+        return TerminalShellInputSnapshot(
+            logicalLineText: logicalLineText,
+            cursorColumn: min(cursorColumn, logicalLineText.count)
+        )
     }
 
     private func scrollToBottom() {

@@ -504,6 +504,31 @@ struct TerminalRuntimeTests {
         #expect(resumedSync)
     }
 
+    @Test
+    func commandComposerTabCompletionRefreshesFromShellLine() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let view = TerminalView(rows: 8, columns: 80)
+        view.setFrameSize(NSSize(width: 720, height: 180))
+        runtime.attach(view: view)
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.transcriptSnapshot.contains("Type commands and press Enter.")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        runtime.updateCommandComposer(text: "cd /t", selection: NSRange(location: 5, length: 0))
+        runtime.requestCommandComposerCompletion()
+
+        let completed = await waitUntil(timeout: 2.0) {
+            runtime.commandComposerText == "cd /tmp"
+                && runtime.commandComposerSelection.location == 7
+        }
+        #expect(completed, "Tab completion should round-trip through the shell and refresh composer state.")
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

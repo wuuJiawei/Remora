@@ -79,6 +79,7 @@ final class TerminalRuntime: ObservableObject {
     private var activeSSHHostAddress: String?
     private var isWorkingDirectoryTrackingEnabled = false
     private var pendingWorkingDirectoryProbeTask: Task<Void, Never>?
+    private var pendingCommandComposerRefreshTask: Task<Void, Never>?
     private var awaitingPwdResponse = false
     private var workingDirectoryLineBuffer = ""
 
@@ -298,6 +299,8 @@ final class TerminalRuntime: ObservableObject {
     }
 
     func updateCommandComposer(text: String, selection: NSRange) {
+        pendingCommandComposerRefreshTask?.cancel()
+        pendingCommandComposerRefreshTask = nil
         commandComposerText = text
         let clampedSelection = clampedCommandComposerSelection(selection, text: text)
         commandComposerSelection = clampedSelection
@@ -307,6 +310,8 @@ final class TerminalRuntime: ObservableObject {
     }
 
     func submitCommandComposer() {
+        pendingCommandComposerRefreshTask?.cancel()
+        pendingCommandComposerRefreshTask = nil
         let clampedSelection = clampedCommandComposerSelection(commandComposerSelection, text: commandComposerText)
         commandComposerSelection = clampedSelection
 
@@ -317,6 +322,34 @@ final class TerminalRuntime: ObservableObject {
         enqueueInput(Data([0x0D]))
         commandComposerText = ""
         commandComposerSelection = NSRange(location: 0, length: 0)
+    }
+
+    func requestCommandComposerCompletion() {
+        guard isCommandComposerVisible else { return }
+
+        pendingCommandComposerRefreshTask?.cancel()
+        pendingCommandComposerRefreshTask = nil
+
+        let clampedSelection = clampedCommandComposerSelection(commandComposerSelection, text: commandComposerText)
+        commandComposerSelection = clampedSelection
+
+        replaceCurrentInputLine(with: commandComposerText, cursorAt: clampedSelection.location)
+        pendingCommandComposerRefreshTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(60))
+            guard let self, !Task.isCancelled else { return }
+            let promptPrefixLength = await MainActor.run {
+                self.promptPrefixLengthForCurrentComposerLine()
+            }
+            await MainActor.run {
+                self.enqueueInput(Data("\t".utf8), trackWorkingDirectory: false)
+            }
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self.refreshCommandComposerFromTerminal(promptPrefixLength: promptPrefixLength)
+                self.pendingCommandComposerRefreshTask = nil
+            }
+        }
     }
 
     // PTY Debug Logging
@@ -640,6 +673,8 @@ final class TerminalRuntime: ObservableObject {
         hostKeyPromptMessage = nil
         pendingWorkingDirectoryProbeTask?.cancel()
         pendingWorkingDirectoryProbeTask = nil
+        pendingCommandComposerRefreshTask?.cancel()
+        pendingCommandComposerRefreshTask = nil
         transcriptRefreshTask?.cancel()
         transcriptRefreshTask = nil
         awaitingPwdResponse = false
@@ -941,6 +976,32 @@ final class TerminalRuntime: ObservableObject {
         let maxLength = max(0, maxLocation - location)
         let length = min(max(selection.length, 0), maxLength)
         return NSRange(location: location, length: length)
+    }
+
+    private func refreshCommandComposerFromTerminal(promptPrefixLength: Int) {
+        guard isCommandComposerVisible else { return }
+        guard let snapshot = terminalView?.shellInputSnapshot() else { return }
+
+        let fullLineText = snapshot.logicalLineText
+        let safePrefixLength = min(max(promptPrefixLength, 0), fullLineText.count)
+        let shellLineText = String(fullLineText.dropFirst(safePrefixLength))
+        let shellCursorColumn = max(0, snapshot.cursorColumn - safePrefixLength)
+
+        commandComposerText = shellLineText
+        commandComposerSelection = clampedCommandComposerSelection(
+            NSRange(location: shellCursorColumn, length: 0),
+            text: shellLineText
+        )
+    }
+
+    private func promptPrefixLengthForCurrentComposerLine() -> Int {
+        guard let snapshot = terminalView?.shellInputSnapshot() else { return 0 }
+        if !commandComposerText.isEmpty,
+           let range = snapshot.logicalLineText.range(of: commandComposerText, options: .backwards)
+        {
+            return snapshot.logicalLineText.distance(from: snapshot.logicalLineText.startIndex, to: range.lowerBound)
+        }
+        return max(0, snapshot.cursorColumn - commandComposerSelection.location)
     }
 
     private func shellSingleQuoted(_ value: String) -> String {

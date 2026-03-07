@@ -72,6 +72,12 @@ public final class MockShellSession: SSHTransportSessionProtocol, @unchecked Sen
                 continue
             }
 
+            if character == "\t" {
+                requestTabCompletion()
+                index += 1
+                continue
+            }
+
             if character == "\u{1}" {
                 moveCursorToStart()
                 index += 1
@@ -239,6 +245,28 @@ public final class MockShellSession: SSHTransportSessionProtocol, @unchecked Sen
         let distance = commandBuffer.count - cursorIndex
         cursorIndex = commandBuffer.count
         emitCursorRight(count: distance)
+    }
+
+    private func requestTabCompletion() {
+        guard cursorIndex == commandBuffer.count else { return }
+        let command = String(commandBuffer)
+        guard let completion = tabCompletion(for: command) else { return }
+        let suffix = String(completion.dropFirst(command.count))
+        guard !suffix.isEmpty else { return }
+        commandBuffer.append(contentsOf: suffix)
+        cursorIndex = commandBuffer.count
+        emit(suffix)
+    }
+
+    private func tabCompletion(for command: String) -> String? {
+        switch command {
+        case "cd /t":
+            return "cd /tmp"
+        case "ls /va":
+            return "ls /var"
+        default:
+            return nil
+        }
     }
 
     private func handleEscapeSequence(in characters: [Character], startingAt index: Int) -> Int {
