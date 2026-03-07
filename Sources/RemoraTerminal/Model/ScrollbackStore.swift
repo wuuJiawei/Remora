@@ -44,4 +44,21 @@ public final class ScrollbackStore {
     public func segmentCount() -> Int {
         segments.count
     }
+
+    public func replaceAll(with lines: [TerminalLine]) {
+        guard !lines.isEmpty else {
+            segments = [[]]
+            return
+        }
+
+        segments = []
+        segments.reserveCapacity((lines.count / segmentSize) + 1)
+
+        var index = 0
+        while index < lines.count {
+            let end = min(index + segmentSize, lines.count)
+            segments.append(Array(lines[index..<end]))
+            index = end
+        }
+    }
 }

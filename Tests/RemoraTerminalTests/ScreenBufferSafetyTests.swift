@@ -107,4 +107,38 @@ struct ScreenBufferSafetyTests {
         let range = screen.wrappedLogicalLineRange(containingBufferRow: 1)
         #expect(range == 1...1)
     }
+
+    @Test
+    func narrowingColumnsReflowsLogicalLinesWithoutLosingContent() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 4, columns: 10)
+
+        parser.parse(Data("ABCDEFGHIJ".utf8), into: screen)
+        screen.resize(rows: 4, columns: 5)
+
+        #expect(renderedText(screen.line(at: 0)) == "ABCDE")
+        #expect(renderedText(screen.line(at: 1)) == "FGHIJ")
+        #expect(screen.isBufferLineWrapped(screen.bufferRow(forViewportRow: 1)) == true)
+    }
+
+    @Test
+    func wideningColumnsReflowsWrappedLogicalLinesBackIntoSingleRow() {
+        let parser = ANSIParser()
+        let screen = ScreenBuffer(rows: 4, columns: 5)
+
+        parser.parse(Data("ABCDEFGHIJ".utf8), into: screen)
+        screen.resize(rows: 4, columns: 10)
+
+        #expect(renderedText(screen.line(at: 0)) == "ABCDEFGHIJ")
+        #expect(renderedText(screen.line(at: 1)).isEmpty)
+        #expect(screen.isBufferLineWrapped(screen.bufferRow(forViewportRow: 1)) == false)
+    }
+
+    private func renderedText(_ line: TerminalLine) -> String {
+        let characters = (0..<line.count).compactMap { index -> Character? in
+            let cell = line[index]
+            return cell.displayWidth == 0 ? nil : cell.character
+        }
+        return String(characters).trimmingCharacters(in: .whitespaces)
+    }
 }

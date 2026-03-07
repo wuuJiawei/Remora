@@ -144,20 +144,17 @@ public final class ScreenBuffer {
 
         if targetRows == rows, targetColumns == columns { return }
 
-        if targetRows < lines.count {
-            let overflowCount = lines.count - targetRows
-            for idx in 0 ..< overflowCount {
-                scrollback.append(lines[idx])
-            }
-            lines.removeFirst(overflowCount)
-            cursorRow = max(0, cursorRow - overflowCount)
-        } else if targetRows > lines.count {
-            let extra = targetRows - lines.count
-            lines.append(contentsOf: Array(repeating: TerminalLine(columns: targetColumns, attributes: activeAttributes), count: extra))
-        }
-
-        for idx in lines.indices {
-            lines[idx].resize(columns: targetColumns, fill: activeAttributes)
+        if isAlternateBuffer {
+            resizeLineStorage(
+                &lines,
+                targetRows: targetRows,
+                targetColumns: targetColumns,
+                fill: activeAttributes
+            )
+        } else if targetColumns != columns {
+            reflowNormalBuffer(targetRows: targetRows, targetColumns: targetColumns)
+        } else {
+            resizeVisibleLineStorage(targetRows: targetRows, targetColumns: targetColumns)
         }
 
         rows = targetRows
@@ -710,5 +707,276 @@ public final class ScreenBuffer {
         for index in storage.indices {
             storage[index].resize(columns: targetColumns, fill: fill)
         }
+    }
+
+    private func resizeVisibleLineStorage(targetRows: Int, targetColumns: Int) {
+        if targetRows < lines.count {
+            let overflowCount = lines.count - targetRows
+            for idx in 0 ..< overflowCount {
+                scrollback.append(lines[idx])
+            }
+            lines.removeFirst(overflowCount)
+            cursorRow = max(0, cursorRow - overflowCount)
+        } else if targetRows > lines.count {
+            let extra = targetRows - lines.count
+            lines.append(
+                contentsOf: Array(
+                    repeating: TerminalLine(columns: targetColumns, attributes: activeAttributes),
+                    count: extra
+                )
+            )
+        }
+
+        for index in lines.indices {
+            lines[index].resize(columns: targetColumns, fill: activeAttributes)
+        }
+    }
+
+    private func reflowNormalBuffer(targetRows: Int, targetColumns: Int) {
+        // Only reflow meaningful buffer content; trailing blank viewport rows are layout padding, not transcript.
+        let meaningfulVisibleCount = max(1, max(cursorRow + 1, lastNonBlankVisibleLineIndex() + 1))
+        let combined = scrollback.allLines() + Array(lines.prefix(meaningfulVisibleCount))
+        let cursorBufferRow = scrollback.lineCount() + cursorRow
+        var sourceIndex = 0
+        var reflowedLines: [TerminalLine] = []
+        reflowedLines.reserveCapacity(combined.count)
+
+        var nextCursorBufferRow = 0
+        var nextCursorColumn = 0
+
+        while sourceIndex < combined.count {
+            let logicalStart = sourceIndex
+            var logicalEnd = sourceIndex
+            while logicalEnd + 1 < combined.count, combined[logicalEnd + 1].isWrapped {
+                logicalEnd += 1
+            }
+
+            let physicalLines = Array(combined[logicalStart...logicalEnd])
+            let cursorOffset: Int? = {
+                guard cursorBufferRow >= logicalStart, cursorBufferRow <= logicalEnd else { return nil }
+                return cursorLogicalColumnOffset(
+                    in: physicalLines,
+                    cursorPhysicalIndex: cursorBufferRow - logicalStart,
+                    cursorColumn: cursorColumn
+                )
+            }()
+            let wrapped = reflowLogicalLine(
+                physicalLines,
+                targetColumns: targetColumns,
+                cursorOffset: cursorOffset
+            )
+            if let cursor = wrapped.cursor {
+                nextCursorBufferRow = reflowedLines.count + cursor.row
+                nextCursorColumn = cursor.column
+            }
+            reflowedLines.append(contentsOf: wrapped.lines)
+            sourceIndex = logicalEnd + 1
+        }
+
+        if reflowedLines.count >= targetRows {
+            let splitIndex = reflowedLines.count - targetRows
+            scrollback.replaceAll(with: Array(reflowedLines[..<splitIndex]))
+            lines = Array(reflowedLines[splitIndex...])
+            cursorRow = max(0, nextCursorBufferRow - splitIndex)
+        } else {
+            scrollback.replaceAll(with: [])
+            lines = reflowedLines
+            if lines.count < targetRows {
+                lines.append(
+                    contentsOf: Array(
+                        repeating: TerminalLine(columns: targetColumns, attributes: activeAttributes),
+                        count: targetRows - lines.count
+                    )
+                )
+            }
+            cursorRow = nextCursorBufferRow
+        }
+
+        cursorColumn = nextCursorColumn
+    }
+
+    private func lastNonBlankVisibleLineIndex() -> Int {
+        for index in lines.indices.reversed() {
+            if visibleDisplayWidth(of: lines[index], trimTrailingWhitespace: true) > 0 {
+                return index
+            }
+        }
+        return 0
+    }
+
+    private func cursorLogicalColumnOffset(
+        in physicalLines: [TerminalLine],
+        cursorPhysicalIndex: Int,
+        cursorColumn: Int
+    ) -> Int {
+        guard cursorPhysicalIndex >= 0, cursorPhysicalIndex < physicalLines.count else { return 0 }
+
+        var offset = 0
+        for lineIndex in 0..<cursorPhysicalIndex {
+            offset += visibleDisplayWidth(of: physicalLines[lineIndex], trimTrailingWhitespace: false)
+        }
+
+        let line = physicalLines[cursorPhysicalIndex]
+        var cellIndex = 0
+        while cellIndex < min(cursorColumn, line.count) {
+            let cell = line[cellIndex]
+            if cell.displayWidth > 0 {
+                offset += Int(cell.displayWidth)
+                if cell.displayWidth == 2 {
+                    cellIndex += 1
+                }
+            }
+            cellIndex += 1
+        }
+
+        return offset
+    }
+
+    private func reflowLogicalLine(
+        _ physicalLines: [TerminalLine],
+        targetColumns: Int,
+        cursorOffset: Int?
+    ) -> (lines: [TerminalLine], cursor: (row: Int, column: Int)?) {
+        let visibleCells = flattenedVisibleCells(from: physicalLines)
+
+        if visibleCells.isEmpty {
+            var blank = TerminalLine(columns: targetColumns, attributes: .default)
+            blank.isWrapped = false
+            return ([blank], cursorOffset.map { _ in (0, 0) })
+        }
+
+        var wrappedLines: [TerminalLine] = []
+        wrappedLines.reserveCapacity(max(1, (visibleCells.count + targetColumns - 1) / targetColumns))
+
+        var currentLine = TerminalLine(columns: targetColumns, attributes: .default)
+        currentLine.isWrapped = false
+        var writeColumn = 0
+
+        func startContinuationLine() {
+            wrappedLines.append(currentLine)
+            currentLine = TerminalLine(columns: targetColumns, attributes: .default)
+            currentLine.isWrapped = true
+            writeColumn = 0
+        }
+
+        for cell in visibleCells {
+            let preferredWidth = Int(max(1, cell.displayWidth))
+            let width = min(preferredWidth, targetColumns)
+
+            if writeColumn > 0, writeColumn + width > targetColumns {
+                startContinuationLine()
+            }
+
+            if width == 2, writeColumn + 1 < targetColumns {
+                currentLine[writeColumn] = cell
+                currentLine[writeColumn + 1] = TerminalCell(
+                    character: " ",
+                    attributes: cell.attributes,
+                    displayWidth: 0,
+                    hyperlink: cell.hyperlink
+                )
+                writeColumn += 2
+            } else {
+                currentLine[writeColumn] = TerminalCell(
+                    character: cell.character,
+                    attributes: cell.attributes,
+                    displayWidth: 1,
+                    hyperlink: cell.hyperlink
+                )
+                writeColumn += 1
+            }
+        }
+
+        wrappedLines.append(currentLine)
+
+        let cursorPosition = cursorOffset.map { mapCursorPosition(in: wrappedLines, logicalColumnOffset: $0) }
+        return (wrappedLines, cursorPosition)
+    }
+
+    private func flattenedVisibleCells(from physicalLines: [TerminalLine]) -> [TerminalCell] {
+        guard !physicalLines.isEmpty else { return [] }
+
+        var result: [TerminalCell] = []
+        for lineIndex in physicalLines.indices {
+            let trimTrailingWhitespace = lineIndex == physicalLines.indices.last
+            let displayWidth = visibleDisplayWidth(of: physicalLines[lineIndex], trimTrailingWhitespace: trimTrailingWhitespace)
+            guard displayWidth > 0 else { continue }
+
+            var consumedColumns = 0
+            for cellIndex in 0..<physicalLines[lineIndex].count {
+                let cell = physicalLines[lineIndex][cellIndex]
+                guard cell.displayWidth > 0 else { continue }
+
+                let width = Int(cell.displayWidth)
+                if consumedColumns + width > displayWidth {
+                    break
+                }
+
+                result.append(cell)
+                consumedColumns += width
+                if consumedColumns >= displayWidth {
+                    break
+                }
+            }
+        }
+        return result
+    }
+
+    private func visibleDisplayWidth(of line: TerminalLine, trimTrailingWhitespace: Bool) -> Int {
+        var width = 0
+        var lastNonWhitespaceWidth = 0
+
+        for cellIndex in 0..<line.count {
+            let cell = line[cellIndex]
+            guard cell.displayWidth > 0 else { continue }
+
+            width += Int(cell.displayWidth)
+            if !trimTrailingWhitespace || cell.character != " " {
+                lastNonWhitespaceWidth = width
+            }
+        }
+
+        return trimTrailingWhitespace ? lastNonWhitespaceWidth : width
+    }
+
+    private func mapCursorPosition(
+        in lines: [TerminalLine],
+        logicalColumnOffset: Int
+    ) -> (row: Int, column: Int) {
+        var remaining = max(0, logicalColumnOffset)
+
+        for (rowIndex, line) in lines.enumerated() {
+            let lineWidth = visibleDisplayWidth(of: line, trimTrailingWhitespace: false)
+            if remaining > lineWidth, rowIndex < lines.count - 1 {
+                remaining -= lineWidth
+                continue
+            }
+
+            return (rowIndex, cursorColumnIndex(in: line, logicalColumnOffset: remaining))
+        }
+
+        guard let last = lines.last else { return (0, 0) }
+        return (max(0, lines.count - 1), cursorColumnIndex(in: last, logicalColumnOffset: remaining))
+    }
+
+    private func cursorColumnIndex(in line: TerminalLine, logicalColumnOffset: Int) -> Int {
+        guard logicalColumnOffset > 0 else { return 0 }
+
+        var consumed = 0
+        var index = 0
+        while index < line.count {
+            let cell = line[index]
+            if cell.displayWidth > 0 {
+                consumed += Int(cell.displayWidth)
+                index += cell.displayWidth == 2 ? 2 : 1
+                if consumed >= logicalColumnOffset {
+                    return min(index, line.count - 1)
+                }
+                continue
+            }
+            index += 1
+        }
+
+        return max(0, min(index, line.count - 1))
     }
 }
