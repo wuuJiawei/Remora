@@ -29,3 +29,4 @@ DerivedData/
 # Runtime caches
 *.xcuserstate
 .history/
+.worktrees/
