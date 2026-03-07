@@ -51,7 +51,30 @@ struct MockSSHClientTests {
         try await session.write(Data("\r".utf8))
 
         let output = capture.combinedString
-        #expect(output.contains("Available commands: help, date, whoami, ls, clear"))
+        #expect(output.contains("Available commands: help, date, whoami, ls, clear, tui, exit-tui"))
+    }
+
+    @Test
+    func mockShellSessionCanToggleAlternateBufferForTUIAutomation() async throws {
+        let capture = OutputCapture()
+        let session = MockShellSession(
+            host: Host(
+                name: "demo",
+                address: "127.0.0.1",
+                username: "tester",
+                auth: HostAuth(method: .agent)
+            ),
+            pty: .init(columns: 120, rows: 30)
+        )
+        session.onOutput = { capture.append($0) }
+
+        try await session.start()
+        try await session.write(Data("tui\r".utf8))
+        try await session.write(Data("exit-tui\r".utf8))
+
+        let output = capture.combinedString
+        #expect(output.contains("\u{001B}[?1049h"))
+        #expect(output.contains("\u{001B}[?1049l"))
     }
 }
 

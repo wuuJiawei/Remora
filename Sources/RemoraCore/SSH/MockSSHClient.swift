@@ -135,13 +135,17 @@ public final class MockShellSession: SSHTransportSessionProtocol, @unchecked Sen
         case "clear":
             emit("\u{001B}[2J\u{001B}[H")
         case "help":
-            emit("Available commands: help, date, whoami, ls, clear\r\n")
+            emit("Available commands: help, date, whoami, ls, clear, tui, exit-tui\r\n")
         case "date":
             emit("\(Date.now.formatted(date: .abbreviated, time: .standard))\r\n")
         case "whoami":
             emit("\(host.username)\r\n")
         case "ls":
             emit("app.log  releases  config.yml\r\n")
+        case "tui":
+            emit("\u{001B}[?1049h\u{001B}[2J\u{001B}[H[TUI MODE]\r\nType exit-tui to return.\r\n")
+        case "exit-tui":
+            emit("\u{001B}[?1049l")
         default:
             emit("zsh: command not found: \(command)\r\n")
         }
