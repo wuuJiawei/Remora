@@ -1,12 +1,5 @@
 import Foundation
 
-enum TerminalCommandComposerPlacement: String, CaseIterable, Identifiable, Sendable {
-    case top
-    case bottom
-
-    var id: String { rawValue }
-}
-
 enum AppSettings {
     static let downloadDirectoryPathKey = "settings.fileManager.downloadDirectoryPath"
     static let appearanceModeKey = "settings.appearance.mode"
@@ -19,7 +12,6 @@ enum AppSettings {
     static let terminalScrollSensitivityKey = "settings.terminal.scrollSensitivity"
     static let terminalFastScrollSensitivityKey = "settings.terminal.fastScrollSensitivity"
     static let terminalScrollOnUserInputKey = "settings.terminal.scrollOnUserInput"
-    static let terminalCommandComposerPlacementKey = "settings.terminal.commandComposerPlacement"
     static let serverMetricsActiveRefreshSecondsKey = "settings.metrics.activeRefreshSeconds"
     static let serverMetricsInactiveRefreshSecondsKey = "settings.metrics.inactiveRefreshSeconds"
     static let serverMetricsMaxConcurrentFetchesKey = "settings.metrics.maxConcurrentFetches"
@@ -30,7 +22,6 @@ enum AppSettings {
     static let defaultTerminalWordSeparators = " ()[]{}'\"`"
     static let defaultTerminalScrollSensitivity = 1.0
     static let defaultTerminalFastScrollSensitivity = 5.0
-    static let defaultTerminalCommandComposerPlacement: TerminalCommandComposerPlacement = .bottom
 
     static func resolvedDownloadDirectoryURL(
         from rawPath: String?,
@@ -113,13 +104,6 @@ enum AppSettings {
             return true
         }
         return defaults.bool(forKey: terminalScrollOnUserInputKey)
-    }
-
-    static func resolvedTerminalCommandComposerPlacement(
-        defaults: UserDefaults = .standard
-    ) -> TerminalCommandComposerPlacement {
-        let raw = defaults.string(forKey: terminalCommandComposerPlacementKey) ?? defaultTerminalCommandComposerPlacement.rawValue
-        return TerminalCommandComposerPlacement(rawValue: raw) ?? defaultTerminalCommandComposerPlacement
     }
 
     static func clampedTerminalScrollSensitivity(_ value: Double) -> Double {

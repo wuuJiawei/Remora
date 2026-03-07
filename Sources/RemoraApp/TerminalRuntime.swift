@@ -33,10 +33,6 @@ final class TerminalRuntime: ObservableObject {
     @Published var connectionMode: ConnectionMode = .local
     @Published var transcriptSnapshot: String = ""
     @Published var hostKeyPromptMessage: String?
-    @Published var commandComposerText: String = ""
-    @Published var commandComposerSelection: NSRange = NSRange(location: 0, length: 0)
-    @Published private(set) var isCommandComposerVisible: Bool = true
-    @Published private(set) var isInteractiveTerminalMode: Bool = false
     @Published private(set) var workingDirectory: String?
     @Published private(set) var connectedSSHHost: RemoraCore.Host?
     @Published private(set) var lastConnectedSSHHost: RemoraCore.Host?
@@ -79,11 +75,8 @@ final class TerminalRuntime: ObservableObject {
     private var activeSSHHostAddress: String?
     private var isWorkingDirectoryTrackingEnabled = false
     private var pendingWorkingDirectoryProbeTask: Task<Void, Never>?
-    private var pendingCommandComposerRefreshTask: Task<Void, Never>?
-    private var isAwaitingShellPrompt = false
     private var awaitingPwdResponse = false
     private var workingDirectoryLineBuffer = ""
-    private var isCommandComposerComposing = false
 
     private var isReconnecting = false
     init(
@@ -106,16 +99,6 @@ final class TerminalRuntime: ObservableObject {
             // Inject response back into PTY input
             DispatchQueue.main.async {
                 self?.enqueueInput(data)
-            }
-        }
-        view.onInteractionStateChange = { [weak self] state in
-            DispatchQueue.main.async {
-                self?.updateTerminalInteractionState(state)
-            }
-        }
-        view.onShellInputSnapshotChange = { [weak self] snapshot in
-            DispatchQueue.main.async {
-                self?.handleShellInputSnapshotChange(snapshot)
             }
         }
         flushPendingOutputIfNeeded()
@@ -298,82 +281,6 @@ final class TerminalRuntime: ObservableObject {
 
     func dismissHostKeyPrompt() {
         hostKeyPromptMessage = nil
-    }
-
-    func updateTerminalInteractionState(_ state: TerminalInteractionState) {
-        isInteractiveTerminalMode = state.isInteractiveTerminalMode
-        updateCommandComposerVisibility()
-    }
-
-    func updateCommandComposer(text: String, selection: NSRange, isComposing: Bool = false) {
-        pendingCommandComposerRefreshTask?.cancel()
-        pendingCommandComposerRefreshTask = nil
-        commandComposerText = text
-        let clampedSelection = clampedCommandComposerSelection(selection, text: text)
-        commandComposerSelection = clampedSelection
-        isCommandComposerComposing = isComposing
-
-        guard isCommandComposerVisible, !isComposing else { return }
-        replaceCurrentInputLine(with: text, cursorAt: clampedSelection.location)
-    }
-
-    func updateCommandComposerSelection(_ selection: NSRange, isComposing: Bool = false) {
-        updateCommandComposer(
-            text: commandComposerText,
-            selection: selection,
-            isComposing: isComposing
-        )
-    }
-
-    func submitCommandComposer() {
-        pendingCommandComposerRefreshTask?.cancel()
-        pendingCommandComposerRefreshTask = nil
-        isCommandComposerComposing = false
-        let clampedSelection = clampedCommandComposerSelection(commandComposerSelection, text: commandComposerText)
-        commandComposerSelection = clampedSelection
-        let submittedText = commandComposerText
-
-        if isCommandComposerVisible {
-            replaceCurrentInputLine(with: commandComposerText, cursorAt: clampedSelection.location)
-        }
-
-        isAwaitingShellPrompt = !submittedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        updateCommandComposerVisibility()
-        enqueueInput(Data([0x0D]))
-        commandComposerText = ""
-        commandComposerSelection = NSRange(location: 0, length: 0)
-    }
-
-    func sendInterrupt() {
-        enqueueInput(Data([0x03]), trackWorkingDirectory: false)
-    }
-
-    func requestCommandComposerCompletion() {
-        guard isCommandComposerVisible, !isCommandComposerComposing else { return }
-
-        pendingCommandComposerRefreshTask?.cancel()
-        pendingCommandComposerRefreshTask = nil
-
-        let clampedSelection = clampedCommandComposerSelection(commandComposerSelection, text: commandComposerText)
-        commandComposerSelection = clampedSelection
-
-        replaceCurrentInputLine(with: commandComposerText, cursorAt: clampedSelection.location)
-        pendingCommandComposerRefreshTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(60))
-            guard let self, !Task.isCancelled else { return }
-            let promptPrefixLength = await MainActor.run {
-                self.promptPrefixLengthForCurrentComposerLine()
-            }
-            await MainActor.run {
-                self.enqueueInput(Data("\t".utf8), trackWorkingDirectory: false)
-            }
-            try? await Task.sleep(for: .milliseconds(120))
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self.refreshCommandComposerFromTerminal(promptPrefixLength: promptPrefixLength)
-                self.pendingCommandComposerRefreshTask = nil
-            }
-        }
     }
 
     // PTY Debug Logging
@@ -610,7 +517,7 @@ final class TerminalRuntime: ObservableObject {
         
         // Go back to start and move to target
         sendCtrlA()
-        let targetIndex = min(max(relativeIndex ?? text.count, 0), text.count)
+        let targetIndex = relativeIndex ?? text.count
         if targetIndex > 0 {
             sendRightArrow(count: targetIndex)
         }
@@ -697,9 +604,6 @@ final class TerminalRuntime: ObservableObject {
         hostKeyPromptMessage = nil
         pendingWorkingDirectoryProbeTask?.cancel()
         pendingWorkingDirectoryProbeTask = nil
-        pendingCommandComposerRefreshTask?.cancel()
-        pendingCommandComposerRefreshTask = nil
-        isAwaitingShellPrompt = false
         transcriptRefreshTask?.cancel()
         transcriptRefreshTask = nil
         awaitingPwdResponse = false
@@ -993,64 +897,6 @@ final class TerminalRuntime: ObservableObject {
         guard !trimmed.isEmpty else { return "/" }
         let prefixed = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
         return prefixed.replacingOccurrences(of: "//", with: "/")
-    }
-
-    private func clampedCommandComposerSelection(_ selection: NSRange, text: String) -> NSRange {
-        let maxLocation = NSString(string: text).length
-        let location = min(max(selection.location, 0), maxLocation)
-        let maxLength = max(0, maxLocation - location)
-        let length = min(max(selection.length, 0), maxLength)
-        return NSRange(location: location, length: length)
-    }
-
-    private func refreshCommandComposerFromTerminal(promptPrefixLength: Int) {
-        guard isCommandComposerVisible else { return }
-        guard let snapshot = terminalView?.shellInputSnapshot() else { return }
-
-        let fullLineText = snapshot.logicalLineText
-        let safePrefixLength = min(max(promptPrefixLength, 0), fullLineText.count)
-        let shellLineText = String(fullLineText.dropFirst(safePrefixLength))
-        let shellCursorColumn = max(0, snapshot.cursorColumn - safePrefixLength)
-
-        commandComposerText = shellLineText
-        commandComposerSelection = clampedCommandComposerSelection(
-            NSRange(location: shellCursorColumn, length: 0),
-            text: shellLineText
-        )
-        isCommandComposerComposing = false
-    }
-
-    private func handleShellInputSnapshotChange(_ snapshot: TerminalShellInputSnapshot?) {
-        guard isAwaitingShellPrompt else { return }
-        guard let snapshot, shellPromptLikelyReady(snapshot) else { return }
-        isAwaitingShellPrompt = false
-        updateCommandComposerVisibility()
-    }
-
-    private func updateCommandComposerVisibility() {
-        isCommandComposerVisible = !isInteractiveTerminalMode && !isAwaitingShellPrompt
-        if !isCommandComposerVisible {
-            isCommandComposerComposing = false
-        }
-    }
-
-    private func shellPromptLikelyReady(_ snapshot: TerminalShellInputSnapshot) -> Bool {
-        guard snapshot.cursorColumn == snapshot.logicalLineText.count else { return false }
-        let line = snapshot.logicalLineText
-        guard !line.isEmpty, line.count <= 256 else { return false }
-
-        let knownPromptSuffixes = ["$ ", "% ", "# ", "> ", ": "]
-        return knownPromptSuffixes.contains(where: { line.hasSuffix($0) })
-    }
-
-    private func promptPrefixLengthForCurrentComposerLine() -> Int {
-        guard let snapshot = terminalView?.shellInputSnapshot() else { return 0 }
-        if !commandComposerText.isEmpty,
-           let range = snapshot.logicalLineText.range(of: commandComposerText, options: .backwards)
-        {
-            return snapshot.logicalLineText.distance(from: snapshot.logicalLineText.startIndex, to: range.lowerBound)
-        }
-        return max(0, snapshot.cursorColumn - commandComposerSelection.location)
     }
 
     private func shellSingleQuoted(_ value: String) -> String {

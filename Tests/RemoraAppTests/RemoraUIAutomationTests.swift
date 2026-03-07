@@ -2,7 +2,6 @@ import AppKit
 import ApplicationServices
 import Foundation
 import Testing
-@testable import RemoraApp
 
 @Suite(.serialized)
 @MainActor
@@ -975,186 +974,6 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
-    func commandComposerWorksInShellMode() throws {
-        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
-            return
-        }
-
-        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
-        guard AXIsProcessTrusted() else { return }
-
-        let launched = try launchAppForUIAutomation()
-        let process = launched.process
-        let appElement = launched.appElement
-        defer {
-            if process.isRunning {
-                process.terminate()
-            }
-        }
-
-        let connected = ensureConnectedSession(in: appElement, timeout: 8)
-        #expect(connected, "Expected terminal connection to be established.")
-        guard connected else { return }
-
-        guard let transcriptElement = waitForElement(
-            in: appElement,
-            timeout: 8,
-            matching: { identifier(of: $0) == "terminal-transcript" }
-        ),
-        let composerElement = waitForElement(
-            in: appElement,
-            timeout: 8,
-            matching: { element in
-                let identifier = identifier(of: element)
-                return identifier == "terminal-command-composer-editor"
-                    || identifier == "terminal-command-composer-scroll"
-                    || identifier == "terminal-command-composer"
-            }
-        ),
-        let composerFrame = frame(of: composerElement)
-        else {
-            Issue.record("Could not find command composer accessibility element.")
-            return
-        }
-
-        click(point: CGPoint(x: composerFrame.midX, y: composerFrame.midY))
-        typeText("whoami\r")
-
-        let expectedUser = NSUserName()
-        var snapshot = ""
-        let hasOutput = waitUntil(timeout: 8) {
-            guard let value = transcriptText(from: transcriptElement) else { return false }
-            snapshot = value
-            return value.contains("whoami")
-                && value.contains("\n\(expectedUser)\n")
-        }
-        if !hasOutput {
-            Issue.record("Transcript after composer command: \(snapshot)")
-        }
-        #expect(hasOutput, "Command composer should submit commands in shell mode.")
-    }
-
-    @Test
-    func commandComposerHidesInTUIMode() throws {
-        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
-            return
-        }
-
-        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
-        guard AXIsProcessTrusted() else { return }
-
-        let launched = try launchAppForUIAutomation()
-        let process = launched.process
-        let appElement = launched.appElement
-        defer {
-            if process.isRunning {
-                process.terminate()
-            }
-        }
-
-        let connected = ensureConnectedSession(in: appElement, timeout: 8)
-        #expect(connected, "Expected terminal connection to be established.")
-        guard connected else { return }
-
-        guard let composerElement = waitForElement(
-            in: appElement,
-            timeout: 8,
-            matching: { identifier(of: $0) == "terminal-command-composer" }
-        ),
-        let composerFrame = frame(of: composerElement)
-        else {
-            Issue.record("Could not find command composer.")
-            return
-        }
-
-        click(point: CGPoint(x: composerFrame.midX, y: composerFrame.midY))
-        typeText("tui\r")
-
-        let hidden = waitUntil(timeout: 8) {
-            findElement(in: appElement, matching: { identifier(of: $0) == "terminal-command-composer" }) == nil
-        }
-        #expect(hidden, "Command composer should hide when alternate-buffer TUI mode starts.")
-        guard hidden else { return }
-
-        guard let terminal = waitForElement(
-            in: appElement,
-            timeout: 6,
-            matching: { identifier(of: $0) == "terminal-view" }
-        ),
-        let terminalFrame = frame(of: terminal)
-        else {
-            Issue.record("Could not find terminal for exit-tui command.")
-            return
-        }
-
-        click(point: CGPoint(x: terminalFrame.midX, y: terminalFrame.midY))
-        typeText("exit-tui\r")
-
-        let restored = waitUntil(timeout: 8) {
-            findElement(in: appElement, matching: { identifier(of: $0) == "terminal-command-composer" }) != nil
-        }
-        #expect(restored, "Command composer should return after leaving TUI mode.")
-    }
-
-    @Test
-    func commandComposerPlacementChangesLayout() throws {
-        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
-            return
-        }
-
-        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
-        guard AXIsProcessTrusted() else { return }
-
-        let bottomLaunch = try launchAppForUIAutomation()
-        defer {
-            if bottomLaunch.process.isRunning {
-                bottomLaunch.process.terminate()
-            }
-        }
-
-        let bottomReady = ensureConnectedSession(in: bottomLaunch.appElement, timeout: 8)
-        #expect(bottomReady)
-        guard bottomReady,
-              let bottomComposer = waitForElement(in: bottomLaunch.appElement, timeout: 8, matching: { identifier(of: $0) == "terminal-command-composer" }),
-              let bottomTerminal = waitForElement(in: bottomLaunch.appElement, timeout: 8, matching: { identifier(of: $0) == "terminal-view" }),
-              let bottomComposerFrame = frame(of: bottomComposer),
-              let bottomTerminalFrame = frame(of: bottomTerminal)
-        else {
-            Issue.record("Could not read bottom-placement frames.")
-            return
-        }
-
-        #expect(bottomComposerFrame.midY < bottomTerminalFrame.midY, "Default composer placement should be below terminal.")
-
-        if bottomLaunch.process.isRunning {
-            bottomLaunch.process.terminate()
-        }
-
-        let topLaunch = try launchAppForUIAutomation(
-            extraArguments: ["-\(AppSettings.terminalCommandComposerPlacementKey)", TerminalCommandComposerPlacement.top.rawValue]
-        )
-        defer {
-            if topLaunch.process.isRunning {
-                topLaunch.process.terminate()
-            }
-        }
-
-        let topReady = ensureConnectedSession(in: topLaunch.appElement, timeout: 8)
-        #expect(topReady)
-        guard topReady,
-              let topComposer = waitForElement(in: topLaunch.appElement, timeout: 8, matching: { identifier(of: $0) == "terminal-command-composer" }),
-              let topTerminal = waitForElement(in: topLaunch.appElement, timeout: 8, matching: { identifier(of: $0) == "terminal-view" }),
-              let topComposerFrame = frame(of: topComposer),
-              let topTerminalFrame = frame(of: topTerminal)
-        else {
-            Issue.record("Could not read top-placement frames.")
-            return
-        }
-
-        #expect(topComposerFrame.midY > topTerminalFrame.midY, "Top placement should move composer above terminal.")
-    }
-
-    @Test
     func terminalRetainsHistoryAcrossMultipleCommands() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return
@@ -1722,13 +1541,11 @@ struct RemoraUIAutomationTests {
         }
     }
 
-    private func launchAppForUIAutomation(
-        extraArguments: [String] = []
-    ) throws -> (process: Process, appElement: AXUIElement) {
+    private func launchAppForUIAutomation() throws -> (process: Process, appElement: AXUIElement) {
         let appURL = try locateRemoraAppBinary()
         let process = Process()
         process.executableURL = appURL
-        process.arguments = uiAutomationLaunchArguments + extraArguments
+        process.arguments = uiAutomationLaunchArguments
         try process.run()
 
         guard waitUntil(timeout: 8, {

@@ -61,8 +61,6 @@ struct RemoraSettingsSheet: View {
     private var serverMetricsInactiveRefreshSeconds = AppSettings.defaultServerMetricsInactiveRefreshSeconds
     @AppStorage(AppSettings.serverMetricsMaxConcurrentFetchesKey)
     private var serverMetricsMaxConcurrentFetches = AppSettings.defaultServerMetricsMaxConcurrentFetches
-    @AppStorage(AppSettings.terminalCommandComposerPlacementKey)
-    private var terminalCommandComposerPlacementRawValue = AppSettings.defaultTerminalCommandComposerPlacement.rawValue
 
     var body: some View {
         VStack(spacing: 0) {
@@ -218,31 +216,6 @@ struct RemoraSettingsSheet: View {
                         }
                     }
                     .accessibilityIdentifier("settings-download-path-row")
-                }
-
-                settingsSectionCard(
-                    title: tr("Terminal"),
-                    message: tr("Controls where the command composer appears in normal shell mode.")
-                ) {
-                    compactSettingRow(title: tr("Command composer")) {
-                        Picker(
-                            tr("Command composer"),
-                            selection: Binding(
-                                get: {
-                                    TerminalCommandComposerPlacement(rawValue: terminalCommandComposerPlacementRawValue)
-                                        ?? AppSettings.defaultTerminalCommandComposerPlacement
-                                },
-                                set: { placement in
-                                    terminalCommandComposerPlacementRawValue = placement.rawValue
-                                }
-                            )
-                        ) {
-                            Text(tr("Bottom")).tag(TerminalCommandComposerPlacement.bottom)
-                            Text(tr("Top")).tag(TerminalCommandComposerPlacement.top)
-                        }
-                        .labelsHidden()
-                        .frame(width: 220, alignment: .trailing)
-                    }
                 }
 
                 settingsSectionCard(
