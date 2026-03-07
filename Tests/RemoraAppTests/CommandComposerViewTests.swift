@@ -53,4 +53,17 @@ struct CommandComposerViewTests {
         #expect(textView.textColor == NSColor(calibratedWhite: 0.9, alpha: 1))
         #expect(textView.insertionPointColor == NSColor(calibratedWhite: 0.9, alpha: 1))
     }
+
+    @Test
+    func commandComposerTextViewDoesNotSubmitWhileMarkedTextIsActive() {
+        let textView = CommandComposerTextView(frame: .zero)
+        var submissions = 0
+        textView.onSubmit = { _ in submissions += 1 }
+        textView.string = ""
+
+        textView.setMarkedText("ni", selectedRange: NSRange(location: 2, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        textView.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+
+        #expect(submissions == 0)
+    }
 }

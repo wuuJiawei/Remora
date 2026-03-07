@@ -209,20 +209,6 @@ struct TerminalPaneView: View {
         )
     }
 
-    private var commandComposerTextBinding: Binding<String> {
-        Binding(
-            get: { runtime.commandComposerText },
-            set: { runtime.updateCommandComposer(text: $0, selection: runtime.commandComposerSelection) }
-        )
-    }
-
-    private var commandComposerSelectionBinding: Binding<NSRange> {
-        Binding(
-            get: { runtime.commandComposerSelection },
-            set: { runtime.updateCommandComposer(text: runtime.commandComposerText, selection: $0) }
-        )
-    }
-
     @ViewBuilder
     private func paneSectionView(_ section: TerminalPaneSection) -> some View {
         switch section {
@@ -250,11 +236,24 @@ struct TerminalPaneView: View {
             Divider()
                 .overlay(Color.white.opacity(0.08))
             CommandComposerView(
-                text: commandComposerTextBinding,
-                selection: commandComposerSelectionBinding,
+                text: runtime.commandComposerText,
+                selection: runtime.commandComposerSelection,
                 isFocused: isFocused && runtime.isCommandComposerVisible,
                 onSubmit: runtime.submitCommandComposer,
-                onRequestShellCompletion: runtime.requestCommandComposerCompletion
+                onRequestShellCompletion: runtime.requestCommandComposerCompletion,
+                onEditorStateChange: { text, selection, isComposing in
+                    runtime.updateCommandComposer(
+                        text: text,
+                        selection: selection,
+                        isComposing: isComposing
+                    )
+                },
+                onSelectionChange: { selection, isComposing in
+                    runtime.updateCommandComposerSelection(
+                        selection,
+                        isComposing: isComposing
+                    )
+                }
             )
             .frame(minHeight: 48, idealHeight: 72, maxHeight: 144)
             .padding(.horizontal, 10)

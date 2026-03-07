@@ -83,6 +83,7 @@ final class TerminalRuntime: ObservableObject {
     private var isAwaitingShellPrompt = false
     private var awaitingPwdResponse = false
     private var workingDirectoryLineBuffer = ""
+    private var isCommandComposerComposing = false
 
     private var isReconnecting = false
     init(
@@ -304,20 +305,30 @@ final class TerminalRuntime: ObservableObject {
         updateCommandComposerVisibility()
     }
 
-    func updateCommandComposer(text: String, selection: NSRange) {
+    func updateCommandComposer(text: String, selection: NSRange, isComposing: Bool = false) {
         pendingCommandComposerRefreshTask?.cancel()
         pendingCommandComposerRefreshTask = nil
         commandComposerText = text
         let clampedSelection = clampedCommandComposerSelection(selection, text: text)
         commandComposerSelection = clampedSelection
+        isCommandComposerComposing = isComposing
 
-        guard isCommandComposerVisible else { return }
+        guard isCommandComposerVisible, !isComposing else { return }
         replaceCurrentInputLine(with: text, cursorAt: clampedSelection.location)
+    }
+
+    func updateCommandComposerSelection(_ selection: NSRange, isComposing: Bool = false) {
+        updateCommandComposer(
+            text: commandComposerText,
+            selection: selection,
+            isComposing: isComposing
+        )
     }
 
     func submitCommandComposer() {
         pendingCommandComposerRefreshTask?.cancel()
         pendingCommandComposerRefreshTask = nil
+        isCommandComposerComposing = false
         let clampedSelection = clampedCommandComposerSelection(commandComposerSelection, text: commandComposerText)
         commandComposerSelection = clampedSelection
         let submittedText = commandComposerText
@@ -338,7 +349,7 @@ final class TerminalRuntime: ObservableObject {
     }
 
     func requestCommandComposerCompletion() {
-        guard isCommandComposerVisible else { return }
+        guard isCommandComposerVisible, !isCommandComposerComposing else { return }
 
         pendingCommandComposerRefreshTask?.cancel()
         pendingCommandComposerRefreshTask = nil
@@ -1006,6 +1017,7 @@ final class TerminalRuntime: ObservableObject {
             NSRange(location: shellCursorColumn, length: 0),
             text: shellLineText
         )
+        isCommandComposerComposing = false
     }
 
     private func handleShellInputSnapshotChange(_ snapshot: TerminalShellInputSnapshot?) {
@@ -1017,6 +1029,9 @@ final class TerminalRuntime: ObservableObject {
 
     private func updateCommandComposerVisibility() {
         isCommandComposerVisible = !isInteractiveTerminalMode && !isAwaitingShellPrompt
+        if !isCommandComposerVisible {
+            isCommandComposerComposing = false
+        }
     }
 
     private func shellPromptLikelyReady(_ snapshot: TerminalShellInputSnapshot) -> Bool {

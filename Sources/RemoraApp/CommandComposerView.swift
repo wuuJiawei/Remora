@@ -47,6 +47,11 @@ final class CommandComposerTextView: NSTextView {
     }
 
     override func doCommand(by selector: Selector) {
+        if hasMarkedText() {
+            super.doCommand(by: selector)
+            return
+        }
+
         switch selector {
         case #selector(NSResponder.insertNewline(_:)):
             onSubmit?(string)
@@ -62,11 +67,13 @@ final class CommandComposerTextView: NSTextView {
 }
 
 struct CommandComposerView: NSViewRepresentable {
-    @Binding var text: String
-    @Binding var selection: NSRange
+    var text: String
+    var selection: NSRange
     var isFocused: Bool = false
     var onSubmit: () -> Void
     var onRequestShellCompletion: () -> Void = {}
+    var onEditorStateChange: (String, NSRange, Bool) -> Void = { _, _, _ in }
+    var onSelectionChange: (NSRange, Bool) -> Void = { _, _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -121,13 +128,16 @@ struct CommandComposerView: NSViewRepresentable {
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
-            parent.text = textView.string
-            parent.selection = textView.selectedRange()
+            parent.onEditorStateChange(
+                textView.string,
+                textView.selectedRange(),
+                textView.hasMarkedText()
+            )
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
-            parent.selection = textView.selectedRange()
+            parent.onSelectionChange(textView.selectedRange(), textView.hasMarkedText())
         }
     }
 }

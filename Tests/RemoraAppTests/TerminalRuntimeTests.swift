@@ -505,6 +505,38 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func commandComposerDefersShellSyncWhileIMECompositionIsActive() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        await recorder.reset()
+        runtime.updateCommandComposer(text: "ni", selection: NSRange(location: 2, length: 0), isComposing: true)
+
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        #expect(await recorder.rawWrites.isEmpty)
+        #expect(runtime.commandComposerText == "ni")
+        #expect(runtime.commandComposerSelection.location == 2)
+
+        runtime.updateCommandComposer(text: "你", selection: NSRange(location: 1, length: 0), isComposing: false)
+        let committedSync = await waitUntilAsync(timeout: 2.0) {
+            await recorder.rawWrites.count == 5
+        }
+        #expect(committedSync)
+    }
+
+    @Test
     func commandComposerTabCompletionRefreshesFromShellLine() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
