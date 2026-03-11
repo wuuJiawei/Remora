@@ -11,11 +11,11 @@ Remora supports importing host configurations from multiple sources and exportin
 
 Remora supports the following import formats:
 
+- **Remora Export**: Import from JSON or CSV file
 - **SSH Config**: Import from `~/.ssh/config`
-- **Remora Export**: Import from `.remora` or `.csv` file
 - **WindTerm**: Import from WindTerm user.sessions JSON
 - **electerm**: Import from electerm bookmark export JSON
-- **Xshell**: Import from Xshell `.sh` or `.xts` files
+- **Xshell**: Import from Xshell `.xsh`, `.xts`, or `.zip` files
 - **PuTTY**: Import from exported PuTTY `.reg` files
 
 ### Import Steps
@@ -28,28 +28,19 @@ Remora supports the following import formats:
 
 ## Exporting Data
 
-### Export as Remora Format
+### Export as JSON
 
-Export host configurations as a `.remora` file:
+Export host configurations as JSON file:
 
 1. Open **Remora > Export Connections**
 2. Select export scope (all or specific group)
-3. Choose whether to include saved passwords
-4. Choose save location
-
-Exported file contains:
-- Host configuration
-- Host groups
-- Quick commands
-- Quick paths
+3. Select format as **JSON**
+4. Choose whether to include saved passwords
+5. Choose save location
 
 ### Export as CSV
 
 Export as CSV format for spreadsheet processing.
-
-### Export as JSON
-
-Export as JSON format for use with other tools.
 
 ## Data Migration
 
