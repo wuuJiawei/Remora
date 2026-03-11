@@ -14,7 +14,7 @@
 > Remora 目前仍是 WIP 的早期版本，功能和交互还会持续调整，也可能存在缺口或回归问题。若你遇到 Bug、回归或任何不顺手的体验，请尽快提交 Issue：<https://github.com/wuuJiawei/Remora/issues>
 
 <p align="center">
-  <a href="./README_ZH.md">English</a> •
+  <a href="./README_EN.md">English</a> •
   <a href="#功能特性">功能特性</a> •
   <a href="#截图">截图</a> •
   <a href="#快速开始">快速开始</a> •
