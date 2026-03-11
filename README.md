@@ -17,6 +17,7 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#faq">FAQ</a> •
   <a href="#project-structure">Project Structure</a> •
+  <a href="#architecture">Architecture</a> •
   <a href="#testing">Testing</a> •
   <a href="#community">Community</a> •
   <a href="#contributing">Contributing</a>
@@ -131,6 +132,11 @@ A: Allow it once from macOS Settings:
 - `Sources/TerminalStressTool`: terminal throughput/stress utility.
 - `Tests/*`: core, terminal, and app tests.
 - `docs/`: checklists, screenshots, and operational notes.
+
+## Architecture
+
+See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the module diagram and the
+high-level flow between `RemoraCore`, `RemoraTerminal`, and `RemoraApp`.
 
 ## Contributing
 

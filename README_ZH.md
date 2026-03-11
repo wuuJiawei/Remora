@@ -17,6 +17,7 @@
   <a href="#快速开始">快速开始</a> •
   <a href="#常见问题qa">常见问题</a> •
   <a href="#项目结构">项目结构</a> •
+  <a href="#架构">架构</a> •
   <a href="#测试">测试</a> •
   <a href="#社区">社区</a> •
   <a href="#参与贡献">参与贡献</a>
@@ -131,6 +132,10 @@ A: 到系统设置手动放行一次：
 - `Sources/TerminalStressTool`：终端吞吐/压力工具。
 - `Tests/*`：core、terminal、app 测试。
 - `docs/`：清单、截图与运行说明文档。
+
+## 架构
+
+模块关系图与高层数据流见 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。
 
 ## 参与贡献
 
