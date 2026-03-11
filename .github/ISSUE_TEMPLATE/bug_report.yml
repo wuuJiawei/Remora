@@ -1,0 +1,79 @@
+name: Bug report
+description: Report a reproducible problem in Remora
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        Please fill out the details below so the issue can be reproduced and triaged quickly.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is going wrong?
+      placeholder: Briefly describe the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: List the exact steps needed to reproduce the issue.
+      placeholder: |
+        1. Open Remora
+        2. Connect to ...
+        3. Click ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should have happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What happened?
+    validations:
+      required: true
+  - type: input
+    id: remora_version
+    attributes:
+      label: Remora version or commit
+      placeholder: v0.10.4 or commit hash
+    validations:
+      required: true
+  - type: input
+    id: macos_version
+    attributes:
+      label: macOS version
+      placeholder: macOS 15.3.1
+    validations:
+      required: true
+  - type: dropdown
+    id: connection_mode
+    attributes:
+      label: Area
+      options:
+        - Terminal
+        - SSH
+        - SFTP / File Manager
+        - Settings / UI
+        - Build / Packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Logs, screenshots, or extra context
+      description: Redact secrets, hostnames, passwords, and private keys before posting.
+      placeholder: Paste logs or attach screenshots if helpful.

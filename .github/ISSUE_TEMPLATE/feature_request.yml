@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest an improvement or new capability for Remora
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement.
+
+        Please describe the workflow problem first, then the proposed change.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What workflow is currently painful, confusing, or missing?
+      placeholder: Describe the user problem first.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like Remora to do?
+      placeholder: Describe the desired behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Workarounds, competing tools, or other approaches you considered.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Terminal
+        - SSH
+        - SFTP / File Manager
+        - Settings / UI
+        - Automation / CI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Extra context
+      placeholder: Mockups, prior art, screenshots, or constraints.

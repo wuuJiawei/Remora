@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage questions and troubleshooting
+    url: https://github.com/wuuJiawei/Remora/blob/main/SUPPORT.md
+    about: Read SUPPORT.md before opening a bug for general setup or usage questions.
+  - name: Security policy
+    url: https://github.com/wuuJiawei/Remora/blob/main/SECURITY.md
+    about: Report vulnerabilities privately using the process in SECURITY.md.
