@@ -31,3 +31,10 @@ DerivedData/
 .history/
 .codex/
 .worktrees/
+#
+# Wiki / Docs (Astro + Starlight)
+#
+docs/wiki/node_modules/
+docs/wiki/.astro/
+docs/wiki/dist/
+

@@ -1,0 +1,17 @@
+{
+  "name": "remora-wiki",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "4.15.0",
+    "@astrojs/starlight": "0.27.1",
+    "@astrojs/sitemap": "3.1.2"
+  }
+}

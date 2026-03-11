@@ -1,0 +1,33 @@
+---
+title: Welcome to Remora
+description: Get started building your SSH + SFTP workspace with Remora.
+template: splash
+hero:
+  tagline: Your native macOS SSH + SFTP workspace
+  actions:
+    - text: Get Started
+      link: /guides/introduction/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/wuuJiawei/Remora
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Features
+
+<CardGrid stagger>
+	<Card title="SSH + SFTP" icon="setting">
+		Native SSH sessions and SFTP file transfers in one unified workspace.
+	</Card>
+	<Card title="Native macOS" icon="laptop">
+		Built with SwiftUI for a truly native experience on macOS.
+	</Card>
+	<Card title="High Performance" icon="rocket">
+		Custom terminal engine optimized for heavy TUI workloads.
+	</Card>
+	<Card title="Secure by Default" icon="shield">
+		Keychain-based credential storage and SSH host key verification.
+	</Card>
+</CardGrid>
