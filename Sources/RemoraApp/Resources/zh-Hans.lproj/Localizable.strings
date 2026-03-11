@@ -290,10 +290,10 @@
 "Properties" = "属性";
 "Read-only" = "只读";
 "Reading file" = "正在读取文件";
-"Remora Export" = "Remora 导出文件";
+"Remora JSON / CSV" = "Remora JSON / CSV";
 "OpenSSH Config" = "OpenSSH 配置";
 "Shell Sessions" = "Shell 会话";
-"Import a Remora JSON or CSV export file." = "导入 Remora 导出的 JSON 或 CSV 文件。";
+"Import a Remora JSON or CSV file." = "导入 Remora 的 JSON 或 CSV 文件。";
 "Import hosts from ssh_config files such as ~/.ssh/config." = "从 ssh_config 文件导入主机，例如 ~/.ssh/config。";
 "Import SSH sessions from WindTerm user.sessions JSON." = "从 WindTerm 的 user.sessions JSON 导入 SSH 会话。";
 "Import SSH bookmarks from electerm bookmark export JSON." = "从 electerm 的书签导出 JSON 导入 SSH 书签。";

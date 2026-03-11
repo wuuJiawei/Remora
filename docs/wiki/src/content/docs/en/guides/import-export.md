@@ -11,7 +11,7 @@ Remora supports importing host configurations from multiple sources and exportin
 
 Remora supports the following import formats:
 
-- **Remora Export**: Import from JSON or CSV file
+- **Remora JSON / CSV**: Import from Remora JSON or CSV file
 - **SSH Config**: Import from `~/.ssh/config`
 - **WindTerm**: Import from WindTerm user.sessions JSON
 - **electerm**: Import from electerm bookmark export JSON

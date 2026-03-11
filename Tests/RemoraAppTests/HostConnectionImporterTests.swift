@@ -74,7 +74,7 @@ struct HostConnectionImporterTests {
     }
 
     @Test
-    func importsCSVByAutoDetection() async throws {
+    func importsCSVExport() async throws {
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("remora-import-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
@@ -85,7 +85,7 @@ struct HostConnectionImporterTests {
         \(UUID().uuidString),staging-api,10.20.0.12,2222,ops,Staging,api|blue,,true,,4,privateKey,/Users/wuu/.ssh/id_ed25519,,15,8,default
         \(UUID().uuidString),db-admin,10.20.0.20,22,dba,Staging,database,primary,false,,1,password,,csv-pass,30,10,default
         """
-        let csvURL = tempRoot.appendingPathComponent("connections.txt")
+        let csvURL = tempRoot.appendingPathComponent("connections.csv")
         try csvContent.data(using: .utf8)?.write(to: csvURL)
 
         let credentialStore = CredentialStore()
@@ -104,6 +104,23 @@ struct HostConnectionImporterTests {
         let dbPasswordRef = db?.auth.passwordReference ?? ""
         let dbPassword = await credentialStore.secret(for: dbPasswordRef)
         #expect(dbPassword == "csv-pass")
+    }
+
+    @Test
+    func rejectsRemoraTXTImport() async throws {
+        let tempRoot = makeTempRoot()
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let txtURL = tempRoot.appendingPathComponent("connections.txt")
+        let content = """
+        id,name,address,port,username,group,tags,note,favorite,lastConnectedAt,connectCount,authMethod,privateKeyPath,password,keepAliveSeconds,connectTimeoutSeconds,terminalProfileID
+        \(UUID().uuidString),prod,10.0.0.10,22,ops,Production,,,,,0,agent,,,30,10,default
+        """
+        try write(content, to: txtURL)
+
+        await #expect(throws: HostConnectionImportError.unsupportedFormat) {
+            try await HostConnectionImporter.importConnections(from: txtURL)
+        }
     }
 
     @Test

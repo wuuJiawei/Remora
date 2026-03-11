@@ -126,7 +126,7 @@ struct HostConnectionImporter {
     ) throws -> [HostConnectionImportRecord] {
         switch source {
         case .remora:
-            return try parseRemoraRecords(from: data)
+            return try parseRemoraRecords(from: data, url: url)
         case .openSSH:
             progress?(.init(phase: tr("Resolving config files"), completed: 0, total: 1))
             return try parseOpenSSHRecords(from: url)
@@ -144,7 +144,12 @@ struct HostConnectionImporter {
         }
     }
 
-    private static func parseRemoraRecords(from data: Data) throws -> [HostConnectionImportRecord] {
+    private static func parseRemoraRecords(from data: Data, url: URL) throws -> [HostConnectionImportRecord] {
+        let pathExtension = url.pathExtension.lowercased()
+        guard pathExtension == "json" || pathExtension == "csv" else {
+            throw HostConnectionImportError.unsupportedFormat
+        }
+
         guard let text = decodeText(data, encodings: [.utf8]) else {
             throw HostConnectionImportError.unsupportedFormat
         }

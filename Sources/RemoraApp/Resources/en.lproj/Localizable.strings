@@ -293,10 +293,10 @@
 "Properties" = "Properties";
 "Read-only" = "Read-only";
 "Reading file" = "Reading file";
-"Remora Export" = "Remora Export";
+"Remora JSON / CSV" = "Remora JSON / CSV";
 "OpenSSH Config" = "OpenSSH Config";
 "Shell Sessions" = "Shell Sessions";
-"Import a Remora JSON or CSV export file." = "Import a Remora JSON or CSV export file.";
+"Import a Remora JSON or CSV file." = "Import a Remora JSON or CSV file.";
 "Import hosts from ssh_config files such as ~/.ssh/config." = "Import hosts from ssh_config files such as ~/.ssh/config.";
 "Import SSH sessions from WindTerm user.sessions JSON." = "Import SSH sessions from WindTerm user.sessions JSON.";
 "Import SSH bookmarks from electerm bookmark export JSON." = "Import SSH bookmarks from electerm bookmark export JSON.";

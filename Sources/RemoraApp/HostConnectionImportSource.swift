@@ -25,7 +25,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .remora:
-            return tr("Remora Export")
+            return tr("Remora JSON / CSV")
         case .openSSH:
             return tr("OpenSSH Config")
         case .windTerm:
@@ -48,7 +48,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .remora:
-            return tr("Import a Remora JSON or CSV export file.")
+            return tr("Import a Remora JSON or CSV file.")
         case .openSSH:
             return tr("Import hosts from ssh_config files such as ~/.ssh/config.")
         case .windTerm:
@@ -71,7 +71,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
     var supportedFileExtensions: [String]? {
         switch self {
         case .remora:
-            return ["json", "csv", "txt"]
+            return ["json", "csv"]
         case .openSSH:
             return nil
         case .windTerm:
