@@ -32,10 +32,14 @@ Use this checklist before making the repository public.
 
 ## 5. Product Readiness
 
-- [ ] Validate local shell, SSH auth modes, reconnect flow on real hosts.
-- [ ] Validate SFTP operations on at least 2 server distributions.
-- [ ] Validate CJK input and terminal selection behaviors.
-- [ ] Validate drag/drop upload targets and operation toasts.
+- [ ] Validate local shell startup, resize, transcript, copy/paste, and working-directory behavior.
+- [ ] Validate SSH auth matrix on real hosts (agent / private key / password) plus wrong-credential handling.
+- [ ] Validate first-seen host key prompt, changed-key handling, disconnect, and reconnect flow.
+- [ ] Validate terminal interaction on real hosts: CJK input, IME caret placement, selection/copy, shell cursor movement, and TUI alternate screen.
+- [ ] Validate SFTP navigation and CRUD operations on at least 2 server distributions.
+- [ ] Validate file-manager binding across tabs/panes and remote state restore.
+- [ ] Validate upload/download paths, drag/drop destination targeting, conflict handling, retry, and operation toasts.
+- [ ] Run through [`docs/real-ssh-acceptance-checklist.md`](./real-ssh-acceptance-checklist.md) and record pass/fail evidence.
 
 ## 6. Release Hygiene
 
