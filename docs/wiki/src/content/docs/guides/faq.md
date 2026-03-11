@@ -20,7 +20,7 @@ Remora 支持以下 SSH 密钥格式：
 
 Remora 可以从以下来源导入 SSH 配置：
 - SSH config 文件 (`~/.ssh/config`)
-- Remora 导出文件 (`.remora`)
+- Remora JSON / CSV 文件
 
 ## 终端支持哪些功能？
 

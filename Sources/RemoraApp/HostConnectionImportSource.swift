@@ -1,7 +1,7 @@
 import Foundation
 
 enum HostConnectionImportSource: String, CaseIterable, Identifiable {
-    case remora
+    case remoraJSONCSV
     case openSSH
     case windTerm
     case electerm
@@ -15,7 +15,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
 
     var isSupported: Bool {
         switch self {
-        case .remora, .openSSH, .windTerm, .electerm, .xshell, .puTTYRegistry:
+        case .remoraJSONCSV, .openSSH, .windTerm, .electerm, .xshell, .puTTYRegistry:
             return true
         case .shellSessions, .finalShell, .termius:
             return false
@@ -24,7 +24,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .remora:
+        case .remoraJSONCSV:
             return tr("Remora JSON / CSV")
         case .openSSH:
             return tr("OpenSSH Config")
@@ -47,7 +47,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
 
     var detail: String {
         switch self {
-        case .remora:
+        case .remoraJSONCSV:
             return tr("Import a Remora JSON or CSV file.")
         case .openSSH:
             return tr("Import hosts from ssh_config files such as ~/.ssh/config.")
@@ -70,7 +70,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
 
     var supportedFileExtensions: [String]? {
         switch self {
-        case .remora:
+        case .remoraJSONCSV:
             return ["json", "csv"]
         case .openSSH:
             return nil
@@ -94,7 +94,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
             return home.appendingPathComponent(".ssh", isDirectory: true)
         case .windTerm:
             return home.appendingPathComponent("SSHConfig", isDirectory: true)
-        case .remora, .electerm, .xshell, .puTTYRegistry, .shellSessions, .finalShell, .termius:
+        case .remoraJSONCSV, .electerm, .xshell, .puTTYRegistry, .shellSessions, .finalShell, .termius:
             return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
         }
     }

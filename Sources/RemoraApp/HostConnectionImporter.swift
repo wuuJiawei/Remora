@@ -83,7 +83,7 @@ struct HostConnectionImporter {
     ) async throws -> [RemoraCore.Host] {
         try await importConnections(
             from: url,
-            source: .remora,
+            source: .remoraJSONCSV,
             credentialStore: credentialStore,
             progress: progress
         )
@@ -125,7 +125,7 @@ struct HostConnectionImporter {
         progress: (@Sendable (HostConnectionImportProgress) -> Void)?
     ) throws -> [HostConnectionImportRecord] {
         switch source {
-        case .remora:
+        case .remoraJSONCSV:
             return try parseRemoraRecords(from: data, url: url)
         case .openSSH:
             progress?(.init(phase: tr("Resolving config files"), completed: 0, total: 1))

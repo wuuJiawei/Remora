@@ -56,7 +56,7 @@ struct ContentView: View {
     @State private var exportAlertTitle = ""
     @State private var exportAlertMessage = ""
     @State private var isImportProgressSheetPresented = false
-    @State private var importSource = HostConnectionImportSource.remora
+    @State private var importSource = HostConnectionImportSource.remoraJSONCSV
     @State private var importSourceFilename = ""
     @State private var importProgress = HostConnectionImportProgress(phase: tr("Preparing"), completed: 0, total: 1)
     @State private var importResultMessage: String?
