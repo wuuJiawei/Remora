@@ -173,6 +173,24 @@ struct SystemSFTPClientTests {
     }
 
     @Test
+    func diagnosticsEnvironmentDescriptionRedactsSensitiveKeys() {
+        let description = SystemSFTPClient.redactedEnvironmentDescription([
+            "HOME": "/Users/demo",
+            "SSHPASS": "top-secret",
+            "API_TOKEN": "token-value",
+            "APP_SECRET_KEY": "secret-value",
+        ])
+
+        #expect(description.contains("HOME=/Users/demo"))
+        #expect(description.contains("SSHPASS=<redacted>"))
+        #expect(description.contains("API_TOKEN=<redacted>"))
+        #expect(description.contains("APP_SECRET_KEY=<redacted>"))
+        #expect(!description.contains("top-secret"))
+        #expect(!description.contains("token-value"))
+        #expect(!description.contains("secret-value"))
+    }
+
+    @Test
     func batchQuotingEscapesNewlinesAndCarriageReturns() {
         let quoted = SystemSFTPClient.quoteBatchArgument("line1\nline2\r\"tail\"")
 

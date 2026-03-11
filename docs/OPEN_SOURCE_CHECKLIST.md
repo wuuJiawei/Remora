@@ -4,9 +4,9 @@ Use this checklist before making the repository public.
 
 ## 1. Security & Privacy
 
-- [ ] Confirm no secrets/tokens/private keys are present in git history.
-- [ ] Review logs/diagnostics to ensure sensitive data is redacted.
-- [ ] Validate host key trust flow and credential storage behavior.
+- [x] Confirm no secrets/tokens/private keys are present in git history.
+- [x] Review logs/diagnostics to ensure sensitive data is redacted.
+- [x] Validate host key trust flow and credential storage behavior.
 - [x] Ensure `SECURITY.md` reflects the correct private contact channel.
 
 ## 2. Licensing & Legal

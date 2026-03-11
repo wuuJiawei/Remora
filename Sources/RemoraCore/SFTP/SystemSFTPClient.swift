@@ -1204,7 +1204,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         return now.timeIntervalSince(referenceDate) > retentionInterval
     }
 
-    private static func redactedEnvironmentDescription(_ environment: [String: String]) -> String {
+    static func redactedEnvironmentDescription(_ environment: [String: String]) -> String {
         if environment.isEmpty { return "{}" }
         let pairs = environment
             .sorted(by: { $0.key < $1.key })
