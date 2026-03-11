@@ -3,7 +3,6 @@ title: Keyboard Shortcuts
 description: Complete list of keyboard shortcuts in Remora.
 ---
 
-# Keyboard Shortcuts
 
 This page lists all keyboard shortcuts available in Remora.
 

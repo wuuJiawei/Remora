@@ -3,7 +3,6 @@ title: FAQ & Troubleshooting
 description: Frequently asked questions and common issues.
 ---
 
-# FAQ & Troubleshooting
 
 ## Frequently Asked Questions
 

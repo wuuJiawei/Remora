@@ -3,7 +3,6 @@ title: SFTP
 description: SFTP file transfer reference.
 ---
 
-# SFTP Reference
 
 ## File Manager
 

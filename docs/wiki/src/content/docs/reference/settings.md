@@ -3,7 +3,6 @@ title: 设置
 description: Remora 设置参考。
 ---
 
-# 设置参考
 
 ## 常规设置
 

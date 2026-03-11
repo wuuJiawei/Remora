@@ -3,7 +3,6 @@ title: Settings
 description: Application settings and preferences.
 ---
 
-# Settings
 
 Remora provides comprehensive settings to customize your experience. Access settings via **Remora > Settings** or press `Cmd+,`.
 

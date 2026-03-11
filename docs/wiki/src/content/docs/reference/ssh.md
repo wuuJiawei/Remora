@@ -3,7 +3,6 @@ title: SSH
 description: SSH 连接配置参考。
 ---
 
-# SSH 参考
 
 ## 连接参数
 

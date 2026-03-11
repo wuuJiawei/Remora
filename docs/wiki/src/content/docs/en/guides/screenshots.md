@@ -3,7 +3,6 @@ title: Screenshots
 description: Remora application screenshots
 ---
 
-# Screenshots
 
 ## SSH Workspace
 

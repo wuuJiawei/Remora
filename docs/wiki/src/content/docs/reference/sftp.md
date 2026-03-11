@@ -3,7 +3,6 @@ title: SFTP
 description: SFTP 文件传输参考。
 ---
 
-# SFTP 参考
 
 ## 文件操作
 

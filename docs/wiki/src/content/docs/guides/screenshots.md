@@ -3,7 +3,6 @@ title: 截图
 description: Remora 应用截图展示
 ---
 
-# 截图
 
 ## SSH 工作区
 

@@ -3,7 +3,6 @@ title: 安装
 description: 在 macOS 上安装 Remora。
 ---
 
-# 安装
 
 ## 系统要求
 

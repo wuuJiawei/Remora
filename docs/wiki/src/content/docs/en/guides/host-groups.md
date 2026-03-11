@@ -3,7 +3,6 @@ title: Host Groups
 description: Organize and manage SSH hosts with groups.
 ---
 
-# Host Groups
 
 Remora allows you to organize your SSH hosts into groups for easier management.
 

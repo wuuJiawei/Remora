@@ -3,7 +3,6 @@ title: Quick Commands & Paths
 description: Save and use frequently used commands and directories.
 ---
 
-# Quick Commands & Paths
 
 Remora allows you to save frequently used commands and directory paths for quick access.
 

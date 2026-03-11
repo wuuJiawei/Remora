@@ -3,7 +3,6 @@ title: 简介
 description: 了解 Remora 及其功能。
 ---
 
-# 简介
 
 Remora 是一个使用 SwiftUI 构建的原生 macOS SSH + SFTP 工作区，提供清晰的分栏布局：
 

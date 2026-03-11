@@ -3,7 +3,6 @@ title: 键盘快捷键
 description: Remora 键盘快捷键参考。
 ---
 
-# 键盘快捷键
 
 ## 全局快捷键
 

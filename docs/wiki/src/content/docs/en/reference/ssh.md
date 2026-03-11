@@ -3,7 +3,6 @@ title: SSH
 description: SSH connection and session management reference.
 ---
 
-# SSH Reference
 
 ## Connection Management
 

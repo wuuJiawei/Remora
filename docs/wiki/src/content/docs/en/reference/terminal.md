@@ -3,7 +3,6 @@ title: Terminal
 description: Terminal features and configuration.
 ---
 
-# Terminal
 
 Remora includes a custom high-performance terminal engine built from scratch, optimized for modern TUI applications.
 

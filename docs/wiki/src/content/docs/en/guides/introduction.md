@@ -3,7 +3,6 @@ title: Introduction
 description: Learn about Remora and what you can do with it.
 ---
 
-# Introduction
 
 Remora is a native macOS SSH + SFTP workspace built with SwiftUI. It provides a clean split layout with:
 

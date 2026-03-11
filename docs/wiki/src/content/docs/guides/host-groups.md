@@ -3,7 +3,6 @@ title: 主机分组
 description: 使用主机分组组织您的 SSH 连接。
 ---
 
-# 主机分组
 
 Remora 允许您将 SSH 主机分组，以便更好地组织连接。
 

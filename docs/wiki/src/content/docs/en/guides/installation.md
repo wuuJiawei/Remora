@@ -3,7 +3,6 @@ title: Installation
 description: How to install Remora on your Mac.
 ---
 
-# Installation
 
 ## Download from GitHub Releases
 

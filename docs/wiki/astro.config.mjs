@@ -6,8 +6,8 @@ export default defineConfig({
   integrations: [
     starlight({
       title: {
-        en: 'Remora Docs',
-        'zh-CN': 'Remora 文档',
+        en: 'Remora',
+        'zh-CN': 'Remora',
       },
       defaultLocale: 'root',
       locales: {
