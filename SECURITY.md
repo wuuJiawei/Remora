@@ -10,7 +10,7 @@ Please do **not** open a public issue for suspected vulnerabilities.
 
 Instead:
 
-1. Email the maintainer with:
+1. Email the maintainer at `wujiawei0926@gmail.com` with:
    - vulnerability summary
    - impact
    - reproduction steps
