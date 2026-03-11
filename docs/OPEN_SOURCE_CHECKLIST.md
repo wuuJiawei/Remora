@@ -21,7 +21,7 @@ Use this checklist before making the repository public.
 - [x] Rewrite `README.md` with clear quick start and feature overview.
 - [x] Add `CONTRIBUTING.md`.
 - [x] Add `SECURITY.md`.
-- [ ] Add screenshots/GIFs for core workflows (terminal, SSH, file manager).
+- [x] Add screenshots/GIFs for core workflows (terminal, SSH, file manager).
 - [ ] Add architecture diagram for `RemoraCore` / `RemoraTerminal` / `RemoraApp`.
 
 ## 4. Build & CI
@@ -39,8 +39,8 @@ Use this checklist before making the repository public.
 
 ## 6. Release Hygiene
 
-- [ ] Decide versioning policy (SemVer suggested).
-- [ ] Create initial changelog (`CHANGELOG.md`).
+- [x] Decide versioning policy (SemVer suggested).
+- [x] Create initial changelog (`CHANGELOG.md`).
 - [ ] Tag first public release and attach release notes.
 - [ ] Add issue templates and PR template.
 
