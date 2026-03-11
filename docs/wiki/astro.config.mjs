@@ -71,6 +71,9 @@ export default defineConfig({
             'zh-CN': '原理剖析',
           },
           items: [
+            { link: '/principles/terminal-rendering/', label: 'Terminal Rendering', translations: { 'zh-CN': '终端渲染引擎' } },
+            { link: '/principles/ssh-connection/', label: 'SSH Connection', translations: { 'zh-CN': 'SSH 连接复用' } },
+            { link: '/principles/io-buffer/', label: 'Ring Buffer', translations: { 'zh-CN': '环形缓冲区' } },
             { link: '/principles/concurrent-transfer/', label: 'Concurrent Transfer', translations: { 'zh-CN': '并发传输控制' } },
             { link: '/principles/transfer-conflict/', label: 'Transfer Conflict', translations: { 'zh-CN': '传输冲突处理' } },
             { link: '/principles/transfer-direction/', label: 'Transfer Direction', translations: { 'zh-CN': '传输方向' } },
