@@ -6,6 +6,13 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.10.6] - 2026-03-12
+
+### Fixed
+
+- macOS release bundles now declare the application icon through the standard Xcode asset catalog pipeline, so Finder and Dock both display the same icon after users unzip the packaged app.
+- Removed the runtime-only Dock icon override path, eliminating the mismatch where packaged apps showed a generic Finder icon until launch.
+
 ## [v0.10.5] - 2026-03-12
 
 ### Changed

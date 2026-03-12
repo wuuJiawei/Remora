@@ -637,6 +637,10 @@ struct ContentView: View {
     }
 
     private static func resolveWelcomeAppIconImage() -> NSImage? {
+        if NSApp.applicationIconImage.size.width > 0 {
+            return NSApp.applicationIconImage
+        }
+
         let fileManager = FileManager.default
         var candidateDirectories: [URL] = []
 
@@ -665,8 +669,6 @@ struct ContentView: View {
             let iconCandidates = [
                 // Brand logo for welcome placeholder.
                 directory.appendingPathComponent("logo.png"),
-                directory.appendingPathComponent("Resources/AppIcon.icns"),
-                directory.appendingPathComponent("AppIcon.icns"),
             ]
 
             for candidate in iconCandidates where fileManager.fileExists(atPath: candidate.path) {
@@ -677,9 +679,6 @@ struct ContentView: View {
             }
         }
 
-        if NSApp.applicationIconImage.size.width > 0 {
-            return NSApp.applicationIconImage
-        }
         return nil
     }
 

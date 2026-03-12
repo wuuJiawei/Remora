@@ -7,6 +7,13 @@ description: Remora 版本更新历史
 
 ## [Unreleased]
 
+## [v0.10.6] - 2026-03-12
+
+### 修复
+
+- macOS 发布包现在通过标准 Xcode asset catalog 流程声明应用图标，用户解压后 Finder 与 Dock 会显示同一套图标。
+- 移除了仅在运行时覆盖 Dock 图标的旧路径，避免打包 app 在启动前显示通用 Finder 图标。
+
 ## [v0.10.5] - 2026-03-12
 
 ### 更改

@@ -33,7 +33,7 @@ project.root_object.known_regions = ['en', 'zh-Hans']
 
 project.build_configurations.each do |config|
   config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = DEPLOYMENT_TARGET
-  config.build_settings['MARKETING_VERSION'] = '0.10.5'
+  config.build_settings['MARKETING_VERSION'] = '0.10.6'
   config.build_settings['CURRENT_PROJECT_VERSION'] = '1'
   config.build_settings['SWIFT_VERSION'] = '6.0'
   config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
@@ -82,10 +82,10 @@ app_target.build_configurations.each do |config|
   config.build_settings['INFOPLIST_KEY_CFBundleDisplayName'] = 'Remora'
   config.build_settings['INFOPLIST_KEY_CFBundleName'] = 'Remora'
   config.build_settings['INFOPLIST_KEY_CFBundleExecutable'] = '$(EXECUTABLE_NAME)'
-  config.build_settings['INFOPLIST_KEY_CFBundleIconFile'] = 'AppIcon.icns'
   config.build_settings['INFOPLIST_KEY_LSApplicationCategoryType'] = 'public.app-category.developer-tools'
   config.build_settings['INFOPLIST_KEY_NSHighResolutionCapable'] = 'YES'
   config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = '$(inherited) @executable_path/../Frameworks'
+  config.build_settings['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'AppIcon'
   config.build_settings['ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS'] = 'NO'
 end
 
@@ -128,8 +128,8 @@ localizable_group.new_file('en.lproj/Localizable.strings')
 localizable_group.new_file('zh-Hans.lproj/Localizable.strings')
 app_target.resources_build_phase.add_file_reference(localizable_group, true)
 
-app_icon_ref = resources_group.new_file('AppIcon.icns')
-app_target.resources_build_phase.add_file_reference(app_icon_ref, true)
+asset_catalog_ref = resources_group.new_file('Assets.xcassets')
+app_target.resources_build_phase.add_file_reference(asset_catalog_ref, true)
 
 scheme = Xcodeproj::XCScheme.new
 scheme.configure_with_targets(app_target, nil, launch_target: true)
