@@ -65,10 +65,13 @@ struct TerminalRuntimeTests {
 
         let connected = await waitUntil(timeout: 2.0) {
             runtime.connectionState.contains("Connected (SSH)")
+                && runtime.transcriptSnapshot.contains("Connected to")
         }
 
-        #expect(connected, "Runtime should connect through SSH mode when connectSSH is used.")
-        #expect(runtime.transcriptSnapshot.contains("Connected to"))
+        #expect(
+            connected,
+            "Runtime should connect through SSH mode and publish transcript output when connectSSH is used."
+        )
         #expect(runtime.connectedSSHHost?.address == "127.0.0.1")
         runtime.disconnect()
     }
