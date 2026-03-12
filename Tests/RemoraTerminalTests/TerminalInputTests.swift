@@ -314,7 +314,7 @@ struct TerminalInputTests {
     func terminalViewFirstRectUsesInsertionCaretGeometry() throws {
         let view = makeShellPromptViewForTesting(command: "hello")
         let window = hostViewInWindow(view, size: NSSize(width: 400, height: 120))
-        defer { window.close() }
+        defer { tearDownHostedWindow(window, view: view) }
 
         let cursor = view.cursorBufferPositionForTesting()
         let caretRect = localCaretRect(in: view)
@@ -335,7 +335,7 @@ struct TerminalInputTests {
     func terminalViewFocusedCaretBlinks() throws {
         let view = makeShellPromptViewForTesting(command: "hello")
         let window = hostViewInWindow(view, size: NSSize(width: 400, height: 120))
-        defer { window.close() }
+        defer { tearDownHostedWindow(window, view: view) }
 
         _ = window.makeFirstResponder(view)
         #expect(view.isCaretBlinkVisibleForTesting())
@@ -535,17 +535,29 @@ struct TerminalInputTests {
     private func hostViewInWindow(_ view: TerminalView, size: NSSize) -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.titled, .closable],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
+        window.animationBehavior = .none
+        window.isReleasedWhenClosed = false
+        window.setFrameOrigin(CGPoint(x: -20_000, y: -20_000))
         let container = NSView(frame: NSRect(origin: .zero, size: size))
         window.contentView = container
         view.frame = container.bounds
         container.addSubview(view)
-        window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
+        window.displayIfNeeded()
         return window
+    }
+
+    private func tearDownHostedWindow(_ window: NSWindow, view: TerminalView) {
+        if window.firstResponder as AnyObject? === view {
+            window.makeFirstResponder(nil)
+        }
+        view.removeFromSuperview()
+        window.orderOut(nil)
+        window.contentView = nil
     }
 
     private func localCaretRect(in view: TerminalView) -> CGRect {
