@@ -10,8 +10,8 @@ description: 在 macOS 上安装 Remora。
 
 ## 下载安装
 
-1. 从 [GitHub Releases](https://github.com/wuuJiawei/Remora/releases) 下载最新的 `.dmg` 文件
-2. 打开下载的 `.dmg` 文件
+1. 从 [GitHub Releases](https://github.com/wuuJiawei/Remora/releases) 下载最新的 `.zip` 压缩包
+2. 解压下载的 `.zip` 文件
 3. 将 `Remora.app` 拖入应用程序文件夹
 
 ## 信任开发者
