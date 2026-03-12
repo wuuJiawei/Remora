@@ -14,6 +14,29 @@ description: 在 macOS 上安装 Remora。
 2. 解压下载的 `.zip` 文件
 3. 将 `Remora.app` 拖入应用程序文件夹
 
+## 从源码运行
+
+推荐直接打开仓库根目录下的 `Remora.xcodeproj`，运行 `Remora` scheme。
+
+命令行开发运行：
+
+```bash
+git clone https://github.com/wuuJiawei/Remora.git
+cd Remora
+swift build
+swift run RemoraApp
+```
+
+## 本地打包
+
+本地打包与 GitHub Actions 使用同一条脚本：
+
+```bash
+./scripts/package_macos.sh --arch "$(uname -m)" --version 0.0.0-local --build-number 1
+```
+
+产物会输出到 `dist/` 目录。
+
 ## 信任开发者
 
 首次运行 Remora 时，macOS 可能会阻止应用打开（显示"已损坏"错误）。请运行以下命令移除隔离属性：

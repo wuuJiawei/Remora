@@ -5,6 +5,16 @@ description: Remora 版本更新历史
 
 本页面内容同步自 [GitHub 仓库 CHANGELOG.md](https://github.com/wuuJiawei/Remora/blob/main/CHANGELOG.md)。
 
+## [Unreleased]
+
+## [v0.10.5] - 2026-03-12
+
+### 更改
+
+- macOS 打包现在统一走原生 Xcode app archive 流程，本地与 GitHub Actions 共用 `scripts/package_macos.sh`。
+- 应用运行时现在从标准 app bundle 读取本地化资源，不再依赖 SwiftPM 资源 bundle 的路径回退逻辑。
+- README 与安装文档已同步切换到 `Remora.xcodeproj` 和共享打包脚本这一条主路径。
+
 ## [v0.10.4] - 2026-03-08
 
 ### 新增

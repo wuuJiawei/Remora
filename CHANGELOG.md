@@ -6,6 +6,14 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.10.5] - 2026-03-12
+
+### Changed
+
+- macOS packaging now uses the native Xcode app archive flow locally and in GitHub Actions via `scripts/package_macos.sh`.
+- The app now loads localized resources from the standard app bundle at runtime instead of relying on SwiftPM resource-bundle path fallbacks.
+- README and installation docs now point to the Xcode project and the shared packaging script as the primary release workflow.
+
 ## [v0.10.4] - 2026-03-08
 
 ### Added

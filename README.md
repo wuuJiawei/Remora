@@ -73,13 +73,29 @@ Remora 聚焦在一个实用组合：
 ### 环境要求
 
 - macOS 14+
-- Xcode 15.4+（或 Swift 6 toolchain）
+- Xcode 15.4+
 
-### 构建与运行
+### 开发运行
 
 ```bash
 swift build
 swift run RemoraApp
+```
+
+如果你更习惯 Xcode，直接打开 `Remora.xcodeproj`，运行 `Remora` scheme 即可。
+
+### 本地打包
+
+正式的本地打包与 GitHub Actions 使用同一条命令：
+
+```bash
+./scripts/package_macos.sh --arch "$(uname -m)" --version 0.0.0-local --build-number 1
+```
+
+输出文件位于 `dist/`，例如：
+
+```bash
+dist/Remora-0.0.0-local-macos-arm64.zip
 ```
 
 可选压力工具：

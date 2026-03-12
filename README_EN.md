@@ -73,13 +73,29 @@ Remora focuses on a practical split:
 ### Requirements
 
 - macOS 14+
-- Xcode 15.4+ (or Swift 6 toolchain)
+- Xcode 15.4+
 
-### Build & Run
+### Run from Source
 
 ```bash
 swift build
 swift run RemoraApp
+```
+
+If you prefer Xcode, open `Remora.xcodeproj` and run the `Remora` scheme.
+
+### Package Locally
+
+Local packaging and GitHub Actions use the same command:
+
+```bash
+./scripts/package_macos.sh --arch "$(uname -m)" --version 0.0.0-local --build-number 1
+```
+
+The packaged app is written to `dist/`, for example:
+
+```bash
+dist/Remora-0.0.0-local-macos-arm64.zip
 ```
 
 Optional stress tool:
