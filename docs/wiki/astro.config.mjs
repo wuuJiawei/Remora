@@ -9,6 +9,7 @@ export default defineConfig({
         en: 'Remora',
         'zh-CN': 'Remora',
       },
+      favicon: '/favicon.ico',
       defaultLocale: 'root',
       locales: {
         root: {
