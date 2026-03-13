@@ -378,18 +378,18 @@ struct TerminalRuntimeTests {
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
             runtime.connectionState.contains("Connected")
-                && view.shellInputSnapshot()?.logicalLineText.contains("% ") == true
+                && view.getTerminal().buffer.x > 0
         }
         #expect(connected)
         guard connected else { return }
 
-        let baselineLength = view.shellInputSnapshot()?.logicalLineText.count ?? 0
+        let baselineColumn = view.getTerminal().buffer.x
         let clock = ContinuousClock()
         let start = clock.now
         runtime.sendText("x")
 
         let echoed = await waitUntilFast(timeout: 0.1) {
-            (view.shellInputSnapshot()?.logicalLineText.count ?? 0) > baselineLength
+            view.getTerminal().buffer.x > baselineColumn
         }
         let elapsed = start.duration(to: clock.now)
         let elapsedMS = milliseconds(elapsed)

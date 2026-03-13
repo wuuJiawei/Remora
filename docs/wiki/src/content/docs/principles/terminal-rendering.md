@@ -1,38 +1,20 @@
 ---
-title: 终端渲染引擎
-description: 自研 CoreText 终端渲染器解析。
+title: 终端集成
+description: Remora 当前的 SwiftTerm 终端集成说明。
 ---
 
-Remora 的终端渲染引擎完全自研，基于 CoreText 框架构建。
+Remora 当前使用 SwiftTerm 作为终端引擎与视图实现，`RemoraTerminal` 模块只保留适配层与 app 侧集成。
 
-## 核心架构
+## 当前架构
 
-### CoreTextTerminalRenderer
+### SwiftTerm
 
-使用 CoreText 直接绘制文本字符，实现高精度渲染。
+负责 VT 解析、缓冲区管理、渲染、输入映射、选择与滚动等终端核心能力。
 
-### GlyphCache 字形缓存
+### RemoraTerminal
 
-智能字形缓存，避免重复渲染相同字符，大幅提升性能。
+负责将 SwiftTerm 暴露为 Remora app 侧使用的 `TerminalView`，并桥接输入、尺寸变化与外部链接打开等行为。
 
-> 敬请期待：渲染管线详解
+### RemoraApp
 
-## 屏幕缓冲
-
-### ScreenBuffer
-
-双缓冲机制，确保渲染无闪烁。
-
-### ScrollbackStore
-
-可配置的回滚存储，保存历史输出。
-
-> 敬请期待：内存优化策略
-
-## 性能优化
-
-### FrameScheduler
-
-智能帧调度，按需渲染，节省 CPU 资源。
-
-> 敬请期待：帧率控制原理
+负责会话管理、SSH/SFTP 工作流、窗口与面板编排，以及 transcript 等应用层状态。

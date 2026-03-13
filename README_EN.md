@@ -7,7 +7,7 @@
 <p align="center"><strong>Hitch a ride to any shell.</strong></p>
 
 <p align="center">
-  A native macOS SSH + SFTP workspace built with SwiftUI and a custom high-performance terminal engine.
+  A native macOS SSH + SFTP workspace built with SwiftUI and a SwiftTerm-based terminal stack.
 </p>
 
 > [!WARNING]
@@ -33,14 +33,14 @@
 Remora focuses on a practical split:
 
 - Native macOS UX for connection/session management.
-- A custom terminal core for VT rendering/input performance.
+- A SwiftTerm-based terminal stack for VT rendering/input and TUI compatibility.
 - SSH + SFTP workflows in one place.
 
 ## Features
 
 - Fantastic: Local-first SSH + SFTP workspace, ANSI/VT support for modern TUIs, xterm-style selection, quick commands/quick paths, drag-and-drop transfers.
 - Beautiful: Native macOS UI with clean split layout, light/dark/system themes, and distraction-free terminal focus.
-- Fast: Swift 6 native architecture with a custom terminal engine (buffer + parser + renderer), built to outperform typical Electron-based terminal apps under heavy TUI/scroll workloads.
+- Fast: Swift 6 native architecture with a SwiftTerm-backed terminal stack and native macOS UI, tuned for practical TUI and scroll-heavy workflows.
 - Secure: Local-first credential strategy with saved passwords stored only in macOS Keychain, SSH host key verification via `StrictHostKeyChecking=ask`, and explicit opt-in before any plaintext password export or copy.
 - Simple: Lightweight app with a 99% Swift-native stack, keyboard-driven workflows, and practical defaults that work out of the box.
 
@@ -146,7 +146,7 @@ A: Allow it once from macOS Settings:
 ## Project Structure
 
 - `Sources/RemoraCore`: SSH/SFTP/session/host/security/core models.
-- `Sources/RemoraTerminal`: parser, buffer, renderer, terminal input/view.
+- `Sources/RemoraTerminal`: SwiftTerm adapter layer and app-facing terminal view integration.
 - `Sources/RemoraApp`: SwiftUI app, workspace UI, settings, file manager.
 - `Sources/TerminalStressTool`: terminal throughput/stress utility.
 - `Tests/*`: core, terminal, and app tests.

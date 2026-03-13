@@ -8,10 +8,6 @@ enum AppSettings {
     static let passwordSaveConsentAcknowledgedKey = "settings.credentials.passwordSaveConsentAcknowledged"
     static let connectionInfoPasswordCopyMuteUntilKey = "settings.credentials.connectionInfoPasswordCopyMuteUntil"
     static let connectionInfoPasswordCopyMuteForeverKey = "settings.credentials.connectionInfoPasswordCopyMuteForever"
-    static let terminalWordSeparatorsKey = "settings.terminal.wordSeparators"
-    static let terminalScrollSensitivityKey = "settings.terminal.scrollSensitivity"
-    static let terminalFastScrollSensitivityKey = "settings.terminal.fastScrollSensitivity"
-    static let terminalScrollOnUserInputKey = "settings.terminal.scrollOnUserInput"
     static let serverMetricsActiveRefreshSecondsKey = "settings.metrics.activeRefreshSeconds"
     static let serverMetricsInactiveRefreshSecondsKey = "settings.metrics.inactiveRefreshSeconds"
     static let serverMetricsMaxConcurrentFetchesKey = "settings.metrics.maxConcurrentFetches"
@@ -19,9 +15,6 @@ enum AppSettings {
     static let defaultServerMetricsActiveRefreshSeconds = 4
     static let defaultServerMetricsInactiveRefreshSeconds = 10
     static let defaultServerMetricsMaxConcurrentFetches = 2
-    static let defaultTerminalWordSeparators = " ()[]{}'\"`"
-    static let defaultTerminalScrollSensitivity = 1.0
-    static let defaultTerminalFastScrollSensitivity = 5.0
 
     static func resolvedDownloadDirectoryURL(
         from rawPath: String?,
@@ -81,33 +74,6 @@ enum AppSettings {
 
     static func clampedServerMetricsMaxConcurrentFetches(_ value: Int) -> Int {
         min(max(value, 1), 6)
-    }
-
-    static func resolvedTerminalWordSeparators(defaults: UserDefaults = .standard) -> String {
-        let raw = defaults.string(forKey: terminalWordSeparatorsKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return raw.isEmpty ? defaultTerminalWordSeparators : raw
-    }
-
-    static func resolvedTerminalScrollSensitivity(defaults: UserDefaults = .standard) -> Double {
-        let raw = defaults.object(forKey: terminalScrollSensitivityKey) as? Double ?? defaultTerminalScrollSensitivity
-        return clampedTerminalScrollSensitivity(raw)
-    }
-
-    static func resolvedTerminalFastScrollSensitivity(defaults: UserDefaults = .standard) -> Double {
-        let raw = defaults.object(forKey: terminalFastScrollSensitivityKey) as? Double ?? defaultTerminalFastScrollSensitivity
-        return clampedTerminalScrollSensitivity(raw)
-    }
-
-    static func resolvedTerminalScrollOnUserInput(defaults: UserDefaults = .standard) -> Bool {
-        if defaults.object(forKey: terminalScrollOnUserInputKey) == nil {
-            return true
-        }
-        return defaults.bool(forKey: terminalScrollOnUserInputKey)
-    }
-
-    static func clampedTerminalScrollSensitivity(_ value: Double) -> Double {
-        min(max(value, 0.1), 12.0)
     }
 }
 

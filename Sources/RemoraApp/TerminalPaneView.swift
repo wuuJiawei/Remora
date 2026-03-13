@@ -133,6 +133,11 @@ struct TerminalPaneView: View {
             TerminalViewRepresentable(pane: pane, runtime: runtime, onFocus: onSelect)
                 .background(VisualStyle.terminalBackground)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        onSelect()
+                    }
+                )
         }
         .background(VisualStyle.rightPanelBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

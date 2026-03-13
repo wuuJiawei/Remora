@@ -7,7 +7,7 @@
 <p align="center"><strong>让你轻松连接任意 Shell。</strong></p>
 
 <p align="center">
-  一个使用 SwiftUI 构建的原生 macOS SSH + SFTP 工作台，内置自研高性能终端引擎。
+  一个使用 SwiftUI 构建的原生 macOS SSH + SFTP 工作台，内置基于 SwiftTerm 的终端栈。
 </p>
 
 > [!WARNING]
@@ -33,14 +33,14 @@
 Remora 聚焦在一个实用组合：
 
 - 原生 macOS 体验的连接与会话管理。
-- 面向 VT 渲染与输入性能的自研终端核心。
+- 基于 SwiftTerm 的终端栈，用于 VT 渲染、输入与 TUI 兼容。
 - SSH 与 SFTP 在一个工作区内协同完成。
 
 ## 功能特性
 
 - Fantastic：本地优先的 SSH + SFTP 工作区，支持现代 TUI 所需 ANSI/VT、xterm 风格选择、快捷命令/快捷路径、拖拽传输。
 - Beautiful：原生 macOS 视觉与交互，布局简洁，支持浅色/深色/跟随系统，终端专注无干扰。
-- Fast：Swift 6 原生实现 + 自研终端引擎（buffer/parser/renderer），在高频 TUI 与滚动场景下目标体验优于典型 Electron 终端应用。
+- Fast：Swift 6 原生实现 + SwiftTerm 终端栈 + 原生 macOS UI，面向高频 TUI 与滚动场景优化。
 - Secure：采用本地优先的凭据策略，保存密码仅写入 macOS Keychain，SSH 主机指纹通过 `StrictHostKeyChecking=ask` 显式确认，任何明文密码导出或复制都需要用户主动确认。
 - Simple：轻量设计，99% Swift-native 技术栈，默认配置即可开箱使用，并支持键盘快捷工作流。
 
@@ -146,7 +146,7 @@ A: 到系统设置手动放行一次：
 ## 项目结构
 
 - `Sources/RemoraCore`：SSH/SFTP/会话/主机/安全/核心模型。
-- `Sources/RemoraTerminal`：解析器、缓冲区、渲染器、终端输入/视图。
+- `Sources/RemoraTerminal`：SwiftTerm 适配层与 app 侧终端视图集成。
 - `Sources/RemoraApp`：SwiftUI 应用、工作区 UI、设置、文件管理。
 - `Sources/TerminalStressTool`：终端吞吐/压力工具。
 - `Tests/*`：core、terminal、app 测试。

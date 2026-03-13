@@ -1,15 +1,18 @@
 import Foundation
 import RemoraCore
-import RemoraTerminal
+import SwiftTerm
 
 @main
 enum TerminalStressMain {
     static func main() async {
         let lines = 50_000
-        let parser = ANSIParser()
-        let screen = ScreenBuffer(rows: 48, columns: 160)
         let metrics = PerformanceMetrics()
         let clock = ContinuousClock()
+        let delegate = NullTerminalDelegate()
+        let terminal = Terminal(
+            delegate: delegate,
+            options: TerminalOptions(cols: 160, rows: 48)
+        )
 
         var payload = Data()
         for idx in 0 ..< lines {
@@ -17,7 +20,7 @@ enum TerminalStressMain {
         }
 
         let start = clock.now
-        parser.parse(payload, into: screen)
+        terminal.feed(buffer: ArraySlice(payload))
         let duration = start.duration(to: clock.now)
         let ms = durationToMilliseconds(duration)
         let throughput = Double(payload.count) / max(ms / 1_000, 0.001)
@@ -39,4 +42,8 @@ enum TerminalStressMain {
         return Double(components.seconds) * 1_000
             + Double(components.attoseconds) / 1_000_000_000_000_000
     }
+}
+
+private final class NullTerminalDelegate: TerminalDelegate {
+    func send(source: Terminal, data: ArraySlice<UInt8>) {}
 }

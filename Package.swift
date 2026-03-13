@@ -11,6 +11,9 @@ let package = Package(
         .executable(name: "RemoraApp", targets: ["RemoraApp"]),
         .executable(name: "terminal-stress", targets: ["TerminalStressTool"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.11.2"),
+    ],
     targets: [
         .target(
             name: "RemoraCore",
@@ -20,7 +23,10 @@ let package = Package(
         ),
         .target(
             name: "RemoraTerminal",
-            dependencies: ["RemoraCore"],
+            dependencies: [
+                "RemoraCore",
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+            ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("CoreText"),
@@ -40,15 +46,14 @@ let package = Package(
         ),
         .executableTarget(
             name: "TerminalStressTool",
-            dependencies: ["RemoraCore", "RemoraTerminal"]
+            dependencies: [
+                "RemoraCore",
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+            ]
         ),
         .testTarget(
             name: "RemoraCoreTests",
             dependencies: ["RemoraCore"]
-        ),
-        .testTarget(
-            name: "RemoraTerminalTests",
-            dependencies: ["RemoraTerminal"]
         ),
         .testTarget(
             name: "RemoraAppTests",

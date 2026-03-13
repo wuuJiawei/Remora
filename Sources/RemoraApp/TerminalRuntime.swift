@@ -89,14 +89,7 @@ final class TerminalRuntime: ObservableObject {
 
     func attach(view: TerminalView) {
         terminalView = view
-        view.isDisplayActive = isPaneActive
         view.onInput = { [weak self] data in
-            DispatchQueue.main.async {
-                self?.enqueueInput(data)
-            }
-        }
-        view.onTerminalQueryResponse = { [weak self] data in
-            // Inject response back into PTY input
             DispatchQueue.main.async {
                 self?.enqueueInput(data)
             }
@@ -106,7 +99,6 @@ final class TerminalRuntime: ObservableObject {
 
     func setPaneActive(_ isActive: Bool) {
         isPaneActive = isActive
-        terminalView?.isDisplayActive = isActive
     }
 
     func connectLocalShell() {
