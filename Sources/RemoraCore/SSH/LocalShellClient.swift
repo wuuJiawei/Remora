@@ -257,8 +257,27 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
             env.merge(base) { _, new in new }
         }
         env["TERM"] = env["TERM"] ?? "xterm-256color"
+        let utf8Locale = preferredUTF8Locale(from: env)
+        env["LANG"] = utf8Locale
+        env["LC_CTYPE"] = utf8Locale
+        if let currentLCAll = env["LC_ALL"], !Self.isUTF8Locale(currentLCAll) {
+            env["LC_ALL"] = utf8Locale
+        }
         env["PROMPT_EOL_MARK"] = ""
         return env
+    }
+
+    private func preferredUTF8Locale(from env: [String: String]) -> String {
+        for key in ["LC_ALL", "LC_CTYPE", "LANG"] {
+            if let value = env[key], Self.isUTF8Locale(value) {
+                return value
+            }
+        }
+        return "en_US.UTF-8"
+    }
+
+    private static func isUTF8Locale(_ value: String) -> Bool {
+        value.uppercased().contains("UTF-8") || value.uppercased().contains("UTF8")
     }
 
     private func createPseudoTerminal(initialSize: PTYSize) throws -> (master: Int32, slave: Int32) {
