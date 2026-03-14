@@ -67,6 +67,22 @@ struct SystemSSHClientTests {
     }
 
     @Test
+    func standardLaunchConfigurationProvidesTerminalType() {
+        let host = Host(
+            name: "ops",
+            address: "example.com",
+            username: "ubuntu",
+            auth: HostAuth(method: .agent)
+        )
+
+        let launch = ProcessSSHShellSession.makeStandardLaunchConfiguration(for: host)
+        let inheritedTerm = ProcessInfo.processInfo.environment["TERM"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let expectedTerm = (inheritedTerm?.isEmpty == false ? inheritedTerm : nil) ?? "xterm-256color"
+
+        #expect(launch.environment["TERM"] == expectedTerm)
+    }
+
+    @Test
     func buildsPasswordLaunchConfigurationWithExplicitHelperTransport() {
         let host = Host(
             name: "prod",

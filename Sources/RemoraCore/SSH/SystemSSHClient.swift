@@ -260,6 +260,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         environment: [String: String]
     ) -> LaunchConfiguration {
         let sshPath = "/usr/bin/ssh"
+        let environment = mergedTerminalEnvironment(environment)
 
         if FileManager.default.isExecutableFile(atPath: "/usr/bin/script") {
             return LaunchConfiguration(
@@ -274,6 +275,17 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             arguments: sshArguments,
             environment: environment
         )
+    }
+
+    private static func mergedTerminalEnvironment(_ base: [String: String]) -> [String: String] {
+        var environment = base
+        let inheritedTerm = ProcessInfo.processInfo.environment["TERM"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if environment["TERM"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            environment["TERM"] = (inheritedTerm?.isEmpty == false ? inheritedTerm : nil) ?? "xterm-256color"
+        }
+
+        return environment
     }
 
     private static func defaultSSHPassPath() -> String? {

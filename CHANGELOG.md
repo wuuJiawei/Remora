@@ -6,6 +6,12 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.11.1] - 2026-03-14
+
+### Fixed
+
+- SSH terminal sessions now always provide a valid `TERM` value to the spawned `ssh` process, so TUI commands like `top` and `htop` no longer fail on hosts that require terminal type detection.
+
 ## [v0.11.0] - 2026-03-13
 
 ### Changed
