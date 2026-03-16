@@ -713,6 +713,16 @@ final class FileTransferViewModel: ObservableObject {
         return try await sftpClient.executeRemoteShellCommand(command, timeout: 15)
     }
 
+    func streamRemoteLogTail(
+        path: String,
+        lineCount: Int = FileTransferViewModel.defaultRemoteLogTailLineCount
+    ) async throws -> AsyncThrowingStream<String, Error> {
+        let normalizedPath = normalizeRemoteDirectoryPath(path)
+        let clampedLineCount = min(max(lineCount, 1), Self.maxRemoteLogTailLineCount)
+        let command = "LC_ALL=C tail -n \(clampedLineCount) -f \(Self.quoteShellArgument(normalizedPath))"
+        return try await sftpClient.streamRemoteShellCommand(command)
+    }
+
     func saveTextDocument(
         path: String,
         text: String,

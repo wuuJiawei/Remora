@@ -23,6 +23,12 @@ struct RemoteLogViewerViewModelTests {
         )
 
         await viewModel.load()
+        for _ in 0 ..< 20 {
+            if viewModel.text == "boot\nready" {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
         #expect(viewModel.text == "boot\nready")
 
         try await client.upload(

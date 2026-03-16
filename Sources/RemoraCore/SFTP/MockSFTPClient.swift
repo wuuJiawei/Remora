@@ -150,36 +150,50 @@ public actor MockSFTPClient: SFTPClientProtocol {
 
     public func executeRemoteShellCommand(_ command: String, timeout: TimeInterval?) async throws -> String {
         _ = timeout
-        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let tailRange = trimmed.range(of: "tail -n ") else {
-            throw SFTPClientError.unsupportedOperation("remote-shell-command")
+        let parsed = try parseTailCommand(command)
+        return try renderTailOutput(path: parsed.path, lineCount: parsed.lineCount)
+    }
+
+    public func streamRemoteShellCommand(_ command: String) async throws -> AsyncThrowingStream<String, Error> {
+        let parsed = try parseTailCommand(command)
+        guard parsed.follow else {
+            let output = try renderTailOutput(path: parsed.path, lineCount: parsed.lineCount)
+            return AsyncThrowingStream { continuation in
+                continuation.yield(output)
+                continuation.finish()
+            }
         }
 
-        let suffix = trimmed[tailRange.upperBound...]
-        guard let spaceIndex = suffix.firstIndex(of: " ") else {
-            throw SFTPClientError.unsupportedOperation("remote-shell-command")
-        }
+        let path = parsed.path
+        let lineCount = parsed.lineCount
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var lastOutput = try self.renderTailOutput(path: path, lineCount: lineCount)
+                    continuation.yield(lastOutput)
 
-        let lineCountText = suffix[..<spaceIndex]
-        guard let lineCount = Int(lineCountText), lineCount > 0 else {
-            throw SFTPClientError.unsupportedOperation("remote-shell-command")
-        }
+                    while !Task.isCancelled {
+                        try await Task.sleep(for: .milliseconds(150))
+                        let latest = try self.renderTailOutput(path: path, lineCount: lineCount)
+                        guard latest != lastOutput else { continue }
 
-        guard let pathMarkerRange = trimmed.range(of: " ", options: .backwards) else {
-            throw SFTPClientError.unsupportedOperation("remote-shell-command")
-        }
+                        if latest.hasPrefix(lastOutput) {
+                            continuation.yield(String(latest.dropFirst(lastOutput.count)))
+                        } else {
+                            continuation.yield(latest)
+                        }
+                        lastOutput = latest
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
 
-        let rawPath = String(trimmed[pathMarkerRange.upperBound...])
-        let normalizedPath = normalize(unquoteShellArgument(rawPath))
-        guard let file = files[normalizedPath] else {
-            throw SFTPClientError.notFound(normalizedPath)
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
         }
-
-        let content = String(decoding: file.data, as: UTF8.self)
-        let normalizedNewlines = content.replacingOccurrences(of: "\r\n", with: "\n")
-        let lines = normalizedNewlines.split(separator: "\n", omittingEmptySubsequences: false)
-        let tailLines = lines.suffix(lineCount)
-        return tailLines.joined(separator: "\n")
     }
 
     public func upload(data: Data, to path: String) async throws {
@@ -450,6 +464,44 @@ public actor MockSFTPClient: SFTPClientProtocol {
             return true
         }
         return directories.keys.contains(where: { $0.hasPrefix(prefix) })
+    }
+
+    private func renderTailOutput(path: String, lineCount: Int) throws -> String {
+        guard let file = files[path] else {
+            throw SFTPClientError.notFound(path)
+        }
+
+        let content = String(decoding: file.data, as: UTF8.self)
+        let normalizedNewlines = content.replacingOccurrences(of: "\r\n", with: "\n")
+        let lines = normalizedNewlines.split(separator: "\n", omittingEmptySubsequences: false)
+        let tailLines = lines.suffix(lineCount)
+        return tailLines.joined(separator: "\n")
+    }
+
+    private func parseTailCommand(_ command: String) throws -> (lineCount: Int, follow: Bool, path: String) {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let tailRange = trimmed.range(of: "tail -n ") else {
+            throw SFTPClientError.unsupportedOperation("remote-shell-command")
+        }
+
+        let suffix = trimmed[tailRange.upperBound...]
+        guard let spaceIndex = suffix.firstIndex(of: " ") else {
+            throw SFTPClientError.unsupportedOperation("remote-shell-command")
+        }
+
+        let lineCountText = suffix[..<spaceIndex]
+        guard let lineCount = Int(lineCountText), lineCount > 0 else {
+            throw SFTPClientError.unsupportedOperation("remote-shell-command")
+        }
+
+        let follow = trimmed.contains(" -f ")
+        guard let pathMarkerRange = trimmed.range(of: " ", options: .backwards) else {
+            throw SFTPClientError.unsupportedOperation("remote-shell-command")
+        }
+
+        let rawPath = String(trimmed[pathMarkerRange.upperBound...])
+        let normalizedPath = normalize(unquoteShellArgument(rawPath))
+        return (lineCount, follow, normalizedPath)
     }
 
     private func unquoteShellArgument(_ value: String) -> String {

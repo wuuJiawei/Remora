@@ -12,7 +12,6 @@ final class RemoteLogViewerViewModel: ObservableObject {
     let path: String
 
     private let fileTransfer: FileTransferViewModel
-    private let followRefreshInterval: Duration
     private var followTask: Task<Void, Never>?
 
     init(
@@ -22,15 +21,23 @@ final class RemoteLogViewerViewModel: ObservableObject {
     ) {
         self.path = path
         self.fileTransfer = fileTransfer
-        self.followRefreshInterval = followRefreshInterval
+        _ = followRefreshInterval
     }
 
     func load() async {
-        await refresh(showLoading: true)
-        updateFollowTask()
+        if isFollowing {
+            startFollowStream(showLoading: true)
+        } else {
+            await refresh(showLoading: true)
+        }
     }
 
     func refresh(showLoading: Bool = false) async {
+        if isFollowing {
+            startFollowStream(showLoading: showLoading)
+            return
+        }
+
         guard !isRefreshing else { return }
         isRefreshing = true
         if showLoading {
@@ -57,32 +64,68 @@ final class RemoteLogViewerViewModel: ObservableObject {
     func setFollowing(_ enabled: Bool) {
         guard isFollowing != enabled else { return }
         isFollowing = enabled
-        updateFollowTask()
+        if enabled {
+            startFollowStream(showLoading: text.isEmpty)
+        } else {
+            stop()
+        }
     }
 
     func applyLineCount(_ value: Int) async {
         let clamped = min(max(value, 1), FileTransferViewModel.maxRemoteLogTailLineCount)
         guard clamped != lineCount else { return }
         lineCount = clamped
-        await refresh(showLoading: false)
+        if isFollowing {
+            startFollowStream(showLoading: false)
+        } else {
+            await refresh(showLoading: false)
+        }
     }
 
     func stop() {
         followTask?.cancel()
         followTask = nil
+        isLoading = false
+        isRefreshing = false
     }
 
-    private func updateFollowTask() {
-        followTask?.cancel()
-        followTask = nil
+    private func startFollowStream(showLoading: Bool) {
+        stop()
+        if showLoading {
+            isLoading = true
+        }
+        isRefreshing = true
+        errorMessage = nil
 
-        guard isFollowing else { return }
         followTask = Task { [weak self] in
-            while let self, !Task.isCancelled {
-                try? await Task.sleep(for: followRefreshInterval)
+            guard let self else { return }
+            do {
+                let stream = try await self.fileTransfer.streamRemoteLogTail(
+                    path: self.path,
+                    lineCount: self.lineCount
+                )
+                var accumulated = ""
+                self.text = ""
+                self.isRefreshing = false
+
+                for try await chunk in stream {
+                    guard !Task.isCancelled else { return }
+                    accumulated += chunk
+                    self.text = accumulated
+                    self.errorMessage = nil
+                    if self.isLoading {
+                        self.isLoading = false
+                    }
+                }
+            } catch {
                 guard !Task.isCancelled else { return }
-                await self.refresh(showLoading: false)
+                self.errorMessage = error.localizedDescription
+                self.isFollowing = false
             }
+
+            self.isLoading = false
+            self.isRefreshing = false
+            self.followTask = nil
         }
     }
 }

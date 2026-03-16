@@ -348,6 +348,17 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         try await runSSHCommandOutput(command, timeout: timeout ?? shellFallbackTimeout)
     }
 
+    public func streamRemoteShellCommand(_ command: String) async throws -> AsyncThrowingStream<String, Error> {
+        let launch = await makePrimarySSHLaunchConfiguration(command: command)
+        return Self.makeStreamingProcess(
+            executablePath: launch.executablePath,
+            arguments: launch.arguments,
+            environment: launch.environment,
+            host: host,
+            logPhase: "ssh-stream"
+        )
+    }
+
     private func executeSFTPPrimaryWithSSHFallback<T: Sendable>(
         sftpOperation: @Sendable () async throws -> T,
         sshFallback: @Sendable () async throws -> T
@@ -1086,6 +1097,155 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         }
         process.waitUntilExit()
         return .timedOut
+    }
+
+    private static func makeStreamingProcess(
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String],
+        host: Host,
+        logPhase: String
+    ) -> AsyncThrowingStream<String, Error> {
+        final class ProcessBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var process: Process?
+            private var wasCancelled = false
+
+            func setProcess(_ process: Process) {
+                lock.lock()
+                self.process = process
+                lock.unlock()
+            }
+
+            func cancel() {
+                lock.lock()
+                wasCancelled = true
+                let process = self.process
+                lock.unlock()
+                process?.terminate()
+            }
+
+            func isCancelled() -> Bool {
+                lock.lock()
+                defer { lock.unlock() }
+                return wasCancelled
+            }
+        }
+
+        final class DataBuffer: @unchecked Sendable {
+            private let lock = NSLock()
+            private var data = Data()
+
+            func append(_ chunk: Data) {
+                lock.lock()
+                data.append(chunk)
+                lock.unlock()
+            }
+
+            func get() -> Data {
+                lock.lock()
+                defer { lock.unlock() }
+                return data
+            }
+        }
+
+        let processBox = ProcessBox()
+
+        return AsyncThrowingStream { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                Self.appendDiagnostics(
+                    Self.formatDiagnosticsMessage(
+                        host: host,
+                        phase: "\(logPhase)-start",
+                        body: [
+                            "executable=\(executablePath)",
+                            "arguments=\(arguments.joined(separator: " "))",
+                            "environment=\(Self.redactedEnvironmentDescription(environment))"
+                        ]
+                    )
+                )
+
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: executablePath)
+                process.arguments = arguments
+                if !environment.isEmpty {
+                    process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+                }
+
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
+                process.standardInput = FileHandle.nullDevice
+                processBox.setProcess(process)
+
+                let stderrBuffer = DataBuffer()
+                stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty else { return }
+                    continuation.yield(String(decoding: data, as: UTF8.self))
+                }
+                stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty else { return }
+                    stderrBuffer.append(data)
+                }
+
+                process.terminationHandler = { process in
+                    stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                    stderrPipe.fileHandleForReading.readabilityHandler = nil
+                    try? stdoutPipe.fileHandleForReading.close()
+                    try? stderrPipe.fileHandleForReading.close()
+
+                    let stderrText = String(decoding: stderrBuffer.get(), as: UTF8.self)
+                    Self.appendDiagnostics(
+                        Self.formatDiagnosticsMessage(
+                            host: host,
+                            phase: "\(logPhase)-exit",
+                            body: [
+                                "status=\(process.terminationStatus)",
+                                "stderr=\(stderrText.isEmpty ? "<empty>" : stderrText)"
+                            ]
+                        )
+                    )
+
+                    if processBox.isCancelled() {
+                        continuation.finish()
+                        return
+                    }
+
+                    if process.terminationStatus == 0 || process.terminationReason == .uncaughtSignal {
+                        continuation.finish()
+                        return
+                    }
+
+                    let message = stderrText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let errorText = message.isEmpty ? "stream command failed with status \(process.terminationStatus)" : message
+                    continuation.finish(throwing: SSHError.connectionFailed(errorText))
+                }
+
+                do {
+                    try process.run()
+                } catch {
+                    stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                    stderrPipe.fileHandleForReading.readabilityHandler = nil
+                    try? stdoutPipe.fileHandleForReading.close()
+                    try? stderrPipe.fileHandleForReading.close()
+                    Self.appendDiagnostics(
+                        Self.formatDiagnosticsMessage(
+                            host: host,
+                            phase: "\(logPhase)-launch-error",
+                            body: ["error=\(error.localizedDescription)"]
+                        )
+                    )
+                    continuation.finish(throwing: SSHError.connectionFailed(error.localizedDescription))
+                }
+            }
+
+            continuation.onTermination = { _ in
+                processBox.cancel()
+            }
+        }
     }
 
     private func shouldRetryWithoutConnectionReuse(result: ProcessResult) -> Bool {

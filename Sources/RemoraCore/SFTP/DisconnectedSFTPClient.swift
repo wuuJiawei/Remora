@@ -26,6 +26,11 @@ public actor DisconnectedSFTPClient: SFTPClientProtocol {
         throw SSHError.notConnected
     }
 
+    public func streamRemoteShellCommand(_ command: String) async throws -> AsyncThrowingStream<String, Error> {
+        _ = command
+        throw SSHError.notConnected
+    }
+
     public func upload(data: Data, to path: String) async throws {
         _ = data
         _ = path
