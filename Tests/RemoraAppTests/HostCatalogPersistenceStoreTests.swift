@@ -132,6 +132,60 @@ struct HostCatalogPersistenceStoreTests {
         await credentialStore.removeSecret(for: keyReference)
     }
 
+    @Test
+    func canLoadLegacyKeychainOnlyCatalogAndRestoreFileBackedKey() async throws {
+        let baseDirectory = makeTemporaryDirectory()
+        defer {
+            let root = baseDirectory.deletingLastPathComponent().deletingLastPathComponent()
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        let credentialStore = CredentialStore()
+        let keyReference = "host-catalog-legacy-key-test-\(UUID().uuidString)"
+
+        let legacyStore = HostCatalogPersistenceStore(
+            credentialStore: credentialStore,
+            keyReference: keyReference,
+            usesKeychainForCatalogKey: true,
+            baseDirectoryURL: baseDirectory
+        )
+
+        let host = Host(
+            name: "legacy-prod",
+            address: "10.0.0.20",
+            username: "deploy",
+            group: "Legacy",
+            tags: ["legacy"],
+            auth: HostAuth(method: .agent)
+        )
+        let snapshot = PersistedHostCatalog(
+            hosts: [host],
+            templates: [],
+            recentHostIDs: [],
+            groups: ["Legacy"]
+        )
+
+        try await legacyStore.save(snapshot)
+
+        let keyFileURL = baseDirectory.appendingPathComponent("catalog.key")
+        let keyFileData = try Data(contentsOf: keyFileURL)
+        let base64Key = String(decoding: keyFileData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        await credentialStore.setSecret(base64Key, for: keyReference)
+        try FileManager.default.removeItem(at: keyFileURL)
+        #expect(FileManager.default.fileExists(atPath: keyFileURL.path) == false)
+
+        let migratedStore = HostCatalogPersistenceStore(
+            credentialStore: credentialStore,
+            keyReference: keyReference,
+            baseDirectoryURL: baseDirectory
+        )
+        let loaded = try await migratedStore.load()
+
+        #expect(loaded == snapshot)
+        #expect(FileManager.default.fileExists(atPath: keyFileURL.path))
+        await credentialStore.removeSecret(for: keyReference)
+    }
+
     private func makeTemporaryDirectory() -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("remora-host-catalog-tests-\(UUID().uuidString)", isDirectory: true)

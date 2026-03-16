@@ -44,7 +44,7 @@ actor HostCatalogPersistenceStore {
     init(
         credentialStore: CredentialStore = CredentialStore(),
         keyReference: String = "host-catalog-encryption-key-v1",
-        usesKeychainForCatalogKey: Bool = false,
+        usesKeychainForCatalogKey: Bool = true,
         baseDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".remora/ssh", isDirectory: true)
     ) {
@@ -150,6 +150,9 @@ actor HostCatalogPersistenceStore {
         }
 
         if let keychainData = await loadKeyDataFromKeychainIfNeeded() {
+            if !FileManager.default.fileExists(atPath: keyFileURL.path) {
+                try persistKeyDataToFile(keychainData)
+            }
             cachedKeyData = keychainData
             return [SymmetricKey(data: keychainData)]
         }
