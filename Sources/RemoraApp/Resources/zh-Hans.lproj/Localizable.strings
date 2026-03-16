@@ -316,6 +316,7 @@
 "Reconnect SSH" = "重连 SSH";
 "Rename Session" = "重命名会话";
 "Resize failed" = "调整大小失败";
+"Path copied to clipboard." = "路径已复制到剪贴板。";
 "Reveal Downloaded File" = "在访达中显示已下载文件";
 "Reveal in Finder" = "在访达中显示";
 "SSH Agent" = "SSH Agent";

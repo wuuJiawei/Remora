@@ -204,6 +204,7 @@
 "Copy Local Path" = "Copy Local Path";
 "Copy Name" = "Copy Name";
 "Copy Path" = "Copy Path";
+"Path copied to clipboard." = "Path copied to clipboard.";
 "Copy SSH command" = "Copy SSH command";
 "Copy address" = "Copy address";
 "Copy connection info" = "Copy connection info";
