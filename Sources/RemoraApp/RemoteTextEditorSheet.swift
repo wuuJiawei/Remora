@@ -7,8 +7,18 @@ struct RemoteTextEditorSheet: View {
     @State private var toastMessage: String?
     @State private var toastHideTask: Task<Void, Never>?
 
-    init(path: String, fileTransfer: FileTransferViewModel) {
-        _viewModel = StateObject(wrappedValue: RemoteTextEditorViewModel(path: path, fileTransfer: fileTransfer))
+    init(
+        path: String,
+        loadOptions: RemoteTextDocumentLoadOptions = RemoteTextDocumentLoadOptions(),
+        fileTransfer: FileTransferViewModel
+    ) {
+        _viewModel = StateObject(
+            wrappedValue: RemoteTextEditorViewModel(
+                path: path,
+                loadOptions: loadOptions,
+                fileTransfer: fileTransfer
+            )
+        )
     }
 
     var body: some View {
@@ -42,9 +52,13 @@ struct RemoteTextEditorSheet: View {
             }
 
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $viewModel.text)
-                    .font(.body.monospaced())
-                    .disabled(viewModel.isLoading || viewModel.isReadOnly)
+                RemoteTextEditorRepresentable(
+                    text: Binding(
+                        get: { viewModel.text },
+                        set: { viewModel.updateText($0) }
+                    ),
+                    isEditable: !(viewModel.isLoading || viewModel.isReadOnly)
+                )
                 if viewModel.isLoading {
                     ProgressView("Loading...")
                         .padding(8)

@@ -64,6 +64,16 @@ struct RemoteTextDocument: Sendable {
     var isReadOnly: Bool
 }
 
+struct RemoteTextDocumentLoadOptions: Sendable {
+    var knownSize: Int64?
+    var knownModifiedAt: Date?
+
+    init(knownSize: Int64? = nil, knownModifiedAt: Date? = nil) {
+        self.knownSize = knownSize
+        self.knownModifiedAt = knownModifiedAt
+    }
+}
+
 enum RemoteTextDocumentError: Error, Equatable, Sendable {
     case fileTooLarge(actualBytes: Int64, maxBytes: Int64)
 }
@@ -644,19 +654,39 @@ final class FileTransferViewModel: ObservableObject {
 
     func loadTextDocument(
         path: String,
+        options: RemoteTextDocumentLoadOptions = RemoteTextDocumentLoadOptions(),
         maxBytes: Int = FileTransferViewModel.maxInlineEditableTextDocumentBytes
     ) async throws -> RemoteTextDocument {
         let normalizedPath = normalizeRemoteDirectoryPath(path)
-        let attributes = try await sftpClient.stat(path: normalizedPath)
         let maxAllowedBytes = Int64(maxBytes)
-        if attributes.size > maxAllowedBytes {
+        let knownSize = options.knownSize
+
+        if let knownSize, knownSize > maxAllowedBytes {
             throw RemoteTextDocumentError.fileTooLarge(
-                actualBytes: attributes.size,
+                actualBytes: knownSize,
                 maxBytes: maxAllowedBytes
             )
         }
 
-        let payload = try await sftpClient.download(path: normalizedPath)
+        let modifiedAt: Date?
+        if knownSize == nil || options.knownModifiedAt == nil {
+            let attributes = try await sftpClient.stat(path: normalizedPath)
+            if attributes.size > maxAllowedBytes {
+                throw RemoteTextDocumentError.fileTooLarge(
+                    actualBytes: attributes.size,
+                    maxBytes: maxAllowedBytes
+                )
+            }
+            modifiedAt = options.knownModifiedAt ?? attributes.modifiedAt
+        } else {
+            modifiedAt = options.knownModifiedAt
+        }
+
+        let tempURL = Self.makeTemporaryTextDocumentURL()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        try await sftpClient.download(path: normalizedPath, to: tempURL, progress: nil)
+
+        let payload = try Data(contentsOf: tempURL, options: [.mappedIfSafe])
         if payload.count > maxBytes {
             throw RemoteTextDocumentError.fileTooLarge(
                 actualBytes: Int64(payload.count),
@@ -664,27 +694,11 @@ final class FileTransferViewModel: ObservableObject {
             )
         }
 
-        if let utf8 = String(data: payload, encoding: .utf8) {
-            return RemoteTextDocument(
-                path: normalizedPath,
-                text: utf8,
-                encoding: "UTF-8",
-                modifiedAt: attributes.modifiedAt,
-                isReadOnly: false
-            )
-        }
-
-        if let latin1 = String(data: payload, encoding: .isoLatin1) {
-            return RemoteTextDocument(
-                path: normalizedPath,
-                text: latin1,
-                encoding: "ISO-8859-1",
-                modifiedAt: attributes.modifiedAt,
-                isReadOnly: false
-            )
-        }
-
-        throw SFTPClientError.unsupportedOperation("edit-binary-file")
+        return try await Self.decodeTextDocument(
+            path: normalizedPath,
+            payload: payload,
+            modifiedAt: modifiedAt
+        )
     }
 
     func saveTextDocument(
@@ -1191,5 +1205,40 @@ final class FileTransferViewModel: ObservableObject {
 
     private func isActiveBindingGeneration(_ bindingGeneration: Int) -> Bool {
         bindingGeneration == sftpBindingGeneration
+    }
+
+    private static func makeTemporaryTextDocumentURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-text-doc-\(UUID().uuidString)", isDirectory: false)
+    }
+
+    private static func decodeTextDocument(
+        path: String,
+        payload: Data,
+        modifiedAt: Date?
+    ) async throws -> RemoteTextDocument {
+        try await Task.detached(priority: .userInitiated) {
+            if let utf8 = String(data: payload, encoding: .utf8) {
+                return RemoteTextDocument(
+                    path: path,
+                    text: utf8,
+                    encoding: "UTF-8",
+                    modifiedAt: modifiedAt,
+                    isReadOnly: false
+                )
+            }
+
+            if let latin1 = String(data: payload, encoding: .isoLatin1) {
+                return RemoteTextDocument(
+                    path: path,
+                    text: latin1,
+                    encoding: "ISO-8859-1",
+                    modifiedAt: modifiedAt,
+                    isReadOnly: false
+                )
+            }
+
+            throw SFTPClientError.unsupportedOperation("edit-binary-file")
+        }.value
     }
 }

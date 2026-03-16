@@ -397,6 +397,29 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func textDocumentLoadUsesDirectFileDownloadWhenMetadataIsKnown() async throws {
+        let client = DirectDownloadOnlySFTPClient()
+        let vm = FileTransferViewModel(
+            sftpClient: client,
+            remoteDirectoryPath: "/"
+        )
+        let knownModifiedAt = Date(timeIntervalSince1970: 1_729_000_000)
+
+        let loaded = try await vm.loadTextDocument(
+            path: "/README.txt",
+            options: RemoteTextDocumentLoadOptions(
+                knownSize: Int64(Data("Remora mock SFTP".utf8).count),
+                knownModifiedAt: knownModifiedAt
+            )
+        )
+
+        #expect(loaded.text == "Remora mock SFTP")
+        #expect(loaded.modifiedAt == knownModifiedAt)
+        #expect(await client.usedDirectDownloadPath())
+        #expect(await client.statCallCount() == 0)
+    }
+
+    @Test
     func largeTextDocumentIsRejectedBeforeDownloadToProtectMemory() async throws {
         let largeClient = LargeTextFileGuardSFTPClient()
         let vm = FileTransferViewModel(
@@ -698,9 +721,14 @@ actor CountingMockSFTPClient: SFTPClientProtocol {
 actor DirectDownloadOnlySFTPClient: SFTPClientProtocol {
     private let base = MockSFTPClient()
     private var didUseDirectDownloadPath = false
+    private var statCalls = 0
 
     func usedDirectDownloadPath() -> Bool {
         didUseDirectDownloadPath
+    }
+
+    func statCallCount() -> Int {
+        statCalls
     }
 
     func list(path: String) async throws -> [RemoteFileEntry] {
@@ -754,7 +782,8 @@ actor DirectDownloadOnlySFTPClient: SFTPClientProtocol {
     }
 
     func stat(path: String) async throws -> RemoteFileAttributes {
-        try await base.stat(path: path)
+        statCalls += 1
+        return try await base.stat(path: path)
     }
 
     func setAttributes(path: String, attributes: RemoteFileAttributes) async throws {

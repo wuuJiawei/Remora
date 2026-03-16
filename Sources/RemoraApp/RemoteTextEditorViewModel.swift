@@ -7,21 +7,23 @@ final class RemoteTextEditorViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var isSaving = false
     @Published private(set) var isReadOnly = false
+    @Published private(set) var hasUnsavedChanges = false
     @Published var errorMessage: String?
 
     let path: String
 
     private let fileTransfer: FileTransferViewModel
-    private var baselineText: String = ""
+    private let loadOptions: RemoteTextDocumentLoadOptions
     private var expectedModifiedAt: Date?
 
-    init(path: String, fileTransfer: FileTransferViewModel) {
+    init(
+        path: String,
+        loadOptions: RemoteTextDocumentLoadOptions = RemoteTextDocumentLoadOptions(),
+        fileTransfer: FileTransferViewModel
+    ) {
         self.path = path
+        self.loadOptions = loadOptions
         self.fileTransfer = fileTransfer
-    }
-
-    var hasUnsavedChanges: Bool {
-        text != baselineText
     }
 
     func load() async {
@@ -29,9 +31,9 @@ final class RemoteTextEditorViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let doc = try await fileTransfer.loadTextDocument(path: path)
+            let doc = try await fileTransfer.loadTextDocument(path: path, options: loadOptions)
             text = doc.text
-            baselineText = doc.text
+            hasUnsavedChanges = false
             encodingLabel = doc.encoding
             expectedModifiedAt = doc.modifiedAt
             isReadOnly = doc.isReadOnly
@@ -52,6 +54,13 @@ final class RemoteTextEditorViewModel: ObservableObject {
         }
     }
 
+    func updateText(_ newValue: String) {
+        text = newValue
+        if !hasUnsavedChanges {
+            hasUnsavedChanges = true
+        }
+    }
+
     func save() async {
         guard !isReadOnly else {
             errorMessage = "This file is opened as read-only due to size limits."
@@ -67,7 +76,7 @@ final class RemoteTextEditorViewModel: ObservableObject {
                 text: text,
                 expectedModifiedAt: expectedModifiedAt
             )
-            baselineText = text
+            hasUnsavedChanges = false
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription

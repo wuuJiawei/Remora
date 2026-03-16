@@ -8,6 +8,12 @@ struct FileManagerPanelView: View {
         var message: String
     }
 
+    private struct RemoteEditorTarget: Equatable {
+        var path: String
+        var size: Int64
+        var modifiedAt: Date
+    }
+
     private enum RemoteCreateKind {
         case file
         case directory
@@ -59,7 +65,7 @@ struct FileManagerPanelView: View {
     @State private var isRenameSheetPresented = false
     @State private var renameTargetPath: String?
     @State private var renameDraft = ""
-    @State private var editorTargetPath: String?
+    @State private var editorTarget: RemoteEditorTarget?
     @State private var propertiesTargetPath: String?
     @State private var isUploadPanelPresented = false
     @State private var uploadTargetDirectory = "/"
@@ -299,16 +305,23 @@ struct FileManagerPanelView: View {
         }
         .sheet(
             isPresented: Binding(
-                get: { editorTargetPath != nil },
+                get: { editorTarget != nil },
                 set: { isPresented in
                     if !isPresented {
-                        editorTargetPath = nil
+                        editorTarget = nil
                     }
                 }
             )
         ) {
-            if let editorTargetPath {
-                RemoteTextEditorSheet(path: editorTargetPath, fileTransfer: viewModel)
+            if let editorTarget {
+                RemoteTextEditorSheet(
+                    path: editorTarget.path,
+                    loadOptions: RemoteTextDocumentLoadOptions(
+                        knownSize: editorTarget.size,
+                        knownModifiedAt: editorTarget.modifiedAt
+                    ),
+                    fileTransfer: viewModel
+                )
             }
         }
         .sheet(
@@ -1161,7 +1174,11 @@ struct FileManagerPanelView: View {
             presentLargeFileEditPrompt(for: entry)
             return
         }
-        editorTargetPath = entry.path
+        editorTarget = RemoteEditorTarget(
+            path: entry.path,
+            size: entry.size,
+            modifiedAt: entry.modifiedAt
+        )
     }
 
     private func presentLargeFileEditPrompt(for entry: RemoteFileEntry) {
