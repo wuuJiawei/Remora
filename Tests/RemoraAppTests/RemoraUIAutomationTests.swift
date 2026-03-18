@@ -178,6 +178,46 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
+    func terminalCollapseRowAcceptsClicksBeyondChevronIcon() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let launched = try launchAppForUIAutomation()
+        let process = launched.process
+        let appElement = launched.appElement
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard ensureSSHSessionAvailable(in: appElement, timeout: 8) else {
+            Issue.record("Could not create an SSH session before testing terminal header hit area.")
+            return
+        }
+
+        guard let collapseRow = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { self.identifier(of: $0) == "terminal-collapse-toggle" }
+        ), let rowFrame = frame(of: collapseRow) else {
+            Issue.record("Could not find terminal collapse row.")
+            return
+        }
+
+        click(point: CGPoint(x: rowFrame.maxX - 12, y: rowFrame.midY))
+
+        let terminalCollapsed = waitUntil(timeout: 5) {
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "terminal-view" }) == nil
+        }
+        #expect(terminalCollapsed, "Clicking the terminal collapse row should collapse terminal content.")
+    }
+
+    @Test
     func fileManagerIsHiddenForLocalSession() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return

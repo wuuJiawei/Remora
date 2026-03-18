@@ -56,33 +56,36 @@ struct TerminalPaneView: View {
                 Button {
                     onToggleCollapse()
                 } label: {
-                    Image(systemName: isContentVisible ? "chevron.down" : "chevron.right")
-                        .font(.caption.weight(.semibold))
+                    HStack(spacing: 8) {
+                        Image(systemName: isContentVisible ? "chevron.down" : "chevron.right")
+                            .font(.caption.weight(.semibold))
+
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 8, height: 8)
+
+                        Text(localizedConnectionState(runtime.connectionState))
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(1)
+                            .foregroundStyle(VisualStyle.textPrimary)
+
+                        Text(runtime.transcriptSnapshot.isEmpty ? " " : runtime.transcriptSnapshot)
+                            .font(.system(size: 1))
+                            .foregroundStyle(.clear)
+                            .opacity(0.01)
+                            .frame(width: 12, height: 12)
+                            .accessibilityLabel(runtime.transcriptSnapshot.isEmpty ? " " : runtime.transcriptSnapshot)
+                            .accessibilityHidden(false)
+                            .accessibilityIdentifier("terminal-transcript")
+
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(VisualStyle.textSecondary)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(VisualStyle.textSecondary)
                 .help(isContentVisible ? tr("Collapse Terminal") : tr("Expand Terminal"))
                 .accessibilityIdentifier("terminal-collapse-toggle")
-
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 8, height: 8)
-
-                Text(localizedConnectionState(runtime.connectionState))
-                    .font(.system(.caption, design: .monospaced))
-                    .lineLimit(1)
-                    .foregroundStyle(VisualStyle.textPrimary)
-
-                Text(runtime.transcriptSnapshot.isEmpty ? " " : runtime.transcriptSnapshot)
-                    .font(.system(size: 1))
-                    .foregroundStyle(.clear)
-                    .opacity(0.01)
-                    .frame(width: 12, height: 12)
-                    .accessibilityLabel(runtime.transcriptSnapshot.isEmpty ? " " : runtime.transcriptSnapshot)
-                    .accessibilityHidden(false)
-                    .accessibilityIdentifier("terminal-transcript")
-
-                Spacer()
 
                 if runtime.connectionMode == .ssh {
                     Menu {
