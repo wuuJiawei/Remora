@@ -89,6 +89,17 @@ final class RemoteLogViewerViewModel: ObservableObject {
         isRefreshing = false
     }
 
+    func queueDownload() async -> Bool {
+        do {
+            try await fileTransfer.enqueueDownload(path: path)
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     private func startFollowStream(showLoading: Bool) {
         stop()
         if showLoading {

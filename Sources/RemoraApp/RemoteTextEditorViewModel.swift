@@ -82,4 +82,15 @@ final class RemoteTextEditorViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
+
+    func queueDownload() async -> Bool {
+        do {
+            try await fileTransfer.enqueueDownload(path: path)
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
 }

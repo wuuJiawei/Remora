@@ -34,6 +34,22 @@ struct RemoteTextEditorSheet: View {
                             .lineLimit(1)
 
                         Button {
+                            Task {
+                                let queued = await viewModel.queueDownload()
+                                if queued {
+                                    showToast(tr("Download queued."))
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.down.circle")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                        .help(tr("Download File"))
+                        .accessibilityLabel(tr("Download File"))
+                        .accessibilityIdentifier("remote-text-editor-download")
+
+                        Button {
                             copyPathToPasteboard()
                         } label: {
                             Image(systemName: "doc.on.doc")

@@ -480,6 +480,26 @@ final class FileTransferViewModel: ObservableObject {
         }
     }
 
+    func enqueueDownload(path: String) async throws {
+        let normalizedPath = normalizeRemoteDirectoryPath(path)
+        let attributes = try await loadRemoteAttributes(path: normalizedPath)
+        guard !attributes.isDirectory else {
+            throw SFTPClientError.unsupportedOperation("download-directory")
+        }
+
+        let entry = RemoteFileEntry(
+            name: URL(fileURLWithPath: normalizedPath).lastPathComponent,
+            path: normalizedPath,
+            size: attributes.size,
+            permissions: attributes.permissions,
+            owner: attributes.owner,
+            group: attributes.group,
+            isDirectory: false,
+            modifiedAt: attributes.modifiedAt
+        )
+        enqueueDownload(remoteEntry: entry)
+    }
+
     func createRemoteFile(named name: String, in directoryPath: String? = nil) {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }

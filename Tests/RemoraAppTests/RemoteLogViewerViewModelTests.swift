@@ -46,4 +46,24 @@ struct RemoteLogViewerViewModelTests {
         #expect(viewModel.text.contains("worker-started"))
         viewModel.stop()
     }
+
+    @Test
+    @MainActor
+    func liveViewerCanQueueDownloadForCurrentFile() async throws {
+        let fileTransfer = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            remoteDirectoryPath: "/logs"
+        )
+        let viewModel = RemoteLogViewerViewModel(
+            path: "/logs/app.log",
+            fileTransfer: fileTransfer
+        )
+
+        let queued = await viewModel.queueDownload()
+
+        #expect(queued)
+        #expect(fileTransfer.transferQueue.count == 1)
+        #expect(fileTransfer.transferQueue.first?.direction == .download)
+        #expect(fileTransfer.transferQueue.first?.sourcePath == "/logs/app.log")
+    }
 }

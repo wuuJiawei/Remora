@@ -25,4 +25,24 @@ struct RemoteTextEditorViewModelTests {
         await viewModel.save()
         #expect(viewModel.hasUnsavedChanges == false)
     }
+
+    @Test
+    @MainActor
+    func editorCanQueueDownloadForCurrentFile() async throws {
+        let fileTransfer = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            remoteDirectoryPath: "/"
+        )
+        let viewModel = RemoteTextEditorViewModel(
+            path: "/README.txt",
+            fileTransfer: fileTransfer
+        )
+
+        let queued = await viewModel.queueDownload()
+
+        #expect(queued)
+        #expect(fileTransfer.transferQueue.count == 1)
+        #expect(fileTransfer.transferQueue.first?.direction == .download)
+        #expect(fileTransfer.transferQueue.first?.sourcePath == "/README.txt")
+    }
 }
