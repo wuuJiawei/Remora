@@ -3,6 +3,7 @@ import SwiftUI
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
     case general
+    case ai
     case shortcuts
     case advanced
 
@@ -12,6 +13,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return "General"
+        case .ai:
+            return "AI"
         case .shortcuts:
             return "Shortcuts"
         case .advanced:
@@ -23,6 +26,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return "gearshape"
+        case .ai:
+            return "sparkles"
         case .shortcuts:
             return "keyboard"
         case .advanced:
@@ -48,13 +53,25 @@ struct RemoraSettingsSheet: View {
     @State private var shortcutRecorderMonitor: Any?
     @State private var shortcutRecorderMessage: String?
     @State private var shortcutRecorderIsError = false
+    @State private var aiAPIKey = ""
+    @State private var hasLoadedAIAPIKey = false
     @FocusState private var focusedField: SettingsFocusField?
     @EnvironmentObject private var keyboardShortcutStore: AppKeyboardShortcutStore
     @Environment(\.openURL) private var openURL
+    private let aiSettingsStore = AISettingsStore()
 
     @AppStorage(AppSettings.languageModeKey) private var languageModeRawValue = AppLanguageMode.system.rawValue
     @AppStorage(AppSettings.appearanceModeKey) private var appearanceModeRawValue = AppAppearanceMode.system.rawValue
     @AppStorage(AppSettings.downloadDirectoryPathKey) private var downloadDirectoryPath = AppSettings.defaultDownloadDirectoryURL().path
+    @AppStorage(AppSettings.aiEnabledKey) private var aiEnabled = AppSettings.defaultAIEnabled
+    @AppStorage(AppSettings.aiActiveProviderKey) private var aiProviderRawValue = AppSettings.defaultAIActiveProvider
+    @AppStorage(AppSettings.aiAPIFormatKey) private var aiAPIFormatRawValue = AppSettings.defaultAIAPIFormat
+    @AppStorage(AppSettings.aiBaseURLKey) private var aiBaseURL = AppSettings.defaultAIBaseURL
+    @AppStorage(AppSettings.aiModelKey) private var aiModel = AppSettings.defaultAIModel
+    @AppStorage(AppSettings.aiSmartAssistEnabledKey) private var aiSmartAssistEnabled = AppSettings.defaultAISmartAssistEnabled
+    @AppStorage(AppSettings.aiIncludeWorkingDirectoryKey) private var aiIncludeWorkingDirectory = AppSettings.defaultAIIncludeWorkingDirectory
+    @AppStorage(AppSettings.aiIncludeTranscriptKey) private var aiIncludeTranscript = AppSettings.defaultAIIncludeTranscript
+    @AppStorage(AppSettings.aiTerminalTranscriptLineCountKey) private var aiTranscriptLineCount = AppSettings.defaultAITerminalTranscriptLineCount
     @AppStorage(AppSettings.serverMetricsActiveRefreshSecondsKey)
     private var serverMetricsActiveRefreshSeconds = AppSettings.defaultServerMetricsActiveRefreshSeconds
     @AppStorage(AppSettings.serverMetricsInactiveRefreshSecondsKey)
@@ -74,6 +91,8 @@ struct RemoraSettingsSheet: View {
         .onAppear {
             syncDownloadDirectoryDraftFromStorage()
             normalizeServerMetricsSettings()
+            normalizeAISettings()
+            Task { await loadAIAPIKey() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .remoraOpenDownloadDirectorySetting)) { _ in
             focusDownloadDirectorySetting()
@@ -89,6 +108,19 @@ struct RemoraSettingsSheet: View {
         }
         .onChange(of: serverMetricsMaxConcurrentFetches) {
             normalizeServerMetricsSettings()
+        }
+        .onChange(of: aiProviderRawValue) {
+            applyAIProviderDefaults()
+        }
+        .onChange(of: aiAPIFormatRawValue) {
+            normalizeAISettings()
+        }
+        .onChange(of: aiTranscriptLineCount) {
+            normalizeAISettings()
+        }
+        .onChange(of: aiAPIKey) {
+            guard hasLoadedAIAPIKey else { return }
+            Task { await aiSettingsStore.setAPIKey(aiAPIKey) }
         }
     }
 
@@ -109,6 +141,8 @@ struct RemoraSettingsSheet: View {
             switch selectedPane {
             case .general:
                 generalPane
+            case .ai:
+                aiPane
             case .shortcuts:
                 shortcutsPane
             case .advanced:
@@ -254,6 +288,143 @@ struct RemoraSettingsSheet: View {
             pulseDownloadDirectoryHighlight()
         }
         .accessibilityIdentifier("settings-section-general")
+    }
+
+    private var aiPane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                settingsSectionCard(
+                    title: tr("Terminal AI"),
+                    message: tr("Configure providers, models, and how AI appears inside terminal sessions.")
+                ) {
+                    compactSettingRow(title: tr("Enable Terminal AI")) {
+                        Toggle("", isOn: $aiEnabled)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-ai-enabled")
+                    }
+                }
+
+                settingsSectionCard(
+                    title: tr("Provider"),
+                    message: tr("Choose a provider first, then set the model and endpoint details it should use.")
+                ) {
+                    compactSettingRow(title: tr("Provider")) {
+                        Picker(
+                            tr("Provider"),
+                            selection: Binding(
+                                get: { selectedAIProvider },
+                                set: { provider in
+                                    aiProviderRawValue = provider.rawValue
+                                }
+                            )
+                        ) {
+                            ForEach(AIProviderOption.allCases) { provider in
+                                Text(providerTitle(provider)).tag(provider)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 220, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-provider")
+                    }
+
+                    if selectedAIProvider == .custom {
+                        compactSettingRow(title: tr("API Format")) {
+                            Picker(
+                                tr("API Format"),
+                                selection: Binding(
+                                    get: { selectedAIAPIFormat },
+                                    set: { format in
+                                        aiAPIFormatRawValue = format.rawValue
+                                    }
+                                )
+                            ) {
+                                Text(tr("OpenAI Compatible")).tag(AIAPIFormatOption.openAICompatible)
+                                Text(tr("Claude Compatible")).tag(AIAPIFormatOption.claudeCompatible)
+                            }
+                            .labelsHidden()
+                            .frame(width: 220, alignment: .trailing)
+                            .accessibilityIdentifier("settings-ai-api-format")
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField(tr("Base URL"), text: $aiBaseURL)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .accessibilityIdentifier("settings-ai-base-url")
+
+                        SecureField(tr("API Key"), text: $aiAPIKey)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .accessibilityIdentifier("settings-ai-api-key")
+
+                        Text(aiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? tr("Not Set") : tr("Saved in Keychain"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(VisualStyle.textSecondary)
+                    }
+                }
+
+                settingsSectionCard(
+                    title: tr("Model"),
+                    message: tr("Suggested models depend on the current provider, but you can still type a custom model ID.")
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField(tr("Model"), text: $aiModel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .accessibilityIdentifier("settings-ai-model")
+
+                        if !selectedAIProvider.suggestedModels.isEmpty {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
+                                ForEach(selectedAIProvider.suggestedModels) { preset in
+                                    Button(preset.displayName) {
+                                        aiModel = preset.id
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                settingsSectionCard(
+                    title: tr("Assistant Behavior"),
+                    message: tr("Control what context is sent to the model and when Remora should suggest using AI.")
+                ) {
+                    compactSettingRow(title: tr("Show smart assist on failures")) {
+                        Toggle("", isOn: $aiSmartAssistEnabled)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-ai-smart-assist")
+                    }
+
+                    compactSettingRow(title: tr("Include working directory")) {
+                        Toggle("", isOn: $aiIncludeWorkingDirectory)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-ai-include-working-directory")
+                    }
+
+                    compactSettingRow(title: tr("Include recent terminal output")) {
+                        Toggle("", isOn: $aiIncludeTranscript)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-ai-include-transcript")
+                    }
+
+                    compactSettingRow(title: tr("Recent output lines")) {
+                        Stepper(value: $aiTranscriptLineCount, in: 20...400, step: 10) {
+                            Text("\(aiTranscriptLineCount)")
+                                .font(.system(.body, design: .monospaced))
+                        }
+                        .frame(width: 160, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-transcript-lines")
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .scrollIndicators(.hidden)
+        .accessibilityIdentifier("settings-section-ai")
     }
 
     private var advancedPane: some View {
@@ -548,6 +719,70 @@ struct RemoraSettingsSheet: View {
 
     private func commandTitle(for command: AppShortcutCommand) -> String {
         L10n.tr(command.titleKey, fallback: command.fallbackTitle)
+    }
+
+    private var selectedAIProvider: AIProviderOption {
+        AIProviderOption.resolved(from: aiProviderRawValue)
+    }
+
+    private var selectedAIAPIFormat: AIAPIFormatOption {
+        AIAPIFormatOption.resolved(from: aiAPIFormatRawValue)
+    }
+
+    private func providerTitle(_ provider: AIProviderOption) -> String {
+        switch provider {
+        case .openAI:
+            return "OpenAI"
+        case .anthropic:
+            return "Anthropic"
+        case .openRouter:
+            return "OpenRouter"
+        case .deepSeek:
+            return "DeepSeek"
+        case .qwen:
+            return "Qwen / DashScope"
+        case .ollama:
+            return "Ollama"
+        case .custom:
+            return tr("Custom")
+        }
+    }
+
+    private func normalizeAISettings() {
+        aiTranscriptLineCount = AppSettings.clampedAITerminalTranscriptLineCount(aiTranscriptLineCount)
+
+        let provider = selectedAIProvider
+        if provider != .custom {
+            aiAPIFormatRawValue = provider.defaultAPIFormat.rawValue
+        }
+
+        if aiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            aiBaseURL = provider.defaultBaseURL
+        }
+
+        if aiModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let suggestedModel = provider.suggestedModels.first?.id
+        {
+            aiModel = suggestedModel
+        }
+    }
+
+    private func applyAIProviderDefaults() {
+        let provider = selectedAIProvider
+        aiAPIFormatRawValue = provider.defaultAPIFormat.rawValue
+        aiBaseURL = provider.defaultBaseURL
+        if let suggestedModel = provider.suggestedModels.first?.id {
+            aiModel = suggestedModel
+        }
+        normalizeAISettings()
+    }
+
+    private func loadAIAPIKey() async {
+        let apiKey = await aiSettingsStore.apiKey() ?? ""
+        await MainActor.run {
+            aiAPIKey = apiKey
+            hasLoadedAIAPIKey = true
+        }
     }
 
     private func focusDownloadDirectorySetting() {
