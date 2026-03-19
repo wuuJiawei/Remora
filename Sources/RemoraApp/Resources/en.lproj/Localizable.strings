@@ -234,6 +234,7 @@
 "Edit connection" = "Edit connection";
 "Edit download directory" = "Edit download directory";
 "Edit group" = "Edit group";
+"Edit Permissions" = "Edit Permissions";
 "Expand group" = "Expand group";
 "Export" = "Export";
 "Export Complete" = "Export Complete";
@@ -248,6 +249,14 @@
 "Exporting..." = "Exporting...";
 "Failed" = "Failed";
 "File Properties" = "File Properties";
+"Owner" = "Owner";
+"Public" = "Public";
+"Read" = "Read";
+"Write" = "Write";
+"Execute" = "Execute";
+"User" = "User";
+"Apply changes recursively" = "Apply changes recursively";
+"Permissions should be a valid octal value, e.g. 0755" = "Permissions should be a valid octal value, e.g. 0755";
 "File is too large to edit in-app (%@ > %@). Please download and open it locally." = "File is too large to edit in-app (%@ > %@). Please download and open it locally.";
 "Finished with Issues" = "Finished with Issues";
 "Format" = "Format";

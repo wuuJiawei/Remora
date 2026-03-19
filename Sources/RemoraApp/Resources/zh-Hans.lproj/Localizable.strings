@@ -225,6 +225,7 @@
 "Edit connection" = "编辑连接";
 "Edit download directory" = "编辑下载目录";
 "Edit group" = "编辑分组";
+"Edit Permissions" = "编辑权限";
 "Expand group" = "展开分组";
 "Export" = "导出";
 "Export Complete" = "导出完成";
@@ -239,6 +240,14 @@
 "Exporting..." = "导出中...";
 "Failed" = "失败";
 "File Properties" = "文件属性";
+"Owner" = "所有者";
+"Public" = "公共";
+"Read" = "读取";
+"Write" = "写入";
+"Execute" = "可执行";
+"User" = "用户";
+"Apply changes recursively" = "同时修改子文件属性";
+"Permissions should be a valid octal value, e.g. 0755" = "权限应为有效的八进制值，例如 0755";
 "File is too large to edit in-app (%@ > %@). Please download and open it locally." = "文件过大，无法在应用内编辑（%@ > %@）。请下载到本地后再打开。";
 "Finished with Issues" = "已完成（有问题）";
 "Format" = "格式";
