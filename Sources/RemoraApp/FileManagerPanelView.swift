@@ -526,24 +526,19 @@ struct FileManagerPanelView: View {
 
     private var remoteListHeader: some View {
         HStack(spacing: 10) {
-            sortHeaderButton(tr("Name"), column: .name)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            sortHeaderButton(tr("Name"), column: .name, width: nil, alignment: .leading)
             Divider()
                 .frame(height: 14)
-            sortHeaderButton(tr("Permission"), column: .permission)
-                .frame(width: 120, alignment: .leading)
+            sortHeaderButton(tr("Permission"), column: .permission, width: 120, alignment: .leading)
             Divider()
                 .frame(height: 14)
-            sortHeaderButton(tr("Date"), column: .date)
-                .frame(width: 170, alignment: .leading)
+            sortHeaderButton(tr("Date"), column: .date, width: 170, alignment: .leading)
             Divider()
                 .frame(height: 14)
-            sortHeaderButton(tr("Size"), column: .size)
-                .frame(width: 90, alignment: .trailing)
+            sortHeaderButton(tr("Size"), column: .size, width: 90, alignment: .trailing)
             Divider()
                 .frame(height: 14)
-            sortHeaderButton(tr("Kind"), column: .kind)
-                .frame(width: 90, alignment: .leading)
+            sortHeaderButton(tr("Kind"), column: .kind, width: 90, alignment: .leading)
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(VisualStyle.textSecondary)
@@ -552,7 +547,12 @@ struct FileManagerPanelView: View {
         .background(Color(nsColor: .controlBackgroundColor))
     }
 
-    private func sortHeaderButton(_ title: String, column: RemoteSortColumn) -> some View {
+    private func sortHeaderButton(
+        _ title: String,
+        column: RemoteSortColumn,
+        width: CGFloat?,
+        alignment: Alignment
+    ) -> some View {
         Button {
             if remoteSortColumn == column {
                 isRemoteSortAscending.toggle()
@@ -562,16 +562,28 @@ struct FileManagerPanelView: View {
             }
         } label: {
             HStack(spacing: 3) {
+                if alignment == .trailing {
+                    Spacer(minLength: 0)
+                }
                 Text(title)
                     .lineLimit(1)
                 if remoteSortColumn == column {
                     Image(systemName: isRemoteSortAscending ? "chevron.up" : "chevron.down")
                         .font(.caption2.weight(.semibold))
                 }
+                if alignment != .trailing {
+                    Spacer(minLength: 0)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: alignment)
             .foregroundStyle(VisualStyle.textSecondary)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: width == nil ? .infinity : nil)
+        .frame(width: width, alignment: alignment)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("file-manager-sort-\(column.rawValue)")
     }
 
     private func remoteListRow(_ entry: RemoteFileEntry, isDropTarget: Bool = false) -> some View {
