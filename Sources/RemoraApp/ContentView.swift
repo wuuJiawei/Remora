@@ -1184,6 +1184,9 @@ struct ContentView: View {
                         guard let fileManagerHostID else { return }
                         addCurrentPathToQuickPaths(currentPath, hostID: fileManagerHostID)
                     },
+                    onRefreshRemote: {
+                        refreshOrReconnectFileManagerForActivePane()
+                    },
                     onEditDownloadPath: {
                         openSettingsAndFocusDownloadPath()
                     }
@@ -1240,6 +1243,9 @@ struct ContentView: View {
                 withAnimation(.easeInOut(duration: 0.22)) {
                     bottomPanelVisibility.toggleTerminal(fileManagerAvailable: shouldShowFileManager)
                 }
+            },
+            onReconnect: {
+                reconnectSession(tabID)
             },
             onClose: {
                 workspace.closePane(pane.id, in: tabID)

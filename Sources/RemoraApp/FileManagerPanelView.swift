@@ -58,6 +58,7 @@ struct FileManagerPanelView: View {
     var onRunQuickPath: (HostQuickPath) -> Void = { _ in }
     var onManageQuickPaths: () -> Void = {}
     var onAddCurrentQuickPath: (String) -> Void = { _ in }
+    var onRefreshRemote: () -> Void = {}
     var onEditDownloadPath: (() -> Void)?
 
     @State private var selectedRemotePaths: Set<String> = []
@@ -728,7 +729,7 @@ struct FileManagerPanelView: View {
                 helpText: tr("Refresh"),
                 disabled: false
             ) {
-                viewModel.performContextAction(.refresh)
+                onRefreshRemote()
             }
 
             Menu {

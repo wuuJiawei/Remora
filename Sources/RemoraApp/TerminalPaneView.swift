@@ -10,6 +10,7 @@ struct TerminalPaneView: View {
     var canClose: Bool
     var onSelect: () -> Void
     var onToggleCollapse: () -> Void
+    var onReconnect: () -> Void
     var onClose: () -> Void
     var onRunQuickCommand: (HostQuickCommand) -> Void
     var onManageQuickCommands: () -> Void
@@ -33,6 +34,7 @@ struct TerminalPaneView: View {
         canClose: Bool = false,
         onSelect: @escaping () -> Void,
         onToggleCollapse: @escaping () -> Void = {},
+        onReconnect: @escaping () -> Void = {},
         onClose: @escaping () -> Void = {},
         onRunQuickCommand: @escaping (HostQuickCommand) -> Void = { _ in },
         onManageQuickCommands: @escaping () -> Void = {}
@@ -45,6 +47,7 @@ struct TerminalPaneView: View {
         self.canClose = canClose
         self.onSelect = onSelect
         self.onToggleCollapse = onToggleCollapse
+        self.onReconnect = onReconnect
         self.onClose = onClose
         self.onRunQuickCommand = onRunQuickCommand
         self.onManageQuickCommands = onManageQuickCommands
@@ -114,7 +117,7 @@ struct TerminalPaneView: View {
 
                     Button {
                         onSelect()
-                        runtime.reconnectSSHSession()
+                        onReconnect()
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.caption.weight(.semibold))
