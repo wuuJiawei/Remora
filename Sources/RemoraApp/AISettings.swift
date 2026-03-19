@@ -5,6 +5,30 @@ struct AIModelPreset: Identifiable, Equatable, Sendable {
     let displayName: String
 }
 
+struct AISettingsValue: Equatable, Sendable {
+    var isEnabled: Bool
+    var provider: AIProviderOption
+    var apiFormat: AIAPIFormatOption
+    var baseURL: String
+    var model: String
+    var smartAssistEnabled: Bool
+    var includeWorkingDirectory: Bool
+    var includeTranscript: Bool
+    var terminalTranscriptLineCount: Int
+
+    static let `default` = AISettingsValue(
+        isEnabled: AppSettings.defaultAIEnabled,
+        provider: .openAI,
+        apiFormat: .openAICompatible,
+        baseURL: AppSettings.defaultAIBaseURL,
+        model: AppSettings.defaultAIModel,
+        smartAssistEnabled: AppSettings.defaultAISmartAssistEnabled,
+        includeWorkingDirectory: AppSettings.defaultAIIncludeWorkingDirectory,
+        includeTranscript: AppSettings.defaultAIIncludeTranscript,
+        terminalTranscriptLineCount: AppSettings.defaultAITerminalTranscriptLineCount
+    )
+}
+
 enum AIAPIFormatOption: String, CaseIterable, Identifiable, Sendable {
     case openAICompatible = "openai_compatible"
     case claudeCompatible = "claude_compatible"
