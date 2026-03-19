@@ -68,3 +68,45 @@ struct BottomPanelVisibilityStateTests {
         #expect(state.fileManagerShouldFillRemainingHeight(fileManagerAvailable: true) == false)
     }
 }
+
+struct SSHRefreshActionDecisionTests {
+    @Test
+    func connectedSSHChoosesRefresh() {
+        let decision = SSHRefreshActionDecision.resolve(
+            connectionState: "Connected (SSH)",
+            hasReconnectableHost: true
+        )
+
+        #expect(decision == .refresh)
+    }
+
+    @Test
+    func failedSSHChoosesReconnect() {
+        let decision = SSHRefreshActionDecision.resolve(
+            connectionState: "Failed: timeout",
+            hasReconnectableHost: true
+        )
+
+        #expect(decision == .reconnect)
+    }
+
+    @Test
+    func disconnectedSSHChoosesReconnect() {
+        let decision = SSHRefreshActionDecision.resolve(
+            connectionState: "Disconnected",
+            hasReconnectableHost: true
+        )
+
+        #expect(decision == .reconnect)
+    }
+
+    @Test
+    func missingReconnectableHostFallsBackToRefresh() {
+        let decision = SSHRefreshActionDecision.resolve(
+            connectionState: "Failed: timeout",
+            hasReconnectableHost: false
+        )
+
+        #expect(decision == .refresh)
+    }
+}

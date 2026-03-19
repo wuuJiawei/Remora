@@ -99,6 +99,27 @@ struct BottomPanelVisibilityState: Equatable {
     }
 }
 
+enum SSHRefreshActionDecision: Equatable {
+    case refresh
+    case reconnect
+
+    static func resolve(connectionState: String, hasReconnectableHost: Bool) -> SSHRefreshActionDecision {
+        let isConnected = connectionState.hasPrefix("Connected")
+        let isConnecting = connectionState == "Connecting"
+        let isWaiting = connectionState.hasPrefix("Waiting")
+
+        guard hasReconnectableHost else {
+            return .refresh
+        }
+
+        if isConnected || isConnecting || isWaiting {
+            return .refresh
+        }
+
+        return .reconnect
+    }
+}
+
 private enum SidebarDragPayload: Equatable {
     case host(UUID)
     case group(String)
@@ -2021,6 +2042,27 @@ struct ContentView: View {
         runtime.reconnectSSHSession()
         bootstrapFileManagerBindingForActiveRuntime()
         hostCatalog.markConnected(hostID: host.id)
+    }
+
+    private func refreshOrReconnectFileManagerForActivePane() {
+        guard let activeTabID = workspace.activeTabID,
+              let runtime = workspace.activePane?.runtime
+        else {
+            fileTransfer.performContextAction(.refresh)
+            return
+        }
+
+        let decision = SSHRefreshActionDecision.resolve(
+            connectionState: runtime.connectionState,
+            hasReconnectableHost: runtime.reconnectableSSHHost != nil
+        )
+
+        switch decision {
+        case .refresh:
+            fileTransfer.performContextAction(.refresh)
+        case .reconnect:
+            reconnectSession(activeTabID)
+        }
     }
 
     private func openSettingsAndFocusDownloadPath() {
