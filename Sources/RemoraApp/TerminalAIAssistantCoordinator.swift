@@ -35,17 +35,26 @@ struct TerminalAIAssistantMessage: Identifiable, Equatable {
     let id: UUID
     let prompt: String?
     let response: TerminalAIResponse?
+    let streamedText: String?
+    let isThinking: Bool
+    let isStreaming: Bool
     let createdAt: Date
 
     init(
         id: UUID = UUID(),
         prompt: String? = nil,
         response: TerminalAIResponse? = nil,
+        streamedText: String? = nil,
+        isThinking: Bool = false,
+        isStreaming: Bool = false,
         createdAt: Date = .now
     ) {
         self.id = id
         self.prompt = prompt
         self.response = response
+        self.streamedText = streamedText
+        self.isThinking = isThinking
+        self.isStreaming = isStreaming
         self.createdAt = createdAt
     }
 }
@@ -71,17 +80,20 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
     private let service: any TerminalAIResponding
     private let settingsStore: AISettingsStore
     private let runtimeSnapshot: () -> TerminalAIRuntimeSnapshot
+    private let streamingChunkDelayNanoseconds: UInt64
     private var boundSessionID: UUID?
     private var messagesBySession: [UUID: [TerminalAIAssistantMessage]] = [:]
 
     init(
         service: any TerminalAIResponding = TerminalAIService(),
         settingsStore: AISettingsStore = AISettingsStore(),
-        runtimeSnapshot: @escaping () -> TerminalAIRuntimeSnapshot = { .empty }
+        runtimeSnapshot: @escaping () -> TerminalAIRuntimeSnapshot = { .empty },
+        streamingChunkDelayNanoseconds: UInt64 = 14_000_000
     ) {
         self.service = service
         self.settingsStore = settingsStore
         self.runtimeSnapshot = runtimeSnapshot
+        self.streamingChunkDelayNanoseconds = streamingChunkDelayNanoseconds
     }
 
     func bind(to sessionID: UUID) {
@@ -110,6 +122,8 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
         }
 
         append(.init(prompt: trimmedPrompt), to: sessionID)
+        let assistantMessageID = UUID()
+        append(.init(id: assistantMessageID, streamedText: "", isThinking: true), to: sessionID)
         isResponding = true
         defer { isResponding = false }
 
@@ -124,17 +138,28 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
                 : nil
         )
 
-        let response = try await service.respond(
-            to: context,
-            configuration: TerminalAIServiceConfiguration(
-                baseURL: settings.baseURL,
-                apiFormat: settings.apiFormat,
-                model: settings.model,
-                apiKey: apiKey
+        do {
+            let response = try await service.respond(
+                to: context,
+                configuration: TerminalAIServiceConfiguration(
+                    baseURL: settings.baseURL,
+                    apiFormat: settings.apiFormat,
+                    model: settings.model,
+                    apiKey: apiKey
+                )
             )
-        )
 
-        append(.init(response: response), to: sessionID)
+            try await streamSummary(response.summary, messageID: assistantMessageID, sessionID: sessionID)
+            replaceMessage(
+                id: assistantMessageID,
+                in: sessionID,
+                with: TerminalAIAssistantMessage(id: assistantMessageID, response: response)
+            )
+        } catch {
+            removeMessage(id: assistantMessageID, from: sessionID)
+            throw error
+        }
+
         refreshSmartAssist()
     }
 
@@ -156,6 +181,74 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
         if boundSessionID == sessionID {
             messages = existing
         }
+    }
+
+    private func replaceMessage(id: UUID, in sessionID: UUID, with message: TerminalAIAssistantMessage) {
+        guard var existing = messagesBySession[sessionID],
+              let index = existing.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        existing[index] = message
+        messagesBySession[sessionID] = existing
+
+        if boundSessionID == sessionID {
+            messages = existing
+        }
+    }
+
+    private func removeMessage(id: UUID, from sessionID: UUID) {
+        guard var existing = messagesBySession[sessionID] else { return }
+        existing.removeAll { $0.id == id }
+        messagesBySession[sessionID] = existing
+
+        if boundSessionID == sessionID {
+            messages = existing
+        }
+    }
+
+    private func streamSummary(_ summary: String, messageID: UUID, sessionID: UUID) async throws {
+        let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSummary.isEmpty else {
+            replaceMessage(
+                id: messageID,
+                in: sessionID,
+                with: TerminalAIAssistantMessage(id: messageID, streamedText: "", isThinking: false, isStreaming: false)
+            )
+            return
+        }
+
+        var streamed = ""
+        let chunks = summaryChunks(for: trimmedSummary)
+        for (index, chunk) in chunks.enumerated() {
+            if streamingChunkDelayNanoseconds > 0 {
+                try await Task.sleep(nanoseconds: streamingChunkDelayNanoseconds)
+            }
+            streamed.append(chunk)
+            replaceMessage(
+                id: messageID,
+                in: sessionID,
+                with: TerminalAIAssistantMessage(
+                    id: messageID,
+                    streamedText: streamed,
+                    isThinking: false,
+                    isStreaming: index < chunks.count - 1
+                )
+            )
+        }
+    }
+
+    private func summaryChunks(for text: String) -> [String] {
+        let characters = Array(text)
+        let chunkSize = max(3, min(8, characters.count / 12 == 0 ? 4 : characters.count / 12))
+        var chunks: [String] = []
+        var index = 0
+        while index < characters.count {
+            let end = min(index + chunkSize, characters.count)
+            chunks.append(String(characters[index..<end]))
+            index = end
+        }
+        return chunks
     }
 
     private func clippedTranscript(_ transcript: String?, maxLines: Int) -> String? {

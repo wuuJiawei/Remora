@@ -4,6 +4,7 @@ import Testing
 @testable import RemoraCore
 
 @MainActor
+@Suite(.serialized)
 struct TerminalAIAssistantCoordinatorTests {
     @Test
     func disabledStateBlocksSubmission() async throws {
@@ -150,6 +151,72 @@ struct TerminalAIAssistantCoordinatorTests {
         #expect(coordinator.smartAssist?.prompt.contains("permission denied") == true)
     }
 
+    @Test
+    func submitShowsThinkingPlaceholderBeforeAssistantResponseArrives() async throws {
+        let dependencies = try makeDependencies(suffix: "thinking")
+        defer { dependencies.cleanup() }
+
+        await dependencies.store.setAPIKey("sk-test")
+        let service = DelayedMockTerminalAIResponder(
+            delayNanoseconds: 150_000_000,
+            response: .init(summary: "Eventually ready", commands: [], warnings: [])
+        )
+        let coordinator = TerminalAIAssistantCoordinator(
+            service: service,
+            settingsStore: dependencies.store,
+            runtimeSnapshot: { .init(sessionMode: "Local", hostLabel: nil, workingDirectory: "/tmp", transcript: "") },
+            streamingChunkDelayNanoseconds: 5_000_000
+        )
+        coordinator.bind(to: UUID())
+
+        let task = Task {
+            try await coordinator.submit("Explain this")
+        }
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 80_000_000)
+
+        #expect(coordinator.messages.count == 2)
+        #expect(coordinator.messages.last?.isThinking == true)
+        #expect(coordinator.messages.last?.response == nil)
+
+        _ = await task.result
+    }
+
+    @Test
+    func submitStreamsAssistantSummaryBeforeFinalStructuredResponse() async throws {
+        let dependencies = try makeDependencies(suffix: "stream")
+        defer { dependencies.cleanup() }
+
+        await dependencies.store.setAPIKey("sk-test")
+        let service = MockTerminalAIResponder(
+            response: .init(
+                summary: "This is a longer streamed assistant summary for verification.",
+                commands: [],
+                warnings: []
+            )
+        )
+        let coordinator = TerminalAIAssistantCoordinator(
+            service: service,
+            settingsStore: dependencies.store,
+            runtimeSnapshot: { .init(sessionMode: "Local", hostLabel: nil, workingDirectory: "/tmp", transcript: "") },
+            streamingChunkDelayNanoseconds: 25_000_000
+        )
+        coordinator.bind(to: UUID())
+
+        let task = Task {
+            try await coordinator.submit("Explain this")
+        }
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 90_000_000)
+
+        #expect(coordinator.messages.last?.isStreaming == true)
+        #expect((coordinator.messages.last?.streamedText ?? "").isEmpty == false)
+        #expect(coordinator.messages.last?.response == nil)
+
+        _ = await task.result
+        #expect(coordinator.messages.last?.response?.summary == "This is a longer streamed assistant summary for verification.")
+    }
+
     private func makeDependencies(suffix: String) throws -> (store: AISettingsStore, cleanup: () -> Void) {
         let suiteName = "terminal-ai-coordinator-\(suffix)-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -195,5 +262,23 @@ private actor MockTerminalAIResponder: TerminalAIResponding {
             return queuedResponses.removeFirst()
         }
         return TerminalAIResponse(summary: "default", commands: [], warnings: [])
+    }
+}
+
+private actor DelayedMockTerminalAIResponder: TerminalAIResponding {
+    let delayNanoseconds: UInt64
+    let response: TerminalAIResponse
+
+    init(delayNanoseconds: UInt64, response: TerminalAIResponse) {
+        self.delayNanoseconds = delayNanoseconds
+        self.response = response
+    }
+
+    func respond(
+        to context: TerminalAIRequestContext,
+        configuration: TerminalAIServiceConfiguration
+    ) async throws -> TerminalAIResponse {
+        try await Task.sleep(nanoseconds: delayNanoseconds)
+        return response
     }
 }
