@@ -451,11 +451,17 @@ struct TerminalRuntimeTests {
             await recorder.commands.contains("pwd")
         }
         #expect(executed, "Running an assistant command should send the command through the terminal session.")
+        let firstWriteWasNotCtrlC = await waitUntilAsync(timeout: 2.0) {
+            let writes = await recorder.rawWrites
+            guard let first = writes.first else { return false }
+            return !first.contains("\u{03}")
+        }
+        #expect(firstWriteWasNotCtrlC, "Assistant run should not send Ctrl+C when the input area is empty.")
         runtime.disconnect()
     }
 
     @Test
-    func runAssistantCommandSendsCtrlCBeforeExecutingCommand() async {
+    func runAssistantCommandSendsCtrlCBeforeExecutingCommandWhenInputExists() async {
         let recorder = TerminalCommandRecorder()
         let manager = SessionManager(
             sshClientFactory: {
@@ -472,14 +478,17 @@ struct TerminalRuntimeTests {
         guard connected else { return }
 
         await recorder.reset()
+        runtime.insertAssistantCommand("echo staged")
         runtime.runAssistantCommand("pwd")
 
-        let wroteCtrlCFirst = await waitUntilAsync(timeout: 2.0) {
+        let wroteCtrlCBeforeCommand = await waitUntilAsync(timeout: 2.0) {
             let writes = await recorder.rawWrites
-            guard let first = writes.first else { return false }
-            return first.contains("\u{03}")
+            let joined = writes.joined()
+            guard let interruptRange = joined.range(of: "\u{03}") else { return false }
+            guard let commandRange = joined.range(of: "pwd\n") else { return false }
+            return interruptRange.lowerBound < commandRange.lowerBound
         }
-        #expect(wroteCtrlCFirst, "Assistant run should send Ctrl+C before writing the command.")
+        #expect(wroteCtrlCBeforeCommand, "Assistant run should send Ctrl+C before writing the command.")
         runtime.disconnect()
     }
 

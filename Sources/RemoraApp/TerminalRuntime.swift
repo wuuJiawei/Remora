@@ -60,6 +60,7 @@ final class TerminalRuntime: ObservableObject {
     }
 
     private var pendingInputs: [QueuedInput] = []
+    private var estimatedEditableInputLength = 0
     private var isPaneActive = true
     private var pendingOutput = Data()
     private var outputBatchBuffer = Data()
@@ -450,6 +451,7 @@ final class TerminalRuntime: ObservableObject {
     }
 
     private func enqueueInput(_ data: Data, trackWorkingDirectory: Bool) {
+        updateEditableInputEstimate(for: data)
         pendingInputs.append(.init(data: data, trackWorkingDirectory: trackWorkingDirectory))
         guard inputDrainerTask == nil else { return }
 
@@ -510,6 +512,7 @@ final class TerminalRuntime: ObservableObject {
         sendCtrlA()
         sendCtrlK()
         sendText(text, bracketedPaste: false)
+        estimatedEditableInputLength = text.isEmpty ? 0 : text.count
         
         // Go back to start and move to target
         sendCtrlA()
@@ -528,7 +531,10 @@ final class TerminalRuntime: ObservableObject {
     func runAssistantCommand(_ command: String) {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        enqueueInput(Data([0x03]))
+        if estimatedEditableInputLength > 0 {
+            enqueueInput(Data([0x03]))
+            estimatedEditableInputLength = 0
+        }
         enqueueInput(Data("\(trimmed)\n".utf8))
     }
     
@@ -574,6 +580,52 @@ final class TerminalRuntime: ObservableObject {
         pendingInputs.removeAll(keepingCapacity: false)
         inputDrainerTask?.cancel()
         inputDrainerTask = nil
+        estimatedEditableInputLength = 0
+    }
+
+    private func updateEditableInputEstimate(for data: Data) {
+        let bytes = Array(data)
+        var index = 0
+
+        while index < bytes.count {
+            let byte = bytes[index]
+
+            switch byte {
+            case 0x03, 0x0A, 0x0D, 0x0B, 0x15:
+                estimatedEditableInputLength = 0
+                index += 1
+            case 0x7F:
+                estimatedEditableInputLength = max(0, estimatedEditableInputLength - 1)
+                index += 1
+            case 0x01, 0x09:
+                index += 1
+            case 0x1B:
+                index = skipEscapeSequence(in: bytes, from: index)
+            default:
+                if byte >= 0x20 {
+                    estimatedEditableInputLength += 1
+                }
+                index += 1
+            }
+        }
+    }
+
+    private func skipEscapeSequence(in bytes: [UInt8], from start: Int) -> Int {
+        var index = start + 1
+        guard index < bytes.count else { return index }
+
+        if bytes[index] == 0x5B {
+            index += 1
+            while index < bytes.count {
+                let byte = bytes[index]
+                if (0x40...0x7E).contains(byte) {
+                    return index + 1
+                }
+                index += 1
+            }
+        }
+
+        return index
     }
 
     private func sessionManager(for mode: ConnectionMode) -> SessionManager {
