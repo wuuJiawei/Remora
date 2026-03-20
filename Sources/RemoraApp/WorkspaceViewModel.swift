@@ -14,15 +14,22 @@ final class TerminalPaneModel: ObservableObject, Identifiable {
     let id: UUID
     let runtime: TerminalRuntime
     let terminalView: TerminalView
+    let aiAssistant: TerminalAIAssistantCoordinator
+    @Published var isAIAssistantVisible: Bool
 
     init(
         id: UUID = UUID(),
         runtime: TerminalRuntime = TerminalPaneModel.defaultRuntime(),
-        terminalView: TerminalView = TerminalPaneModel.defaultTerminalView()
+        terminalView: TerminalView = TerminalPaneModel.defaultTerminalView(),
+        aiAssistant: TerminalAIAssistantCoordinator? = nil,
+        isAIAssistantVisible: Bool = false
     ) {
         self.id = id
         self.runtime = runtime
         self.terminalView = terminalView
+        self.aiAssistant = aiAssistant ?? TerminalPaneModel.defaultAIAssistant(for: runtime)
+        self.isAIAssistantVisible = isAIAssistantVisible
+        self.aiAssistant.bind(to: id)
     }
 
     private static func defaultRuntime() -> TerminalRuntime {
@@ -35,6 +42,18 @@ final class TerminalPaneModel: ObservableObject, Identifiable {
 
     private static func defaultTerminalView() -> TerminalView {
         TerminalView(rows: 30, columns: 120)
+    }
+
+    private static func defaultAIAssistant(for runtime: TerminalRuntime) -> TerminalAIAssistantCoordinator {
+        TerminalAIAssistantCoordinator {
+            let hostLabel = runtime.connectedSSHHost?.name ?? runtime.connectedSSHHost?.address
+            return TerminalAIRuntimeSnapshot(
+                sessionMode: runtime.connectionMode.rawValue,
+                hostLabel: hostLabel,
+                workingDirectory: runtime.workingDirectory,
+                transcript: runtime.transcriptSnapshot
+            )
+        }
     }
 }
 

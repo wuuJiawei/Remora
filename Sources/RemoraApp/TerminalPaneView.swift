@@ -4,6 +4,7 @@ import RemoraCore
 struct TerminalPaneView: View {
     @ObservedObject var pane: TerminalPaneModel
     @ObservedObject private var runtime: TerminalRuntime
+    @ObservedObject private var aiAssistant: TerminalAIAssistantCoordinator
     var quickCommands: [HostQuickCommand]
     var isContentVisible: Bool
     var isFocused: Bool
@@ -14,6 +15,7 @@ struct TerminalPaneView: View {
     var onClose: () -> Void
     var onRunQuickCommand: (HostQuickCommand) -> Void
     var onManageQuickCommands: () -> Void
+    @AppStorage(AppSettings.aiEnabledKey) private var aiEnabled = AppSettings.defaultAIEnabled
 
     private var hostKeyPromptBinding: Binding<Bool> {
         Binding(
@@ -41,6 +43,7 @@ struct TerminalPaneView: View {
     ) {
         self.pane = pane
         self._runtime = ObservedObject(wrappedValue: pane.runtime)
+        self._aiAssistant = ObservedObject(wrappedValue: pane.aiAssistant)
         self.quickCommands = quickCommands
         self.isContentVisible = isContentVisible
         self.isFocused = isFocused
@@ -129,6 +132,20 @@ struct TerminalPaneView: View {
                     .accessibilityIdentifier("terminal-reconnect")
                 }
 
+                if aiEnabled {
+                    Button {
+                        pane.isAIAssistantVisible.toggle()
+                        aiAssistant.refreshSmartAssist()
+                    } label: {
+                        Image(systemName: pane.isAIAssistantVisible ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(pane.isAIAssistantVisible ? Color.accentColor : VisualStyle.textSecondary)
+                    .help(tr("Toggle Terminal AI"))
+                    .accessibilityIdentifier("terminal-ai-toggle")
+                }
+
                 if canClose {
                     Button {
                         onClose()
@@ -153,17 +170,32 @@ struct TerminalPaneView: View {
             Divider()
                 .overlay(VisualStyle.borderSoft)
 
-            if isContentVisible {
-                ZStack {
-                    VisualStyle.terminalBackground
+            if aiEnabled, !pane.isAIAssistantVisible, let smartAssist = aiAssistant.smartAssist {
+                smartAssistBanner(smartAssist)
+                Divider()
+                    .overlay(VisualStyle.borderSoft)
+            }
 
-                    TerminalViewRepresentable(pane: pane, runtime: runtime, onFocus: onSelect)
-                        .padding(VisualStyle.terminalContentInset)
-                        .simultaneousGesture(
-                            TapGesture().onEnded {
-                                onSelect()
-                            }
-                        )
+            if isContentVisible {
+                HStack(spacing: 0) {
+                    ZStack {
+                        VisualStyle.terminalBackground
+
+                        TerminalViewRepresentable(pane: pane, runtime: runtime, onFocus: onSelect)
+                            .padding(VisualStyle.terminalContentInset)
+                            .simultaneousGesture(
+                                TapGesture().onEnded {
+                                    onSelect()
+                                }
+                            )
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    if aiEnabled, pane.isAIAssistantVisible {
+                        Divider()
+                            .overlay(VisualStyle.borderSoft)
+                        TerminalAIAssistantView(coordinator: aiAssistant, runtime: runtime)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.move(edge: .top).combined(with: .opacity))
@@ -180,6 +212,21 @@ struct TerminalPaneView: View {
         .animation(.spring(response: 0.24, dampingFraction: 0.85), value: isFocused)
         .animation(.easeInOut(duration: 0.18), value: runtime.connectionState)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isContentVisible)
+        .animation(.easeInOut(duration: 0.18), value: pane.isAIAssistantVisible)
+        .onAppear {
+            runtime.setWorkingDirectoryTrackingEnabled(true)
+            aiAssistant.bind(to: pane.id)
+            aiAssistant.refreshSmartAssist()
+        }
+        .onChange(of: runtime.transcriptSnapshot) {
+            aiAssistant.refreshSmartAssist()
+        }
+        .onChange(of: aiEnabled) {
+            if !aiEnabled {
+                pane.isAIAssistantVisible = false
+            }
+            aiAssistant.refreshSmartAssist()
+        }
         .alert(tr("Trust SSH Host Key?"), isPresented: hostKeyPromptBinding) {
             Button(tr("Reject"), role: .destructive) {
                 runtime.respondToHostKeyPrompt(accept: false)
@@ -211,5 +258,45 @@ struct TerminalPaneView: View {
             return false
         }
         return true
+    }
+
+    private func smartAssistBanner(_ smartAssist: TerminalAISmartAssist) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(Color.accentColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tr("Terminal AI noticed a likely shell issue."))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textPrimary)
+                Text(localizedSmartAssistTitle(smartAssist.kind))
+                    .font(.system(size: 11))
+                    .foregroundStyle(VisualStyle.textSecondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(tr("Explain")) {
+                pane.isAIAssistantVisible = true
+                Task { try? await aiAssistant.submit(smartAssist.prompt) }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(VisualStyle.settingsSubtleBackground)
+        .accessibilityIdentifier("terminal-ai-smart-assist")
+    }
+
+    private func localizedSmartAssistTitle(_ kind: TerminalAISmartAssistKind) -> String {
+        switch kind {
+        case .permissionDenied:
+            return tr("Permission denied")
+        case .commandNotFound:
+            return tr("Command not found")
+        case .missingPath:
+            return tr("Missing file or path")
+        }
     }
 }

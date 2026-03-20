@@ -510,13 +510,25 @@ final class TerminalRuntime: ObservableObject {
         sendCtrlA()
         sendCtrlK()
         sendText(text, bracketedPaste: false)
-        
+
         // Go back to start and move to target
         sendCtrlA()
         let targetIndex = relativeIndex ?? text.count
         if targetIndex > 0 {
             sendRightArrow(count: targetIndex)
         }
+    }
+
+    func insertAssistantCommand(_ command: String) {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        replaceCurrentInputLine(with: trimmed)
+    }
+
+    func runAssistantCommand(_ command: String) {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        enqueueInput(Data("\(trimmed)\n".utf8))
     }
     
     func setBracketedPasteEnabled(_ enabled: Bool) {

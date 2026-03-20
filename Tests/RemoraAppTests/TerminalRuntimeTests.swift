@@ -399,6 +399,61 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func insertAssistantCommandReplacesInputWithoutExecuting() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        await recorder.reset()
+        runtime.insertAssistantCommand("ls -lah")
+
+        let inserted = await waitUntilAsync(timeout: 2.0) {
+            await recorder.rawWrites.joined().contains("ls -lah")
+        }
+        #expect(inserted, "Assistant insertion should write command text into the terminal input buffer.")
+        #expect(await recorder.commands.isEmpty, "Inserted assistant command should not execute immediately.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func runAssistantCommandExecutesImmediately() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        await recorder.reset()
+        runtime.runAssistantCommand("pwd")
+
+        let executed = await waitUntilAsync(timeout: 2.0) {
+            await recorder.commands.contains("pwd")
+        }
+        #expect(executed, "Running an assistant command should send the command through the terminal session.")
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

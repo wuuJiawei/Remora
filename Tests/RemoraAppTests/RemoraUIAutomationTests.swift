@@ -725,6 +725,102 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
+    func settingsAIPaneAppearsAndShowsProviderControls() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let launched = try launchAppForUIAutomation()
+        let process = launched.process
+        let appElement = launched.appElement
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard let settingsButton = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { identifier(of: $0) == "sidebar-settings" }
+        ) else {
+            Issue.record("Could not find sidebar settings button.")
+            return
+        }
+
+        _ = AXUIElementPerformAction(settingsButton, kAXPressAction as CFString)
+
+        guard waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { identifier(of: $0) == "settings-window" }
+        ) != nil else {
+            Issue.record("Could not find settings window.")
+            return
+        }
+
+        guard let aiTab = waitForElement(
+            in: appElement,
+            timeout: 5,
+            matching: { identifier(of: $0) == "settings-tab-ai" }
+        ) else {
+            Issue.record("Could not find AI tab in settings sheet.")
+            return
+        }
+
+        _ = AXUIElementPerformAction(aiTab, kAXPressAction as CFString)
+
+        let switched = waitUntil(timeout: 5) {
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "settings-section-ai" }) != nil
+                && findElement(in: appElement, matching: { self.identifier(of: $0) == "settings-ai-provider" }) != nil
+        }
+        #expect(switched, "Clicking AI tab should show AI settings content and provider controls.")
+    }
+
+    @Test
+    func terminalAIDrawerTogglesFromHeader() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let launched = try launchAppForUIAutomation()
+        let process = launched.process
+        let appElement = launched.appElement
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard ensureSessionAvailable(in: appElement, timeout: 8) else {
+            Issue.record("Could not create a terminal session before testing AI drawer.")
+            return
+        }
+
+        guard let aiToggle = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { identifier(of: $0) == "terminal-ai-toggle" }
+        ) else {
+            Issue.record("Could not find terminal AI toggle button.")
+            return
+        }
+
+        _ = AXUIElementPerformAction(aiToggle, kAXPressAction as CFString)
+
+        let opened = waitUntil(timeout: 5) {
+            findElement(in: appElement, matching: { self.identifier(of: $0) == "terminal-ai-drawer" }) != nil
+        }
+        #expect(opened, "Terminal AI drawer should appear after toggling AI on a session pane.")
+    }
+
+    @Test
     func menuShortcutsOpenNewConnectionAndSettings() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return
