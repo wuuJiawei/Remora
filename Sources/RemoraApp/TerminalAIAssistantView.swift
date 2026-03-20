@@ -9,8 +9,10 @@ struct TerminalAIAssistantView: View {
     @State private var submissionError: String?
     @State private var pendingRunCommand: TerminalAICommandSuggestion?
     @State private var isNearBottom = true
-    @State private var viewportHeight: CGFloat = 0
+    @State private var viewportBottomGlobal: CGFloat = 0
     @State private var bottomMarkerMaxY: CGFloat = 0
+    @AppStorage(AppSettings.aiRequireRunConfirmationKey)
+    private var aiRequireRunConfirmation = AppSettings.defaultAIRequireRunConfirmation
 
     private let bottomAnchorID = "terminal-ai-bottom-anchor"
 
@@ -29,6 +31,10 @@ struct TerminalAIAssistantView: View {
                         .foregroundStyle(Color.orange)
                         .padding(.horizontal, 12)
                         .padding(.bottom, 8)
+                }
+
+                if !coordinator.queuedPrompts.isEmpty {
+                    queuedPromptStrip
                 }
 
                 transcriptScrollView(proxy: proxy)
@@ -58,6 +64,13 @@ struct TerminalAIAssistantView: View {
                 }
             )) {
                 Button(tr("Cancel"), role: .cancel) {
+                    pendingRunCommand = nil
+                }
+                Button(tr("Always Run")) {
+                    aiRequireRunConfirmation = false
+                    if let command = pendingRunCommand?.command {
+                        runtime.runAssistantCommand(command)
+                    }
                     pendingRunCommand = nil
                 }
                 Button(tr("Run")) {
@@ -92,7 +105,7 @@ struct TerminalAIAssistantView: View {
                                 GeometryReader { markerProxy in
                                     Color.clear.preference(
                                         key: TerminalAIBottomMarkerPreferenceKey.self,
-                                        value: markerProxy.frame(in: .named("terminal-ai-scroll")).maxY
+                                        value: markerProxy.frame(in: .global).maxY
                                     )
                                 }
                             )
@@ -102,10 +115,10 @@ struct TerminalAIAssistantView: View {
                 .coordinateSpace(name: "terminal-ai-scroll")
                 .background(
                     Color.clear.onAppear {
-                        viewportHeight = geometry.size.height
+                        viewportBottomGlobal = geometry.frame(in: .global).maxY
                     }
-                    .onChange(of: geometry.size.height) { _, newValue in
-                        viewportHeight = newValue
+                    .onChange(of: geometry.frame(in: .global)) { _, frame in
+                        viewportBottomGlobal = frame.maxY
                     }
                 )
                 .onPreferenceChange(TerminalAIBottomMarkerPreferenceKey.self) { maxY in
@@ -125,9 +138,9 @@ struct TerminalAIAssistantView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
-                    .padding(.trailing, 14)
-                    .padding(.bottom, 14)
-                    .help(tr("Jump to latest message"))
+                        .padding(.trailing, 14)
+                        .padding(.bottom, 14)
+                        .help(tr("Jump to latest message"))
                     .accessibilityIdentifier("terminal-ai-scroll-to-bottom")
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -174,6 +187,23 @@ struct TerminalAIAssistantView: View {
         .padding(.bottom, 8)
     }
 
+    private var queuedPromptStrip: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(tr("Queued Messages"))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(VisualStyle.textSecondary)
+
+            ForEach(coordinator.queuedPrompts) { item in
+                TerminalAIQueuedPromptRow(item: item) {
+                    coordinator.removeQueuedPrompt(id: item.id)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
     private func actionButton(title: String, prompt: String) -> some View {
         Button(title) {
             submit(prompt)
@@ -216,7 +246,11 @@ struct TerminalAIAssistantView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(VisualStyle.settingsSubtleBackground)
+                    .fill(VisualStyle.settingsSubtleBackground.opacity(0.92))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(VisualStyle.borderSoft.opacity(0.8), lineWidth: 1)
             )
         } else {
             assistantCard(message)
@@ -262,7 +296,21 @@ struct TerminalAIAssistantView: View {
                 if !response.commands.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(Array(response.commands.enumerated()), id: \.offset) { _, command in
-                            commandCard(command)
+                            TerminalAICommandCardView(
+                                suggestion: command,
+                                onInsert: { runtime.insertAssistantCommand(command.command) },
+                                onRun: {
+                                    if aiRequireRunConfirmation {
+                                        pendingRunCommand = command
+                                    } else {
+                                        runtime.runAssistantCommand(command.command)
+                                    }
+                                },
+                                onCopy: {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(command.command, forType: .string)
+                                }
+                            )
                         }
                     }
                 }
@@ -298,58 +346,6 @@ struct TerminalAIAssistantView: View {
         .animation(.easeInOut(duration: 0.18), value: message.isStreaming)
     }
 
-    private func commandCard(_ suggestion: TerminalAICommandSuggestion) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
-                Text(suggestion.command)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(VisualStyle.textPrimary)
-                    .textSelection(.enabled)
-
-                Spacer(minLength: 8)
-
-                Text(riskLabel(for: suggestion.risk))
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(riskColor(for: suggestion.risk))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(riskColor(for: suggestion.risk).opacity(0.14), in: Capsule())
-            }
-
-            Text(suggestion.purpose)
-                .font(.system(size: 12))
-                .foregroundStyle(VisualStyle.textSecondary)
-                .textSelection(.enabled)
-
-            HStack(spacing: 8) {
-                Button(tr("Insert")) {
-                    runtime.insertAssistantCommand(suggestion.command)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                Button(tr("Run")) {
-                    pendingRunCommand = suggestion
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-
-                Button(tr("Copy")) {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(suggestion.command, forType: .string)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(VisualStyle.settingsSubtleBackground)
-        )
-    }
-
     private var composer: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topLeading) {
@@ -364,10 +360,10 @@ struct TerminalAIAssistantView: View {
 
                 TerminalAIComposerInputView(
                     text: $promptDraft,
-                    isEnabled: !coordinator.isResponding,
+                    isEnabled: true,
                     onSubmit: { submit(promptDraft) }
                 )
-                .frame(minHeight: 70, idealHeight: 88, maxHeight: 120)
+                .frame(minHeight: 52, idealHeight: 62, maxHeight: 84)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(VisualStyle.inputFieldBackground)
@@ -392,7 +388,7 @@ struct TerminalAIAssistantView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(promptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || coordinator.isResponding)
+                .disabled(promptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("terminal-ai-send")
             }
         }
@@ -413,11 +409,11 @@ struct TerminalAIAssistantView: View {
     }
 
     private var shouldShowScrollToLatest: Bool {
-        viewportHeight > 0 && bottomMarkerMaxY > viewportHeight + 20
+        viewportBottomGlobal > 0 && bottomMarkerMaxY > viewportBottomGlobal + 20
     }
 
     private func updateScrollPosition() {
-        isNearBottom = bottomMarkerMaxY <= viewportHeight + 20
+        isNearBottom = bottomMarkerMaxY <= viewportBottomGlobal + 20
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
@@ -496,6 +492,10 @@ struct TerminalAIAssistantView: View {
     private func tr(_ key: String) -> String {
         L10n.tr(key, fallback: key)
     }
+
+    static func trStatic(_ key: String) -> String {
+        L10n.tr(key, fallback: key)
+    }
 }
 
 private struct TerminalAIBottomMarkerPreferenceKey: PreferenceKey {
@@ -551,5 +551,133 @@ private struct TerminalAIThinkingDotsView: View {
             }
         }
         .onAppear { animate = true }
+    }
+}
+
+private struct TerminalAIQueuedPromptRow: View {
+    let item: TerminalAIQueuedPrompt
+    var onRemove: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+
+            Text(item.text)
+                .font(.system(size: 12))
+                .foregroundStyle(VisualStyle.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 6)
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isHovered ? VisualStyle.textPrimary : VisualStyle.textSecondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(VisualStyle.settingsSubtleBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(isHovered ? Color.accentColor.opacity(0.35) : VisualStyle.borderSoft, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(isHovered ? 0.08 : 0), radius: 10, y: 4)
+        .offset(y: isHovered ? -1 : 0)
+        .animation(.easeInOut(duration: 0.14), value: isHovered)
+        .onHover { isHovered = $0 }
+    }
+}
+
+private struct TerminalAICommandCardView: View {
+    let suggestion: TerminalAICommandSuggestion
+    var onInsert: () -> Void
+    var onRun: () -> Void
+    var onCopy: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(suggestion.command)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(VisualStyle.textPrimary)
+                    .textSelection(.enabled)
+
+                Spacer(minLength: 8)
+
+                Text(riskLabel)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(riskColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(riskColor.opacity(0.14), in: Capsule())
+            }
+
+            Text(suggestion.purpose)
+                .font(.system(size: 12))
+                .foregroundStyle(VisualStyle.textSecondary)
+                .textSelection(.enabled)
+
+            HStack(spacing: 8) {
+                Button(TerminalAIAssistantView.trStatic("Insert"), action: onInsert)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                Button(TerminalAIAssistantView.trStatic("Run"), action: onRun)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                Button(TerminalAIAssistantView.trStatic("Copy"), action: onCopy)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(VisualStyle.settingsSubtleBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isHovered ? Color.accentColor.opacity(0.35) : VisualStyle.borderSoft, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(isHovered ? 0.08 : 0), radius: 12, y: 6)
+        .offset(y: isHovered ? -1 : 0)
+        .animation(.easeInOut(duration: 0.14), value: isHovered)
+        .onHover { isHovered = $0 }
+    }
+
+    private var riskLabel: String {
+        switch suggestion.risk {
+        case .safe:
+            return TerminalAIAssistantView.trStatic("Safe")
+        case .review:
+            return TerminalAIAssistantView.trStatic("Review")
+        case .danger:
+            return TerminalAIAssistantView.trStatic("Danger")
+        }
+    }
+
+    private var riskColor: Color {
+        switch suggestion.risk {
+        case .safe:
+            return .green
+        case .review:
+            return .orange
+        case .danger:
+            return .red
+        }
     }
 }
