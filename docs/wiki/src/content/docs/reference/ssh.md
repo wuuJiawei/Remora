@@ -17,7 +17,7 @@ description: SSH 连接配置参考。
 
 ### 密码认证
 
-输入密码进行连接。密码会安全存储在 macOS Keychain 中。
+输入密码进行连接。若选择保存，密码会以明文形式写入本机 `~/.config/remora` 配置目录。
 
 ### SSH 密钥认证
 

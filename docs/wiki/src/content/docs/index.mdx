@@ -66,7 +66,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		Swift 6 原生实现 + 基于 SwiftTerm 的终端栈，面向高频 TUI 与滚动场景做了原生集成优化。
 	</Card>
 	<Card title="Secure" icon="shield">
-		本地优先凭据策略，密码仅写入 macOS Keychain，SSH 主机指纹显式确认，确保安全。
+		本地优先凭据策略，配置与已保存密码写入 `~/.config/remora` 本地 JSON 文件，SSH 主机指纹显式确认。
 	</Card>
 	<Card title="Simple" icon="setting">
 		轻量设计，99% Swift-native 技术栈，默认配置即可开箱使用，支持键盘快捷工作流。

@@ -29,9 +29,7 @@ description: Remora 设置参考。
 
 ### 凭据存储
 
-选择凭据存储方式：
-- **仅 Keychain** (推荐)：安全存储在 macOS Keychain
-- **记住密码**：短期内存储
+Remora 将 SSH 密码与相关配置写入本机 `~/.config/remora` JSON 文件。导出与复制明文密码时仍会要求用户显式确认。
 
 ## 终端设置
 
