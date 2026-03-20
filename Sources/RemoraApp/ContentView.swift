@@ -215,18 +215,18 @@ struct ContentView: View {
     @State private var quickPathValidationMessage: String?
     @State private var fileManagerSFTPBindingKey = "disconnected"
     @State private var fileManagerSFTPBootstrapTask: Task<Void, Never>?
-    @AppStorage(AppSettings.passwordSaveConsentAcknowledgedKey)
-    private var hasAcknowledgedPasswordSaveConsent = false
-    @AppStorage(AppSettings.connectionInfoPasswordCopyMuteUntilKey)
-    private var connectionInfoPasswordCopyMutedUntilEpoch = 0.0
-    @AppStorage(AppSettings.connectionInfoPasswordCopyMuteForeverKey)
-    private var connectionInfoPasswordCopyMuteForever = false
-    @AppStorage(AppSettings.serverMetricsActiveRefreshSecondsKey)
-    private var serverMetricsActiveRefreshSeconds = AppSettings.defaultServerMetricsActiveRefreshSeconds
-    @AppStorage(AppSettings.serverMetricsInactiveRefreshSecondsKey)
-    private var serverMetricsInactiveRefreshSeconds = AppSettings.defaultServerMetricsInactiveRefreshSeconds
-    @AppStorage(AppSettings.serverMetricsMaxConcurrentFetchesKey)
-    private var serverMetricsMaxConcurrentFetches = AppSettings.defaultServerMetricsMaxConcurrentFetches
+    @RemoraStored(\.passwordSaveConsentAcknowledged)
+    private var hasAcknowledgedPasswordSaveConsent: Bool
+    @RemoraStored(\.connectionInfoPasswordCopyMutedUntilEpoch)
+    private var connectionInfoPasswordCopyMutedUntilEpoch: Double
+    @RemoraStored(\.connectionInfoPasswordCopyMuteForever)
+    private var connectionInfoPasswordCopyMuteForever: Bool
+    @RemoraStored(\.serverMetricsActiveRefreshSeconds)
+    private var serverMetricsActiveRefreshSeconds: Int
+    @RemoraStored(\.serverMetricsInactiveRefreshSeconds)
+    private var serverMetricsInactiveRefreshSeconds: Int
+    @RemoraStored(\.serverMetricsMaxConcurrentFetches)
+    private var serverMetricsMaxConcurrentFetches: Int
     private let serverMetricsTrackingTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var selectedHost: RemoraCore.Host? {
@@ -448,14 +448,14 @@ struct ContentView: View {
             } message: {
                 Text(exportAlertMessage)
             }
-            .alert(tr("Save password in Keychain?"), isPresented: $isPasswordSaveConsentAlertPresented) {
+            .alert(tr("Save password in local config file?"), isPresented: $isPasswordSaveConsentAlertPresented) {
                 Button(tr("Cancel"), role: .cancel) {}
-                Button(tr("Save to Keychain")) {
+                Button(tr("Save to ~/.config/remora")) {
                     hasAcknowledgedPasswordSaveConsent = true
                     hostEditorDraft.savePassword = true
                 }
             } message: {
-                Text(tr("Remora stores saved passwords only in your macOS Keychain for SSH/SFTP authentication. They are not uploaded or used for anything else unless you explicitly choose to export them."))
+                Text(tr("Remora stores saved passwords in plaintext in ~/.config/remora for SSH/SFTP authentication. They are not uploaded or used for anything else unless you explicitly choose to export them."))
             }
             .alert(tr("Include saved passwords in export?"), isPresented: $isPasswordExportWarningPresented) {
                 Button(tr("Cancel"), role: .cancel) {}
@@ -3122,7 +3122,7 @@ private struct SidebarHostEditorSheet: View {
                         .help(isPasswordVisible ? tr("Hide password") : tr("Show password"))
                     }
                     Toggle(
-                        tr("Save password in Keychain"),
+                        tr("Save password in ~/.config/remora"),
                         isOn: Binding(
                             get: { draft.savePassword },
                             set: { onPasswordSaveChange($0) }

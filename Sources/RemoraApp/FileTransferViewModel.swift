@@ -215,11 +215,10 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     private static func configuredLocalDirectoryURL(
-        defaults: UserDefaults = .standard,
         fileManager: FileManager = .default
     ) -> URL {
         AppSettings.resolvedDownloadDirectoryURL(
-            from: defaults.string(forKey: AppSettings.downloadDirectoryPathKey),
+            from: AppPreferences.shared.value(for: \.downloadDirectoryPath),
             fileManager: fileManager
         )
     }
@@ -232,7 +231,7 @@ final class FileTransferViewModel: ObservableObject {
         if AppSettings.isWritableDirectory(normalized, fileManager: fileManager) {
             return normalized
         }
-        return configuredLocalDirectoryURL(defaults: .standard, fileManager: fileManager)
+        return configuredLocalDirectoryURL(fileManager: fileManager)
     }
 
     private func ensureWritableLocalDirectory() -> URL {
@@ -246,7 +245,7 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     private func applyConfiguredDownloadDirectory(_ path: String?) {
-        let rawPath = path ?? UserDefaults.standard.string(forKey: AppSettings.downloadDirectoryPathKey)
+        let rawPath = path ?? AppPreferences.shared.value(for: \.downloadDirectoryPath)
         let resolved = AppSettings.resolvedDownloadDirectoryURL(from: rawPath)
         guard localDirectoryURL.standardizedFileURL != resolved.standardizedFileURL else { return }
         localDirectoryURL = resolved

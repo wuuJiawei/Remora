@@ -39,8 +39,7 @@ final class ServerStatusWindowManager: ObservableObject {
 
     private func applyAppearanceMode() {
         guard let window else { return }
-        let rawValue = UserDefaults.standard.string(forKey: AppSettings.appearanceModeKey)
-            ?? AppAppearanceMode.system.rawValue
+        let rawValue = AppPreferences.shared.value(for: \.appearanceModeRawValue)
         let mode = AppAppearanceMode.resolved(from: rawValue)
         if let appearanceName = mode.nsAppearanceName {
             window.appearance = NSAppearance(named: appearanceName)
