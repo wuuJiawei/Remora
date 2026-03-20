@@ -61,5 +61,11 @@ struct AppSettingsTests {
         #expect(AIProviderOption.openRouter.defaultBaseURL == "https://openrouter.ai/api/v1")
         #expect(AIProviderOption.ollama.defaultBaseURL == "http://localhost:11434/v1")
         #expect(!AIProviderOption.deepSeek.suggestedModels.isEmpty)
+        #expect(AppSettings.defaultAIModel == "gpt-5.4")
+        #expect(AIProviderOption.openAI.suggestedModels.contains(where: { $0.id == "gpt-5.4" }))
+        #expect(AIProviderOption.openAI.suggestedModels.contains(where: { $0.id == "gpt-5-codex" }))
+        #expect(AIProviderOption.anthropic.suggestedModels.contains(where: { $0.id == "claude-sonnet-4-5" }))
+        #expect(AIProviderOption.qwen.suggestedModels.contains(where: { $0.id == "qwen3.5-plus" }))
+        #expect(AIProviderOption.deepSeek.suggestedModels.contains(where: { $0.displayName.contains("V3.2") }))
     }
 }

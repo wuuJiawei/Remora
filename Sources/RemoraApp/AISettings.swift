@@ -83,28 +83,41 @@ enum AIProviderOption: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .openAI:
             return [
-                AIModelPreset(id: "gpt-4.1", displayName: "GPT-4.1"),
-                AIModelPreset(id: "gpt-4.1-mini", displayName: "GPT-4.1 Mini"),
+                AIModelPreset(id: "gpt-5.4", displayName: "GPT-5.4"),
+                AIModelPreset(id: "gpt-5.2", displayName: "GPT-5.2"),
+                AIModelPreset(id: "gpt-5.3-codex", displayName: "GPT-5.3 Codex"),
+                AIModelPreset(id: "gpt-5.2-codex", displayName: "GPT-5.2 Codex"),
+                AIModelPreset(id: "gpt-5.1-codex", displayName: "GPT-5.1 Codex"),
+                AIModelPreset(id: "gpt-5.1-codex-max", displayName: "GPT-5.1 Codex Max"),
+                AIModelPreset(id: "gpt-5.1-codex-mini", displayName: "GPT-5.1 Codex Mini"),
+                AIModelPreset(id: "gpt-5-codex", displayName: "GPT-5 Codex"),
+                AIModelPreset(id: "codex-mini-latest", displayName: "Codex Mini"),
             ]
         case .anthropic:
             return [
+                AIModelPreset(id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5"),
+                AIModelPreset(id: "claude-opus-4-1", displayName: "Claude Opus 4.1"),
+                AIModelPreset(id: "claude-sonnet-4", displayName: "Claude Sonnet 4"),
                 AIModelPreset(id: "claude-3-7-sonnet-latest", displayName: "Claude 3.7 Sonnet"),
-                AIModelPreset(id: "claude-3-5-haiku-latest", displayName: "Claude 3.5 Haiku"),
             ]
         case .openRouter:
             return [
-                AIModelPreset(id: "anthropic/claude-3.7-sonnet", displayName: "Claude 3.7 Sonnet"),
-                AIModelPreset(id: "openai/gpt-4.1-mini", displayName: "GPT-4.1 Mini"),
+                AIModelPreset(id: "openai/gpt-5.4", displayName: "OpenAI GPT-5.4"),
+                AIModelPreset(id: "openai/gpt-5.3-codex", displayName: "OpenAI GPT-5.3 Codex"),
+                AIModelPreset(id: "anthropic/claude-sonnet-4.5", displayName: "Claude Sonnet 4.5"),
+                AIModelPreset(id: "anthropic/claude-opus-4.1", displayName: "Claude Opus 4.1"),
             ]
         case .deepSeek:
             return [
-                AIModelPreset(id: "deepseek-chat", displayName: "DeepSeek Chat"),
-                AIModelPreset(id: "deepseek-reasoner", displayName: "DeepSeek Reasoner"),
+                AIModelPreset(id: "deepseek-chat", displayName: "DeepSeek Chat (V3.2)"),
+                AIModelPreset(id: "deepseek-reasoner", displayName: "DeepSeek Reasoner (R1)"),
             ]
         case .qwen:
             return [
+                AIModelPreset(id: "qwen3.5-plus", displayName: "Qwen 3.5 Plus"),
                 AIModelPreset(id: "qwen-max", displayName: "Qwen Max"),
                 AIModelPreset(id: "qwen-plus", displayName: "Qwen Plus"),
+                AIModelPreset(id: "qwen-turbo", displayName: "Qwen Turbo"),
             ]
         case .ollama, .custom:
             return []

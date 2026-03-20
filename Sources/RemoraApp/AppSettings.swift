@@ -28,7 +28,7 @@ enum AppSettings {
     static let defaultAIActiveProvider = AIProviderOption.openAI.rawValue
     static let defaultAIAPIFormat = AIProviderOption.openAI.defaultAPIFormat.rawValue
     static let defaultAIBaseURL = AIProviderOption.openAI.defaultBaseURL
-    static let defaultAIModel = "gpt-4.1-mini"
+    static let defaultAIModel = "gpt-5.4"
     static let defaultAISmartAssistEnabled = true
     static let defaultAIIncludeWorkingDirectory = true
     static let defaultAIIncludeTranscript = true
