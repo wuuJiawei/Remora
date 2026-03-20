@@ -71,34 +71,45 @@ struct TerminalAISmartAssist: Equatable {
     var prompt: String
 }
 
+struct TerminalAIQueuedPrompt: Identifiable, Equatable {
+    let id: UUID
+    let text: String
+}
+
 @MainActor
 final class TerminalAIAssistantCoordinator: ObservableObject {
     @Published private(set) var messages: [TerminalAIAssistantMessage] = []
     @Published private(set) var smartAssist: TerminalAISmartAssist?
     @Published private(set) var isResponding = false
+    @Published private(set) var queuedPrompts: [TerminalAIQueuedPrompt] = []
 
     private let service: any TerminalAIResponding
     private let settingsStore: AISettingsStore
     private let runtimeSnapshot: () -> TerminalAIRuntimeSnapshot
     private let streamingChunkDelayNanoseconds: UInt64
+    private let conversationCharacterBudget: Int
     private var boundSessionID: UUID?
     private var messagesBySession: [UUID: [TerminalAIAssistantMessage]] = [:]
+    private var queuedPromptsBySession: [UUID: [TerminalAIQueuedPrompt]] = [:]
 
     init(
         service: any TerminalAIResponding = TerminalAIService(),
         settingsStore: AISettingsStore = AISettingsStore(),
         runtimeSnapshot: @escaping () -> TerminalAIRuntimeSnapshot = { .empty },
-        streamingChunkDelayNanoseconds: UInt64 = 14_000_000
+        streamingChunkDelayNanoseconds: UInt64 = 14_000_000,
+        conversationCharacterBudget: Int = 6_000
     ) {
         self.service = service
         self.settingsStore = settingsStore
         self.runtimeSnapshot = runtimeSnapshot
         self.streamingChunkDelayNanoseconds = streamingChunkDelayNanoseconds
+        self.conversationCharacterBudget = conversationCharacterBudget
     }
 
     func bind(to sessionID: UUID) {
         boundSessionID = sessionID
         messages = messagesBySession[sessionID, default: []]
+        queuedPrompts = queuedPromptsBySession[sessionID, default: []]
         refreshSmartAssist()
     }
 
@@ -110,6 +121,11 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPrompt.isEmpty else {
             throw TerminalAIAssistantCoordinatorError.emptyPrompt
+        }
+
+        if isResponding {
+            enqueuePrompt(trimmedPrompt, for: sessionID)
+            return
         }
 
         let settings = settingsStore.load()
@@ -125,7 +141,6 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
         let assistantMessageID = UUID()
         append(.init(id: assistantMessageID, streamedText: "", isThinking: true), to: sessionID)
         isResponding = true
-        defer { isResponding = false }
 
         let snapshot = runtimeSnapshot()
         let context = TerminalAIRequestContext(
@@ -135,7 +150,9 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
             workingDirectory: settings.includeWorkingDirectory ? snapshot.workingDirectory : nil,
             transcript: settings.includeTranscript
                 ? clippedTranscript(snapshot.transcript, maxLines: settings.terminalTranscriptLineCount)
-                : nil
+                : nil,
+            preferredResponseLanguage: settings.language.promptLabel,
+            conversationContext: buildConversationContext(for: sessionID)
         )
 
         do {
@@ -156,11 +173,28 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
                 with: TerminalAIAssistantMessage(id: assistantMessageID, response: response)
             )
         } catch {
+            isResponding = false
             removeMessage(id: assistantMessageID, from: sessionID)
             throw error
         }
 
+        isResponding = false
         refreshSmartAssist()
+        await processNextQueuedPrompt(for: sessionID)
+    }
+
+    func removeQueuedPrompt(id: UUID) {
+        guard let sessionID = boundSessionID else { return }
+        guard var queued = queuedPromptsBySession[sessionID] else { return }
+        queued.removeAll { $0.id == id }
+        queuedPromptsBySession[sessionID] = queued
+        queuedPrompts = queued
+    }
+
+    func debugReplaceMessagesForTesting(_ newMessages: [TerminalAIAssistantMessage]) {
+        guard let sessionID = boundSessionID else { return }
+        messagesBySession[sessionID] = newMessages
+        messages = newMessages
     }
 
     func refreshSmartAssist() {
@@ -181,6 +215,60 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
         if boundSessionID == sessionID {
             messages = existing
         }
+    }
+
+    private func enqueuePrompt(_ prompt: String, for sessionID: UUID) {
+        var queued = queuedPromptsBySession[sessionID, default: []]
+        queued.append(.init(id: UUID(), text: prompt))
+        queuedPromptsBySession[sessionID] = queued
+        if boundSessionID == sessionID {
+            queuedPrompts = queued
+        }
+    }
+
+    private func dequeuePrompt(for sessionID: UUID) -> TerminalAIQueuedPrompt? {
+        var queued = queuedPromptsBySession[sessionID, default: []]
+        guard !queued.isEmpty else { return nil }
+        let next = queued.removeFirst()
+        queuedPromptsBySession[sessionID] = queued
+        if boundSessionID == sessionID {
+            queuedPrompts = queued
+        }
+        return next
+    }
+
+    private func processNextQueuedPrompt(for sessionID: UUID) async {
+        guard !isResponding, let next = dequeuePrompt(for: sessionID) else { return }
+        try? await submit(next.text)
+    }
+
+    private func buildConversationContext(for sessionID: UUID) -> String? {
+        let history = messagesBySession[sessionID, default: []]
+        guard !history.isEmpty else { return nil }
+
+        let rendered = history.compactMap { message -> String? in
+            if let prompt = message.prompt {
+                return "User: \(prompt)"
+            }
+            if let response = message.response?.summary {
+                return "Assistant: \(response)"
+            }
+            if let streamedText = message.streamedText, !streamedText.isEmpty {
+                return "Assistant: \(streamedText)"
+            }
+            return nil
+        }
+
+        guard !rendered.isEmpty else { return nil }
+        let joined = rendered.joined(separator: "\n")
+        if joined.count <= conversationCharacterBudget {
+            return joined
+        }
+
+        let recent = Array(rendered.suffix(2)).joined(separator: "\n")
+        let older = Array(rendered.dropLast(2)).joined(separator: " ")
+        let compactedOlder = older.prefix(max(60, conversationCharacterBudget / 3))
+        return "Compacted earlier conversation: \(compactedOlder)\nRecent turns:\n\(recent)"
     }
 
     private func replaceMessage(id: UUID, in sessionID: UUID, with message: TerminalAIAssistantMessage) {

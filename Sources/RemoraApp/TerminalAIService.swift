@@ -111,6 +111,12 @@ final class TerminalAIService: @unchecked Sendable {
         if let transcript = normalized(context.transcript) {
             sections.append("Recent Output:\n\(transcript)")
         }
+        if let conversationContext = normalized(context.conversationContext) {
+            sections.append("Conversation Context:\n\(conversationContext)")
+        }
+        if let preferredResponseLanguage = normalized(context.preferredResponseLanguage) {
+            sections.append("Preferred Response Language: \(preferredResponseLanguage)")
+        }
 
         sections.append("User Request: \(context.userPrompt)")
         return sections.joined(separator: "\n\n")

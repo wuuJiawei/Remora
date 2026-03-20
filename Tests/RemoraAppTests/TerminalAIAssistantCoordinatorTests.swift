@@ -20,7 +20,9 @@ struct TerminalAIAssistantCoordinatorTests {
             smartAssistEnabled: true,
             includeWorkingDirectory: true,
             includeTranscript: true,
-            terminalTranscriptLineCount: 120
+            terminalTranscriptLineCount: 120,
+            language: .system,
+            requireRunConfirmation: true
         )
         dependencies.store.save(disabledSettings)
         await dependencies.store.setAPIKey("sk-test")
@@ -92,7 +94,9 @@ struct TerminalAIAssistantCoordinatorTests {
                 smartAssistEnabled: true,
                 includeWorkingDirectory: true,
                 includeTranscript: true,
-                terminalTranscriptLineCount: 80
+                terminalTranscriptLineCount: 80,
+                language: .simplifiedChinese,
+                requireRunConfirmation: true
             )
         )
         await dependencies.store.setAPIKey("sk-custom")
@@ -121,6 +125,7 @@ struct TerminalAIAssistantCoordinatorTests {
         #expect(request.hostLabel == "prod-api")
         #expect(request.workingDirectory == "/var/www/app")
         #expect(request.transcript?.contains("permission denied") == true)
+        #expect(request.preferredResponseLanguage == "Simplified Chinese")
         #expect(configuration.apiFormat == .claudeCompatible)
         #expect(configuration.baseURL == "https://llm.example.com")
         #expect(configuration.model == "claude-custom")
@@ -217,6 +222,72 @@ struct TerminalAIAssistantCoordinatorTests {
         #expect(coordinator.messages.last?.response?.summary == "This is a longer streamed assistant summary for verification.")
     }
 
+    @Test
+    func submitQueuesLaterPromptsWhileResponseIsRunning() async throws {
+        let dependencies = try makeDependencies(suffix: "queue")
+        defer { dependencies.cleanup() }
+
+        await dependencies.store.setAPIKey("sk-test")
+        let service = DelayedSequenceTerminalAIResponder(
+            delays: [180_000_000, 10_000_000],
+            responses: [
+                .init(summary: "First done", commands: [], warnings: []),
+                .init(summary: "Second done", commands: [], warnings: []),
+            ]
+        )
+        let coordinator = TerminalAIAssistantCoordinator(
+            service: service,
+            settingsStore: dependencies.store,
+            runtimeSnapshot: { .init(sessionMode: "Local", hostLabel: nil, workingDirectory: "/tmp", transcript: "") },
+            streamingChunkDelayNanoseconds: 0
+        )
+        coordinator.bind(to: UUID())
+
+        let firstTask = Task { try await coordinator.submit("first") }
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 40_000_000)
+
+        try await coordinator.submit("second")
+        #expect(coordinator.queuedPrompts.count == 1)
+        #expect(coordinator.queuedPrompts.first?.text == "second")
+
+        _ = await firstTask.result
+        try? await Task.sleep(nanoseconds: 80_000_000)
+
+        #expect(coordinator.queuedPrompts.isEmpty)
+        #expect(coordinator.messages.contains(where: { $0.prompt == "second" }))
+        #expect(coordinator.messages.last?.response?.summary == "Second done")
+    }
+
+    @Test
+    func submitCompactsOlderConversationWhenHistoryGetsLarge() async throws {
+        let dependencies = try makeDependencies(suffix: "compact")
+        defer { dependencies.cleanup() }
+
+        await dependencies.store.setAPIKey("sk-test")
+        let service = MockTerminalAIResponder(response: .init(summary: "ok", commands: [], warnings: []))
+        let coordinator = TerminalAIAssistantCoordinator(
+            service: service,
+            settingsStore: dependencies.store,
+            runtimeSnapshot: { .init(sessionMode: "Local", hostLabel: nil, workingDirectory: "/tmp", transcript: String(repeating: "log line\n", count: 20)) },
+            streamingChunkDelayNanoseconds: 0,
+            conversationCharacterBudget: 240
+        )
+        coordinator.bind(to: UUID())
+
+        coordinator.debugReplaceMessagesForTesting([
+            .init(prompt: String(repeating: "first prompt ", count: 20)),
+            .init(response: .init(summary: String(repeating: "first response ", count: 20), commands: [], warnings: [])),
+            .init(prompt: String(repeating: "second prompt ", count: 20)),
+            .init(response: .init(summary: String(repeating: "second response ", count: 20), commands: [], warnings: [])),
+        ])
+
+        try await coordinator.submit("latest question")
+
+        let request = try #require(await service.lastContext)
+        #expect(request.conversationContext?.contains("Compacted earlier conversation") == true)
+    }
+
     private func makeDependencies(suffix: String) throws -> (store: AISettingsStore, cleanup: () -> Void) {
         let suiteName = "terminal-ai-coordinator-\(suffix)-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -280,5 +351,26 @@ private actor DelayedMockTerminalAIResponder: TerminalAIResponding {
     ) async throws -> TerminalAIResponse {
         try await Task.sleep(nanoseconds: delayNanoseconds)
         return response
+    }
+}
+
+private actor DelayedSequenceTerminalAIResponder: TerminalAIResponding {
+    private var delays: [UInt64]
+    private var responses: [TerminalAIResponse]
+
+    init(delays: [UInt64], responses: [TerminalAIResponse]) {
+        self.delays = delays
+        self.responses = responses
+    }
+
+    func respond(
+        to context: TerminalAIRequestContext,
+        configuration: TerminalAIServiceConfiguration
+    ) async throws -> TerminalAIResponse {
+        let delay = delays.isEmpty ? 0 : delays.removeFirst()
+        if delay > 0 {
+            try await Task.sleep(nanoseconds: delay)
+        }
+        return responses.isEmpty ? .init(summary: "default", commands: [], warnings: []) : responses.removeFirst()
     }
 }

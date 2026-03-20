@@ -24,19 +24,25 @@ struct TerminalAIRequestContext: Equatable, Sendable {
     var hostLabel: String?
     var workingDirectory: String?
     var transcript: String?
+    var preferredResponseLanguage: String?
+    var conversationContext: String?
 
     init(
         userPrompt: String,
         sessionMode: String? = nil,
         hostLabel: String? = nil,
         workingDirectory: String? = nil,
-        transcript: String? = nil
+        transcript: String? = nil,
+        preferredResponseLanguage: String? = nil,
+        conversationContext: String? = nil
     ) {
         self.userPrompt = userPrompt
         self.sessionMode = sessionMode
         self.hostLabel = hostLabel
         self.workingDirectory = workingDirectory
         self.transcript = transcript
+        self.preferredResponseLanguage = preferredResponseLanguage
+        self.conversationContext = conversationContext
     }
 }
 
