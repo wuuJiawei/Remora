@@ -257,6 +257,9 @@
 "Path copied to clipboard." = "Path copied to clipboard.";
 "Copy SSH command" = "Copy SSH command";
 "Copy address" = "Copy address";
+"Thinking…" = "Thinking…";
+"Enter to send • Shift+Enter for newline" = "Enter to send • Shift+Enter for newline";
+"Jump to latest message" = "Jump to latest message";
 "Copy connection info" = "Copy connection info";
 "Copy saved SSH password?" = "Copy saved SSH password?";
 "Create connection" = "Create connection";

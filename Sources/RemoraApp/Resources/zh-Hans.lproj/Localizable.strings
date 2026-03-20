@@ -248,6 +248,9 @@
 "Copy Path" = "复制路径";
 "Copy SSH command" = "复制 SSH 命令";
 "Copy address" = "复制地址";
+"Thinking…" = "思考中…";
+"Enter to send • Shift+Enter for newline" = "Enter 发送 • Shift+Enter 换行";
+"Jump to latest message" = "跳到最新消息";
 "Copy connection info" = "复制连接信息";
 "Copy saved SSH password?" = "要复制已保存的 SSH 密码吗？";
 "Create connection" = "创建连接";

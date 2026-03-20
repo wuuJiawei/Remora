@@ -8,63 +8,130 @@ struct TerminalAIAssistantView: View {
     @State private var promptDraft = ""
     @State private var submissionError: String?
     @State private var pendingRunCommand: TerminalAICommandSuggestion?
+    @State private var isNearBottom = true
+    @State private var viewportHeight: CGFloat = 0
+    @State private var bottomMarkerMaxY: CGFloat = 0
+
+    private let bottomAnchorID = "terminal-ai-bottom-anchor"
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
-                .overlay(VisualStyle.borderSoft)
+        ScrollViewReader { proxy in
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                Divider()
+                    .overlay(VisualStyle.borderSoft)
 
-            quickActions
+                quickActions
 
-            if let submissionError {
-                Text(submissionError)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.orange)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
+                if let submissionError {
+                    Text(submissionError)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.orange)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
+                }
+
+                transcriptScrollView(proxy: proxy)
+
+                Divider()
+                    .overlay(VisualStyle.borderSoft)
+
+                composer
             }
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
-                    if coordinator.messages.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(coordinator.messages) { message in
-                            messageCard(message)
-                        }
+            .frame(minWidth: 280, idealWidth: 340, maxWidth: 380, maxHeight: .infinity, alignment: .topLeading)
+            .background(VisualStyle.settingsSurfaceBackground)
+            .accessibilityIdentifier("terminal-ai-drawer")
+            .onAppear {
+                scrollToBottom(proxy, animated: false)
+            }
+            .onChange(of: coordinator.messages) { _, _ in
+                if isNearBottom {
+                    scrollToBottom(proxy)
+                }
+            }
+            .alert(tr("Run AI command?"), isPresented: Binding(
+                get: { pendingRunCommand != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingRunCommand = nil
                     }
                 }
-                .padding(12)
-            }
-
-            Divider()
-                .overlay(VisualStyle.borderSoft)
-
-            composer
-        }
-        .frame(minWidth: 280, idealWidth: 340, maxWidth: 380, maxHeight: .infinity, alignment: .topLeading)
-        .background(VisualStyle.settingsSurfaceBackground)
-        .accessibilityIdentifier("terminal-ai-drawer")
-        .alert(tr("Run AI command?"), isPresented: Binding(
-            get: { pendingRunCommand != nil },
-            set: { isPresented in
-                if !isPresented {
+            )) {
+                Button(tr("Cancel"), role: .cancel) {
                     pendingRunCommand = nil
                 }
-            }
-        )) {
-            Button(tr("Cancel"), role: .cancel) {
-                pendingRunCommand = nil
-            }
-            Button(tr("Run")) {
-                if let command = pendingRunCommand?.command {
-                    runtime.runAssistantCommand(command)
+                Button(tr("Run")) {
+                    if let command = pendingRunCommand?.command {
+                        runtime.runAssistantCommand(command)
+                    }
+                    pendingRunCommand = nil
                 }
-                pendingRunCommand = nil
+            } message: {
+                Text(pendingRunCommand?.command ?? tr("This command will be sent to the current terminal session."))
             }
-        } message: {
-            Text(pendingRunCommand?.command ?? tr("This command will be sent to the current terminal session."))
+        }
+    }
+
+    private func transcriptScrollView(proxy: ScrollViewProxy) -> some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        if coordinator.messages.isEmpty {
+                            emptyState
+                        } else {
+                            ForEach(coordinator.messages) { message in
+                                messageCard(message)
+                            }
+                        }
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id(bottomAnchorID)
+                            .background(
+                                GeometryReader { markerProxy in
+                                    Color.clear.preference(
+                                        key: TerminalAIBottomMarkerPreferenceKey.self,
+                                        value: markerProxy.frame(in: .named("terminal-ai-scroll")).maxY
+                                    )
+                                }
+                            )
+                    }
+                    .padding(12)
+                }
+                .coordinateSpace(name: "terminal-ai-scroll")
+                .background(
+                    Color.clear.onAppear {
+                        viewportHeight = geometry.size.height
+                    }
+                    .onChange(of: geometry.size.height) { _, newValue in
+                        viewportHeight = newValue
+                    }
+                )
+                .onPreferenceChange(TerminalAIBottomMarkerPreferenceKey.self) { maxY in
+                    bottomMarkerMaxY = maxY
+                    updateScrollPosition()
+                }
+
+                if shouldShowScrollToLatest {
+                    bottomOverlay
+
+                    Button {
+                        scrollToBottom(proxy)
+                    } label: {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.trailing, 14)
+                    .padding(.bottom, 14)
+                    .help(tr("Jump to latest message"))
+                    .accessibilityIdentifier("terminal-ai-scroll-to-bottom")
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
         }
     }
 
@@ -143,6 +210,7 @@ struct TerminalAIAssistantView: View {
                 Text(prompt)
                     .font(.system(size: 13))
                     .foregroundStyle(VisualStyle.textPrimary)
+                    .textSelection(.enabled)
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -150,17 +218,46 @@ struct TerminalAIAssistantView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(VisualStyle.settingsSubtleBackground)
             )
+        } else {
+            assistantCard(message)
         }
+    }
 
-        if let response = message.response {
-            VStack(alignment: .leading, spacing: 10) {
+    private func assistantCard(_ message: TerminalAIAssistantMessage) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                if message.isThinking {
+                    TerminalAIThinkingHaloView()
+                        .frame(width: 14, height: 14)
+                }
+
                 Text(tr("Terminal AI"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
+            }
 
+            if message.isThinking {
+                HStack(spacing: 8) {
+                    Text(tr("Thinking…"))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(VisualStyle.textPrimary)
+
+                    TerminalAIThinkingDotsView()
+                }
+            }
+
+            if let streamedText = message.streamedText, !streamedText.isEmpty {
+                Text(message.isStreaming ? streamedText + "▌" : streamedText)
+                    .font(.system(size: 13))
+                    .foregroundStyle(VisualStyle.textPrimary)
+                    .textSelection(.enabled)
+            }
+
+            if let response = message.response {
                 Text(response.summary)
                     .font(.system(size: 13))
                     .foregroundStyle(VisualStyle.textPrimary)
+                    .textSelection(.enabled)
 
                 if !response.commands.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -180,21 +277,25 @@ struct TerminalAIAssistantView: View {
                             Text("• \(warning)")
                                 .font(.system(size: 12))
                                 .foregroundStyle(VisualStyle.textSecondary)
+                                .textSelection(.enabled)
                         }
                     }
                 }
             }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .textBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(VisualStyle.borderSoft, lineWidth: 1)
-            )
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(message.isThinking || message.isStreaming ? Color.accentColor.opacity(0.35) : VisualStyle.borderSoft, lineWidth: 1)
+        )
+        .shadow(color: Color.accentColor.opacity(message.isThinking ? 0.12 : 0), radius: 18, y: 8)
+        .animation(.easeInOut(duration: 0.18), value: message.isThinking)
+        .animation(.easeInOut(duration: 0.18), value: message.isStreaming)
     }
 
     private func commandCard(_ suggestion: TerminalAICommandSuggestion) -> some View {
@@ -218,6 +319,7 @@ struct TerminalAIAssistantView: View {
             Text(suggestion.purpose)
                 .font(.system(size: 12))
                 .foregroundStyle(VisualStyle.textSecondary)
+                .textSelection(.enabled)
 
             HStack(spacing: 8) {
                 Button(tr("Insert")) {
@@ -250,13 +352,41 @@ struct TerminalAIAssistantView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField(tr("Ask Terminal AI"), text: $promptDraft, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(3...6)
+            ZStack(alignment: .topLeading) {
+                if promptDraft.isEmpty {
+                    Text(tr("Ask Terminal AI"))
+                        .font(.system(size: 13))
+                        .foregroundStyle(VisualStyle.textSecondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .allowsHitTesting(false)
+                }
+
+                TerminalAIComposerInputView(
+                    text: $promptDraft,
+                    isEnabled: !coordinator.isResponding,
+                    onSubmit: { submit(promptDraft) }
+                )
+                .frame(minHeight: 70, idealHeight: 88, maxHeight: 120)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(VisualStyle.inputFieldBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(VisualStyle.borderSoft, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .accessibilityIdentifier("terminal-ai-input")
+            }
 
             HStack {
+                Text(tr("Enter to send • Shift+Enter for newline"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(VisualStyle.textSecondary)
+
                 Spacer()
+
                 Button(tr("Send")) {
                     submit(promptDraft)
                 }
@@ -269,10 +399,49 @@ struct TerminalAIAssistantView: View {
         .padding(12)
     }
 
+    private var bottomOverlay: some View {
+        LinearGradient(
+            colors: [
+                VisualStyle.settingsSurfaceBackground.opacity(0),
+                VisualStyle.settingsSurfaceBackground.opacity(0.92),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 64)
+        .allowsHitTesting(false)
+    }
+
+    private var shouldShowScrollToLatest: Bool {
+        viewportHeight > 0 && bottomMarkerMaxY > viewportHeight + 20
+    }
+
+    private func updateScrollPosition() {
+        isNearBottom = bottomMarkerMaxY <= viewportHeight + 20
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
+        let action = {
+            proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+            isNearBottom = true
+        }
+
+        if animated {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
+
     private func submit(_ prompt: String) {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
         Task {
             do {
-                try await coordinator.submit(prompt)
+                try await coordinator.submit(trimmed)
                 await MainActor.run {
                     promptDraft = ""
                     submissionError = nil
@@ -326,5 +495,61 @@ struct TerminalAIAssistantView: View {
 
     private func tr(_ key: String) -> String {
         L10n.tr(key, fallback: key)
+    }
+}
+
+private struct TerminalAIBottomMarkerPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct TerminalAIThinkingHaloView: View {
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.accentColor.opacity(0.18))
+                .scaleEffect(animate ? 1.8 : 0.9)
+                .opacity(animate ? 0.08 : 0.24)
+
+            Circle()
+                .fill(Color.accentColor.opacity(0.3))
+                .scaleEffect(animate ? 1.15 : 0.7)
+
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 6, height: 6)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true)) {
+                animate = true
+            }
+        }
+    }
+}
+
+private struct TerminalAIThinkingDotsView: View {
+    @State private var animate = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .fill(Color.accentColor.opacity(0.85))
+                    .frame(width: 5, height: 5)
+                    .offset(y: animate ? -2 : 2)
+                    .animation(
+                        .easeInOut(duration: 0.45)
+                        .repeatForever(autoreverses: true)
+                        .delay(Double(index) * 0.08),
+                        value: animate
+                    )
+            }
+        }
+        .onAppear { animate = true }
     }
 }
