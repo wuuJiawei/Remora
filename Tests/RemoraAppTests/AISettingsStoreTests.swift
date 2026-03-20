@@ -6,21 +6,14 @@ import Testing
 struct AISettingsStoreTests {
     @Test
     func loadReturnsDefaultsWhenStorageIsEmpty() async throws {
-        let suiteName = "ai-settings-defaults-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
-
-        let credentialsDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ai-settings-store-\(UUID().uuidString)", isDirectory: true)
+        let preferences = AppPreferences(fileURL: root.appendingPathComponent("settings.json"))
         defer {
-            defaults.removePersistentDomain(forName: suiteName)
-            try? FileManager.default.removeItem(at: credentialsDirectory)
+            try? FileManager.default.removeItem(at: root)
         }
 
-        let store = AISettingsStore(
-            defaults: defaults,
-            credentialStore: CredentialStore(baseDirectoryURL: credentialsDirectory)
-        )
+        let store = AISettingsStore(preferences: preferences)
 
         let settings = store.load()
 
@@ -37,21 +30,15 @@ struct AISettingsStoreTests {
 
     @Test
     func savePersistsSettingsAndClampsTranscriptBudget() async throws {
-        let suiteName = "ai-settings-save-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
-
-        let credentialsDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ai-settings-store-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = root.appendingPathComponent("settings.json")
+        let preferences = AppPreferences(fileURL: fileURL)
         defer {
-            defaults.removePersistentDomain(forName: suiteName)
-            try? FileManager.default.removeItem(at: credentialsDirectory)
+            try? FileManager.default.removeItem(at: root)
         }
 
-        let store = AISettingsStore(
-            defaults: defaults,
-            credentialStore: CredentialStore(baseDirectoryURL: credentialsDirectory)
-        )
+        let store = AISettingsStore(preferences: preferences)
 
         store.save(
             AISettingsValue(
@@ -81,30 +68,32 @@ struct AISettingsStoreTests {
         #expect(saved.terminalTranscriptLineCount == 400)
         #expect(saved.language == .simplifiedChinese)
         #expect(saved.requireRunConfirmation == false)
+
+        let rawText = try String(contentsOf: fileURL, encoding: .utf8)
+        #expect(rawText.contains("llm.example.com"))
+        #expect(rawText.contains("claude-compat-model"))
     }
 
     @Test
-    func apiKeyIsStoredInCredentialStoreAndCanBeCleared() async throws {
-        let suiteName = "ai-settings-key-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
-
-        let credentialsDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+    func apiKeyIsStoredInSettingsFileAndCanBeCleared() async throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ai-settings-store-\(UUID().uuidString)", isDirectory: true)
-        let credentialStore = CredentialStore(baseDirectoryURL: credentialsDirectory)
+        let fileURL = root.appendingPathComponent("settings.json")
+        let preferences = AppPreferences(fileURL: fileURL)
         defer {
-            defaults.removePersistentDomain(forName: suiteName)
-            try? FileManager.default.removeItem(at: credentialsDirectory)
+            try? FileManager.default.removeItem(at: root)
         }
 
-        let store = AISettingsStore(defaults: defaults, credentialStore: credentialStore)
+        let store = AISettingsStore(preferences: preferences)
 
         await store.setAPIKey("sk-test-123")
         #expect(await store.apiKey() == "sk-test-123")
-        #expect(await credentialStore.secret(for: AISettingsStore.apiKeyReference) == "sk-test-123")
+        let savedText = try String(contentsOf: fileURL, encoding: .utf8)
+        #expect(savedText.contains("sk-test-123"))
 
         await store.setAPIKey("   ")
         #expect(await store.apiKey() == nil)
-        #expect(await credentialStore.secret(for: AISettingsStore.apiKeyReference) == nil)
+        let clearedText = try String(contentsOf: fileURL, encoding: .utf8)
+        #expect(!clearedText.contains("sk-test-123"))
     }
 }

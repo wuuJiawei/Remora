@@ -2,73 +2,60 @@ import Foundation
 import RemoraCore
 
 final class AISettingsStore: @unchecked Sendable {
-    static let apiKeyReference = "settings.ai.apiKey"
+    private let preferences: AppPreferences
 
-    private let defaults: UserDefaults
-    private let credentialStore: CredentialStore
-
-    init(defaults: UserDefaults = .standard, credentialStore: CredentialStore = CredentialStore()) {
-        self.defaults = defaults
-        self.credentialStore = credentialStore
+    init(preferences: AppPreferences = .shared) {
+        self.preferences = preferences
     }
 
     func load() -> AISettingsValue {
         let provider = AIProviderOption.resolved(
-            from: defaults.string(forKey: AppSettings.aiActiveProviderKey) ?? AppSettings.defaultAIActiveProvider
+            from: preferences.value(for: \.aiProviderRawValue)
         )
         let apiFormat = AIAPIFormatOption.resolved(
-            from: defaults.string(forKey: AppSettings.aiAPIFormatKey) ?? provider.defaultAPIFormat.rawValue
+            from: preferences.value(for: \.aiAPIFormatRawValue)
         )
-        let baseURL = normalizedStoredString(defaults.string(forKey: AppSettings.aiBaseURLKey)) ?? provider.defaultBaseURL
-        let model = normalizedStoredString(defaults.string(forKey: AppSettings.aiModelKey)) ?? AppSettings.defaultAIModel
+        let baseURL = normalizedStoredString(preferences.value(for: \.aiBaseURL)) ?? provider.defaultBaseURL
+        let model = normalizedStoredString(preferences.value(for: \.aiModel)) ?? AppSettings.defaultAIModel
         let language = AILanguageOption.resolved(
-            from: defaults.string(forKey: AppSettings.aiLanguageKey) ?? AppSettings.defaultAILanguage
+            from: preferences.value(for: \.aiLanguageRawValue)
         )
 
         return AISettingsValue(
-            isEnabled: defaults.object(forKey: AppSettings.aiEnabledKey) as? Bool ?? AppSettings.defaultAIEnabled,
+            isEnabled: preferences.value(for: \.aiEnabled),
             provider: provider,
             apiFormat: apiFormat,
             baseURL: baseURL,
             model: model,
-            smartAssistEnabled: defaults.object(forKey: AppSettings.aiSmartAssistEnabledKey) as? Bool ?? AppSettings.defaultAISmartAssistEnabled,
-            includeWorkingDirectory: defaults.object(forKey: AppSettings.aiIncludeWorkingDirectoryKey) as? Bool ?? AppSettings.defaultAIIncludeWorkingDirectory,
-            includeTranscript: defaults.object(forKey: AppSettings.aiIncludeTranscriptKey) as? Bool ?? AppSettings.defaultAIIncludeTranscript,
-            terminalTranscriptLineCount: AppSettings.clampedAITerminalTranscriptLineCount(
-                defaults.object(forKey: AppSettings.aiTerminalTranscriptLineCountKey) as? Int ?? AppSettings.defaultAITerminalTranscriptLineCount
-            ),
+            smartAssistEnabled: preferences.value(for: \.aiSmartAssistEnabled),
+            includeWorkingDirectory: preferences.value(for: \.aiIncludeWorkingDirectory),
+            includeTranscript: preferences.value(for: \.aiIncludeTranscript),
+            terminalTranscriptLineCount: AppSettings.clampedAITerminalTranscriptLineCount(preferences.value(for: \.aiTranscriptLineCount)),
             language: language,
-            requireRunConfirmation: defaults.object(forKey: AppSettings.aiRequireRunConfirmationKey) as? Bool ?? AppSettings.defaultAIRequireRunConfirmation
+            requireRunConfirmation: preferences.value(for: \.aiRequireRunConfirmation)
         )
     }
 
     func save(_ value: AISettingsValue) {
-        defaults.set(value.isEnabled, forKey: AppSettings.aiEnabledKey)
-        defaults.set(value.provider.rawValue, forKey: AppSettings.aiActiveProviderKey)
-        defaults.set(value.apiFormat.rawValue, forKey: AppSettings.aiAPIFormatKey)
-        defaults.set(normalizedStoredString(value.baseURL) ?? value.provider.defaultBaseURL, forKey: AppSettings.aiBaseURLKey)
-        defaults.set(normalizedStoredString(value.model) ?? AppSettings.defaultAIModel, forKey: AppSettings.aiModelKey)
-        defaults.set(value.language.rawValue, forKey: AppSettings.aiLanguageKey)
-        defaults.set(value.smartAssistEnabled, forKey: AppSettings.aiSmartAssistEnabledKey)
-        defaults.set(value.includeWorkingDirectory, forKey: AppSettings.aiIncludeWorkingDirectoryKey)
-        defaults.set(value.includeTranscript, forKey: AppSettings.aiIncludeTranscriptKey)
-        defaults.set(
-            AppSettings.clampedAITerminalTranscriptLineCount(value.terminalTranscriptLineCount),
-            forKey: AppSettings.aiTerminalTranscriptLineCountKey
-        )
-        defaults.set(value.requireRunConfirmation, forKey: AppSettings.aiRequireRunConfirmationKey)
+        preferences.set(value.isEnabled, for: \.aiEnabled)
+        preferences.set(value.provider.rawValue, for: \.aiProviderRawValue)
+        preferences.set(value.apiFormat.rawValue, for: \.aiAPIFormatRawValue)
+        preferences.set(normalizedStoredString(value.baseURL) ?? value.provider.defaultBaseURL, for: \.aiBaseURL)
+        preferences.set(normalizedStoredString(value.model) ?? AppSettings.defaultAIModel, for: \.aiModel)
+        preferences.set(value.language.rawValue, for: \.aiLanguageRawValue)
+        preferences.set(value.smartAssistEnabled, for: \.aiSmartAssistEnabled)
+        preferences.set(value.includeWorkingDirectory, for: \.aiIncludeWorkingDirectory)
+        preferences.set(value.includeTranscript, for: \.aiIncludeTranscript)
+        preferences.set(AppSettings.clampedAITerminalTranscriptLineCount(value.terminalTranscriptLineCount), for: \.aiTranscriptLineCount)
+        preferences.set(value.requireRunConfirmation, for: \.aiRequireRunConfirmation)
     }
 
     func apiKey() async -> String? {
-        await credentialStore.secret(for: Self.apiKeyReference)
+        normalizedStoredString(preferences.value(for: \.aiAPIKey))
     }
 
     func setAPIKey(_ value: String) async {
-        guard let normalized = normalizedStoredString(value) else {
-            await credentialStore.removeSecret(for: Self.apiKeyReference)
-            return
-        }
-        await credentialStore.setSecret(normalized, for: Self.apiKeyReference)
+        preferences.set(normalizedStoredString(value) ?? "", for: \.aiAPIKey)
     }
 
     private func normalizedStoredString(_ value: String?) -> String? {

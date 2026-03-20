@@ -291,20 +291,15 @@ struct TerminalAIAssistantCoordinatorTests {
     }
 
     private func makeDependencies(suffix: String) throws -> (store: AISettingsStore, cleanup: () -> Void) {
-        let suiteName = "terminal-ai-coordinator-\(suffix)-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
-
-        let credentialsDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("terminal-ai-coordinator-\(suffix)-\(UUID().uuidString)", isDirectory: true)
-        let credentialStore = CredentialStore(baseDirectoryURL: credentialsDirectory)
-        let store = AISettingsStore(defaults: defaults, credentialStore: credentialStore)
+        let preferences = AppPreferences(fileURL: root.appendingPathComponent("settings.json"))
+        let store = AISettingsStore(preferences: preferences)
 
         return (
             store,
             {
-                defaults.removePersistentDomain(forName: suiteName)
-                try? FileManager.default.removeItem(at: credentialsDirectory)
+                try? FileManager.default.removeItem(at: root)
             }
         )
     }
