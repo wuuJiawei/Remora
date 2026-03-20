@@ -173,15 +173,14 @@ struct TerminalAIAssistantView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(VisualStyle.textSecondary)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 actionButton(title: tr("Explain Output"), prompt: "Explain the latest terminal output in plain language.")
                 actionButton(title: tr("Suggest Next Command"), prompt: "Suggest the safest next command for this terminal session.")
+                actionButton(
+                    title: tr("Fix Last Error"),
+                    prompt: coordinator.smartAssist?.prompt ?? "Explain the latest terminal error and suggest the safest next command."
+                )
             }
-
-            actionButton(
-                title: tr("Fix Last Error"),
-                prompt: coordinator.smartAssist?.prompt ?? "Explain the latest terminal error and suggest the safest next command."
-            )
         }
         .padding(.horizontal, 12)
         .padding(.top, 10)
@@ -210,7 +209,10 @@ struct TerminalAIAssistantView: View {
             submit(prompt)
         }
         .buttonStyle(.bordered)
-        .controlSize(.small)
+        .controlSize(.mini)
+        .lineLimit(1)
+        .minimumScaleFactor(0.82)
+        .frame(maxWidth: .infinity)
     }
 
     private var emptyState: some View {
@@ -342,7 +344,6 @@ struct TerminalAIAssistantView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(message.isThinking || message.isStreaming ? Color.accentColor.opacity(0.35) : VisualStyle.borderSoft, lineWidth: 1)
         )
-        .shadow(color: Color.accentColor.opacity(message.isThinking ? 0.12 : 0), radius: 18, y: 8)
         .animation(.easeInOut(duration: 0.18), value: message.isThinking)
         .animation(.easeInOut(duration: 0.18), value: message.isStreaming)
     }
@@ -355,7 +356,7 @@ struct TerminalAIAssistantView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(VisualStyle.textSecondary)
                         .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 10)
                         .allowsHitTesting(false)
                 }
 
@@ -364,7 +365,7 @@ struct TerminalAIAssistantView: View {
                     isEnabled: true,
                     onSubmit: { submit(promptDraft) }
                 )
-                .frame(minHeight: 52, idealHeight: 62, maxHeight: 84)
+                .frame(minHeight: 42, idealHeight: 50, maxHeight: 64)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(VisualStyle.inputFieldBackground)
