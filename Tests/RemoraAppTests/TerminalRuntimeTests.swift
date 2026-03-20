@@ -454,6 +454,35 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func runAssistantCommandSendsCtrlCBeforeExecutingCommand() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        await recorder.reset()
+        runtime.runAssistantCommand("pwd")
+
+        let wroteCtrlCFirst = await waitUntilAsync(timeout: 2.0) {
+            let writes = await recorder.rawWrites
+            guard let first = writes.first else { return false }
+            return first.contains("\u{03}")
+        }
+        #expect(wroteCtrlCFirst, "Assistant run should send Ctrl+C before writing the command.")
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

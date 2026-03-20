@@ -528,6 +528,7 @@ final class TerminalRuntime: ObservableObject {
     func runAssistantCommand(_ command: String) {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        enqueueInput(Data([0x03]))
         enqueueInput(Data("\(trimmed)\n".utf8))
     }
     
