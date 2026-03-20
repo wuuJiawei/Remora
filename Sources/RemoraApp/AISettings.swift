@@ -15,6 +15,8 @@ struct AISettingsValue: Equatable, Sendable {
     var includeWorkingDirectory: Bool
     var includeTranscript: Bool
     var terminalTranscriptLineCount: Int
+    var language: AILanguageOption
+    var requireRunConfirmation: Bool
 
     static let `default` = AISettingsValue(
         isEnabled: AppSettings.defaultAIEnabled,
@@ -25,8 +27,34 @@ struct AISettingsValue: Equatable, Sendable {
         smartAssistEnabled: AppSettings.defaultAISmartAssistEnabled,
         includeWorkingDirectory: AppSettings.defaultAIIncludeWorkingDirectory,
         includeTranscript: AppSettings.defaultAIIncludeTranscript,
-        terminalTranscriptLineCount: AppSettings.defaultAITerminalTranscriptLineCount
+        terminalTranscriptLineCount: AppSettings.defaultAITerminalTranscriptLineCount,
+        language: .system,
+        requireRunConfirmation: AppSettings.defaultAIRequireRunConfirmation
     )
+}
+
+enum AILanguageOption: String, CaseIterable, Identifiable, Sendable {
+    case system = "system"
+    case english = "english"
+    case simplifiedChinese = "simplified_chinese"
+
+    var id: String { rawValue }
+
+    var promptLabel: String {
+        switch self {
+        case .system:
+            let preferred = Locale.preferredLanguages.first?.lowercased() ?? "en"
+            return preferred.contains("zh") ? "Simplified Chinese" : "English"
+        case .english:
+            return "English"
+        case .simplifiedChinese:
+            return "Simplified Chinese"
+        }
+    }
+
+    static func resolved(from rawValue: String) -> AILanguageOption {
+        AILanguageOption(rawValue: rawValue) ?? .system
+    }
 }
 
 enum AIAPIFormatOption: String, CaseIterable, Identifiable, Sendable {

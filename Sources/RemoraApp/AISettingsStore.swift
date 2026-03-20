@@ -21,6 +21,9 @@ final class AISettingsStore: @unchecked Sendable {
         )
         let baseURL = normalizedStoredString(defaults.string(forKey: AppSettings.aiBaseURLKey)) ?? provider.defaultBaseURL
         let model = normalizedStoredString(defaults.string(forKey: AppSettings.aiModelKey)) ?? AppSettings.defaultAIModel
+        let language = AILanguageOption.resolved(
+            from: defaults.string(forKey: AppSettings.aiLanguageKey) ?? AppSettings.defaultAILanguage
+        )
 
         return AISettingsValue(
             isEnabled: defaults.object(forKey: AppSettings.aiEnabledKey) as? Bool ?? AppSettings.defaultAIEnabled,
@@ -33,7 +36,9 @@ final class AISettingsStore: @unchecked Sendable {
             includeTranscript: defaults.object(forKey: AppSettings.aiIncludeTranscriptKey) as? Bool ?? AppSettings.defaultAIIncludeTranscript,
             terminalTranscriptLineCount: AppSettings.clampedAITerminalTranscriptLineCount(
                 defaults.object(forKey: AppSettings.aiTerminalTranscriptLineCountKey) as? Int ?? AppSettings.defaultAITerminalTranscriptLineCount
-            )
+            ),
+            language: language,
+            requireRunConfirmation: defaults.object(forKey: AppSettings.aiRequireRunConfirmationKey) as? Bool ?? AppSettings.defaultAIRequireRunConfirmation
         )
     }
 
@@ -43,6 +48,7 @@ final class AISettingsStore: @unchecked Sendable {
         defaults.set(value.apiFormat.rawValue, forKey: AppSettings.aiAPIFormatKey)
         defaults.set(normalizedStoredString(value.baseURL) ?? value.provider.defaultBaseURL, forKey: AppSettings.aiBaseURLKey)
         defaults.set(normalizedStoredString(value.model) ?? AppSettings.defaultAIModel, forKey: AppSettings.aiModelKey)
+        defaults.set(value.language.rawValue, forKey: AppSettings.aiLanguageKey)
         defaults.set(value.smartAssistEnabled, forKey: AppSettings.aiSmartAssistEnabledKey)
         defaults.set(value.includeWorkingDirectory, forKey: AppSettings.aiIncludeWorkingDirectoryKey)
         defaults.set(value.includeTranscript, forKey: AppSettings.aiIncludeTranscriptKey)
@@ -50,6 +56,7 @@ final class AISettingsStore: @unchecked Sendable {
             AppSettings.clampedAITerminalTranscriptLineCount(value.terminalTranscriptLineCount),
             forKey: AppSettings.aiTerminalTranscriptLineCountKey
         )
+        defaults.set(value.requireRunConfirmation, forKey: AppSettings.aiRequireRunConfirmationKey)
     }
 
     func apiKey() async -> String? {

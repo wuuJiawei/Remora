@@ -10,10 +10,12 @@ enum AppSettings {
     static let aiAPIFormatKey = "settings.ai.apiFormat"
     static let aiBaseURLKey = "settings.ai.baseURL"
     static let aiModelKey = "settings.ai.model"
+    static let aiLanguageKey = "settings.ai.language"
     static let aiSmartAssistEnabledKey = "settings.ai.smartAssistEnabled"
     static let aiIncludeWorkingDirectoryKey = "settings.ai.includeWorkingDirectory"
     static let aiIncludeTranscriptKey = "settings.ai.includeTranscript"
     static let aiTerminalTranscriptLineCountKey = "settings.ai.terminalTranscriptLineCount"
+    static let aiRequireRunConfirmationKey = "settings.ai.requireRunConfirmation"
     static let passwordSaveConsentAcknowledgedKey = "settings.credentials.passwordSaveConsentAcknowledged"
     static let connectionInfoPasswordCopyMuteUntilKey = "settings.credentials.connectionInfoPasswordCopyMuteUntil"
     static let connectionInfoPasswordCopyMuteForeverKey = "settings.credentials.connectionInfoPasswordCopyMuteForever"
@@ -29,10 +31,12 @@ enum AppSettings {
     static let defaultAIAPIFormat = AIProviderOption.openAI.defaultAPIFormat.rawValue
     static let defaultAIBaseURL = AIProviderOption.openAI.defaultBaseURL
     static let defaultAIModel = "gpt-5.4"
+    static let defaultAILanguage = AILanguageOption.system.rawValue
     static let defaultAISmartAssistEnabled = true
     static let defaultAIIncludeWorkingDirectory = true
     static let defaultAIIncludeTranscript = true
     static let defaultAITerminalTranscriptLineCount = 120
+    static let defaultAIRequireRunConfirmation = true
 
     static func resolvedDownloadDirectoryURL(
         from rawPath: String?,

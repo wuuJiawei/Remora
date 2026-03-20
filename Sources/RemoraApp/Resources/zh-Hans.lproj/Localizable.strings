@@ -100,6 +100,12 @@
 "Review" = "复查";
 "Danger" = "危险";
 "Custom" = "自定义";
+"Language" = "语言";
+"Choose the default language Terminal AI should use when replying." = "选择终端 AI 默认回复时使用的语言。";
+"Follow App Language" = "跟随应用语言";
+"Confirm before running AI commands" = "运行 AI 命令前先确认";
+"Queued Messages" = "排队中的消息";
+"Always Run" = "始终直接运行";
 "Confirm before closing an active session tab" = "关闭活动会话标签前确认";
 "Reopen the last selected workspace on launch" = "启动时恢复上次选中的工作区";
 "Default local shell" = "默认本地 Shell";

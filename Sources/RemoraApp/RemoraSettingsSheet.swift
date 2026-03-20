@@ -68,10 +68,12 @@ struct RemoraSettingsSheet: View {
     @AppStorage(AppSettings.aiAPIFormatKey) private var aiAPIFormatRawValue = AppSettings.defaultAIAPIFormat
     @AppStorage(AppSettings.aiBaseURLKey) private var aiBaseURL = AppSettings.defaultAIBaseURL
     @AppStorage(AppSettings.aiModelKey) private var aiModel = AppSettings.defaultAIModel
+    @AppStorage(AppSettings.aiLanguageKey) private var aiLanguageRawValue = AppSettings.defaultAILanguage
     @AppStorage(AppSettings.aiSmartAssistEnabledKey) private var aiSmartAssistEnabled = AppSettings.defaultAISmartAssistEnabled
     @AppStorage(AppSettings.aiIncludeWorkingDirectoryKey) private var aiIncludeWorkingDirectory = AppSettings.defaultAIIncludeWorkingDirectory
     @AppStorage(AppSettings.aiIncludeTranscriptKey) private var aiIncludeTranscript = AppSettings.defaultAIIncludeTranscript
     @AppStorage(AppSettings.aiTerminalTranscriptLineCountKey) private var aiTranscriptLineCount = AppSettings.defaultAITerminalTranscriptLineCount
+    @AppStorage(AppSettings.aiRequireRunConfirmationKey) private var aiRequireRunConfirmation = AppSettings.defaultAIRequireRunConfirmation
     @AppStorage(AppSettings.serverMetricsActiveRefreshSecondsKey)
     private var serverMetricsActiveRefreshSeconds = AppSettings.defaultServerMetricsActiveRefreshSeconds
     @AppStorage(AppSettings.serverMetricsInactiveRefreshSecondsKey)
@@ -389,6 +391,30 @@ struct RemoraSettingsSheet: View {
                 }
 
                 settingsSectionCard(
+                    title: tr("Language"),
+                    message: tr("Choose the default language Terminal AI should use when replying.")
+                ) {
+                    compactSettingRow(title: tr("Language")) {
+                        Picker(
+                            tr("Language"),
+                            selection: Binding(
+                                get: { selectedAILanguage },
+                                set: { language in
+                                    aiLanguageRawValue = language.rawValue
+                                }
+                            )
+                        ) {
+                            Text(tr("Follow App Language")).tag(AILanguageOption.system)
+                            Text(tr("English")).tag(AILanguageOption.english)
+                            Text(tr("Simplified Chinese")).tag(AILanguageOption.simplifiedChinese)
+                        }
+                        .labelsHidden()
+                        .frame(width: 220, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-language")
+                    }
+                }
+
+                settingsSectionCard(
                     title: tr("Assistant Behavior"),
                     message: tr("Control what context is sent to the model and when Remora should suggest using AI.")
                 ) {
@@ -417,6 +443,12 @@ struct RemoraSettingsSheet: View {
                         }
                         .frame(width: 160, alignment: .trailing)
                         .accessibilityIdentifier("settings-ai-transcript-lines")
+                    }
+
+                    compactSettingRow(title: tr("Confirm before running AI commands")) {
+                        Toggle("", isOn: $aiRequireRunConfirmation)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-ai-require-run-confirmation")
                     }
                 }
             }
@@ -727,6 +759,10 @@ struct RemoraSettingsSheet: View {
 
     private var selectedAIAPIFormat: AIAPIFormatOption {
         AIAPIFormatOption.resolved(from: aiAPIFormatRawValue)
+    }
+
+    private var selectedAILanguage: AILanguageOption {
+        AILanguageOption.resolved(from: aiLanguageRawValue)
     }
 
     private func providerTitle(_ provider: AIProviderOption) -> String {

@@ -101,6 +101,12 @@
 "Review" = "Review";
 "Danger" = "Danger";
 "Custom" = "Custom";
+"Language" = "Language";
+"Choose the default language Terminal AI should use when replying." = "Choose the default language Terminal AI should use when replying.";
+"Follow App Language" = "Follow App Language";
+"Confirm before running AI commands" = "Confirm before running AI commands";
+"Queued Messages" = "Queued Messages";
+"Always Run" = "Always Run";
 "Confirm before closing an active session tab" = "Confirm before closing an active session tab";
 "Reopen the last selected workspace on launch" = "Reopen the last selected workspace on launch";
 "Default local shell" = "Default local shell";

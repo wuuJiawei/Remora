@@ -30,6 +30,8 @@ struct AISettingsStoreTests {
         #expect(settings.baseURL == AIProviderOption.openAI.defaultBaseURL)
         #expect(settings.model == AppSettings.defaultAIModel)
         #expect(settings.terminalTranscriptLineCount == AppSettings.defaultAITerminalTranscriptLineCount)
+        #expect(settings.language == .system)
+        #expect(settings.requireRunConfirmation == true)
         #expect(await store.apiKey() == nil)
     }
 
@@ -61,7 +63,9 @@ struct AISettingsStoreTests {
                 smartAssistEnabled: false,
                 includeWorkingDirectory: false,
                 includeTranscript: true,
-                terminalTranscriptLineCount: 999
+                terminalTranscriptLineCount: 999,
+                language: .simplifiedChinese,
+                requireRunConfirmation: false
             )
         )
 
@@ -75,6 +79,8 @@ struct AISettingsStoreTests {
         #expect(saved.includeWorkingDirectory == false)
         #expect(saved.includeTranscript == true)
         #expect(saved.terminalTranscriptLineCount == 400)
+        #expect(saved.language == .simplifiedChinese)
+        #expect(saved.requireRunConfirmation == false)
     }
 
     @Test

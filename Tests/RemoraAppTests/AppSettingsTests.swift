@@ -67,5 +67,7 @@ struct AppSettingsTests {
         #expect(AIProviderOption.anthropic.suggestedModels.contains(where: { $0.id == "claude-sonnet-4-5" }))
         #expect(AIProviderOption.qwen.suggestedModels.contains(where: { $0.id == "qwen3.5-plus" }))
         #expect(AIProviderOption.deepSeek.suggestedModels.contains(where: { $0.displayName.contains("V3.2") }))
+        #expect(AppSettings.defaultAILanguage == AILanguageOption.system.rawValue)
+        #expect(AppSettings.defaultAIRequireRunConfirmation == true)
     }
 }
