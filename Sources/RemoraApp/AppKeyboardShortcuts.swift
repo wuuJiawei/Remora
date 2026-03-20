@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import RemoraCore
 import SwiftUI
 
 enum AppShortcutCommand: String, CaseIterable, Identifiable {
@@ -231,18 +232,15 @@ final class AppKeyboardShortcutStore: ObservableObject {
 
     @Published private(set) var conflicts: [KeyboardShortcutConflict] = []
 
-    private let userDefaults: UserDefaults
-    private let storageKey: String
+    private let fileStore: RemoraJSONFileStore<PersistedShortcuts>
     private var customShortcuts: [AppShortcutCommand: AppKeyboardShortcut] = [:]
     private var unboundCommands: Set<AppShortcutCommand> = []
     private var launchConflictCheckFinished = false
 
     init(
-        userDefaults: UserDefaults = .standard,
-        storageKey: String = AppSettings.keyboardShortcutsStorageKey
+        fileURL: URL = RemoraConfigPaths.fileURL(for: .keyboardShortcuts)
     ) {
-        self.userDefaults = userDefaults
-        self.storageKey = storageKey
+        self.fileStore = RemoraJSONFileStore(fileURL: fileURL)
         loadFromStorage()
         recomputeConflicts(report: false, source: "init")
     }
@@ -333,8 +331,7 @@ final class AppKeyboardShortcutStore: ObservableObject {
     }
 
     private func loadFromStorage() {
-        guard let data = userDefaults.data(forKey: storageKey) else { return }
-        guard let payload = try? JSONDecoder().decode(PersistedShortcuts.self, from: data) else { return }
+        guard let payload = try? fileStore.load() else { return }
 
         var loadedCustom: [AppShortcutCommand: AppKeyboardShortcut] = [:]
         for (commandID, shortcut) in payload.custom {
@@ -356,7 +353,6 @@ final class AppKeyboardShortcutStore: ObservableObject {
             custom: Dictionary(uniqueKeysWithValues: customShortcuts.map { ($0.key.rawValue, $0.value) }),
             unbound: unboundCommands.map(\.rawValue).sorted()
         )
-        guard let encoded = try? JSONEncoder().encode(payload) else { return }
-        userDefaults.set(encoded, forKey: storageKey)
+        try? fileStore.save(payload)
     }
 }

@@ -18,25 +18,17 @@ struct AppKeyboardShortcutStoreTests {
 
     @Test
     func persistsCustomAndUnboundShortcuts() {
-        let suiteName = "remora-shortcuts-tests-\(UUID().uuidString)"
-        let storageKey = "shortcuts-\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suiteName) else {
-            Issue.record("Could not create isolated UserDefaults suite.")
-            return
-        }
-        defaults.removePersistentDomain(forName: suiteName)
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
+        let fileURL = makeStorageFileURL()
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
-        let store = AppKeyboardShortcutStore(userDefaults: defaults, storageKey: storageKey)
+        let store = AppKeyboardShortcutStore(fileURL: fileURL)
         store.unbindShortcut(for: .importConnections)
         store.setShortcut(
             AppKeyboardShortcut(keyToken: "k", modifierFlags: [.command, .shift]),
             for: .exportConnections
         )
 
-        let reloaded = AppKeyboardShortcutStore(userDefaults: defaults, storageKey: storageKey)
+        let reloaded = AppKeyboardShortcutStore(fileURL: fileURL)
         #expect(reloaded.shortcut(for: .importConnections) == nil)
         #expect(reloaded.shortcut(for: .exportConnections)?.displayText == "⌘⇧K")
     }
@@ -63,10 +55,12 @@ struct AppKeyboardShortcutStoreTests {
     }
 
     private func makeStore() -> AppKeyboardShortcutStore {
-        let suiteName = "remora-shortcuts-tests-\(UUID().uuidString)"
-        let storageKey = "shortcuts-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return AppKeyboardShortcutStore(userDefaults: defaults, storageKey: storageKey)
+        AppKeyboardShortcutStore(fileURL: makeStorageFileURL())
+    }
+
+    private func makeStorageFileURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-shortcuts-tests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("keyboard-shortcuts.json")
     }
 }
