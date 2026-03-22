@@ -6,6 +6,22 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.14.0] - 2026-03-22
+
+### Added
+
+- Added a unified file-backed preferences layer so Remora can persist app settings, AI settings, and other durable defaults under `~/.config/remora`.
+- Added a shared config-path and JSON persistence foundation for Remora's local-first storage model, including dedicated settings, connections, credentials, and keyboard-shortcuts files.
+
+### Changed
+
+- Moved saved SSH connections, stored credentials, app preferences, AI configuration, language/appearance settings, and keyboard shortcuts out of Keychain / `UserDefaults` / legacy dotfiles and into JSON files under `~/.config/remora`.
+- Updated in-app storage wording, README copy, and wiki docs to reflect the new config-file based persistence model and the current Terminal AI workflow.
+
+### Fixed
+
+- Settings consumers across the app now read and write the same shared preferences document more consistently, reducing drift between settings screens and live workspace behavior.
+
 ## [v0.13.0] - 2026-03-20
 
 ### Added
