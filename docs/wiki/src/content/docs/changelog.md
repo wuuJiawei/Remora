@@ -7,6 +7,13 @@ description: Remora 版本更新历史
 
 ## [Unreleased]
 
+## [v0.14.1] - 2026-03-22
+
+### Fixed
+
+- Regenerated `Remora.xcodeproj` from the project generator so the `RemoraCore` target now includes the new config-store sources and the packaged app build can resolve its file-backed persistence types correctly.
+- Restored the generated Xcode project's Swift Package dependency wiring for `SwiftTerm`, keeping local packaging and GitHub Actions archive builds aligned with the package manifest.
+
 ## [v0.14.0] - 2026-03-22
 
 ### Added
