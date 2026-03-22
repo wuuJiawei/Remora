@@ -7,6 +7,8 @@ require 'xcodeproj'
 ROOT = Pathname.new(__dir__).join('..').realpath
 PROJECT_PATH = ROOT.join('Remora.xcodeproj')
 DEPLOYMENT_TARGET = '14.0'
+SWIFTTERM_URL = 'https://github.com/migueldeicaza/SwiftTerm'
+SWIFTTERM_MIN_VERSION = '1.11.2'
 
 def sorted_swift_files(path, relative_to:)
   Dir.glob(path.join('**/*.swift').to_s).sort.map { |file| Pathname(file).relative_path_from(relative_to).to_s }
@@ -23,11 +25,33 @@ def add_file_references(group, paths)
   end
 end
 
+def add_remote_package_dependency(project, repository_url:, minimum_version:, product_name:, targets:)
+  package = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+  package.repositoryURL = repository_url
+  package.requirement = {
+    'kind' => 'upToNextMajorVersion',
+    'minimumVersion' => minimum_version,
+  }
+  project.root_object.package_references << package
+
+  targets.each do |target|
+    product_dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+    product_dependency.package = package
+    product_dependency.product_name = product_name
+    target.package_product_dependencies << product_dependency
+
+    build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+    build_file.product_ref = product_dependency
+    target.frameworks_build_phase.files << build_file
+  end
+end
+
 FileUtils.rm_rf(PROJECT_PATH)
 
 project = Xcodeproj::Project.new(PROJECT_PATH.to_s)
 project.root_object.attributes['LastSwiftUpdateCheck'] = '2600'
 project.root_object.attributes['LastUpgradeCheck'] = '2600'
+project.root_object.compatibility_version = 'Xcode 12.0'
 project.root_object.development_region = 'en'
 project.root_object.known_regions = ['en', 'zh-Hans']
 
@@ -96,6 +120,14 @@ app_target.add_dependency(terminal_target)
 terminal_target.frameworks_build_phase.add_file_reference(core_target.product_reference, true)
 app_target.frameworks_build_phase.add_file_reference(core_target.product_reference, true)
 app_target.frameworks_build_phase.add_file_reference(terminal_target.product_reference, true)
+
+add_remote_package_dependency(
+  project,
+  repository_url: SWIFTTERM_URL,
+  minimum_version: SWIFTTERM_MIN_VERSION,
+  product_name: 'SwiftTerm',
+  targets: [terminal_target, app_target]
+)
 
 core_target.add_system_framework('Security')
 terminal_target.add_system_frameworks(['AppKit', 'CoreText', 'QuartzCore'])
