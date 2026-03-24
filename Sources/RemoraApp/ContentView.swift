@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import RemoraCore
 
-private struct ActiveRuntimeSFTPState: Equatable {
+private struct ActiveRuntimeConnectionState: Equatable {
     var runtimeID: ObjectIdentifier?
     var connectionMode: ConnectionMode?
     var connectionState: String
@@ -304,10 +304,10 @@ struct ContentView: View {
         )
     }
 
-    private var activeRuntimeSFTPStatePublisher: AnyPublisher<ActiveRuntimeSFTPState, Never> {
+    private var activeRuntimeConnectionStatePublisher: AnyPublisher<ActiveRuntimeConnectionState, Never> {
         guard let runtime = workspace.activePane?.runtime else {
             return Just(
-                ActiveRuntimeSFTPState(
+                ActiveRuntimeConnectionState(
                     runtimeID: nil,
                     connectionMode: nil,
                     connectionState: "Disconnected",
@@ -323,7 +323,7 @@ struct ContentView: View {
             runtime.$connectedSSHHost
         )
         .map { mode, state, host in
-            ActiveRuntimeSFTPState(
+            ActiveRuntimeConnectionState(
                 runtimeID: ObjectIdentifier(runtime),
                 connectionMode: mode,
                 connectionState: state,
@@ -394,7 +394,7 @@ struct ContentView: View {
             }
 
         let syncedContent = commandContent
-            .onReceive(activeRuntimeSFTPStatePublisher) { _ in
+            .onReceive(activeRuntimeConnectionStatePublisher) { _ in
                 syncFileManagerSFTPBinding()
                 syncServerMetricsTracking()
             }
