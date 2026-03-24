@@ -7,6 +7,37 @@ import Testing
 @MainActor
 struct RemoraUIAutomationTests {
     @Test
+    func sidebarSearchFieldIsNotFocusedAtLaunch() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        let launched = try launchAppForUIAutomation()
+        let process = launched.process
+        let appElement = launched.appElement
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard let searchField = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { self.identifier(of: $0) == "sidebar-host-search" }
+        ) else {
+            Issue.record("Could not find sidebar host search field.")
+            return
+        }
+
+        let isFocused = boolAttribute(kAXFocusedAttribute as CFString, of: searchField) ?? false
+        #expect(!isFocused, "Sidebar host search field should not receive focus automatically at launch.")
+    }
+
+    @Test
     func fileManagerHeaderTogglesExpandAndCollapse() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return

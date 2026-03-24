@@ -157,6 +157,10 @@ private enum SidebarDragPayload: Equatable {
 
 @MainActor
 struct ContentView: View {
+    private enum SidebarFocusedField: Hashable {
+        case hostSearch
+    }
+
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openURL) private var openURL
     @StateObject private var workspace = WorkspaceViewModel()
@@ -167,6 +171,8 @@ struct ContentView: View {
     @StateObject private var serverStatusWindowManager = ServerStatusWindowManager()
 
     @State private var hostSearchQuery = ""
+    @FocusState private var sidebarFocusedField: SidebarFocusedField?
+    @State private var hasClearedInitialSidebarSearchFocus = false
     @State private var selectedHostID: UUID?
     @State private var selectedTemplateID: UUID?
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
@@ -351,6 +357,13 @@ struct ContentView: View {
             .onAppear {
                 if selectedHostID == nil {
                     selectedHostID = hostCatalog.hosts.first?.id
+                }
+                if !hasClearedInitialSidebarSearchFocus {
+                    hasClearedInitialSidebarSearchFocus = true
+                    sidebarFocusedField = nil
+                    DispatchQueue.main.async {
+                        sidebarFocusedField = nil
+                    }
                 }
                 if let firstPane = workspace.activePane {
                     firstPane.runtime.connectLocalShell()
@@ -640,6 +653,8 @@ struct ContentView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .foregroundStyle(VisualStyle.textPrimary)
+                .focused($sidebarFocusedField, equals: .hostSearch)
+                .accessibilityIdentifier("sidebar-host-search")
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .background(
