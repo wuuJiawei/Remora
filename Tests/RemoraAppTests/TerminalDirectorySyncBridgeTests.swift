@@ -169,6 +169,7 @@ struct TerminalDirectorySyncBridgeTests {
             }
         )
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        runtime.setWorkingDirectoryTrackingEnabled(true)
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -191,6 +192,52 @@ struct TerminalDirectorySyncBridgeTests {
             fileTransfer.remoteDirectoryPath == "/opt/service"
         }
         #expect(synced, "Turning on sync should align file manager to current runtime directory.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func enablingSyncDoesNotIssuePwdWhenRuntimeAlreadyKnowsDirectory() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(
+                    recorder: recorder,
+                    initialDirectory: "/opt/service",
+                    pwdOutputStyle: .ansiWrapped
+                )
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        runtime.setWorkingDirectoryTrackingEnabled(true)
+        let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let bridge = TerminalDirectorySyncBridge()
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        let detected = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/opt/service"
+        }
+        #expect(detected, "Runtime should know the remote directory before sync is enabled.")
+        guard detected else { return }
+
+        bridge.bind(fileTransfer: fileTransfer, runtime: runtime)
+        await recorder.reset()
+
+        fileTransfer.isTerminalDirectorySyncEnabled = true
+
+        let synced = await waitUntil(timeout: 2.0) {
+            fileTransfer.remoteDirectoryPath == "/opt/service"
+        }
+        #expect(synced, "Enabling sync should reuse the known runtime directory.")
+
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        let pwdCommands = await recorder.commands.filter { $0 == "pwd" }
+        #expect(pwdCommands.isEmpty, "Enabling sync should not issue pwd when runtime directory is already known. observed commands: \(pwdCommands)")
         runtime.disconnect()
     }
 

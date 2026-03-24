@@ -24,10 +24,6 @@ final class TerminalDirectorySyncBridge: ObservableObject {
     }
 
     func attachRuntime(_ runtime: TerminalRuntime?) {
-        if let currentRuntime = self.runtime, currentRuntime !== runtime {
-            currentRuntime.setWorkingDirectoryTrackingEnabled(false)
-        }
-
         self.runtime = runtime
 
         runtimeCancellable?.cancel()
@@ -51,12 +47,10 @@ final class TerminalDirectorySyncBridge: ObservableObject {
 
     private func updateRuntimeTrackingState(syncEnabledOverride: Bool? = nil) {
         guard let runtime else { return }
-        let isSyncEnabled = syncEnabledOverride ?? self.isSyncEnabled
-        let shouldTrack = isSyncEnabled && runtime.connectionMode == .ssh
-        runtime.setWorkingDirectoryTrackingEnabled(shouldTrack)
-        guard shouldTrack else { return }
+        let shouldSync = (syncEnabledOverride ?? self.isSyncEnabled) && runtime.connectionMode == .ssh
+        guard shouldSync else { return }
         if let currentPath = runtime.workingDirectory {
-            handleRuntimeDirectoryChange(currentPath)
+            syncFileTransfer(to: currentPath)
         }
     }
 
@@ -64,6 +58,10 @@ final class TerminalDirectorySyncBridge: ObservableObject {
         guard isSyncEnabled else { return }
         guard runtime?.connectionMode == .ssh else { return }
 
+        syncFileTransfer(to: path)
+    }
+
+    private func syncFileTransfer(to path: String) {
         guard let fileTransfer else { return }
         if fileTransfer.remoteDirectoryPath != path {
             fileTransfer.navigateRemote(to: path)
