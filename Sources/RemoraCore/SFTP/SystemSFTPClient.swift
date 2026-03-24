@@ -1412,6 +1412,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     }
 
     private func makePrimarySFTPLaunchConfiguration() async -> BatchLaunchConfiguration {
+        let hasStoredPassword = await storedPasswordIfAvailable() != nil
+
         if host.auth.method == .password,
            let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
                baseExecutable: "/usr/bin/sftp",
@@ -1422,14 +1424,18 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             return passwordLaunch
         }
 
-        if host.auth.method == .password {
-            return makeSFTPLaunchConfiguration(batchMode: true, useConnectionReuse: false)
-        }
-
-        return makeSFTPLaunchConfiguration(batchMode: true, useConnectionReuse: true)
+        return makeSFTPLaunchConfiguration(
+            batchMode: true,
+            useConnectionReuse: SSHConnectionReusePolicy.shouldUseConnectionReuse(
+                authMethod: host.auth.method,
+                hasStoredPassword: hasStoredPassword
+            )
+        )
     }
 
     private func makePrimarySSHLaunchConfiguration(command: String) async -> BatchLaunchConfiguration {
+        let hasStoredPassword = await storedPasswordIfAvailable() != nil
+
         if host.auth.method == .password,
            let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
                baseExecutable: "/usr/bin/ssh",
@@ -1440,11 +1446,14 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             return passwordLaunch
         }
 
-        if host.auth.method == .password {
-            return makeSSHLaunchConfiguration(command: command, batchMode: true, useConnectionReuse: false)
-        }
-
-        return makeSSHLaunchConfiguration(command: command, batchMode: true, useConnectionReuse: true)
+        return makeSSHLaunchConfiguration(
+            command: command,
+            batchMode: true,
+            useConnectionReuse: SSHConnectionReusePolicy.shouldUseConnectionReuse(
+                authMethod: host.auth.method,
+                hasStoredPassword: hasStoredPassword
+            )
+        )
     }
 
     private func makeSFTPLaunchConfiguration(batchMode: Bool, useConnectionReuse: Bool) -> BatchLaunchConfiguration {

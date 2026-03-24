@@ -28,3 +28,12 @@ enum SSHConnectionReuse {
         return "/tmp/\(limited).sock"
     }
 }
+
+enum SSHConnectionReusePolicy {
+    static func shouldUseConnectionReuse(
+        authMethod: AuthenticationMethod,
+        hasStoredPassword: Bool
+    ) -> Bool {
+        authMethod != .password || !hasStoredPassword
+    }
+}

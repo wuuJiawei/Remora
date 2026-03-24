@@ -222,17 +222,29 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             return launchConfigurationOverride
         }
 
+        let storedPassword: String? = if host.auth.method == .password,
+                                         let passwordReference = host.auth.passwordReference,
+                                         !passwordReference.isEmpty,
+                                         let password = await credentialStore.secret(for: passwordReference),
+                                         !password.isEmpty {
+            password
+        } else {
+            nil
+        }
+        let hasStoredPassword = storedPassword != nil
+
         if host.auth.method == .password,
-           let passwordReference = host.auth.passwordReference,
-           !passwordReference.isEmpty,
-           let password = await credentialStore.secret(for: passwordReference),
-           !password.isEmpty,
+           hasStoredPassword,
+           let password = storedPassword,
            let launch = Self.makePasswordLaunchConfiguration(for: host, password: password)
         {
             return launch
         }
 
-        let useConnectionReuse = host.auth.method != .password
+        let useConnectionReuse = SSHConnectionReusePolicy.shouldUseConnectionReuse(
+            authMethod: host.auth.method,
+            hasStoredPassword: hasStoredPassword
+        )
         return Self.makeStandardLaunchConfiguration(for: host, useConnectionReuse: useConnectionReuse)
     }
 
