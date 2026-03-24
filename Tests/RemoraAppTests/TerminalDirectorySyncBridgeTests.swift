@@ -89,7 +89,11 @@ struct TerminalDirectorySyncBridgeTests {
         let recorder = TerminalCommandRecorder()
         let manager = SessionManager(
             sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+                RecordingSSHClient(
+                    recorder: recorder,
+                    initialDirectory: "/",
+                    workingDirectoryEventStyle: .osc7OnPrompt
+                )
             }
         )
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
@@ -126,7 +130,11 @@ struct TerminalDirectorySyncBridgeTests {
         let recorder = TerminalCommandRecorder()
         let manager = SessionManager(
             sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+                RecordingSSHClient(
+                    recorder: recorder,
+                    initialDirectory: "/",
+                    workingDirectoryEventStyle: .osc7OnPrompt
+                )
             }
         )
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
@@ -164,12 +172,12 @@ struct TerminalDirectorySyncBridgeTests {
                 RecordingSSHClient(
                     recorder: recorder,
                     initialDirectory: "/opt/service",
-                    pwdOutputStyle: .ansiWrapped
+                    pwdOutputStyle: .ansiWrapped,
+                    workingDirectoryEventStyle: .osc7OnPrompt
                 )
             }
         )
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
-        runtime.setWorkingDirectoryTrackingEnabled(true)
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -185,6 +193,12 @@ struct TerminalDirectorySyncBridgeTests {
             fileTransfer.remoteDirectoryPath == "/"
         }
         #expect(stillRoot)
+
+        let changed = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/opt/service"
+        }
+        #expect(changed)
+        guard changed else { return }
 
         fileTransfer.isTerminalDirectorySyncEnabled = true
 
@@ -203,12 +217,12 @@ struct TerminalDirectorySyncBridgeTests {
                 RecordingSSHClient(
                     recorder: recorder,
                     initialDirectory: "/opt/service",
-                    pwdOutputStyle: .ansiWrapped
+                    pwdOutputStyle: .ansiWrapped,
+                    workingDirectoryEventStyle: .osc7OnPrompt
                 )
             }
         )
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
-        runtime.setWorkingDirectoryTrackingEnabled(true)
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -241,6 +255,45 @@ struct TerminalDirectorySyncBridgeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func typedTerminalDirectoryChangePushesToFileManagerWhenSyncEnabled() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(
+                    recorder: recorder,
+                    initialDirectory: "/srv/app",
+                    workingDirectoryEventStyle: .osc7OnPrompt
+                )
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let bridge = TerminalDirectorySyncBridge()
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        bridge.bind(fileTransfer: fileTransfer, runtime: runtime)
+        fileTransfer.isTerminalDirectorySyncEnabled = true
+        await recorder.reset()
+
+        runtime.sendText("cd '/srv/app/releases'\n")
+
+        let synced = await waitUntil(timeout: 2.0) {
+            fileTransfer.remoteDirectoryPath == "/srv/app/releases"
+        }
+        #expect(synced, "File manager should follow terminal-entered directory changes when sync is enabled.")
+
+        let pwdCommands = await recorder.commands.filter { $0 == "pwd" }
+        #expect(pwdCommands.isEmpty, "Terminal-entered directory sync should not rely on pwd probes. observed commands: \(pwdCommands)")
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -250,5 +303,16 @@ struct TerminalDirectorySyncBridgeTests {
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
         return condition()
+    }
+
+    private func waitUntilAsync(timeout: TimeInterval, condition: @escaping () async -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return await condition()
     }
 }

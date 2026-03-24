@@ -275,7 +275,54 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         }
 
         args.append("\(host.username)@\(host.address)")
+        args.append(makeRemoteShellIntegrationCommand())
         return args
+    }
+
+    static func makeRemoteShellIntegrationCommand() -> String {
+        """
+        REMORA_SHELL_INTEGRATION=1; shell="${SHELL:-/bin/sh}";
+        case "$shell" in
+          */bash|bash)
+            tmp="${TMPDIR:-/tmp}/remora-bash-$$.rc"
+            cat >"$tmp" <<'REMORA_BASH_RC'
+        if [ -r ~/.bash_profile ]; then . ~/.bash_profile; elif [ -r ~/.profile ]; then . ~/.profile; fi
+        if [ -r ~/.bashrc ]; then . ~/.bashrc; fi
+        __remora_emit_cwd() { printf '\u{001B}]7;file://%s%s\u{001B}\\' "${HOSTNAME:-$(hostname 2>/dev/null || printf localhost)}" "$PWD"; }
+        PROMPT_COMMAND="__remora_emit_cwd${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+        __remora_emit_cwd
+        REMORA_BASH_RC
+            exec "$shell" --noprofile --rcfile "$tmp" -i
+            ;;
+          */zsh|zsh)
+            tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/remora-zsh.XXXXXX")" || exit 1
+            cat >"$tmpdir/.zshenv" <<'REMORA_ZSHENV'
+        if [ -r ~/.zshenv ]; then source ~/.zshenv; fi
+        REMORA_ZSHENV
+            cat >"$tmpdir/.zprofile" <<'REMORA_ZPROFILE'
+        if [ -r ~/.zprofile ]; then source ~/.zprofile; fi
+        REMORA_ZPROFILE
+            cat >"$tmpdir/.zshrc" <<'REMORA_ZSHRC'
+        if [ -r ~/.zshrc ]; then source ~/.zshrc; fi
+        function __remora_emit_cwd() { printf '\u{001B}]7;file://%s%s\u{001B}\\' "${HOST:-$(hostname 2>/dev/null || printf localhost)}" "$PWD"; }
+        autoload -Uz add-zsh-hook 2>/dev/null || true
+        if whence add-zsh-hook >/dev/null 2>&1; then
+          add-zsh-hook precmd __remora_emit_cwd
+        else
+          precmd_functions=(__remora_emit_cwd ${precmd_functions[@]})
+        fi
+        __remora_emit_cwd
+        REMORA_ZSHRC
+            cat >"$tmpdir/.zlogin" <<'REMORA_ZLOGIN'
+        if [ -r ~/.zlogin ]; then source ~/.zlogin; fi
+        REMORA_ZLOGIN
+            ZDOTDIR="$tmpdir" exec "$shell" -il
+            ;;
+          *)
+            exec "$shell" -il
+            ;;
+        esac
+        """
     }
 
     static func makeStandardLaunchConfiguration(for host: Host, useConnectionReuse: Bool = true) -> LaunchConfiguration {

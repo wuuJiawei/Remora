@@ -214,7 +214,6 @@ struct TerminalPaneView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isContentVisible)
         .animation(.easeInOut(duration: 0.18), value: pane.isAIAssistantVisible)
         .onAppear {
-            runtime.setWorkingDirectoryTrackingEnabled(true)
             aiAssistant.bind(to: pane.id)
             aiAssistant.refreshSmartAssist()
         }

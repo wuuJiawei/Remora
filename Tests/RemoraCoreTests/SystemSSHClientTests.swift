@@ -83,6 +83,31 @@ struct SystemSSHClientTests {
     }
 
     @Test
+    func standardLaunchConfigurationBootstrapsRemoteShellIntegration() {
+        let host = Host(
+            name: "ops",
+            address: "example.com",
+            username: "ubuntu",
+            auth: HostAuth(method: .agent)
+        )
+
+        let launch = ProcessSSHShellSession.makeStandardLaunchConfiguration(for: host)
+        let joinedArguments = launch.arguments.joined(separator: " ")
+
+        #expect(joinedArguments.contains("REMORA_SHELL_INTEGRATION"))
+        #expect(joinedArguments.contains("OSC 7") == false)
+        #expect(joinedArguments.contains("PROMPT_COMMAND") || joinedArguments.contains("add-zsh-hook"))
+    }
+
+    @Test
+    func remoteShellIntegrationCommandDoesNotContainEmbeddedNulCharacters() {
+        let command = ProcessSSHShellSession.makeRemoteShellIntegrationCommand()
+
+        #expect(command.unicodeScalars.contains("\0") == false)
+        #expect(command.contains("\u{001B}]7;file://"))
+    }
+
+    @Test
     func buildsPasswordLaunchConfigurationWithExplicitHelperTransport() {
         let host = Host(
             name: "prod",

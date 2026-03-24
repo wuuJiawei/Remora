@@ -31,19 +31,28 @@ actor RecordingSSHClient: SSHTransportClientProtocol {
         case ansiWrapped
     }
 
+    enum WorkingDirectoryEventStyle: Sendable {
+        case none
+        case osc7OnPrompt
+        case osc7WithSTTerminatorAndPromptNoise
+    }
+
     private let recorder: TerminalCommandRecorder
     private let initialDirectory: String
     private let pwdOutputStyle: PwdOutputStyle
+    private let workingDirectoryEventStyle: WorkingDirectoryEventStyle
     private var connectedHost: RemoraCore.Host?
 
     init(
         recorder: TerminalCommandRecorder,
         initialDirectory: String = "/",
-        pwdOutputStyle: PwdOutputStyle = .plain
+        pwdOutputStyle: PwdOutputStyle = .plain,
+        workingDirectoryEventStyle: WorkingDirectoryEventStyle = .none
     ) {
         self.recorder = recorder
         self.initialDirectory = initialDirectory
         self.pwdOutputStyle = pwdOutputStyle
+        self.workingDirectoryEventStyle = workingDirectoryEventStyle
     }
 
     func connect(to host: RemoraCore.Host) async throws {
@@ -59,7 +68,8 @@ actor RecordingSSHClient: SSHTransportClientProtocol {
             pty: pty,
             recorder: recorder,
             initialDirectory: initialDirectory,
-            pwdOutputStyle: pwdOutputStyle
+            pwdOutputStyle: pwdOutputStyle,
+            workingDirectoryEventStyle: workingDirectoryEventStyle
         )
     }
 
@@ -77,6 +87,7 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
     private let recorder: TerminalCommandRecorder
     private var currentDirectory: String
     private let pwdOutputStyle: RecordingSSHClient.PwdOutputStyle
+    private let workingDirectoryEventStyle: RecordingSSHClient.WorkingDirectoryEventStyle
     private var commandBuffer = ""
     private var isRunning = false
 
@@ -85,19 +96,22 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
         pty: PTYSize,
         recorder: TerminalCommandRecorder,
         initialDirectory: String,
-        pwdOutputStyle: RecordingSSHClient.PwdOutputStyle
+        pwdOutputStyle: RecordingSSHClient.PwdOutputStyle,
+        workingDirectoryEventStyle: RecordingSSHClient.WorkingDirectoryEventStyle
     ) {
         self.host = host
         self.pty = pty
         self.recorder = recorder
         self.currentDirectory = initialDirectory
         self.pwdOutputStyle = pwdOutputStyle
+        self.workingDirectoryEventStyle = workingDirectoryEventStyle
     }
 
     func start() async throws {
         isRunning = true
         onStateChange?(.running)
         emit("Connected to \(host.username)@\(host.address):\(host.port)\r\n")
+        emitWorkingDirectoryIfNeeded()
     }
 
     func write(_ data: Data) async throws {
@@ -141,13 +155,18 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
             case .ansiWrapped:
                 emit("\u{001B}[?2004l\(currentDirectory)\r\n\u{001B}[?2004h")
             }
+            emitWorkingDirectoryIfNeeded()
             return
         }
 
-        guard command.hasPrefix("cd ") else { return }
-        let argument = String(command.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-        guard let parsedDirectory = parseShellSingleQuoted(argument), !parsedDirectory.isEmpty else { return }
-        currentDirectory = parsedDirectory
+        if command.hasPrefix("cd ") {
+            let argument = String(command.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+            if let parsedDirectory = parseShellSingleQuoted(argument), !parsedDirectory.isEmpty {
+                currentDirectory = parsedDirectory
+            }
+        }
+
+        emitWorkingDirectoryIfNeeded()
     }
 
     private func parseShellSingleQuoted(_ value: String) -> String? {
@@ -159,5 +178,17 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
     private func emit(_ text: String) {
         guard let data = text.data(using: .utf8) else { return }
         onOutput?(data)
+    }
+
+    private func emitWorkingDirectoryIfNeeded() {
+        let hostName = host.address.isEmpty ? "localhost" : host.address
+        switch workingDirectoryEventStyle {
+        case .none:
+            return
+        case .osc7OnPrompt:
+            emit("\u{001B}]7;file://\(hostName)\(currentDirectory)\u{0007}")
+        case .osc7WithSTTerminatorAndPromptNoise:
+            emit("\u{001B}]7;file://\(hostName)\(currentDirectory)\u{001B}\\\u{001B}[?2004h\u{001B}]0;root@\(hostName): ~\u{0007}")
+        }
     }
 }

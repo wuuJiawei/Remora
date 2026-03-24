@@ -200,11 +200,6 @@ final class TerminalRuntime: ObservableObject {
                     isReconnecting = false
                 }
                 await self.applyPendingResizeIfNeeded()
-                if await MainActor.run(body: { isWorkingDirectoryTrackingEnabled }) {
-                    await MainActor.run {
-                        scheduleWorkingDirectoryProbe()
-                    }
-                }
             } catch {
                 await MainActor.run {
                     connectionState = "Failed: \(error.localizedDescription)"
@@ -229,9 +224,7 @@ final class TerminalRuntime: ObservableObject {
 
     func setWorkingDirectoryTrackingEnabled(_ enabled: Bool) {
         isWorkingDirectoryTrackingEnabled = enabled
-        if enabled {
-            scheduleWorkingDirectoryProbe()
-        } else {
+        if !enabled {
             pendingWorkingDirectoryProbeTask?.cancel()
             pendingWorkingDirectoryProbeTask = nil
             awaitingPwdResponse = false
@@ -244,9 +237,6 @@ final class TerminalRuntime: ObservableObject {
         workingDirectory = normalized
         let quotedPath = shellSingleQuoted(normalized)
         enqueueInput(Data("cd \(quotedPath)\n".utf8), trackWorkingDirectory: false)
-        if isWorkingDirectoryTrackingEnabled {
-            scheduleWorkingDirectoryProbe()
-        }
     }
 
     func resize(columns: Int, rows: Int) {
@@ -556,12 +546,6 @@ final class TerminalRuntime: ObservableObject {
 
             do {
                 try await manager.write(queuedInput.data, to: sessionID)
-                if queuedInput.trackWorkingDirectory,
-                   isWorkingDirectoryTrackingEnabled,
-                   queuedInput.data.contains(where: { $0 == 10 || $0 == 13 })
-                {
-                    scheduleWorkingDirectoryProbe()
-                }
             } catch {
                 connectionState = "Write failed: \(error.localizedDescription)"
                 return
@@ -773,7 +757,6 @@ final class TerminalRuntime: ObservableObject {
     }
 
     private func updateWorkingDirectory(with chunk: String) {
-        guard isWorkingDirectoryTrackingEnabled else { return }
         if let oscPath = parseOSC7Path(from: chunk) {
             workingDirectory = normalizeDirectoryPath(oscPath)
             awaitingPwdResponse = false
@@ -801,8 +784,18 @@ final class TerminalRuntime: ObservableObject {
         let oscPrefix = "\u{001B}]7;file://"
         guard let prefixRange = text.range(of: oscPrefix) else { return nil }
         let remainder = text[prefixRange.upperBound...]
-        let terminatorIndex: String.Index? = remainder.firstIndex(of: "\u{0007}")
-            ?? remainder.range(of: "\u{001B}\\")?.lowerBound
+        let belIndex = remainder.firstIndex(of: "\u{0007}")
+        let stIndex = remainder.range(of: "\u{001B}\\")?.lowerBound
+        let terminatorIndex: String.Index? = switch (belIndex, stIndex) {
+        case let (bel?, st?):
+            min(bel, st)
+        case let (bel?, nil):
+            bel
+        case let (nil, st?):
+            st
+        case (nil, nil):
+            nil
+        }
         guard let terminatorIndex else { return nil }
         let payload = String(remainder[..<terminatorIndex])
         guard let slashIndex = payload.firstIndex(of: "/") else { return nil }

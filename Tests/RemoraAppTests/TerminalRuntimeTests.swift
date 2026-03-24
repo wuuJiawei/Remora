@@ -203,60 +203,197 @@ struct TerminalRuntimeTests {
     }
 
     @Test
-    func workingDirectoryTrackingFallsBackToPwdProbe() async {
-        let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/srv/app")
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
-
-        runtime.setWorkingDirectoryTrackingEnabled(true)
-        runtime.connectLocalShell()
-
-        let initialDetected = await waitUntil(timeout: 3.5) {
-            runtime.workingDirectory == "/srv/app"
-        }
-        #expect(initialDetected, "Tracking should discover the current directory from pwd output.")
-        guard initialDetected else { return }
-
-        await recorder.reset()
-        runtime.changeDirectory(to: "/srv/app/logs")
-
-        let movedDetected = await waitUntil(timeout: 3.5) {
-            runtime.workingDirectory == "/srv/app/logs"
-        }
-        #expect(movedDetected, "Working directory should converge to the moved path.")
-
-        let probeIssued = await waitUntilAsync(timeout: 3.5) {
-            await recorder.commands.contains("pwd")
-        }
-        #expect(probeIssued, "Runtime should issue a pwd fallback probe after cd.")
-        runtime.disconnect()
-    }
-
-    @Test
-    func workingDirectoryProbeHandlesAnsiWrappedPwdOutput() async {
+    func workingDirectoryTrackingDoesNotProbeImmediatelyOnConnect() async {
         let recorder = TerminalCommandRecorder()
         let manager = SessionManager(
             sshClientFactory: {
                 RecordingSSHClient(
                     recorder: recorder,
-                    initialDirectory: "/var/www/app",
-                    pwdOutputStyle: .ansiWrapped
+                    initialDirectory: "/srv/app",
+                    workingDirectoryEventStyle: .osc7OnPrompt
                 )
             }
         )
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
-        runtime.connectLocalShell()
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
 
-        let detected = await waitUntil(timeout: 2.0) {
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        let initialDetected = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/srv/app"
+        }
+        #expect(initialDetected, "Shell integration should publish the initial SSH working directory.")
+
+        try? await Task.sleep(nanoseconds: 450_000_000)
+        let automaticPwdIssued = await recorder.commands.contains("pwd")
+        #expect(automaticPwdIssued == false, "Tracking should not inject pwd immediately on SSH connect.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func workingDirectoryTrackingDoesNotProbeAfterArbitraryCommandSubmission() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(
+                    recorder: recorder,
+                    initialDirectory: "/srv/app",
+                    workingDirectoryEventStyle: .osc7OnPrompt
+                )
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.setWorkingDirectoryTrackingEnabled(true)
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        try? await Task.sleep(nanoseconds: 450_000_000)
+        await recorder.reset()
+
+        runtime.sendText("whoami\n")
+
+        let executed = await waitUntilAsync(timeout: 2.0) {
+            await recorder.commands.contains("whoami")
+        }
+        #expect(executed, "Typed command should execute normally.")
+        guard executed else { return }
+
+        try? await Task.sleep(nanoseconds: 450_000_000)
+        let unexpectedPwdIssued = await recorder.commands.contains("pwd")
+        #expect(unexpectedPwdIssued == false, "Tracking should not inject pwd after arbitrary commands.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func workingDirectoryTrackingFollowsTypedDirectoryChangesViaShellIntegration() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(
+                    recorder: recorder,
+                    initialDirectory: "/srv/app",
+                    workingDirectoryEventStyle: .osc7OnPrompt
+                )
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.setWorkingDirectoryTrackingEnabled(true)
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        let initialDetected = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/srv/app"
+        }
+        #expect(initialDetected)
+        guard initialDetected else { return }
+
+        await recorder.reset()
+
+        runtime.sendText("cd '/srv/app/logs'\n")
+
+        let movedDetected = await waitUntil(timeout: 3.5) {
+            runtime.workingDirectory == "/srv/app/logs"
+        }
+        #expect(movedDetected, "Shell integration should update working directory after typed cd.")
+
+        let typedCdExecuted = await waitUntilAsync(timeout: 2.0) {
+            await recorder.commands.contains("cd '/srv/app/logs'")
+        }
+        #expect(typedCdExecuted)
+
+        let probeIssued = await recorder.commands.contains("pwd")
+        #expect(probeIssued == false, "Shell integration should replace pwd fallback after typed cd.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func workingDirectoryTrackingHandlesOSC7DirectoryEvents() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(
+                    recorder: recorder,
+                    initialDirectory: "/var/www/app",
+                    pwdOutputStyle: .ansiWrapped,
+                    workingDirectoryEventStyle: .osc7OnPrompt
+                )
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.setWorkingDirectoryTrackingEnabled(true)
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        let initialDetected = await waitUntil(timeout: 2.0) {
             runtime.workingDirectory == "/var/www/app"
         }
-        #expect(detected, "ANSI-wrapped pwd output should still update workingDirectory.")
+        #expect(initialDetected)
+        guard initialDetected else { return }
+
+        await recorder.reset()
+        runtime.sendText("cd '/var/www/app/releases'\n")
+
+        let detected = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/var/www/app/releases"
+        }
+        #expect(detected, "OSC 7 directory events should update workingDirectory without pwd probes.")
+
+        let probeIssued = await recorder.commands.contains("pwd")
+        #expect(probeIssued == false, "OSC 7 tracking should not need pwd fallback.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func workingDirectoryTrackingHandlesSTTerminatedOSC7BeforePromptNoise() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(
+                    recorder: recorder,
+                    initialDirectory: "/root",
+                    workingDirectoryEventStyle: .osc7WithSTTerminatorAndPromptNoise
+                )
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "root", privateKeyPath: nil)
+
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        let detected = await waitUntil(timeout: 2.0) {
+            runtime.workingDirectory == "/root"
+        }
+        #expect(detected, "ST-terminated OSC 7 should stop before later title/prompt escape sequences.")
+        #expect(runtime.workingDirectory?.contains("\u{001B}") == false)
         runtime.disconnect()
     }
 
