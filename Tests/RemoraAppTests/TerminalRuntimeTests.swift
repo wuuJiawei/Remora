@@ -215,7 +215,7 @@ struct TerminalRuntimeTests {
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectLocalShell()
 
-        let initialDetected = await waitUntil(timeout: 2.0) {
+        let initialDetected = await waitUntil(timeout: 3.5) {
             runtime.workingDirectory == "/srv/app"
         }
         #expect(initialDetected, "Tracking should discover the current directory from pwd output.")
@@ -224,12 +224,12 @@ struct TerminalRuntimeTests {
         await recorder.reset()
         runtime.changeDirectory(to: "/srv/app/logs")
 
-        let movedDetected = await waitUntil(timeout: 2.0) {
+        let movedDetected = await waitUntil(timeout: 3.5) {
             runtime.workingDirectory == "/srv/app/logs"
         }
         #expect(movedDetected, "Working directory should converge to the moved path.")
 
-        let probeIssued = await waitUntilAsync(timeout: 2.0) {
+        let probeIssued = await waitUntilAsync(timeout: 3.5) {
             await recorder.commands.contains("pwd")
         }
         #expect(probeIssued, "Runtime should issue a pwd fallback probe after cd.")

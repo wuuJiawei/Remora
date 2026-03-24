@@ -178,8 +178,13 @@ struct TerminalAIAssistantCoordinatorTests {
             try await coordinator.submit("Explain this")
         }
         await Task.yield()
-        try? await Task.sleep(nanoseconds: 80_000_000)
+        let placeholderVisible = await waitUntil(timeout: 1.0) {
+            coordinator.messages.count == 2
+                && coordinator.messages.last?.isThinking == true
+                && coordinator.messages.last?.response == nil
+        }
 
+        #expect(placeholderVisible)
         #expect(coordinator.messages.count == 2)
         #expect(coordinator.messages.last?.isThinking == true)
         #expect(coordinator.messages.last?.response == nil)
@@ -212,8 +217,13 @@ struct TerminalAIAssistantCoordinatorTests {
             try await coordinator.submit("Explain this")
         }
         await Task.yield()
-        try? await Task.sleep(nanoseconds: 90_000_000)
+        let didStartStreaming = await waitUntil(timeout: 1.5) {
+            coordinator.messages.last?.isStreaming == true
+                && (coordinator.messages.last?.streamedText ?? "").isEmpty == false
+                && coordinator.messages.last?.response == nil
+        }
 
+        #expect(didStartStreaming)
         #expect(coordinator.messages.last?.isStreaming == true)
         #expect((coordinator.messages.last?.streamedText ?? "").isEmpty == false)
         #expect(coordinator.messages.last?.response == nil)
@@ -244,16 +254,29 @@ struct TerminalAIAssistantCoordinatorTests {
         coordinator.bind(to: UUID())
 
         let firstTask = Task { try await coordinator.submit("first") }
-        await Task.yield()
-        try? await Task.sleep(nanoseconds: 40_000_000)
+        let firstInFlight = await waitUntil(timeout: 1.0) {
+            coordinator.isResponding
+                && coordinator.messages.count == 2
+                && coordinator.messages.last?.isThinking == true
+        }
+        #expect(firstInFlight)
 
         try await coordinator.submit("second")
+        let queued = await waitUntil(timeout: 1.0) {
+            coordinator.queuedPrompts.count == 1 && coordinator.queuedPrompts.first?.text == "second"
+        }
+        #expect(queued)
         #expect(coordinator.queuedPrompts.count == 1)
         #expect(coordinator.queuedPrompts.first?.text == "second")
 
         _ = await firstTask.result
-        try? await Task.sleep(nanoseconds: 80_000_000)
+        let processed = await waitUntil(timeout: 1.0) {
+            coordinator.queuedPrompts.isEmpty
+                && coordinator.messages.contains(where: { $0.prompt == "second" })
+                && coordinator.messages.last?.response?.summary == "Second done"
+        }
 
+        #expect(processed)
         #expect(coordinator.queuedPrompts.isEmpty)
         #expect(coordinator.messages.contains(where: { $0.prompt == "second" }))
         #expect(coordinator.messages.last?.response?.summary == "Second done")
@@ -302,6 +325,17 @@ struct TerminalAIAssistantCoordinatorTests {
                 try? FileManager.default.removeItem(at: root)
             }
         )
+    }
+
+    private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        return condition()
     }
 }
 
