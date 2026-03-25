@@ -43,6 +43,34 @@ struct ServerStatusWindowTests {
         #expect(loadingHeight == initialHeight, "Server Status should not grow when metrics refresh silently.")
     }
 
+    @Test
+    func monitoringWindowUsesExpandedDashboardWidth() async {
+        _ = NSApplication.shared
+
+        let manager = ServerStatusWindowManager()
+        let metricsCenter = ServerMetricsCenter(
+            activeRefreshInterval: 0,
+            inactiveRefreshInterval: 0,
+            retentionInterval: 45,
+            maxConcurrentFetches: 1
+        )
+        let runtime = TerminalRuntime()
+        let host = Host(
+            name: "prod-api",
+            address: "192.0.2.10",
+            username: "root",
+            group: "Production",
+            auth: HostAuth(method: .agent)
+        )
+
+        metricsCenter.updateTrackedHosts([host], activeHost: host)
+        manager.present(host: host, runtime: runtime, metricsCenter: metricsCenter)
+        defer { closeServerStatusWindows() }
+
+        let width = serverStatusWindows().first?.frame.width ?? 0
+        #expect(width >= 420, "Server Status window should expand into a dashboard-style width.")
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping @MainActor () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

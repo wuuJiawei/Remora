@@ -31,8 +31,8 @@ final class ServerStatusWindowManager: ObservableObject {
         nextWindow.title = L10n.tr("Server Status", fallback: "Server Status")
         nextWindow.identifier = NSUserInterfaceItemIdentifier("remora.server-status-window")
         nextWindow.styleMask = [.titled, .closable, .miniaturizable]
-        nextWindow.setContentSize(NSSize(width: 300, height: 620))
-        nextWindow.minSize = NSSize(width: 300, height: 480)
+        nextWindow.setContentSize(NSSize(width: 472, height: 720))
+        nextWindow.minSize = NSSize(width: 436, height: 560)
         nextWindow.isReleasedWhenClosed = false
         window = nextWindow
     }
@@ -98,7 +98,6 @@ final class ServerStatusWindowContext: ObservableObject {
 private struct ServerStatusWindowView: View {
     @ObservedObject var context: ServerStatusWindowContext
     @ObservedObject var metricsCenter: ServerMetricsCenter
-    @State private var isExtendedMetricsExpanded = true
 
     var body: some View {
         ZStack {
@@ -114,167 +113,17 @@ private struct ServerStatusWindowView: View {
                 )
             }
         }
-        .frame(minWidth: 300, minHeight: 480)
-        .frame(width: 300)
+        .frame(minWidth: 436, minHeight: 560)
+        .frame(width: 472)
     }
 
     private func statusContent(for host: RemoraCore.Host) -> some View {
         let state = metricsCenter.state(for: host) ?? .idle
-        let snapshot = state.snapshot
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(tr("Server Status"))
-                        .font(.system(size: 21, weight: .bold))
-                        .foregroundStyle(VisualStyle.textPrimary)
-                    Text("\(host.username)@\(host.address):\(host.port)")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(VisualStyle.textSecondary)
-                    Text(localizedConnectionState(context.runtime?.connectionState ?? "Disconnected"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(VisualStyle.textSecondary)
-                }
-
-                HStack(alignment: .bottom, spacing: 16) {
-                    ServerStatusMetricColumn(
-                        title: tr("CPU"),
-                        fraction: snapshot?.cpuFraction,
-                        color: .green
-                    )
-                    ServerStatusMetricColumn(
-                        title: tr("MEM"),
-                        fraction: snapshot?.memoryFraction,
-                        color: .orange
-                    )
-                    ServerStatusMetricColumn(
-                        title: tr("DISK"),
-                        fraction: snapshot?.diskFraction,
-                        color: .blue
-                    )
-                }
-                .padding(.vertical, 2)
-
-                Divider()
-                    .overlay(VisualStyle.borderSoft)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    statusLine(tr("Memory"), "\(formatBytes(snapshot?.memoryUsedBytes))/\(formatBytes(snapshot?.memoryTotalBytes))")
-                    statusLine(tr("Disk"), "\(formatBytes(snapshot?.diskUsedBytes))/\(formatBytes(snapshot?.diskTotalBytes))")
-                    statusLine(tr("Load(1m)"), formatLoad(snapshot?.loadAverage1))
-                    statusLine(tr("Uptime"), formatUptime(snapshot?.uptimeSeconds))
-                    statusLine(tr("Sampled"), snapshot.map { formatTimestamp($0.sampledAt) } ?? "--")
-                }
-                .font(.system(size: 12, design: .monospaced))
-
-                DisclosureGroup(isExpanded: $isExtendedMetricsExpanded) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        statusLine(tr("Processes"), formatCount(snapshot?.processCount))
-                        statusLine(tr("Net RX"), formatBytes(snapshot?.networkRXBytes))
-                        statusLine(tr("Net TX"), formatBytes(snapshot?.networkTXBytes))
-                        statusLine(tr("Disk Read"), formatBytes(snapshot?.diskReadBytes))
-                        statusLine(tr("Disk Write"), formatBytes(snapshot?.diskWriteBytes))
-                        Text(tr("Network and disk IO values are cumulative since server boot."))
-                            .font(.system(size: 11))
-                            .foregroundStyle(VisualStyle.textSecondary)
-                    }
-                    .padding(.top, 6)
-                } label: {
-                    Text(tr("Process / Network / Disk IO"))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(VisualStyle.textPrimary)
-                }
-                .animation(.easeInOut(duration: 0.16), value: isExtendedMetricsExpanded)
-
-                if let errorMessage = state.errorMessage, !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red)
-                        .lineLimit(5)
-                }
-            }
-            .padding(14)
-        }
-    }
-
-    private func statusLine(_ label: String, _ value: String) -> some View {
-        HStack {
-            Text(label)
-                .foregroundStyle(VisualStyle.textSecondary)
-                .frame(width: 88, alignment: .leading)
-            Text(value)
-                .foregroundStyle(VisualStyle.textPrimary)
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func formatBytes(_ value: Int64?) -> String {
-        guard let value else { return "--" }
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useGB, .useMB]
-        formatter.countStyle = .binary
-        formatter.isAdaptive = true
-        return formatter.string(fromByteCount: value)
-    }
-
-    private func formatLoad(_ value: Double?) -> String {
-        guard let value else { return "--" }
-        return String(format: "%.2f", value)
-    }
-
-    private func formatUptime(_ seconds: Int64?) -> String {
-        guard let seconds, seconds >= 0 else { return "--" }
-        let days = seconds / 86_400
-        let hours = (seconds % 86_400) / 3_600
-        let minutes = (seconds % 3_600) / 60
-        if days > 0 {
-            return "\(days)d \(hours)h \(minutes)m"
-        }
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        }
-        return "\(minutes)m"
-    }
-
-    private func formatTimestamp(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter.string(from: date)
-    }
-
-    private func formatCount(_ value: Int64?) -> String {
-        guard let value else { return "--" }
-        return "\(value)"
-    }
-}
-
-private struct ServerStatusMetricColumn: View {
-    let title: String
-    let fraction: Double?
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 6) {
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(VisualStyle.metricTrackBackground)
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(color.opacity(0.9))
-                    .frame(height: max(2, CGFloat(clampedFraction) * 156))
-            }
-            .frame(width: 46, height: 156)
-
-            Text(title)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(VisualStyle.textSecondary)
-            Text(fraction.map { "\(Int(($0 * 100).rounded()))%" } ?? "--")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(VisualStyle.textPrimary)
-        }
-    }
-
-    private var clampedFraction: Double {
-        guard let fraction else { return 0.03 }
-        return min(max(fraction, 0), 1)
+        return ServerMetricsPanel(
+            hostTitle: "\(host.username)@\(host.address):\(host.port)",
+            connectionState: localizedConnectionState(context.runtime?.connectionState ?? "Disconnected"),
+            state: state
+        )
+        .padding(16)
     }
 }

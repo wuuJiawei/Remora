@@ -56,11 +56,11 @@ struct ServerMetricsPanel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             header
             content
         }
-        .frame(width: 280, alignment: .leading)
+        .frame(width: 456, alignment: .leading)
         .accessibilityIdentifier("server-metrics-panel")
     }
 
@@ -69,6 +69,7 @@ struct ServerMetricsPanel: View {
         if let snapshot {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
+                    summarySection(snapshot)
                     overviewSection(snapshot)
                     processSection(snapshot)
                     transferSection(snapshot)
@@ -91,19 +92,23 @@ struct ServerMetricsPanel: View {
         } else {
             ServerMetricsPlaceholderCard(
                 title: tr("No metrics yet."),
-                message: tr("Hover again after the SSH session finishes its first sampling cycle.")
+                message: tr("Metrics will appear after the first sampling cycle.")
             )
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(hostTitle)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+        VStack(alignment: .leading, spacing: 8) {
+            Text(tr("Server Status"))
+                .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(VisualStyle.textPrimary)
+
+            Text(hostTitle)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundStyle(VisualStyle.textSecondary)
                 .lineLimit(1)
 
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 ServerMetricsInfoChip(
                     title: tr("State"),
                     value: connectionState,
@@ -124,10 +129,25 @@ struct ServerMetricsPanel: View {
                 }
             }
         }
+        .padding(14)
+        .background(VisualStyle.elevatedSurfaceBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(VisualStyle.borderSoft, lineWidth: 1)
+        )
+    }
+
+    private func summarySection(_ snapshot: ServerResourceMetricsSnapshot) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            ServerMetricsStatTile(title: tr("Load 1m"), value: formatLoad(snapshot.loadAverage1), tint: .orange)
+            ServerMetricsStatTile(title: tr("Load 5m"), value: formatLoad(snapshot.loadAverage5), tint: .yellow)
+            ServerMetricsStatTile(title: tr("Load 15m"), value: formatLoad(snapshot.loadAverage15), tint: .brown)
+            ServerMetricsStatTile(title: tr("Processes"), value: formatCount(snapshot.processCount), tint: .mint)
+        }
     }
 
     private func overviewSection(_ snapshot: ServerResourceMetricsSnapshot) -> some View {
-        ServerMetricsSectionCard(title: tr("Overview"), accent: .blue) {
+        ServerMetricsSectionCard(title: tr("Resources"), accent: .blue) {
             VStack(spacing: 8) {
                 ServerMetricsUsageRow(
                     title: tr("CPU"),
@@ -186,7 +206,7 @@ struct ServerMetricsPanel: View {
     }
 
     private func transferSection(_ snapshot: ServerResourceMetricsSnapshot) -> some View {
-        ServerMetricsSectionCard(title: tr("Traffic & IO"), accent: .mint) {
+        ServerMetricsSectionCard(title: tr("Network & Disk IO"), accent: .mint) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     ServerMetricsStatTile(title: tr("RX/s"), value: formatRate(delta.networkRXBytesPerSecond), tint: .green)
@@ -275,6 +295,11 @@ struct ServerMetricsPanel: View {
                 return String(format: "%.2f", value)
             }
             .joined(separator: " ")
+    }
+
+    private func formatLoad(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        return String(format: "%.2f", value)
     }
 
     private func formatPercent(_ fraction: Double?) -> String {

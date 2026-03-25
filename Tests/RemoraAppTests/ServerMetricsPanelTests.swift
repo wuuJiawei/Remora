@@ -86,12 +86,12 @@ struct ServerMetricsPanelTests {
             )
             .environment(\.colorScheme, colorScheme)
         )
-        renderer.proposedSize = .init(width: 320, height: 720)
+        renderer.proposedSize = .init(width: 472, height: 720)
         renderer.scale = 1
 
         let image = renderer.nsImage
         #expect(image != nil, "Panel should render in \(String(describing: colorScheme)) mode.")
-        #expect(image?.size.width ?? 0 >= 260, "Rendered panel should keep a readable width in \(String(describing: colorScheme)) mode.")
+        #expect(image?.size.width ?? 0 >= 420, "Rendered panel should keep a readable dashboard width in \(String(describing: colorScheme)) mode.")
         #expect(image?.size.height ?? 0 >= 300, "Rendered panel should keep a readable height in \(String(describing: colorScheme)) mode.")
     }
 }
