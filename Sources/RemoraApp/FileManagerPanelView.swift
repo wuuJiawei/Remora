@@ -1008,24 +1008,24 @@ struct FileManagerPanelView: View {
 
     @ViewBuilder
     private var panelContextMenu: some View {
-        Button(tr("Refresh")) {
+        contextMenuButton(tr("Refresh"), systemImage: ContextMenuIconCatalog.refresh) {
             viewModel.performContextAction(.refresh)
         }
 
         Divider()
 
-        Button(tr("New File")) {
+        contextMenuButton(tr("New File"), systemImage: ContextMenuIconCatalog.newFile) {
             beginCreateRemote(kind: .file, in: viewModel.remoteDirectoryPath)
         }
 
-        Button(tr("New Folder")) {
+        contextMenuButton(tr("New Folder"), systemImage: ContextMenuIconCatalog.newFolder) {
             beginCreateRemote(kind: .directory, in: viewModel.remoteDirectoryPath)
         }
 
         Divider()
 
         if viewModel.canPaste(into: viewModel.remoteDirectoryPath) {
-            Button(tr("Paste")) {
+            contextMenuButton(tr("Paste"), systemImage: ContextMenuIconCatalog.paste) {
                 performRemoteContextAction(
                     .paste(destinationDirectory: viewModel.remoteDirectoryPath),
                     feedback: makePasteFeedback(destination: viewModel.remoteDirectoryPath)
@@ -1033,14 +1033,14 @@ struct FileManagerPanelView: View {
             }
         }
 
-        Button(tr("Upload To Current Directory")) {
+        contextMenuButton(tr("Upload To Current Directory"), systemImage: ContextMenuIconCatalog.upload) {
             presentUploadPanel(targetDirectory: viewModel.remoteDirectoryPath)
         }
 
         if !selectedRemotePaths.isEmpty {
             Divider()
 
-            Button(tr("Compress Selected")) {
+            contextMenuButton(tr("Compress Selected"), systemImage: ContextMenuIconCatalog.compress) {
                 beginCompress(paths: Array(selectedRemotePaths))
             }
 
@@ -1050,7 +1050,7 @@ struct FileManagerPanelView: View {
                !selectedEntry.isDirectory,
                ArchiveFormat.extractFormat(for: selectedEntry.name) != nil
             {
-                Button(tr("Extract To")) {
+                contextMenuButton(tr("Extract To"), systemImage: ContextMenuIconCatalog.extract) {
                     beginExtract(path: selectedEntry.path, destinationDirectory: viewModel.remoteDirectoryPath)
                 }
             }
@@ -1059,35 +1059,24 @@ struct FileManagerPanelView: View {
 
     @ViewBuilder
     private func rowContextMenu(for entry: RemoteFileEntry) -> some View {
-        Button(tr("Refresh")) {
+        contextMenuButton(tr("Refresh"), systemImage: ContextMenuIconCatalog.refresh) {
             viewModel.performContextAction(.refresh)
         }
 
         Divider()
 
-        Button(tr("Delete"), role: .destructive) {
-            performRemoteContextAction(
-                .delete(paths: [entry.path]),
-                feedback: makeDeleteFeedback(count: 1)
-            )
-            selectedRemotePaths.remove(entry.path)
-            if selectionAnchorRemotePath == entry.path {
-                selectionAnchorRemotePath = nil
-            }
-        }
-
-        Button(tr("Rename")) {
+        contextMenuButton(tr("Rename"), systemImage: ContextMenuIconCatalog.rename) {
             beginRename(path: entry.path)
         }
 
-        Button(tr("Copy")) {
+        contextMenuButton(tr("Copy"), systemImage: ContextMenuIconCatalog.copy) {
             performRemoteContextAction(
                 .copy(paths: [entry.path]),
                 feedback: makeCopyFeedback(count: 1)
             )
         }
 
-        Button(tr("Cut")) {
+        contextMenuButton(tr("Cut"), systemImage: "scissors") {
             performRemoteContextAction(
                 .cut(paths: [entry.path]),
                 feedback: makeCutFeedback(count: 1)
@@ -1095,7 +1084,7 @@ struct FileManagerPanelView: View {
         }
 
         if viewModel.canPaste(into: entry.isDirectory ? entry.path : viewModel.remoteDirectoryPath) {
-            Button(tr("Paste")) {
+            contextMenuButton(tr("Paste"), systemImage: ContextMenuIconCatalog.paste) {
                 let destination = entry.isDirectory ? entry.path : viewModel.remoteDirectoryPath
                 performRemoteContextAction(
                     .paste(destinationDirectory: destination),
@@ -1105,11 +1094,11 @@ struct FileManagerPanelView: View {
         }
 
         if entry.isDirectory {
-            Button(tr("New File Here")) {
+            contextMenuButton(tr("New File Here"), systemImage: ContextMenuIconCatalog.newFile) {
                 beginCreateRemote(kind: .file, in: entry.path)
             }
 
-            Button(tr("New Folder Here")) {
+            contextMenuButton(tr("New Folder Here"), systemImage: ContextMenuIconCatalog.newFolder) {
                 beginCreateRemote(kind: .directory, in: entry.path)
             }
         }
@@ -1119,7 +1108,7 @@ struct FileManagerPanelView: View {
             && selectedRemotePaths.contains(entry.path)
 
         if shouldSplitDownloadActions {
-            Button(tr("Download Current")) {
+            contextMenuButton(tr("Download Current"), systemImage: ContextMenuIconCatalog.download) {
                 performRemoteContextAction(
                     .download(paths: [entry.path]),
                     feedback: makeDownloadQueuedFeedback(count: 1)
@@ -1127,7 +1116,7 @@ struct FileManagerPanelView: View {
             }
             .disabled(entry.isDirectory)
 
-            Button("\(tr("Download Selected")) (\(selectedDownloadPaths.count))") {
+            contextMenuButton("\(tr("Download Selected")) (\(selectedDownloadPaths.count))", systemImage: ContextMenuIconCatalog.download) {
                 performRemoteContextAction(
                     .download(paths: selectedDownloadPaths),
                     feedback: makeDownloadQueuedFeedback(count: selectedDownloadPaths.count)
@@ -1135,7 +1124,7 @@ struct FileManagerPanelView: View {
             }
             .disabled(selectedDownloadPaths.isEmpty)
         } else {
-            Button(tr("Download")) {
+            contextMenuButton(tr("Download"), systemImage: ContextMenuIconCatalog.download) {
                 performRemoteContextAction(
                     .download(paths: [entry.path]),
                     feedback: makeDownloadQueuedFeedback(count: 1)
@@ -1144,54 +1133,67 @@ struct FileManagerPanelView: View {
             .disabled(entry.isDirectory)
         }
 
-        Button(tr("Move To")) {
+        contextMenuButton(tr("Move To"), systemImage: ContextMenuIconCatalog.moveTo) {
             moveSourcePaths = [entry.path]
             moveTargetPath = viewModel.remoteDirectoryPath
             isMoveSheetPresented = true
         }
 
-        Button(tr("Compress")) {
+        contextMenuButton(tr("Compress"), systemImage: ContextMenuIconCatalog.compress) {
             beginCompress(paths: [entry.path])
         }
 
         Divider()
 
         if !entry.isDirectory {
-            Button(tr("Live View")) {
+            contextMenuButton(tr("Live View"), systemImage: ContextMenuIconCatalog.liveView) {
                 beginViewLog(entry)
             }
 
-            Button(tr("Edit")) {
+            contextMenuButton(tr("Edit"), systemImage: ContextMenuIconCatalog.edit) {
                 beginEdit(entry)
             }
         }
 
-        Button(tr("Copy Path")) {
+        contextMenuButton(tr("Copy Path"), systemImage: ContextMenuIconCatalog.copyPath) {
             copyToPasteboard(entry.path)
         }
 
-        Button(tr("Copy Name")) {
+        contextMenuButton(tr("Copy Name"), systemImage: ContextMenuIconCatalog.copy) {
             copyToPasteboard(entry.name)
         }
 
-        Button(tr("Properties")) {
+        contextMenuButton(tr("Properties"), systemImage: ContextMenuIconCatalog.properties) {
             propertiesTargetPath = entry.path
         }
 
         if !entry.isDirectory, ArchiveFormat.extractFormat(for: entry.name) != nil {
-            Button(tr("Extract To")) {
+            contextMenuButton(tr("Extract To"), systemImage: ContextMenuIconCatalog.extract) {
                 beginExtract(path: entry.path, destinationDirectory: viewModel.remoteDirectoryPath)
             }
         }
 
-        Button(tr("Edit Permissions")) {
+        contextMenuButton(tr("Edit Permissions"), systemImage: ContextMenuIconCatalog.permissions) {
             permissionsEditorTargetPath = entry.path
         }
 
         if entry.isDirectory {
             Divider()
-            Button(tr("Upload To Current Directory")) {
+            contextMenuButton(tr("Upload To Current Directory"), systemImage: ContextMenuIconCatalog.upload) {
                 presentUploadPanel(targetDirectory: entry.path)
+            }
+        }
+
+        Divider()
+
+        contextMenuButton(tr("Delete"), systemImage: ContextMenuIconCatalog.delete, role: .destructive) {
+            performRemoteContextAction(
+                .delete(paths: [entry.path]),
+                feedback: makeDeleteFeedback(count: 1)
+            )
+            selectedRemotePaths.remove(entry.path)
+            if selectionAnchorRemotePath == entry.path {
+                selectionAnchorRemotePath = nil
             }
         }
     }
@@ -1504,17 +1506,17 @@ struct FileManagerPanelView: View {
     @ViewBuilder
     private func transferContextMenu(for item: TransferItem) -> some View {
         if item.direction == .download {
-            Button(tr("Copy Local Path")) {
+            contextMenuButton(tr("Copy Local Path"), systemImage: ContextMenuIconCatalog.copyPath) {
                 copyToPasteboard(item.destinationPath)
             }
 
             if FileManager.default.fileExists(atPath: item.destinationPath) {
-                Button(tr("Reveal in Finder")) {
+                contextMenuButton(tr("Reveal in Finder"), systemImage: ContextMenuIconCatalog.reveal) {
                     revealInFinder(path: item.destinationPath)
                 }
             }
         } else {
-            Button(tr("Copy Destination Path")) {
+            contextMenuButton(tr("Copy Destination Path"), systemImage: ContextMenuIconCatalog.copyPath) {
                 copyToPasteboard(item.destinationPath)
             }
         }

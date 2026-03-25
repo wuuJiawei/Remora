@@ -1152,54 +1152,22 @@ struct ContentView: View {
             return workspace.tabs.contains { $0.id != activeTabID }
         }()
 
-        Button(tr("New Session")) {
+        contextMenuButton(tr("New Session"), systemImage: ContextMenuIconCatalog.newSession) {
             workspace.createTab()
         }
 
-        Button {
+        contextMenuButton(tr("Rename Session"), systemImage: ContextMenuIconCatalog.rename) {
             beginRenameSession(tab.id)
-        } label: {
-            SessionRenameMenuLabel(
-                title: tr("Rename Session"),
-                hint: renameHint
-            )
         }
         .help(renameHint)
 
-        Divider()
-
-        Button(tr("Close Current Session"), role: .destructive) {
-            workspace.closeTab(tab.id)
-        }
-
-        Button(tr("Close All Sessions"), role: .destructive) {
-            workspace.closeAllTabs()
-        }
-
-        Button(tr("Close All Non-Active Sessions"), role: .destructive) {
-            workspace.closeAllInactiveTabs()
-        }
-        .disabled(!canCloseInactiveTabs)
-
-        Button(tr("Close Sessions to the Left"), role: .destructive) {
-            workspace.closeTabsLeft(of: tab.id)
-        }
-        .disabled(!hasTabsOnLeft)
-
-        Button(tr("Close Sessions to the Right"), role: .destructive) {
-            workspace.closeTabsRight(of: tab.id)
-        }
-        .disabled(!hasTabsOnRight)
-
-        Divider()
-
-        Button(tr("Split Horizontal")) {
+        contextMenuButton(tr("Split Horizontal"), systemImage: ContextMenuIconCatalog.splitHorizontal) {
             workspace.selectTab(tab.id)
             workspace.splitActiveTab(orientation: .horizontal)
         }
         .disabled(tab.panes.count > 1)
 
-        Button(tr("Split Vertical")) {
+        contextMenuButton(tr("Split Vertical"), systemImage: ContextMenuIconCatalog.splitVertical) {
             workspace.selectTab(tab.id)
             workspace.splitActiveTab(orientation: .vertical)
         }
@@ -1207,16 +1175,41 @@ struct ContentView: View {
 
         if canReconnectSSH || canDisconnectSession {
             Divider()
-            Button(tr("Reconnect SSH")) {
+            contextMenuButton(tr("Reconnect SSH"), systemImage: ContextMenuIconCatalog.reconnect) {
                 reconnectSession(tab.id)
             }
             .disabled(!canReconnectSSH)
 
-            Button(tr("Disconnect Session")) {
+            contextMenuButton(tr("Disconnect Session"), systemImage: ContextMenuIconCatalog.disconnect) {
                 disconnectSession(tab.id)
             }
             .disabled(!canDisconnectSession)
         }
+
+        Divider()
+
+        contextMenuButton(tr("Close Current Session"), systemImage: ContextMenuIconCatalog.closeCurrent, role: .destructive) {
+            workspace.closeTab(tab.id)
+        }
+
+        contextMenuButton(tr("Close All Sessions"), systemImage: ContextMenuIconCatalog.closeAll, role: .destructive) {
+            workspace.closeAllTabs()
+        }
+
+        contextMenuButton(tr("Close All Non-Active Sessions"), systemImage: ContextMenuIconCatalog.closeInactive, role: .destructive) {
+            workspace.closeAllInactiveTabs()
+        }
+        .disabled(!canCloseInactiveTabs)
+
+        contextMenuButton(tr("Close Sessions to the Left"), systemImage: ContextMenuIconCatalog.closeLeft, role: .destructive) {
+            workspace.closeTabsLeft(of: tab.id)
+        }
+        .disabled(!hasTabsOnLeft)
+
+        contextMenuButton(tr("Close Sessions to the Right"), systemImage: ContextMenuIconCatalog.closeRight, role: .destructive) {
+            workspace.closeTabsRight(of: tab.id)
+        }
+        .disabled(!hasTabsOnRight)
     }
 
     @ViewBuilder
@@ -2602,22 +2595,25 @@ private struct SidebarGroupSectionView: View {
             .draggable(dragPayload)
             .contextMenu {
                 if canManageGroup {
-                    Button(tr("Create connection")) {
+                    contextMenuButton(tr("Create connection"), systemImage: ContextMenuIconCatalog.addConnection) {
                         onAddThread()
                     }
                 }
-                Button(isCollapsed ? tr("Expand group") : tr("Collapse group")) {
+                contextMenuButton(
+                    isCollapsed ? tr("Expand group") : tr("Collapse group"),
+                    systemImage: isCollapsed ? ContextMenuIconCatalog.expand : ContextMenuIconCatalog.collapse
+                ) {
                     onToggleCollapsed()
                 }
                 if canManageGroup {
-                    Button(tr("Edit group")) {
+                    contextMenuButton(tr("Edit group"), systemImage: ContextMenuIconCatalog.editGroup) {
                         onEditGroup()
                     }
-                    Button(tr("Export group")) {
+                    contextMenuButton(tr("Export group"), systemImage: ContextMenuIconCatalog.export) {
                         onExportGroup()
                     }
                     Divider()
-                    Button(tr("Delete group"), role: .destructive) {
+                    contextMenuButton(tr("Delete group"), systemImage: ContextMenuIconCatalog.delete, role: .destructive) {
                         onDeleteGroup()
                     }
                 }
@@ -2752,26 +2748,28 @@ private struct SidebarHostRow: View {
         .accessibilityIdentifier("sidebar-host-row-\(host.name)")
         .animation(nil, value: isSelected)
         .contextMenu {
-            Button(tr("Edit connection")) {
+            contextMenuButton(tr("Edit connection"), systemImage: ContextMenuIconCatalog.editConnection) {
                 onEdit()
             }
             Divider()
-            Menu(tr("Copy")) {
-                Button(tr("Copy connection info")) {
+            Menu {
+                contextMenuButton(tr("Copy connection info"), systemImage: ContextMenuIconCatalog.copy) {
                     onCopyConnectionInfo()
                 }
-                Button(tr("Copy address")) {
+                contextMenuButton(tr("Copy address"), systemImage: ContextMenuIconCatalog.copyPath) {
                     onCopyAddress()
                 }
-                Button(tr("Copy SSH command")) {
+                contextMenuButton(tr("Copy SSH command"), systemImage: ContextMenuIconCatalog.copy) {
                     onCopySSHCommand()
                 }
+            } label: {
+                Label(tr("Copy"), systemImage: ContextMenuIconCatalog.copy)
             }
-            Button(tr("Manage quick commands")) {
+            contextMenuButton(tr("Manage quick commands"), systemImage: ContextMenuIconCatalog.manageQuickCommands) {
                 onManageQuickCommands()
             }
             Divider()
-            Button(tr("Delete connection"), role: .destructive) {
+            contextMenuButton(tr("Delete connection"), systemImage: ContextMenuIconCatalog.delete, role: .destructive) {
                 onDelete()
             }
         }
