@@ -8,7 +8,7 @@ struct TerminalDirectorySyncBridgeTests {
     @Test
     func localRuntimeDoesNotDriveRemoteFileManagerDirectory() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -34,7 +34,7 @@ struct TerminalDirectorySyncBridgeTests {
     @Test
     func fileManagerDirectoryChangeDoesNotPushToRuntime() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -61,7 +61,7 @@ struct TerminalDirectorySyncBridgeTests {
     @Test
     func runtimeDirectoryChangePushesToFileManager() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -96,7 +96,7 @@ struct TerminalDirectorySyncBridgeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -137,7 +137,7 @@ struct TerminalDirectorySyncBridgeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -177,7 +177,7 @@ struct TerminalDirectorySyncBridgeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -222,7 +222,7 @@ struct TerminalDirectorySyncBridgeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -267,7 +267,7 @@ struct TerminalDirectorySyncBridgeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let fileTransfer = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 

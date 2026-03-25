@@ -24,7 +24,7 @@ struct WorkspaceViewModelTests {
         WorkspaceViewModel(
             paneFactory: {
                 let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-                let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+                let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
                 return TerminalPaneModel(runtime: runtime)
             }
         )
