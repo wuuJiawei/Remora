@@ -227,6 +227,27 @@
 "Network and disk IO values are cumulative since server boot." = "Network and disk IO values are cumulative since server boot.";
 "Loading server metrics…" = "Loading server metrics…";
 "No metrics yet." = "No metrics yet.";
+"State" = "State";
+"Load" = "Load";
+"Swap" = "Swap";
+"Overview" = "Overview";
+"Top Processes" = "Top Processes";
+"Traffic & IO" = "Traffic & IO";
+"Filesystems" = "Filesystems";
+"Collecting metrics…" = "Collecting metrics…";
+"Remora is sampling the remote host for CPU, memory, traffic, and process details." = "Remora is sampling the remote host for CPU, memory, traffic, and process details.";
+"Metrics unavailable" = "Metrics unavailable";
+"Hover again after the SSH session finishes its first sampling cycle." = "Hover again after the SSH session finishes its first sampling cycle.";
+"Available / Size" = "Available / Size";
+"Last sample" = "Last sample";
+"RX/s" = "RX/s";
+"TX/s" = "TX/s";
+"Read/s" = "Read/s";
+"Write/s" = "Write/s";
+"RX total" = "RX total";
+"TX total" = "TX total";
+"Disk read total" = "Disk read total";
+"Disk write total" = "Disk write total";
 
 "(not saved)" = "(not saved)";
 "(not set)" = "(not set)";

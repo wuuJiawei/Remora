@@ -223,6 +223,27 @@
 "Network and disk IO values are cumulative since server boot." = "网络与磁盘 IO 为服务器启动以来的累计值。";
 "Loading server metrics…" = "正在加载服务器指标…";
 "No metrics yet." = "暂无指标数据。";
+"State" = "状态";
+"Load" = "负载";
+"Swap" = "交换";
+"Overview" = "概览";
+"Top Processes" = "进程排行";
+"Traffic & IO" = "流量与 IO";
+"Filesystems" = "文件系统";
+"Collecting metrics…" = "正在采集指标…";
+"Remora is sampling the remote host for CPU, memory, traffic, and process details." = "Remora 正在采集远端主机的 CPU、内存、流量与进程详情。";
+"Metrics unavailable" = "指标不可用";
+"Hover again after the SSH session finishes its first sampling cycle." = "等待 SSH 会话完成首次采样后，再次悬停即可查看。";
+"Available / Size" = "可用 / 总大小";
+"Last sample" = "最近采样";
+"RX/s" = "RX/s";
+"TX/s" = "TX/s";
+"Read/s" = "读取/s";
+"Write/s" = "写入/s";
+"RX total" = "累计接收";
+"TX total" = "累计发送";
+"Disk read total" = "累计磁盘读取";
+"Disk write total" = "累计磁盘写入";
 
 "(not saved)" = "（未保存）";
 "(not set)" = "（未设置）";
