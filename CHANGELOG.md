@@ -6,6 +6,59 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.14.2] - 2026-03-25
+
+### Added / 新增
+
+- Added adaptive SSH compatibility profiles that can automatically retry legacy SSH/SFTP servers with extra OpenSSH compatibility options and persist successful profiles for later connections. Fixed [#1](https://github.com/wuuJiawei/Remora/issues/1).
+  新增自适应 SSH 兼容性配置：在连接老旧 SSH/SFTP 服务器失败时，可自动追加 OpenSSH 兼容参数重试，并持久化成功的兼容配置供后续连接复用。修复了 [#1](https://github.com/wuuJiawei/Remora/issues/1)。
+- Added remote shell integration installation before SSH startup so shell sessions can report working-directory changes through OSC 7 without relying on visible `pwd` probes.
+  新增 SSH 启动前的远端 shell integration 安装流程，使 shell 会话可以通过 OSC 7 上报工作目录变化，而不再依赖可见的 `pwd` 探测。
+- Added a dismissible Terminal AI smart-assist notification in the top-right corner of terminal panes, plus dedicated state coverage and UI automation checks for the new presentation.
+  新增终端右上角可关闭的 Terminal AI 智能辅助通知，并补充了对应的状态测试与 UI 自动化覆盖。
+- Added regression coverage for the sidebar help menu button so its menu opens correctly in both light and dark appearances without rendering the default popup indicator.
+  新增侧边栏帮助菜单按钮的回归测试，确保它在浅色和深色外观下都能正常打开菜单，并且不会再渲染默认的下拉指示器。
+
+### Changed / 变更
+
+- Removed the host-editor password-save consent gate and simplified password persistence flow so saved passwords are managed directly through the new host-password storage path.
+  移除了主机编辑器里的密码保存确认 gate，并简化了密码持久化流程，使已保存密码直接通过新的 host-password storage 路径管理。
+- Clarified that “Rename Session” only changes the current tab title, updated the sheet copy accordingly, and aligned the wording in both localized resources and UI tests.
+  明确了“重命名会话”只会修改当前标签标题，并同步更新了弹窗文案、本地化资源和对应 UI 测试。
+- Removed the inline “Refreshing metrics…” label from the server-status window so metric refreshes stay visually stable while preserving the rest of the panel layout.
+  移除了服务器状态窗口中的“正在刷新指标…”提示文案，让指标刷新过程保持更稳定的视觉布局，同时不影响其余内容显示。
+- Prevented the sidebar search field from auto-focusing at launch and hid the sidebar help menu’s default indicator so the sidebar feels cleaner on startup and in steady state.
+  禁止侧边栏搜索框在启动时自动获得焦点，并隐藏侧边栏帮助菜单的默认指示器，让侧边栏在启动和常态下都更干净。
+- Renamed the active runtime SFTP state publisher to a more general connection-state name and extracted a runtime-connection sync coordinator to centralize runtime-driven service syncing.
+  将活动运行时的 SFTP 状态发布器重命名为更通用的连接状态命名，并提取出 runtime-connection sync coordinator 来统一运行时驱动的服务同步。
+- Updated the host-catalog bootstrap persistence flow so malformed persisted catalogs are never overwritten after a failed load, while pending in-memory snapshots still replay safely when appropriate.
+  调整了 host catalog 的启动持久化流程：当已持久化目录加载失败且文件损坏时，不再覆盖原文件；在合适场景下，内存中的待保存快照仍可安全回放。
+
+### Fixed / 修复
+
+- Fixed PTY-backed system SSH shell sessions so resize operations propagate correctly to child processes and interactive full-screen tools redraw against the right terminal size.
+  修复了基于 PTY 的系统 SSH shell 会话，使窗口大小变化能够正确传递给子进程，交互式全屏工具也能按正确终端尺寸重绘。
+- Fixed SSH/SFTP connection reuse decisions for password-auth fallback paths, allowing reuse when no stored password is available while still avoiding broken reuse paths for stored-password connections.
+  修复了密码认证回退路径下的 SSH/SFTP 连接复用决策：当没有已保存密码时允许复用，而对带已保存密码的连接继续避开有问题的复用路径。
+- Restored SSH terminal ↔ file-manager working-directory sync through shell integration, including sync preparation before SSH session startup and reuse of already-known directories when sync is enabled.
+  通过 shell integration 恢复了 SSH 终端与文件管理器之间的工作目录同步，包括在 SSH 会话启动前完成同步准备，并在启用同步时复用已知目录。
+- Fixed terminal directory sync so enabling sync no longer sends redundant `pwd` probes, arbitrary commands do not trigger extra cwd probes, and typed `cd` commands propagate to the file manager directly.
+  修复了终端目录同步逻辑：启用同步时不再发送多余的 `pwd` 探测，任意命令也不会触发额外 cwd 探测，用户手动输入的 `cd` 会直接同步到文件管理器。
+- Fixed OSC 7 parsing and SSH startup handling so shell-integration cwd events survive prompt noise, preserve initial transcript banners, and still keep foreground TUI programs such as `top` usable.
+  修复了 OSC 7 解析和 SSH 启动处理逻辑，使 shell integration 的 cwd 事件在带有提示符噪声时仍能正确识别，同时保留初始 transcript banner，并继续兼容 `top` 等前台 TUI 程序。
+
+### Internal / 内部
+
+- Stabilized terminal assistant and terminal runtime timing tests by replacing fixed sleeps with explicit waits and by relaxing timing windows where shell/runtime coordination is intentionally asynchronous.
+  通过把固定 `sleep` 替换为显式等待，并放宽部分本就异步的 shell/runtime 协调时序窗口，提升了 terminal assistant 与 terminal runtime 相关测试的稳定性。
+- Updated app and UI automation coverage for shell-integration installation, smart-assist notifications, sidebar help menus, runtime sync behavior, and other regressions introduced during this release cycle.
+  更新了 app 和 UI 自动化测试覆盖范围，覆盖 shell integration 安装、智能辅助通知、侧边栏帮助菜单、运行时同步行为以及本轮发布期间引入的其他回归场景。
+
+### Documentation / 文档
+
+- Updated the README acknowledgements to thank the early users from the [2Libra](https://2libra.com/) and [V2EX](https://www.v2ex.com/) communities for their feedback and bug reports.
+  更新了 README 致谢内容，感谢来自 [2Libra](https://2libra.com/) 和 [V2EX](https://www.v2ex.com/) 社区的早期用户所提供的反馈和问题报告。
+
 ## [v0.14.1] - 2026-03-22
 
 ### Fixed
