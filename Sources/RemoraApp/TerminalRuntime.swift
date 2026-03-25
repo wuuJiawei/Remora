@@ -45,6 +45,7 @@ final class TerminalRuntime: ObservableObject {
 
     private let localSessionManager: SessionManager
     private let sshSessionManager: SessionManager
+    private let remoteShellIntegrationInstaller: @Sendable (RemoraCore.Host) async throws -> Void
 
     private weak var terminalView: TerminalView?
     private var activeSessionManager: SessionManager?
@@ -81,10 +82,14 @@ final class TerminalRuntime: ObservableObject {
     private var isReconnecting = false
     init(
         localSessionManager: SessionManager = SessionManager(sshClientFactory: { LocalShellClient() }),
-        sshSessionManager: SessionManager = SessionManager(sshClientFactory: { OpenSSHProcessClient() })
+        sshSessionManager: SessionManager = SessionManager(sshClientFactory: { OpenSSHProcessClient() }),
+        remoteShellIntegrationInstaller: @escaping @Sendable (RemoraCore.Host) async throws -> Void = { host in
+            try await OpenSSHRemoteShellIntegrationInstaller.shared.ensureInstalled(for: host)
+        }
     ) {
         self.localSessionManager = localSessionManager
         self.sshSessionManager = sshSessionManager
+        self.remoteShellIntegrationInstaller = remoteShellIntegrationInstaller
     }
 
     func attach(view: TerminalView) {
@@ -183,6 +188,10 @@ final class TerminalRuntime: ObservableObject {
             }
 
             let manager = await MainActor.run(body: { sessionManager(for: config.mode) })
+
+            if config.mode == .ssh {
+                try? await remoteShellIntegrationInstaller(host)
+            }
 
             do {
                 let descriptor = try await manager.startSession(

@@ -7,6 +7,77 @@ import RemoraTerminal
 @MainActor
 struct TerminalRuntimeTests {
     @Test
+    func connectingSSHWithTrackingEnabledRunsShellIntegrationInstallerBeforeSessionStart() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let installer = InstallerSpy()
+        let runtime = TerminalRuntime(
+            localSessionManager: manager,
+            sshSessionManager: manager,
+            remoteShellIntegrationInstaller: { host in
+                await installer.record(host: host)
+            }
+        )
+
+        runtime.setWorkingDirectoryTrackingEnabled(true)
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let installed = await waitUntilAsync(timeout: 2.0) {
+            await installer.recordedHosts.contains(where: { $0.username == "deploy" && $0.address == "127.0.0.1" })
+        }
+        #expect(installed, "SSH cwd tracking should prepare remote shell integration before starting the interactive session.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func connectingSSHWithTrackingEnabledPreservesInitialTranscriptBanner() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(
+            localSessionManager: manager,
+            sshSessionManager: manager,
+            remoteShellIntegrationInstaller: { _ in }
+        )
+
+        runtime.setWorkingDirectoryTrackingEnabled(true)
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let bannerVisible = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+                && runtime.transcriptSnapshot.contains("Connected to")
+                && runtime.transcriptSnapshot.contains("Type commands and press Enter.")
+        }
+        #expect(bannerVisible, "Silent shell integration setup must not swallow the initial SSH welcome transcript.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func connectingSSHWithTrackingEnabledStillSupportsTopLikeForegroundPrograms() async {
+        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let runtime = TerminalRuntime(
+            localSessionManager: manager,
+            sshSessionManager: manager,
+            remoteShellIntegrationInstaller: { _ in }
+        )
+
+        runtime.setWorkingDirectoryTrackingEnabled(true)
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        runtime.runAssistantCommand("top")
+
+        let topVisible = await waitUntil(timeout: 2.0) {
+            runtime.transcriptSnapshot.contains("top -")
+                && runtime.transcriptSnapshot.contains("Press Ctrl+C to quit.")
+        }
+        #expect(topVisible, "Silent shell integration setup must not break foreground commands like top.")
+        runtime.disconnect()
+    }
+
+    @Test
     func detectsSSHAuthenticationStagesFromPromptText() {
         let hostKeyPrompt = "Are you sure you want to continue connecting (yes/no/[fingerprint])?"
         let passwordPrompt = "deploy@example.com's password:"
@@ -40,10 +111,7 @@ struct TerminalRuntimeTests {
     @Test
     func connectLocalShellPublishesTranscript() async {
         let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(
-            localSessionManager: localManager,
-            sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() })
-        )
+        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() }), remoteShellIntegrationInstaller: { _ in })
         runtime.connectLocalShell()
 
         let hasTranscript = await waitUntil(timeout: 2.0) {
@@ -59,7 +127,7 @@ struct TerminalRuntimeTests {
     func connectSSHUsesSSHSessionManagerPath() async {
         let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
         let sshManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: sshManager)
+        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: sshManager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
 
@@ -79,7 +147,7 @@ struct TerminalRuntimeTests {
     @Test
     func connectSSHHostPreservesOriginalHostIdentity() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let host = Host(
             name: "prod-api",
             address: "47.100.100.215",
@@ -107,7 +175,7 @@ struct TerminalRuntimeTests {
     @Test
     func disconnectClearsConnectedSSHHost() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
         let connected = await waitUntil(timeout: 2.0) {
@@ -126,7 +194,7 @@ struct TerminalRuntimeTests {
     @Test
     func reconnectSSHSessionRestoresConnectionAfterDisconnect() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
         let firstConnected = await waitUntil(timeout: 2.0) {
@@ -154,10 +222,7 @@ struct TerminalRuntimeTests {
     @Test
     func connectDisconnectAndReconnectLifecycle() async {
         let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(
-            localSessionManager: localManager,
-            sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() })
-        )
+        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() }), remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectLocalShell()
         let firstConnected = await waitUntil(timeout: 2.0) {
@@ -183,7 +248,7 @@ struct TerminalRuntimeTests {
     @Test
     func changeDirectoryUpdatesWorkingDirectoryImmediately() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -214,7 +279,7 @@ struct TerminalRuntimeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
@@ -248,7 +313,7 @@ struct TerminalRuntimeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
@@ -288,7 +353,7 @@ struct TerminalRuntimeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
@@ -337,7 +402,7 @@ struct TerminalRuntimeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
@@ -379,7 +444,7 @@ struct TerminalRuntimeTests {
                 )
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "root", privateKeyPath: nil)
 
@@ -405,7 +470,7 @@ struct TerminalRuntimeTests {
                 RecordingSSHClient(recorder: recorder, initialDirectory: "/")
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -438,7 +503,7 @@ struct TerminalRuntimeTests {
                 RecordingSSHClient(recorder: recorder, initialDirectory: "/")
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -470,7 +535,7 @@ struct TerminalRuntimeTests {
     @Test
     func transcriptSnapshotStripsANSIEditingSequences() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -507,7 +572,7 @@ struct TerminalRuntimeTests {
     @Test
     func typedEchoReachesTerminalViewWithoutFrameScaleDelay() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
         let view = TerminalView(rows: 4, columns: 40)
         view.setFrameSize(NSSize(width: 480, height: 120))
         runtime.attach(view: view)
@@ -544,7 +609,7 @@ struct TerminalRuntimeTests {
                 RecordingSSHClient(recorder: recorder, initialDirectory: "/")
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -572,7 +637,7 @@ struct TerminalRuntimeTests {
                 RecordingSSHClient(recorder: recorder, initialDirectory: "/")
             }
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -628,5 +693,13 @@ struct TerminalRuntimeTests {
         let components = duration.components
         return Double(components.seconds) * 1_000
             + Double(components.attoseconds) / 1_000_000_000_000_000
+    }
+}
+
+private actor InstallerSpy {
+    private(set) var recordedHosts: [RemoraCore.Host] = []
+
+    func record(host: RemoraCore.Host) {
+        recordedHosts.append(host)
     }
 }
