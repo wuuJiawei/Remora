@@ -2396,7 +2396,7 @@ private struct SidebarIconButton: View {
     }
 }
 
-private struct SidebarMenuIconButton<MenuContent: View>: View {
+struct SidebarMenuIconButton<MenuContent: View>: View {
     let systemImage: String
     @ViewBuilder let menuContent: () -> MenuContent
     @State private var isHovering = false
@@ -2414,6 +2414,7 @@ private struct SidebarMenuIconButton<MenuContent: View>: View {
                         .fill(isHovering ? VisualStyle.leftHoverBackground : Color.clear)
                 )
         }
+        .menuIndicator(.hidden)
         .menuStyle(.borderlessButton)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) {

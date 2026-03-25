@@ -815,6 +815,19 @@ struct RemoraUIAutomationTests {
     }
 
     @Test
+    func sidebarHelpMenuOpensInLightAndDarkModes() throws {
+        guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
+            return
+        }
+
+        #expect(AXIsProcessTrusted(), "Grant Accessibility permission to the terminal running tests.")
+        guard AXIsProcessTrusted() else { return }
+
+        try assertSidebarHelpMenu(for: .light)
+        try assertSidebarHelpMenu(for: .dark)
+    }
+
+    @Test
     func settingsAIPaneAppearsAndShowsProviderControls() throws {
         guard ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" else {
             return
@@ -2351,6 +2364,43 @@ struct RemoraUIAutomationTests {
             }) != nil
         }
         #expect(hintVisible, "Rename sheet should explain that SSH connection names stay unchanged in \(appearanceMode.rawValue) mode.")
+    }
+
+    private func assertSidebarHelpMenu(for appearanceMode: AppAppearanceMode) throws {
+        let homeDirectoryURL = try makeUIAutomationHome(appearanceMode: appearanceMode)
+        defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+        let launched = try launchAppForUIAutomation(homeDirectoryURL: homeDirectoryURL)
+        let process = launched.process
+        let appElement = launched.appElement
+        defer {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        guard let helpButton = waitForElement(
+            in: appElement,
+            timeout: 8,
+            matching: { self.identifier(of: $0) == "sidebar-help-community" }
+        ) else {
+            Issue.record("Could not find sidebar help button in \(appearanceMode.rawValue) mode.")
+            return
+        }
+
+        _ = AXUIElementPerformAction(helpButton, kAXPressAction as CFString)
+
+        let githubItem = waitForMenuItem(named: "View on GitHub", timeout: 5)
+        #expect(githubItem != nil, "Help menu should show GitHub action in \(appearanceMode.rawValue) mode.")
+
+        let issueItem = waitForMenuItem(named: "Report an issue", timeout: 5)
+        #expect(issueItem != nil, "Help menu should show issue action in \(appearanceMode.rawValue) mode.")
+
+        let escapeDown = CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: true)
+        let escapeUp = CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: false)
+        escapeDown?.post(tap: .cghidEventTap)
+        escapeUp?.post(tap: .cghidEventTap)
+        usleep(30_000)
     }
 
     private func makeUIAutomationHome(
