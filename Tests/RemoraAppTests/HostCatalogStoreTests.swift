@@ -3,6 +3,7 @@ import Testing
 @testable import RemoraApp
 import RemoraCore
 
+@Suite(.serialized)
 @MainActor
 struct HostCatalogStoreTests {
     @Test

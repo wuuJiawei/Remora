@@ -4,6 +4,7 @@ import RemoraCore
 import RemoraTerminal
 @testable import RemoraApp
 
+@Suite(.serialized)
 @MainActor
 struct TerminalRuntimeTests {
     @Test

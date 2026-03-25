@@ -3,6 +3,7 @@ import Testing
 import RemoraCore
 @testable import RemoraApp
 
+@Suite(.serialized)
 @MainActor
 struct TerminalDirectorySyncBridgeTests {
     @Test
