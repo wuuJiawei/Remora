@@ -154,6 +154,9 @@
 "Click \"New SSH Connection\" to create your first connection." = "Click \"New SSH Connection\" to create your first connection.";
 
 "Transfer Queue" = "Transfer Queue";
+"Stop All Transfers" = "Stop All Transfers";
+"Stop Transfer" = "Stop Transfer";
+"Stopped" = "Stopped";
 "Save To:" = "Save To:";
 "Open Folder" = "Open Folder";
 "No transfer tasks" = "No transfer tasks";

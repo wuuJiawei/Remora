@@ -103,7 +103,11 @@ struct FileManagerPanelView: View {
     }
 
     private var hasRetryableTransfers: Bool {
-        viewModel.transferQueue.contains { $0.status == .failed || $0.status == .skipped }
+        viewModel.transferQueue.contains { $0.status == .failed || $0.status == .skipped || $0.status == .stopped }
+    }
+
+    private var hasStoppableTransfers: Bool {
+        viewModel.transferQueue.contains { $0.status == .queued || $0.status == .running }
     }
 
     private var abbreviatedLocalDirectoryPath: String {
@@ -131,7 +135,7 @@ struct FileManagerPanelView: View {
         }
 
         let hasRunning = items.contains { $0.status == .running || $0.status == .queued }
-        let hasIssue = items.contains { $0.status == .failed || $0.status == .skipped }
+        let hasIssue = items.contains { $0.status == .failed || $0.status == .skipped || $0.status == .stopped }
 
         let statusText: String
         let statusColor: Color
@@ -890,6 +894,14 @@ struct FileManagerPanelView: View {
                 Text("\(Int(transferQueueSummary.progress * 100))%")
                     .font(.caption.monospaced())
                     .foregroundStyle(VisualStyle.textSecondary)
+                toolbarIconButton(
+                    "stop.circle",
+                    accessibilityIdentifier: "file-manager-transfer-stop-all",
+                    helpText: tr("Stop All Transfers"),
+                    disabled: !hasStoppableTransfers
+                ) {
+                    viewModel.stopAllTransfers()
+                }
                 Button {
                     isTransferQueueExpanded = false
                 } label: {
@@ -946,6 +958,17 @@ struct FileManagerPanelView: View {
                                 .lineLimit(1)
                                 .foregroundStyle(VisualStyle.textPrimary)
                             Spacer()
+                            if item.status == .queued || item.status == .running {
+                                Button {
+                                    viewModel.stopTransfer(itemID: item.id)
+                                } label: {
+                                    Image(systemName: "stop.circle")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.borderless)
+                                .help(tr("Stop Transfer"))
+                                .accessibilityIdentifier("file-manager-transfer-stop-\(item.id.uuidString)")
+                            }
                             if item.direction == .download, item.status == .success {
                                 Button {
                                     revealInFinder(path: item.destinationPath)
@@ -1204,7 +1227,7 @@ struct FileManagerPanelView: View {
             return 1
         case .running:
             return 0.1
-        case .queued:
+        case .queued, .stopped:
             return 0
         }
     }
@@ -1234,6 +1257,8 @@ struct FileManagerPanelView: View {
             return .red
         case .skipped:
             return .gray
+        case .stopped:
+            return .secondary
         }
     }
 

@@ -152,6 +152,9 @@
 "Click \"New SSH Connection\" to create your first connection." = "请点击“新建 SSH 连接”创建你的第一个连接。";
 
 "Transfer Queue" = "传输队列";
+"Stop All Transfers" = "停止全部传输";
+"Stop Transfer" = "停止传输";
+"Stopped" = "已停止";
 "Save To:" = "保存到：";
 "Open Folder" = "打开文件夹";
 "No transfer tasks" = "暂无传输任务";
