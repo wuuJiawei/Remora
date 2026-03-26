@@ -113,6 +113,87 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func directoryDownloadPreservesNestedStructure() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-directory-download-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let vm = FileTransferViewModel(
+            sftpClient: MockSFTPClient(),
+            localDirectoryURL: tempRoot,
+            remoteDirectoryPath: "/",
+            maxConcurrentTransfers: 1
+        )
+
+        await vm.refreshRemoteEntries()
+        guard let logsDirectory = vm.remoteEntries.first(where: { $0.path == "/logs" && $0.isDirectory }) else {
+            Issue.record("Remote logs directory not found.")
+            return
+        }
+
+        vm.enqueueDownload(remoteEntry: logsDirectory)
+        try await waitUntil(timeoutLoops: 60, intervalMS: 50) {
+            vm.transferQueue.contains(where: {
+                $0.direction == .download && $0.sourcePath == "/logs" && $0.status == .success
+            })
+        }
+
+        let downloadedLog = tempRoot
+            .appendingPathComponent("logs", isDirectory: true)
+            .appendingPathComponent("app.log")
+        #expect(FileManager.default.fileExists(atPath: downloadedLog.path))
+
+        let downloadedData = try Data(contentsOf: downloadedLog)
+        #expect(String(decoding: downloadedData, as: UTF8.self) == "service started")
+    }
+
+    @Test
+    func deepDirectoryDownloadAvoidsPerChildStatFailures() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-deep-directory-download-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let baseClient = MockSFTPClient()
+        try await baseClient.mkdir(path: "/lighting")
+        try await baseClient.mkdir(path: "/lighting/docs")
+        try await baseClient.mkdir(path: "/lighting/docs/specs")
+        try await baseClient.mkdir(path: "/lighting/assets")
+        try await baseClient.upload(data: Data("root-file".utf8), to: "/lighting/README.md")
+        try await baseClient.upload(data: Data("spec-body".utf8), to: "/lighting/docs/specs/plan.md")
+        try await baseClient.upload(data: Data("asset-body".utf8), to: "/lighting/assets/logo.txt")
+
+        let guardedClient = StatBudgetSFTPClient(base: baseClient, allowedStatCalls: 1)
+        let vm = FileTransferViewModel(
+            sftpClient: guardedClient,
+            localDirectoryURL: tempRoot,
+            remoteDirectoryPath: "/",
+            maxConcurrentTransfers: 1
+        )
+
+        await vm.refreshRemoteEntries()
+        guard let lightingDirectory = vm.remoteEntries.first(where: { $0.path == "/lighting" && $0.isDirectory }) else {
+            Issue.record("Remote lighting directory not found.")
+            return
+        }
+
+        vm.enqueueDownload(remoteEntry: lightingDirectory)
+        try await waitUntil(timeoutLoops: 80, intervalMS: 50) {
+            vm.transferQueue.contains(where: {
+                $0.direction == .download && $0.sourcePath == "/lighting" && $0.status == .success
+            })
+        }
+
+        let downloadedRoot = tempRoot.appendingPathComponent("lighting", isDirectory: true)
+        let nestedSpec = downloadedRoot.appendingPathComponent("docs/specs/plan.md")
+        let nestedAsset = downloadedRoot.appendingPathComponent("assets/logo.txt")
+        #expect(FileManager.default.fileExists(atPath: downloadedRoot.appendingPathComponent("README.md").path))
+        #expect(FileManager.default.fileExists(atPath: nestedSpec.path))
+        #expect(FileManager.default.fileExists(atPath: nestedAsset.path))
+    }
+
+    @Test
     func moveAndDeleteRemoteEntries() async throws {
         let vm = FileTransferViewModel(
             sftpClient: MockSFTPClient(),
@@ -769,6 +850,41 @@ struct FileTransferViewModelTests {
             try await Task.sleep(for: .milliseconds(intervalMS))
         }
         throw NSError(domain: "FileTransferViewModelTests", code: 3, userInfo: [NSLocalizedDescriptionKey: "timeout waiting condition"])
+    }
+}
+
+private actor StatBudgetSFTPClient: SFTPClientProtocol {
+    private let base: MockSFTPClient
+    private let allowedStatCalls: Int
+    private var statCalls = 0
+
+    init(base: MockSFTPClient, allowedStatCalls: Int) {
+        self.base = base
+        self.allowedStatCalls = allowedStatCalls
+    }
+
+    func list(path: String) async throws -> [RemoteFileEntry] { try await base.list(path: path) }
+    func download(path: String) async throws -> Data { try await base.download(path: path) }
+    func download(path: String, progress: TransferProgressHandler?) async throws -> Data { try await base.download(path: path, progress: progress) }
+    func download(path: String, to localFileURL: URL, progress: TransferProgressHandler?) async throws { try await base.download(path: path, to: localFileURL, progress: progress) }
+    func executeRemoteShellCommand(_ command: String, timeout: TimeInterval?) async throws -> String { try await base.executeRemoteShellCommand(command, timeout: timeout) }
+    func streamRemoteShellCommand(_ command: String) async throws -> AsyncThrowingStream<String, Error> { try await base.streamRemoteShellCommand(command) }
+    func upload(data: Data, to path: String) async throws { try await base.upload(data: data, to: path) }
+    func upload(data: Data, to path: String, progress: TransferProgressHandler?) async throws { try await base.upload(data: data, to: path, progress: progress) }
+    func upload(fileURL: URL, to path: String, progress: TransferProgressHandler?) async throws { try await base.upload(fileURL: fileURL, to: path, progress: progress) }
+    func rename(from: String, to: String) async throws { try await base.rename(from: from, to: to) }
+    func move(from: String, to: String) async throws { try await base.move(from: from, to: to) }
+    func copy(from: String, to: String) async throws { try await base.copy(from: from, to: to) }
+    func mkdir(path: String) async throws { try await base.mkdir(path: path) }
+    func remove(path: String) async throws { try await base.remove(path: path) }
+    func setAttributes(path: String, attributes: RemoteFileAttributes) async throws { try await base.setAttributes(path: path, attributes: attributes) }
+
+    func stat(path: String) async throws -> RemoteFileAttributes {
+        statCalls += 1
+        if statCalls > allowedStatCalls {
+            throw NSError(domain: "Remora.Test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Connection failed"])
+        }
+        return try await base.stat(path: path)
     }
 }
 

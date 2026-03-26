@@ -458,15 +458,13 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     func enqueueDownload(remoteEntry: RemoteFileEntry) {
-        guard !remoteEntry.isDirectory else { return }
-
         let destinationURL = ensureWritableLocalDirectory().appendingPathComponent(remoteEntry.name)
         let item = TransferItem(
             direction: .download,
             name: remoteEntry.name,
             sourcePath: remoteEntry.path,
             destinationPath: destinationURL.path,
-            totalBytes: remoteEntry.size
+            totalBytes: remoteEntry.isDirectory ? nil : remoteEntry.size
         )
         transferQueue.append(item)
         Task {
@@ -476,7 +474,7 @@ final class FileTransferViewModel: ObservableObject {
 
     func enqueueDownload(paths: [String]) {
         let normalized = Set(paths.map(normalizeRemoteDirectoryPath))
-        for entry in remoteEntries where normalized.contains(normalizeRemoteDirectoryPath(entry.path)) && !entry.isDirectory {
+        for entry in remoteEntries where normalized.contains(normalizeRemoteDirectoryPath(entry.path)) {
             enqueueDownload(remoteEntry: entry)
         }
     }
@@ -484,10 +482,6 @@ final class FileTransferViewModel: ObservableObject {
     func enqueueDownload(path: String) async throws {
         let normalizedPath = normalizeRemoteDirectoryPath(path)
         let attributes = try await loadRemoteAttributes(path: normalizedPath)
-        guard !attributes.isDirectory else {
-            throw SFTPClientError.unsupportedOperation("download-directory")
-        }
-
         let entry = RemoteFileEntry(
             name: URL(fileURLWithPath: normalizedPath).lastPathComponent,
             path: normalizedPath,
@@ -495,7 +489,7 @@ final class FileTransferViewModel: ObservableObject {
             permissions: attributes.permissions,
             owner: attributes.owner,
             group: attributes.group,
-            isDirectory: false,
+            isDirectory: attributes.isDirectory,
             modifiedAt: attributes.modifiedAt
         )
         enqueueDownload(remoteEntry: entry)
@@ -910,6 +904,10 @@ final class FileTransferViewModel: ObservableObject {
             transferQueue[idx].status = .running
         }
 
+        FileTransferDiagnostics.append(
+            "transfer start direction=\(item.direction.rawValue) source=\(item.sourcePath) destination=\(item.destinationPath)"
+        )
+
         do {
             switch item.direction {
             case .upload:
@@ -926,20 +924,38 @@ final class FileTransferViewModel: ObservableObject {
 
             case .download:
                 let destinationURL = URL(fileURLWithPath: item.destinationPath)
-                try await sftpClient.download(
-                    path: item.sourcePath,
-                    to: destinationURL,
-                    progress: { [weak self] snapshot in
-                        Task { @MainActor in
-                            self?.updateTransferProgress(itemID: itemID, snapshot: snapshot)
+                let attributes = try await sftpClient.stat(path: item.sourcePath)
+                if attributes.isDirectory {
+                    FileTransferDiagnostics.append(
+                        "materialize directory root remote=\(item.sourcePath) local=\(destinationURL.path)"
+                    )
+                    let entry = RemoteFileEntry(
+                        name: URL(fileURLWithPath: item.sourcePath).lastPathComponent,
+                        path: item.sourcePath,
+                        size: attributes.size,
+                        permissions: attributes.permissions,
+                        owner: attributes.owner,
+                        group: attributes.group,
+                        isDirectory: true,
+                        modifiedAt: attributes.modifiedAt
+                    )
+                    try await materializeRemoteItem(entry, to: destinationURL)
+                } else {
+                    try await sftpClient.download(
+                        path: item.sourcePath,
+                        to: destinationURL,
+                        progress: { [weak self] snapshot in
+                            Task { @MainActor in
+                                self?.updateTransferProgress(itemID: itemID, snapshot: snapshot)
+                            }
                         }
-                    }
-                )
+                    )
+                }
                 guard FileManager.default.fileExists(atPath: destinationURL.path) else {
                     throw NSError(
                         domain: "Remora.FileTransfer",
                         code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Download finished but local file is missing: \(destinationURL.path)"]
+                        userInfo: [NSLocalizedDescriptionKey: "Download finished but local path is missing: \(destinationURL.path)"]
                     )
                 }
             }
@@ -959,8 +975,11 @@ final class FileTransferViewModel: ObservableObject {
         } catch {
             if let failedIdx = transferQueue.firstIndex(where: { $0.id == itemID }) {
                 transferQueue[failedIdx].status = .failed
-                transferQueue[failedIdx].message = error.localizedDescription
+                transferQueue[failedIdx].message = FileTransferDiagnostics.failureMessage(for: error)
                 let failedItem = transferQueue[failedIdx]
+                FileTransferDiagnostics.append(
+                    "transfer failed direction=\(failedItem.direction.rawValue) source=\(failedItem.sourcePath) destination=\(failedItem.destinationPath) reason=\(error.localizedDescription)"
+                )
                 logger.error(
                     "transfer failed direction=\(failedItem.direction.rawValue, privacy: .public) source=\(failedItem.sourcePath, privacy: .public) destination=\(failedItem.destinationPath, privacy: .public) reason=\(error.localizedDescription, privacy: .public)"
                 )
@@ -1028,20 +1047,43 @@ final class FileTransferViewModel: ObservableObject {
         enqueueUploadFile(localURL: localURL, destinationPath: destination)
     }
 
-    private func materializeRemoteItem(at remotePath: String, to localURL: URL) async throws {
-        let attributes = try await sftpClient.stat(path: remotePath)
-        if attributes.isDirectory {
+    private func materializeRemoteItem(_ entry: RemoteFileEntry, to localURL: URL) async throws {
+        if entry.isDirectory {
+            FileTransferDiagnostics.append(
+                "enter directory remote=\(entry.path) local=\(localURL.path)"
+            )
             try FileManager.default.createDirectory(at: localURL, withIntermediateDirectories: true)
-            let children = try await sftpClient.list(path: remotePath)
+            let children = try await sftpClient.list(path: entry.path)
+            FileTransferDiagnostics.append(
+                "list directory remote=\(entry.path) children=\(children.count)"
+            )
             for child in children {
                 let childURL = localURL.appendingPathComponent(child.name, isDirectory: child.isDirectory)
-                try await materializeRemoteItem(at: normalizeRemoteDirectoryPath(child.path), to: childURL)
+                try await materializeRemoteItem(child, to: childURL)
             }
             return
         }
 
+        FileTransferDiagnostics.append(
+            "download file remote=\(entry.path) local=\(localURL.path)"
+        )
         try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try await sftpClient.download(path: remotePath, to: localURL, progress: nil)
+        try await sftpClient.download(path: entry.path, to: localURL, progress: nil)
+    }
+
+    private func materializeRemoteItem(at remotePath: String, to localURL: URL) async throws {
+        let attributes = try await sftpClient.stat(path: remotePath)
+        let entry = RemoteFileEntry(
+            name: URL(fileURLWithPath: remotePath).lastPathComponent,
+            path: remotePath,
+            size: attributes.size,
+            permissions: attributes.permissions,
+            owner: attributes.owner,
+            group: attributes.group,
+            isDirectory: attributes.isDirectory,
+            modifiedAt: attributes.modifiedAt
+        )
+        try await materializeRemoteItem(entry, to: localURL)
     }
 
     private func uploadExtractedItem(_ localURL: URL, toRemoteBasePath remoteBasePath: String) async throws {

@@ -82,7 +82,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             }
 
             // Some servers return a non-long listing even when -l is requested.
-            if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), !sshFallback.isEmpty {
+            if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), Self.shouldAcceptSSHListFallbackResult(sshFallback) {
                 return sshFallback
             }
 
@@ -94,7 +94,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             return []
         } catch {
             // Some servers disable SFTP subsystem while SSH shell stays available.
-            if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), !sshFallback.isEmpty {
+            if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), Self.shouldAcceptSSHListFallbackResult(sshFallback) {
                 return sshFallback
             }
             throw error
@@ -1800,6 +1800,10 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             .replacingOccurrences(of: "\r", with: "\\r")
             .replacingOccurrences(of: "\"", with: "\\\"")
         return "\"\(escaped)\""
+    }
+
+    static func shouldAcceptSSHListFallbackResult(_ entries: [RemoteFileEntry]) -> Bool {
+        true
     }
 
     private static func quoteShellArgument(_ value: String) -> String {
