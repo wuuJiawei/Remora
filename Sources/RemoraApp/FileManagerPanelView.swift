@@ -102,10 +102,6 @@ struct FileManagerPanelView: View {
         viewModel.remoteEntries.filter { selectedRemotePaths.contains($0.path) }
     }
 
-    private var selectedRemoteFiles: [RemoteFileEntry] {
-        selectedRemoteEntries.filter { !$0.isDirectory }
-    }
-
     private var hasRetryableTransfers: Bool {
         viewModel.transferQueue.contains { $0.status == .failed || $0.status == .skipped }
     }
@@ -217,7 +213,7 @@ struct FileManagerPanelView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         Button {
-                            let downloadPaths = selectedRemoteFiles.map(\.path)
+                            let downloadPaths = FileManagerContextMenuPolicy.downloadablePaths(for: selectedRemotePaths)
                             performRemoteContextAction(
                                 .download(paths: downloadPaths),
                                 feedback: makeDownloadQueuedFeedback(count: downloadPaths.count)
@@ -227,7 +223,7 @@ struct FileManagerPanelView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .disabled(selectedRemoteFiles.isEmpty)
+                        .disabled(FileManagerContextMenuPolicy.isBatchDownloadDisabled(selectedPaths: selectedRemotePaths))
                         .accessibilityIdentifier("file-manager-download")
 
                         Button(role: .destructive) {
@@ -1114,7 +1110,7 @@ struct FileManagerPanelView: View {
             }
         }
 
-        let selectedDownloadPaths = selectedRemoteFiles.map(\.path)
+        let selectedDownloadPaths = FileManagerContextMenuPolicy.downloadablePaths(for: selectedRemotePaths)
         let shouldSplitDownloadActions = selectedDownloadPaths.count > 1
             && selectedRemotePaths.contains(entry.path)
 
