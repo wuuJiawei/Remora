@@ -290,6 +290,78 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func overallTransferProgressCompletesWhenCurrentBatchFinishesWithStoppedItems() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-current-batch-stopped-progress-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let client = SlowDownloadSFTPClient()
+        let vm = FileTransferViewModel(
+            sftpClient: client,
+            localDirectoryURL: tempRoot,
+            remoteDirectoryPath: "/",
+            maxConcurrentTransfers: 1
+        )
+
+        await vm.refreshRemoteEntries()
+        guard let readme = vm.remoteEntries.first(where: { $0.path == "/README.txt" }) else {
+            Issue.record("Remote README not found.")
+            return
+        }
+
+        vm.enqueueDownload(remoteEntry: readme)
+        try await vm.enqueueDownload(path: "/logs/app.log")
+        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+            vm.transferQueue.contains(where: { $0.status == .running })
+        }
+
+        vm.stopAllTransfers()
+
+        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+            vm.transferQueue.count == 2 && vm.transferQueue.allSatisfy { $0.status == .stopped }
+        }
+
+        #expect(vm.overallTransferProgress == 1)
+    }
+
+    @Test
+    func overallTransferProgressResetsForNewBatchAfterPreviousBatchCompletes() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-progress-new-batch-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let client = SlowDownloadSFTPClient()
+        let vm = FileTransferViewModel(
+            sftpClient: client,
+            localDirectoryURL: tempRoot,
+            remoteDirectoryPath: "/",
+            maxConcurrentTransfers: 1
+        )
+
+        await vm.refreshRemoteEntries()
+        guard let readme = vm.remoteEntries.first(where: { $0.path == "/README.txt" }) else {
+            Issue.record("Remote README not found.")
+            return
+        }
+
+        vm.enqueueDownload(remoteEntry: readme)
+        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+            vm.transferQueue.contains(where: { $0.sourcePath == "/README.txt" && $0.status == .running })
+        }
+        vm.stopAllTransfers()
+        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+            vm.transferQueue.allSatisfy { $0.status == .stopped }
+        }
+        #expect(vm.overallTransferProgress == 1)
+
+        try await vm.enqueueDownload(path: "/logs/app.log")
+
+        #expect(vm.overallTransferProgress == 0)
+    }
+
+    @Test
     func moveAndDeleteRemoteEntries() async throws {
         let vm = FileTransferViewModel(
             sftpClient: MockSFTPClient(),

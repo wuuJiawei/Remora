@@ -15,6 +15,15 @@ enum TransferStatus: String, Sendable {
     case failed = "Failed"
     case skipped = "Skipped"
     case stopped = "Stopped"
+
+    var isTerminal: Bool {
+        switch self {
+        case .success, .failed, .skipped, .stopped:
+            return true
+        case .queued, .running:
+            return false
+        }
+    }
 }
 
 enum TransferConflictStrategy: String, CaseIterable, Identifiable, Sendable {
@@ -81,6 +90,7 @@ enum RemoteTextDocumentError: Error, Equatable, Sendable {
 
 struct TransferItem: Identifiable, Sendable {
     let id: UUID
+    var batchID: Int
     var direction: TransferDirection
     var name: String
     var sourcePath: String
@@ -92,6 +102,7 @@ struct TransferItem: Identifiable, Sendable {
 
     init(
         id: UUID = UUID(),
+        batchID: Int = 0,
         direction: TransferDirection,
         name: String,
         sourcePath: String,
@@ -102,6 +113,7 @@ struct TransferItem: Identifiable, Sendable {
         message: String? = nil
     ) {
         self.id = id
+        self.batchID = batchID
         self.direction = direction
         self.name = name
         self.sourcePath = sourcePath
@@ -168,10 +180,12 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var archiveOperationProgress: Double?
     @Published private(set) var archiveOperationStatusText: String?
     @Published private(set) var transferQueue: [TransferItem] = []
+    @Published private(set) var currentTransferBatchID: Int?
 
     private var sftpClient: SFTPClientProtocol
     private let transferCenter: TransferCenter
     private var transferTasks: [UUID: Task<Void, Never>] = [:]
+    private var nextTransferBatchSeed: Int = 0
     private var remoteDirectoryCache: [String: CachedRemoteDirectory] = [:]
     private var remoteRefreshInFlightPaths: Set<String> = []
     private let remoteDirectoryCacheTTL: TimeInterval = 2
@@ -268,6 +282,8 @@ final class FileTransferViewModel: ObservableObject {
         activeRemoteBindingKey = normalizedBindingKey
         remoteClipboard = nil
         cancelTrackedTransfers(clearQueue: true)
+        currentTransferBatchID = nil
+        nextTransferBatchSeed = 0
         remoteRefreshInFlightPaths.removeAll()
         isRemoteLoading = false
 
@@ -462,6 +478,7 @@ final class FileTransferViewModel: ObservableObject {
     func enqueueDownload(remoteEntry: RemoteFileEntry) {
         let destinationURL = ensureWritableLocalDirectory().appendingPathComponent(remoteEntry.name)
         let item = TransferItem(
+            batchID: prepareBatchIDForNewTransfer(),
             direction: .download,
             name: remoteEntry.name,
             sourcePath: remoteEntry.path,
@@ -728,6 +745,7 @@ final class FileTransferViewModel: ObservableObject {
     func retryTransfer(itemID: UUID) {
         guard let index = transferQueue.firstIndex(where: { $0.id == itemID }) else { return }
         guard transferQueue[index].status == .failed || transferQueue[index].status == .skipped || transferQueue[index].status == .stopped else { return }
+        transferQueue[index].batchID = prepareBatchIDForNewTransfer()
         transferQueue[index].status = .queued
         transferQueue[index].message = nil
         transferQueue[index].bytesTransferred = 0
@@ -738,7 +756,11 @@ final class FileTransferViewModel: ObservableObject {
         let failedIDs = transferQueue
             .filter { $0.status == .failed || $0.status == .skipped || $0.status == .stopped }
             .map(\.id)
+        let retryBatchID = prepareBatchIDForNewTransfer()
         for id in failedIDs {
+            if let index = transferQueue.firstIndex(where: { $0.id == id }) {
+                transferQueue[index].batchID = retryBatchID
+            }
             retryTransfer(itemID: id)
         }
     }
@@ -1050,24 +1072,13 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     var overallTransferProgress: Double? {
-        let trackedItems = transferQueue.filter {
-            switch $0.status {
-            case .queued, .running, .success:
-                return true
-            case .failed, .skipped, .stopped:
-                return false
-            }
-        }
-
-        let totalBytes = trackedItems.reduce(Int64(0)) { partial, item in
-            partial + (item.totalBytes ?? 0)
-        }
-        guard totalBytes > 0 else { return nil }
-
-        let completedBytes = trackedItems.reduce(Int64(0)) { partial, item in
-            partial + min(item.bytesTransferred, item.totalBytes ?? item.bytesTransferred)
-        }
-        return min(max(Double(completedBytes) / Double(totalBytes), 0), 1)
+        let snapshot = TransferQueueAggregateSnapshot.resolve(
+            items: transferQueue,
+            currentBatchID: currentTransferBatchID,
+            runningFallbackProgress: 0.1
+        )
+        guard snapshot.status != .idle else { return nil }
+        return snapshot.progress
     }
 
     private func enqueueUploadRecursively(localURL: URL, remoteBaseDirectory: String) {
@@ -1180,6 +1191,7 @@ final class FileTransferViewModel: ObservableObject {
     private func enqueueUploadFile(localURL: URL, destinationPath: String) {
         let fileSize = (try? localURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
         let item = TransferItem(
+            batchID: prepareBatchIDForNewTransfer(),
             direction: .upload,
             name: localURL.lastPathComponent,
             sourcePath: localURL.path,
@@ -1208,6 +1220,20 @@ final class FileTransferViewModel: ObservableObject {
         if clearQueue {
             transferQueue.removeAll()
         }
+    }
+
+    private func prepareBatchIDForNewTransfer() -> Int {
+        if let currentTransferBatchID {
+            let currentBatchItems = transferQueue.filter { $0.batchID == currentTransferBatchID }
+            if currentBatchItems.isEmpty == false,
+               currentBatchItems.contains(where: { $0.status.isTerminal == false }) {
+                return currentTransferBatchID
+            }
+        }
+
+        nextTransferBatchSeed += 1
+        currentTransferBatchID = nextTransferBatchSeed
+        return nextTransferBatchSeed
     }
 
     private func markTransferStopped(itemID: UUID) {
