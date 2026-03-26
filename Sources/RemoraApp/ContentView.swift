@@ -30,6 +30,16 @@ private struct PendingGroupDeletion: Identifiable, Equatable {
     var deleteHosts: Bool
 }
 
+private struct HoveredSessionMetricsTooltip: Equatable {
+    let tabID: UUID
+    let frame: CGRect
+    let hostTitle: String
+    let connectionState: String
+    let snapshot: ServerResourceMetricsSnapshot?
+    let isLoading: Bool
+    let errorMessage: String?
+}
+
 struct BottomPanelVisibilityState: Equatable {
     var terminal: Bool
     var fileManager: Bool
@@ -220,6 +230,7 @@ struct ContentView: View {
     @State private var quickPathValidationMessage: String?
     @State private var fileManagerSFTPBindingKey = "disconnected"
     @State private var fileManagerSFTPBootstrapTask: Task<Void, Never>?
+    @State private var hoveredSessionMetricsTooltip: HoveredSessionMetricsTooltip?
     @RemoraStored(\.connectionInfoPasswordCopyMutedUntilEpoch)
     private var connectionInfoPasswordCopyMutedUntilEpoch: Double
     @RemoraStored(\.connectionInfoPasswordCopyMuteForever)
@@ -920,6 +931,28 @@ struct ContentView: View {
         }
         .glassCard(fill: VisualStyle.rightPanelBackground, border: VisualStyle.borderSoft, showsShadow: false)
         .layoutPriority(sessionShouldFillRemainingHeight ? 1 : 0)
+        .coordinateSpace(name: "session-container")
+        .overlay(alignment: .topLeading) {
+            if let hoveredSessionMetricsTooltip {
+                SessionMetricsTooltip(
+                    hostTitle: hoveredSessionMetricsTooltip.hostTitle,
+                    connectionState: hoveredSessionMetricsTooltip.connectionState,
+                    snapshot: hoveredSessionMetricsTooltip.snapshot,
+                    isLoading: hoveredSessionMetricsTooltip.isLoading,
+                    errorMessage: hoveredSessionMetricsTooltip.errorMessage
+                )
+                .offset(
+                    x: min(
+                        hoveredSessionMetricsTooltip.frame.minX - 6,
+                        max(12, hoveredSessionMetricsTooltip.frame.maxX - 214)
+                    ),
+                    y: hoveredSessionMetricsTooltip.frame.maxY + 8
+                )
+                .allowsHitTesting(false)
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)))
+                .zIndex(100)
+            }
+        }
     }
 
     private var emptySessionPlaceholder: some View {
@@ -1015,10 +1048,11 @@ struct ContentView: View {
     private var sessionTabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(workspace.tabs) { tab in
+                ForEach(workspace.tabs, id: \.id) { tab in
                     if let runtime = runtimeForTab(tab) {
                         SessionTabBarItem(
                             title: tab.title,
+                            tabID: tab.id,
                             runtime: runtime,
                             metricsState: serverMetricsCenter.state(for: runtime.connectedSSHHost),
                             isActive: workspace.activeTabID == tab.id,
@@ -1032,6 +1066,13 @@ struct ContentView: View {
                             },
                             onClose: {
                                 workspace.closeTab(tab.id)
+                            },
+                            onMetricsHoverChange: { tooltip in
+                                if let tooltip {
+                                    hoveredSessionMetricsTooltip = tooltip
+                                } else if hoveredSessionMetricsTooltip?.tabID == tab.id {
+                                    hoveredSessionMetricsTooltip = nil
+                                }
                             },
                             accessibilityIdentifier: "session-tab-\(tab.title)"
                         )
@@ -3492,6 +3533,7 @@ private struct HostQuickPathEditorSheet: View {
 
 private struct SessionTabBarItem: View {
     let title: String
+    let tabID: UUID
     @ObservedObject var runtime: TerminalRuntime
     let metricsState: ServerHostMetricsState?
     let isActive: Bool
@@ -3499,6 +3541,7 @@ private struct SessionTabBarItem: View {
     let onSelect: () -> Void
     let onOpenMetricsWindow: () -> Void
     let onClose: () -> Void
+    let onMetricsHoverChange: (HoveredSessionMetricsTooltip?) -> Void
     let accessibilityIdentifier: String
     @State private var isHovering = false
     @State private var isMetricsPopoverPresented = false
@@ -3541,18 +3584,24 @@ private struct SessionTabBarItem: View {
                 .buttonStyle(.plain)
                 .disabled(runtime.connectedSSHHost == nil)
                 .help(tr("Open server status window"))
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .onAppear {
+                                reportMetricsHoverIfNeeded(frame: proxy.frame(in: .named("session-container")))
+                            }
+                            .onChange(of: proxy.frame(in: .named("session-container"))) { _, frame in
+                                reportMetricsHoverIfNeeded(frame: frame)
+                            }
+                    }
+                )
                 .onHover { hovering in
                     isMetricsPopoverPresented = hovering
-                }
-                .popover(isPresented: $isMetricsPopoverPresented, arrowEdge: .bottom) {
-                    SessionMetricHoverCard(
-                        hostTitle: hostDisplayTitle,
-                        connectionState: localizedConnectionState(runtime.connectionState),
-                        snapshot: metricsState?.snapshot,
-                        isLoading: metricsState?.isLoading ?? false,
-                        errorMessage: metricsState?.errorMessage
-                    )
-                    .padding(10)
+                    if hovering {
+                        reportMetricsHoverIfNeeded(frame: nil)
+                    } else {
+                        onMetricsHoverChange(nil)
+                    }
                 }
                 .accessibilityIdentifier("session-tab-metrics")
             }
@@ -3585,9 +3634,34 @@ private struct SessionTabBarItem: View {
         .onChange(of: runtime.connectionMode) {
             if runtime.connectionMode != .ssh {
                 isMetricsPopoverPresented = false
+                onMetricsHoverChange(nil)
             }
         }
+        .onChange(of: metricsState) { _, _ in
+            reportMetricsHoverIfNeeded(frame: nil)
+        }
         .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func reportMetricsHoverIfNeeded(frame: CGRect?) {
+        guard isMetricsPopoverPresented, shouldShowMetrics else {
+            return
+        }
+
+        let resolvedFrame = frame ?? .zero
+        guard resolvedFrame != .zero else { return }
+
+        onMetricsHoverChange(
+            HoveredSessionMetricsTooltip(
+                tabID: tabID,
+                frame: resolvedFrame,
+                hostTitle: hostDisplayTitle,
+                connectionState: localizedConnectionState(runtime.connectionState),
+                snapshot: metricsState?.snapshot,
+                isLoading: metricsState?.isLoading ?? false,
+                errorMessage: metricsState?.errorMessage
+            )
+        )
     }
 }
 
@@ -3623,126 +3697,4 @@ private struct SessionMetricCompactBars: View {
         let resolved = fraction ?? fallback
         return max(1, CGFloat(min(max(resolved, 0), 1)) * 13)
     }
-}
-
-private struct SessionMetricHoverCard: View {
-    let hostTitle: String
-    let connectionState: String
-    let snapshot: ServerResourceMetricsSnapshot?
-    let isLoading: Bool
-    let errorMessage: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(hostTitle)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(VisualStyle.textPrimary)
-                .lineLimit(1)
-
-            Text(connectionState)
-                .font(.system(size: 11))
-                .foregroundStyle(VisualStyle.textSecondary)
-                .lineLimit(1)
-
-            HStack(alignment: .bottom, spacing: 12) {
-                SessionMetricDetailBar(
-                    title: tr("CPU"),
-                    fraction: snapshot?.cpuFraction,
-                    color: .green,
-                    isLoading: isLoading
-                )
-                SessionMetricDetailBar(
-                    title: tr("MEM"),
-                    fraction: snapshot?.memoryFraction,
-                    color: .orange,
-                    isLoading: isLoading
-                )
-                SessionMetricDetailBar(
-                    title: tr("DISK"),
-                    fraction: snapshot?.diskFraction,
-                    color: .blue,
-                    isLoading: isLoading
-                )
-            }
-
-            if let snapshot {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("\(tr("Memory")): \(formatMetricByteValue(snapshot.memoryUsedBytes))/\(formatMetricByteValue(snapshot.memoryTotalBytes))")
-                    Text("\(tr("Disk")): \(formatMetricByteValue(snapshot.diskUsedBytes))/\(formatMetricByteValue(snapshot.diskTotalBytes))")
-                    Text("\(tr("Sampled")): \(formatMetricSampleTimestamp(snapshot.sampledAt))")
-                }
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(VisualStyle.textSecondary)
-            } else if isLoading {
-                Text(tr("Loading server metrics…"))
-                    .font(.system(size: 11))
-                    .foregroundStyle(VisualStyle.textSecondary)
-            } else if let errorMessage, !errorMessage.isEmpty {
-                Text(errorMessage)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red)
-                    .lineLimit(3)
-            } else {
-                Text(tr("No metrics yet."))
-                    .font(.system(size: 11))
-                    .foregroundStyle(VisualStyle.textSecondary)
-            }
-        }
-        .frame(width: 214, alignment: .leading)
-    }
-}
-
-private struct SessionMetricDetailBar: View {
-    let title: String
-    let fraction: Double?
-    let color: Color
-    let isLoading: Bool
-
-    var body: some View {
-        VStack(spacing: 4) {
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(VisualStyle.metricTrackBackground)
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(color.opacity(0.9))
-                    .frame(height: resolvedHeight)
-            }
-            .frame(width: 16, height: 72)
-
-            Text(title)
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundStyle(VisualStyle.textSecondary)
-            Text(formatMetricPercent(fraction))
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(VisualStyle.textPrimary)
-        }
-    }
-
-    private var resolvedHeight: CGFloat {
-        let fallback = isLoading ? 0.16 : 0.05
-        let resolved = fraction ?? fallback
-        return max(1, CGFloat(min(max(resolved, 0), 1)) * 72)
-    }
-}
-
-private func formatMetricPercent(_ value: Double?) -> String {
-    guard let value else { return "--" }
-    return "\(Int((min(max(value, 0), 1) * 100).rounded()))%"
-}
-
-private func formatMetricByteValue(_ bytes: Int64?) -> String {
-    guard let bytes else { return "--" }
-    let formatter = ByteCountFormatter()
-    formatter.allowedUnits = [.useGB, .useMB]
-    formatter.countStyle = .binary
-    formatter.includesUnit = true
-    formatter.isAdaptive = true
-    return formatter.string(fromByteCount: bytes)
-}
-
-private func formatMetricSampleTimestamp(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "HH:mm:ss"
-    return formatter.string(from: date)
 }
