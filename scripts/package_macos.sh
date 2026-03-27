@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_PATH="${ROOT_DIR}/Remora.xcodeproj"
+PROJECT_GENERATOR="${ROOT_DIR}/scripts/generate_xcodeproj.rb"
 SCHEME="Remora"
 CONFIGURATION="Release"
 ARCH="$(uname -m)"
@@ -48,8 +49,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -f "${PROJECT_GENERATOR}" ]]; then
+  ruby "${PROJECT_GENERATOR}"
+fi
+
 if [[ ! -d "${PROJECT_PATH}" ]]; then
-  echo "Missing ${PROJECT_PATH}. Run scripts/generate_xcodeproj.rb first." >&2
+  echo "Missing ${PROJECT_PATH}. Could not generate Xcode project via ${PROJECT_GENERATOR}." >&2
   exit 1
 fi
 

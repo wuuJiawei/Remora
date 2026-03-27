@@ -7,443 +7,461 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0038DB322DCE36A2DC4CE5F0 /* FileManagerPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DA9172E9C19C952F4A3FF45 /* FileManagerPanelView.swift */; };
-		01B5324D7DFFA5AD3E035A6D /* HostConnectionExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E252D84DC9D742B93B420CFA /* HostConnectionExporter.swift */; };
-		01C14C6CC817D85DF9718F19 /* RemoteLogViewerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0713F4EE563D39182816E010 /* RemoteLogViewerViewModel.swift */; };
-		04AD1861B288FB1B13696CE0 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 48F66FCFEAC3BB4F52C41CD2 /* Cocoa.framework */; };
-		061AA186127E28B05E70DECD /* RemoteFileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53973535D1899C150E0F8A10 /* RemoteFileModels.swift */; };
-		0627B5735B27B6609774130D /* RemoraJSONFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7573078B6201BA2DA47754A /* RemoraJSONFileStore.swift */; };
-		0B384CCDE5A5D0DE35D714CE /* RemotePermissionsEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C532F41E34F26281FAF662E /* RemotePermissionsEditorSheet.swift */; };
-		0C18BB4124FEB4E7DE34A1B5 /* RemoteListSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E382EE70BE3B7BC1CB360755 /* RemoteListSelection.swift */; };
-		0E3819FA935DF4D6457B2A61 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FEF2176CA492A9E51CCEC0C /* AppSettings.swift */; };
-		107AE427625924749BA649F5 /* RemoteExtractSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4060893CB58CCC144D085AAD /* RemoteExtractSheet.swift */; };
-		192527DE718F1904AA6B46EC /* RemoteFilePropertiesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7123AD5F442ADEBC6AD16B16 /* RemoteFilePropertiesSheet.swift */; };
-		1984019046342DCA07A3ECF5 /* TerminalAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D62A4C5BA1EBBBE3821510B /* TerminalAIModels.swift */; };
-		1A4B57BC35B45FADF0CD99A7 /* SSHConnectionReuse.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7876F4A6AB3ED7EEE67A31F /* SSHConnectionReuse.swift */; };
-		1B66E5C566D54109B1173755 /* ServerStatusWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632135D55BF3AF1D297A9AEE /* ServerStatusWindow.swift */; };
-		1E20EB1C9E821C82C3DBEB68 /* SystemSSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE17CDA7B2D6B871824DBC5F /* SystemSSHClient.swift */; };
-		1ED2F61622B6619DF2337E52 /* TerminalAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82CA6F2991634A4DB634D1C4 /* TerminalAIService.swift */; };
-		20558F6D17CE3E9664097A78 /* SystemSFTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A722E1626423D4595B7B2DC4 /* SystemSFTPClient.swift */; };
-		20885870D11536D0F676837E /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 643201056D785ACAEAC08247 /* QuartzCore.framework */; };
-		29C1D0F941F02CA0D5F1F215 /* RemoteTextEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4ACEE4AFD0344594D557735 /* RemoteTextEditorSheet.swift */; };
-		30EA3D69BB3267E913BE09A8 /* RemoteCompressSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168DD21B40A143AAF6CD5491 /* RemoteCompressSheet.swift */; };
-		31BAC3BFB6EDDB2B14F21907 /* RemoteFilePropertiesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A121AD46517C8BF3078C84 /* RemoteFilePropertiesViewModel.swift */; };
-		3231AED48FC914F9FB19F9B9 /* RemoteDropRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA45370E18AAAB3035CA42D /* RemoteDropRouting.swift */; };
-		3529CFEC97B3B0FE86472FDD /* ByteSizeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FC2BD4201D475EE92BC65E0 /* ByteSizeFormatter.swift */; };
-		36DD11B7EAA0DC69F88CBC12 /* libRemoraCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B681CF69F0DA9B6FC635EE15 /* libRemoraCore.a */; };
-		37D5036FD74EC712C5976D37 /* RemoteTextEditorRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3BB7FA9493F3B3D2579AC8 /* RemoteTextEditorRepresentable.swift */; };
-		39A8E592ECA699A436B3CCD0 /* ServerMetricsCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614ED80C16F2BC0EEC905175 /* ServerMetricsCenter.swift */; };
-		39AA2683AF7BFDEA3BB85848 /* RingByteBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2313E8DB8D4F4FDB73E0432 /* RingByteBuffer.swift */; };
-		3A1A62F392B528233F412FFD /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 25E4CA3A26E39C12B14B3E5A /* SwiftTerm */; };
-		3B1F920957F079344E6AC8E5 /* libRemoraTerminal.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B3871E0470DCAD8CF2B0B1B3 /* libRemoraTerminal.a */; };
-		3DE25C01A3B36C89069484DC /* ArchiveSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C124BF1A102FF8E9396408E /* ArchiveSupport.swift */; };
-		3FB1210921E3CB1DDB3ED393 /* TransferCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FA671FD59185DAEA0CC4D2 /* TransferCenter.swift */; };
-		3FC3EE45B3F9525AE0C48AB2 /* HostConnectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E39934F55591AF92D46DAF6D /* HostConnectionImporter.swift */; };
-		410CB6F540013F61C4E44240 /* AppKeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42760216BA9F9BC6A9AD182 /* AppKeyboardShortcuts.swift */; };
-		4C504B77FDDE7355ABE4751C /* SFTPProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715A2E56F9AE7F0580804936 /* SFTPProtocols.swift */; };
-		4D07BC849CAD928F36B9F3A1 /* PerformanceMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B244939C599034857EF2DC4A /* PerformanceMetrics.swift */; };
-		5C416BE1C82740626DD0591F /* RemoraConfigPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = F647FF8D26CF1FA1EB8E5D46 /* RemoraConfigPaths.swift */; };
-		5CA3ED64D658528E0D0FDD7C /* RemotePermissionsEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EBBDD013C5407BBA0002F6 /* RemotePermissionsEditorViewModel.swift */; };
-		5D5B6F62B57AEC8E2009E38B /* AISettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F784AF9C2B25158AE6B32D /* AISettings.swift */; };
-		5DCAE0CCC0D6092799BDF5F1 /* RemoraAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF865F0473B64070BAFF551 /* RemoraAppMain.swift */; };
-		5EB5FEA13CBDCFDEE4C3E105 /* HostCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D88985B7F14C812B0B99CBC /* HostCatalog.swift */; };
-		64FAABD0F1DA6448333B56E7 /* CredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4102577E726660AEBBA16315 /* CredentialStore.swift */; };
-		6C3235E285A36A2C96E7271E /* DisconnectedSFTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D7DE266B661F4CF725AC6D /* DisconnectedSFTPClient.swift */; };
-		6EBF4D4989D1540BFC5FCFA3 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8F8531C8753F3E0D1F214DEC /* SwiftUI.framework */; };
-		6EF9523DB0B3DC532FDE4DEB /* Host.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E474A8D576C93C1B5440E96 /* Host.swift */; };
-		6F91208A8DB46E0953EB5C09 /* OpenSSHRemoteShellIntegrationInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27F43A7BAFB6BF44853C09E /* OpenSSHRemoteShellIntegrationInstaller.swift */; };
-		7115D711575F849CE6667561 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 191FE8CE7C945E2E3702CFCE /* SwiftTerm */; };
-		71785D8599974C79DEA32908 /* HostPasswordStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 636FA0750F613436B75C11D7 /* HostPasswordStorage.swift */; };
-		73F7215BDFE094DD23F17DD9 /* SessionManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03CA0D10B92C8299F0CA7F42 /* SessionManagerProtocol.swift */; };
-		75037A7F424B496138D60F1C /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 416AF3E1695646B2B338E2DC /* Localizable.strings */; };
-		7B5BF366EBAFA70718BD3FDE /* TerminalSessionDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0C42C8D382A84D730B8F76 /* TerminalSessionDescriptor.swift */; };
-		7BBCEBDE30D2E41953AA0DF0 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAC316597BC707065A2697AA /* CoreText.framework */; };
-		7C96F13EAE34DF12A6E427BE /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412E5BA141DCC208DCC31423 /* AppAppearance.swift */; };
-		7E3821890F9CF94CCE720919 /* libRemoraCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B681CF69F0DA9B6FC635EE15 /* libRemoraCore.a */; };
-		7FC623D15FAFEEBE0AF16261 /* VisualStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801027F89ABC134FD4337C1F /* VisualStyle.swift */; };
-		816CCC71F0F5D4AE3AA3EF16 /* RuntimeConnectionSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81AB2B60D6C4D76C6526FA5 /* RuntimeConnectionSyncCoordinator.swift */; };
-		825B48DB716A322FBE3E78EF /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4819C73F2B3534CB879C5B4C /* AppKit.framework */; };
-		861158B0EF28A9086FB1AA30 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9EA3542A95486924BA16B9 /* ContentView.swift */; };
-		86D39C3EB22A9E081172D2F8 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4819C73F2B3534CB879C5B4C /* AppKit.framework */; };
-		8C17CD5985478411E18C1D8F /* TerminalAIAssistantCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15689067D38F97FDDE76A809 /* TerminalAIAssistantCoordinator.swift */; };
-		8C554839FD462F8940C90600 /* HostConnectionClipboardBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9C130B7C78CE692B1ACC913 /* HostConnectionClipboardBuilder.swift */; };
-		8DF1B8B840ABFE6B77962018 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3631CA4A6C912EF7354F0504 /* Assets.xcassets */; };
-		92C043C67584703D69976F05 /* ConnectionInfoPasswordCopyConsentGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492FAE6E5D0022D66C002465 /* ConnectionInfoPasswordCopyConsentGate.swift */; };
-		93E91E3710EC4FA02D224AD2 /* HostConnectionImportSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3D1FA8D3F9108535929E2E /* HostConnectionImportSource.swift */; };
-		947F327C9ABEE75AFA0BCAD3 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28A9183519F402A1A468347C /* SessionManager.swift */; };
-		991E54E9DAE95BE4C4308B0D /* TerminalViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CB7B6B919C4C3D7A3BB633 /* TerminalViewRepresentable.swift */; };
-		9A4E4AD3F4011C4EC6DC0A23 /* RemoraSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48B65F5CFE169FD9BABA65D /* RemoraSettingsSheet.swift */; };
-		9D3CFFCD0155BF96CFDEE7A7 /* SSHProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C98C5957F1C2CD86B3B41E /* SSHProtocols.swift */; };
-		A07D329A1AABDC82221DBB9C /* LocalizationHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A32DBDD21D3884326A9CAA /* LocalizationHelpers.swift */; };
-		A36F49CD06581109DCDCFCE1 /* WorkspaceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8220C01C80BBB67FCDAD9F9 /* WorkspaceViewModel.swift */; };
-		A499F6961DD5B3C71E9B28EF /* FileTransferViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5806CE05BC03C4DBBCD20746 /* FileTransferViewModel.swift */; };
-		ACA247C4EB702EAC4B756B08 /* TerminalAIAssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1692E1F3446F708407376132 /* TerminalAIAssistantView.swift */; };
-		B2A846ECBC8EF68EFE28EFF4 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C18F99C0A309397347613BE7 /* Security.framework */; };
-		BCAE9512165BC2DF67075E4B /* AISettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F04948629FF42AB81C422758 /* AISettingsStore.swift */; };
-		BCE7BCBC79975811DB221055 /* MockSSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F869A74630CD9CD25A7862DC /* MockSSHClient.swift */; };
-		C09FFF12759E33B763B13D4C /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7F39343E535E5F0A31A8BD /* AppPreferences.swift */; };
-		C10B0C6501E2969B40BB532C /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D186E270E1B32F2D532FD84 /* AppLanguage.swift */; };
-		C1B8AA8132ABC41585BFD776 /* HostCatalogPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9824865A5ED10AF452AD0432 /* HostCatalogPersistence.swift */; };
-		C335B5A1423BB989B55850D0 /* TerminalPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB665FD67B748730803110C3 /* TerminalPaneView.swift */; };
-		C37F3445CB3F31A32C5F30C2 /* HostKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F388E4CCBCD460BBD17222DF /* HostKeyStore.swift */; };
-		C41C3D83F75DBA4A235D07FF /* RemoteLogViewerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501EFE3B0C9816886216050F /* RemoteLogViewerSheet.swift */; };
-		DA6A649496A4592FB434E164 /* TerminalRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B3831E88D6DC170A8324EBE /* TerminalRuntime.swift */; };
-		DCDF1C0F9755A1762F27EC83 /* LocalShellClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1B7448CE3D1A93047676CF /* LocalShellClient.swift */; };
-		DE758A389EDD1941F290C183 /* TerminalDirectorySyncBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FDAC41C93D5A684A7202D1 /* TerminalDirectorySyncBridge.swift */; };
-		E27D6AB1B2F994AE19FF2B52 /* SSHCompatibilityProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92F261F1F8C8D44617C261EA /* SSHCompatibilityProfile.swift */; };
-		E65A78619426A9EC9D4BEBD1 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C6183B5C152B077005CC50D /* TerminalView.swift */; };
-		ED9E647B6D2719839DACD2BA /* TerminalAIComposerInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048FEB07522BE9179A3DE7FA /* TerminalAIComposerInputView.swift */; };
-		EDDD3BA200F2C019A6E8BA0F /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE63835DDBC4C9624B0D0E54 /* L10n.swift */; };
-		F5494F065447417F58CCF85A /* RemoteTextEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC173606CE628E85F2589C /* RemoteTextEditorViewModel.swift */; };
-		FA54EFE0D453E2FFAC6A53C4 /* TerminalSmartAssistNotificationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D173C30122DEF9545BAC2E0C /* TerminalSmartAssistNotificationState.swift */; };
-		FF15B4687A6F21A6C775D698 /* MockSFTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E7C131773CE208DB786EAA /* MockSFTPClient.swift */; };
+		02FF66C4D7251017F88683FB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E4E530E61B91C7D73A56C4A /* Assets.xcassets */; };
+		0345F0C4952870CDFB5D8923 /* TerminalAIAssistantCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95BC36083131BEB41DB67AB4 /* TerminalAIAssistantCoordinator.swift */; };
+		044857B639E3E4B82E892090 /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A187D1F93E9A9BE382E7D /* AppPreferences.swift */; };
+		085FA9E11408C5507D8986C1 /* DisconnectedSFTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5AEBD74287A211672DD103 /* DisconnectedSFTPClient.swift */; };
+		092B29F787181EA911215E08 /* ConnectionInfoPasswordCopyConsentGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA66D64CA503448FA6DA6D0 /* ConnectionInfoPasswordCopyConsentGate.swift */; };
+		0974DCDEAF1DFC49957EFFA6 /* FileManagerContextMenuPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E641314E9F7D244B32918FDF /* FileManagerContextMenuPolicy.swift */; };
+		0BA83DFDA9614818F1EC1C6F /* HostConnectionClipboardBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5A8DDFE564B7E2A409EA89 /* HostConnectionClipboardBuilder.swift */; };
+		0CFEB5AA4C60044CEDAD5CA3 /* ArchiveSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A74C8F32D776489DAC4C33E /* ArchiveSupport.swift */; };
+		13A922692CF9B122D48F698C /* SessionManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F7D1E1246B609D98C06881 /* SessionManagerProtocol.swift */; };
+		1C5229D9E793DB18EC05494A /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED3A60642541BB81F313ABAE /* TerminalView.swift */; };
+		21834CF51E97E828A2BFE936 /* HostConnectionExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D835EDBED1014AE3CF286A /* HostConnectionExporter.swift */; };
+		2384C0294C81737DC0D665C1 /* TerminalAIComposerInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2408CDCA28D63E412BD36151 /* TerminalAIComposerInputView.swift */; };
+		248D1395D3E83F7B87AFF58C /* TerminalAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 795B7B16405D6DC0D49ED5D6 /* TerminalAIService.swift */; };
+		2954E8473C90EE2E8BC72043 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F475433F2B947611D19887 /* AppLanguage.swift */; };
+		2A381376B2459EEDF44A817E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EAEF0051A3B3CCB8D53149BB /* Cocoa.framework */; };
+		2F6A4C0C3ECCF47B1F0F0B8B /* FileTransferDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23795D7EC03240C8A2EE85E2 /* FileTransferDiagnostics.swift */; };
+		36C2509C135268C7843150C0 /* VisualStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1326317D86D5B0A551464952 /* VisualStyle.swift */; };
+		397B0F7F452BC93A1BB84215 /* TerminalDirectorySyncBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8953E5567A950F435D6F4B65 /* TerminalDirectorySyncBridge.swift */; };
+		39FF913A9A6C281D2ADD7ECA /* RemoraConfigPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FA86E6E6E741D2BE5F658A0 /* RemoraConfigPaths.swift */; };
+		40C2B90B87AC151ABB370697 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5283F72CF9236515F952CC1C /* CoreText.framework */; };
+		41C21112F017B9BF0AFC9621 /* TerminalPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118144C2AD95A2023EA3A958 /* TerminalPaneView.swift */; };
+		4390A4C81C86442274FF4350 /* ServerStatusWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B475A8D11572BA8A0C7F1C3A /* ServerStatusWindow.swift */; };
+		442AEA12A62267450F651B0F /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 958EC872EF16B0E38C7C55F9 /* SwiftTerm */; };
+		45E41DD5BA7013EEBC861E99 /* RemoteLogViewerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538A15DD23CAE8C5D26D2D38 /* RemoteLogViewerSheet.swift */; };
+		49AA5E804EB4C5453552D47C /* RemoteTextEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E03367E3A1DA8CE0E051A6F /* RemoteTextEditorViewModel.swift */; };
+		4CBA1679A17B90A10F50B5A7 /* RemoteExtractSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB059844BEA0222482B61414 /* RemoteExtractSheet.swift */; };
+		4DEDF5FF24B29148745AA966 /* MockSSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FEB9CF0BBD5ADDB2BF3E9F1 /* MockSSHClient.swift */; };
+		51B439282FA280A71C4D7BF2 /* SSHConnectionReuse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15FEB275F910C07BD4DAF3ED /* SSHConnectionReuse.swift */; };
+		549ECDE88BD3D346AC33D04E /* LocalizationHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C699AAD7AE1E0D9A53C4D63A /* LocalizationHelpers.swift */; };
+		583BA99BFD9F4B471315E063 /* HostKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF48EAB1867E7B2F38581C8 /* HostKeyStore.swift */; };
+		597834FFC93413F68E1FF8B8 /* SSHCompatibilityProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5045E811116CBDF6AEFFDBF3 /* SSHCompatibilityProfile.swift */; };
+		5A8D254E7B9BA4C5FA5BBD76 /* SSHProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620C4DB8A058ADA5720126F5 /* SSHProtocols.swift */; };
+		623E30E2D95D777E4773706D /* FileTransferViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E3D1276D38B7A2A2AC65FE /* FileTransferViewModel.swift */; };
+		65523E9D18BA47EAF2F0DC75 /* RemoraJSONFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635C320FA0D81E14113AEFB4 /* RemoraJSONFileStore.swift */; };
+		6A23A67750B20326D5DEA342 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7283960F6D8059E4F3BDF319 /* AppSettings.swift */; };
+		6DC798B64ECF45B7F0FEDC4E /* RemoteFileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F429EAEB6CAE05083A952B3 /* RemoteFileModels.swift */; };
+		6EBAE937966B5B05142D4025 /* SessionMetricsTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 311632748BAF6F3C7DB98DBC /* SessionMetricsTooltip.swift */; };
+		6FB25814A6643E220A146D27 /* RingByteBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4148DB35EE6EE176E025AA8A /* RingByteBuffer.swift */; };
+		711B0F81ABAAD25B957A84C7 /* TerminalAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E4A5507706A3681B00E93D /* TerminalAIModels.swift */; };
+		72B7C0D5126E1AB764FFD561 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1AA51F21BC5C14F70D2CBE73 /* AppKit.framework */; };
+		73D538B978981287D18A3E62 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32C5173F4753F3AF6F48EF3B /* SessionManager.swift */; };
+		7432B10952D71562C5570C56 /* RemotePermissionsEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E75A2D9CE84AA0A9BB3E5F3C /* RemotePermissionsEditorViewModel.swift */; };
+		756E8C21434A740454E6738B /* RemoraSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8019E7F23A533AC5E9121CBE /* RemoraSettingsSheet.swift */; };
+		75F00474F67BCC2C38A7E187 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFD895C1760B978CBFB43FA /* L10n.swift */; };
+		7654ED60BD81C00E32D1139B /* RemoteTextEditorRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E61363A90F1E327018300A6 /* RemoteTextEditorRepresentable.swift */; };
+		7AB6E1053DC5FC7E76D50145 /* RemoraAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0275362970E4F7FCEB7226C1 /* RemoraAppMain.swift */; };
+		7F1A237527449D32AFA6DA56 /* RemoteTextEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B249DD7DDE2A9B8DF750A9 /* RemoteTextEditorSheet.swift */; };
+		80AC0A5A9B5654E8B93FE588 /* ContextMenuPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FCD357785B5E96E3CE0F31A /* ContextMenuPresentation.swift */; };
+		8442DA5424840B0671E010F8 /* HostCatalogPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F54F25DF9089F2A9F241682 /* HostCatalogPersistence.swift */; };
+		87E379109DFD8FA825FF3CA2 /* TerminalSmartAssistNotificationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6AD431BF45710A02D9AA8EC /* TerminalSmartAssistNotificationState.swift */; };
+		883283FAA6CFDF04E27ADCDF /* Host.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74941C3DE4CB9AD361A1E96 /* Host.swift */; };
+		8871DAE8CA7BBBB5A3F7AD71 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1657CA814F5ED85CEAC2D631 /* ContentView.swift */; };
+		89985C17E2575308087D629C /* AISettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5054834E5C06A68433E4DF72 /* AISettings.swift */; };
+		8A08E354AE402783F0F3C27D /* SystemSFTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BC8F418031F9FFD61D10C73 /* SystemSFTPClient.swift */; };
+		8B13C92F5022852821BFDEC4 /* MockSFTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDE3CC7B1EED5623C09D99F5 /* MockSFTPClient.swift */; };
+		8B9EF41BF978751A70BE4BE0 /* HostConnectionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58836E47AB888BA5A2FF3611 /* HostConnectionImporter.swift */; };
+		8BD3A9F2C34D278A4F94F2A2 /* TerminalSessionDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09F8E584C6040AFA4D716892 /* TerminalSessionDescriptor.swift */; };
+		8C489BD65CDE17D5029F85F9 /* SFTPProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024CF01F2C36D974525CA0D2 /* SFTPProtocols.swift */; };
+		8D12936832DF13ED07D8A97C /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = DFC5109C38201D834CBED4A6 /* Localizable.strings */; };
+		8EE1A7EB91A94781592D2CC0 /* LocalShellClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D606DFC2294B5F71A40BF03 /* LocalShellClient.swift */; };
+		8EE23AA91EE6941F7B22BF3C /* PerformanceMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39EE997E1E7815D0DC37BC66 /* PerformanceMetrics.swift */; };
+		8F40D27B28229C4C8E91A3CC /* AISettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D946F12DA5BDA45F15C37327 /* AISettingsStore.swift */; };
+		9067567C19C81F61CCECCB2A /* RemoteListSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 634DDFD06542DB079E7A88CB /* RemoteListSelection.swift */; };
+		928BABC8CBCB53BA246C1C8E /* CredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 248EF6071A356232C95D1F73 /* CredentialStore.swift */; };
+		9329E771F29C4CAA1EFD1877 /* RuntimeConnectionSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC7969B8509C7ABCEF90527 /* RuntimeConnectionSyncCoordinator.swift */; };
+		944FEEA5D71298AC4F8FA165 /* RemoteFilePropertiesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5BAC125A784B6E7E609B0A1 /* RemoteFilePropertiesSheet.swift */; };
+		9511FB56BD38DB0B5AE24675 /* libRemoraCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 316617B08F2D4ED99AC9F9E4 /* libRemoraCore.a */; };
+		95426626B1B443C585BDFA79 /* HostCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00C2F38C7B66AE9237353EA /* HostCatalog.swift */; };
+		96FA34C31C245D22DB98DE7C /* AppKeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DA8ECC4AD6C1F0A979FAA4 /* AppKeyboardShortcuts.swift */; };
+		9C4D88153318254FF8DBFF7C /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = A5E54E8EDED06DA3AFF346C4 /* SwiftTerm */; };
+		A12DDB4E4F67F38D56EAA929 /* HostConnectionImportSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D6660C0781F7EDC2A86726 /* HostConnectionImportSource.swift */; };
+		A28D3C7AD92A82F9B4D1E118 /* TransferQueuePresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CE478564A1D44B8A06C588F /* TransferQueuePresentationState.swift */; };
+		A650BEF561F6A727ED705FE5 /* libRemoraTerminal.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 7ED7B6724C40B72C17B96051 /* libRemoraTerminal.a */; };
+		AC775150D67866C29A7045BE /* OpenSSHRemoteShellIntegrationInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2354929CD2D3C2B529D03E /* OpenSSHRemoteShellIntegrationInstaller.swift */; };
+		AFF9C405A83BDB605EF8A672 /* HostPasswordStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AFA572DF3FDEB0B4A337B56 /* HostPasswordStorage.swift */; };
+		B803D42A09D26D33CF65710C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FBE7A8157B43A3D5C66AA520 /* SwiftUI.framework */; };
+		BA39A070B7DD66847A4CF044 /* RemoteDropRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B241603D1D1129B3F8A1D81 /* RemoteDropRouting.swift */; };
+		BF939A917BD68DFC5FCF44FA /* libRemoraCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 316617B08F2D4ED99AC9F9E4 /* libRemoraCore.a */; };
+		CBBEE6AB650A4FAB248546A6 /* ServerMetricsCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A10FF7554D29988E7E1BA8 /* ServerMetricsCenter.swift */; };
+		CCA297FE392B84919D864B18 /* AppAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = C86415377821735C74725332 /* AppAppearance.swift */; };
+		CF610BF2ECA895EC64C1A0CB /* RemoteFilePropertiesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F39451F0728741B68BD02666 /* RemoteFilePropertiesViewModel.swift */; };
+		D1F7F50752386663E8380FD3 /* RemoteCompressSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35C66128453A0C79B1315522 /* RemoteCompressSheet.swift */; };
+		D3B34074AB05A2A38549CD9F /* TerminalViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3C1C960E77A12AEEFFBDFC4 /* TerminalViewRepresentable.swift */; };
+		D95C5D301BF8C6794E74849E /* WorkspaceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7C752746A5CA193A528F1D /* WorkspaceViewModel.swift */; };
+		D9F90F1F270584F7F174E709 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1AA51F21BC5C14F70D2CBE73 /* AppKit.framework */; };
+		DCC7383C5997DB7A7AC4217D /* RemoteLogViewerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF703F7E9549BE798A823795 /* RemoteLogViewerViewModel.swift */; };
+		E00E6FC68911ACA421EAEF80 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3E2A1C5F25BBC5BE42078BC3 /* QuartzCore.framework */; };
+		E2E579FCFFA2A824CD223A41 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 077DA40EBB1A85D71D1DC6E3 /* Security.framework */; };
+		E9370B6B0E875C8C4BC45EEE /* TransferCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3EC1A0502D3CA1B7AEFC5C /* TransferCenter.swift */; };
+		EE96196266366DB3324392BF /* SystemSSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D8FA9EFBC31696014007A1 /* SystemSSHClient.swift */; };
+		F0218C393D07BAD19C5AAB87 /* RemotePermissionsEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A9197304DAB3D2F48737D75 /* RemotePermissionsEditorSheet.swift */; };
+		F12F43D91659C606DF128645 /* ServerMetricsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3D67B4DFC600A64D5FD3E47 /* ServerMetricsPanel.swift */; };
+		F7A151A3033CE597456A0B44 /* TerminalRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2AED84CF7F5F5F58B9AA30 /* TerminalRuntime.swift */; };
+		F8A93F93CE254AD705E0318A /* ByteSizeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0C0D2543BA734D403074F6 /* ByteSizeFormatter.swift */; };
+		F8BA280DB36A11FCE9DF4F1D /* FileManagerPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B1BFAABE4CF7133C5975C9D /* FileManagerPanelView.swift */; };
+		FB1059290582DAD60976D732 /* TerminalAIAssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67853FAE45F0DB9A321C8686 /* TerminalAIAssistantView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		8E178F59DEA094E4113BEF90 /* PBXContainerItemProxy */ = {
+		A829CA0F1D01D026D0E62529 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 628A0E431191C1DBE3B892A3 /* Project object */;
+			containerPortal = 9DDC5EE7F119EDC74BF7CEF2 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 7239CEFAECAD2CFBE3F0469B;
-			remoteInfo = RemoraCore;
-		};
-		B178462CEF8BF4D81C4531F2 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 628A0E431191C1DBE3B892A3 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 7239CEFAECAD2CFBE3F0469B;
-			remoteInfo = RemoraCore;
-		};
-		F1A123935FB4EA5C02862286 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 628A0E431191C1DBE3B892A3 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = EA922E780BDF53DE6938CFAD;
+			remoteGlobalIDString = 8235970D63C37E64531967EF;
 			remoteInfo = RemoraTerminal;
+		};
+		DCCF4E918A201E014B3CD14A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9DDC5EE7F119EDC74BF7CEF2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CFD808B78F31E7BCA7234540;
+			remoteInfo = RemoraCore;
+		};
+		EABCA8648361FD4128CBBFD2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9DDC5EE7F119EDC74BF7CEF2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CFD808B78F31E7BCA7234540;
+			remoteInfo = RemoraCore;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		03CA0D10B92C8299F0CA7F42 /* SessionManagerProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SessionManagerProtocol.swift; path = Protocols/SessionManagerProtocol.swift; sourceTree = "<group>"; };
-		048FEB07522BE9179A3DE7FA /* TerminalAIComposerInputView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIComposerInputView.swift; sourceTree = "<group>"; };
-		0713F4EE563D39182816E010 /* RemoteLogViewerViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteLogViewerViewModel.swift; sourceTree = "<group>"; };
-		0E474A8D576C93C1B5440E96 /* Host.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Host.swift; path = Models/Host.swift; sourceTree = "<group>"; };
-		0FEF2176CA492A9E51CCEC0C /* AppSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
-		15689067D38F97FDDE76A809 /* TerminalAIAssistantCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIAssistantCoordinator.swift; sourceTree = "<group>"; };
-		168DD21B40A143AAF6CD5491 /* RemoteCompressSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteCompressSheet.swift; sourceTree = "<group>"; };
-		1692E1F3446F708407376132 /* TerminalAIAssistantView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIAssistantView.swift; sourceTree = "<group>"; };
-		16A121AD46517C8BF3078C84 /* RemoteFilePropertiesViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteFilePropertiesViewModel.swift; sourceTree = "<group>"; };
-		1A3BB7FA9493F3B3D2579AC8 /* RemoteTextEditorRepresentable.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteTextEditorRepresentable.swift; sourceTree = "<group>"; };
-		1D62A4C5BA1EBBBE3821510B /* TerminalAIModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIModels.swift; sourceTree = "<group>"; };
-		1FC2BD4201D475EE92BC65E0 /* ByteSizeFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ByteSizeFormatter.swift; sourceTree = "<group>"; };
-		28A9183519F402A1A468347C /* SessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SessionManager.swift; path = Session/SessionManager.swift; sourceTree = "<group>"; };
-		2C6183B5C152B077005CC50D /* TerminalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
-		3631CA4A6C912EF7354F0504 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		3C0C42C8D382A84D730B8F76 /* TerminalSessionDescriptor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TerminalSessionDescriptor.swift; path = Models/TerminalSessionDescriptor.swift; sourceTree = "<group>"; };
-		3E3D1FA8D3F9108535929E2E /* HostConnectionImportSource.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostConnectionImportSource.swift; sourceTree = "<group>"; };
-		4060893CB58CCC144D085AAD /* RemoteExtractSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteExtractSheet.swift; sourceTree = "<group>"; };
-		4102577E726660AEBBA16315 /* CredentialStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CredentialStore.swift; path = Security/CredentialStore.swift; sourceTree = "<group>"; };
-		412E5BA141DCC208DCC31423 /* AppAppearance.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppAppearance.swift; sourceTree = "<group>"; };
-		46FA671FD59185DAEA0CC4D2 /* TransferCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransferCenter.swift; sourceTree = "<group>"; };
-		4819C73F2B3534CB879C5B4C /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/AppKit.framework; sourceTree = DEVELOPER_DIR; };
-		48F66FCFEAC3BB4F52C41CD2 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
-		492FAE6E5D0022D66C002465 /* ConnectionInfoPasswordCopyConsentGate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConnectionInfoPasswordCopyConsentGate.swift; sourceTree = "<group>"; };
-		501EFE3B0C9816886216050F /* RemoteLogViewerSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteLogViewerSheet.swift; sourceTree = "<group>"; };
-		516F6025C2423C78A61A0216 /* Remora.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Remora.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		53973535D1899C150E0F8A10 /* RemoteFileModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteFileModels.swift; path = Models/RemoteFileModels.swift; sourceTree = "<group>"; };
-		5806CE05BC03C4DBBCD20746 /* FileTransferViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileTransferViewModel.swift; sourceTree = "<group>"; };
-		5AF865F0473B64070BAFF551 /* RemoraAppMain.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoraAppMain.swift; sourceTree = "<group>"; };
-		5D186E270E1B32F2D532FD84 /* AppLanguage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
-		614ED80C16F2BC0EEC905175 /* ServerMetricsCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerMetricsCenter.swift; sourceTree = "<group>"; };
-		632135D55BF3AF1D297A9AEE /* ServerStatusWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerStatusWindow.swift; sourceTree = "<group>"; };
-		636FA0750F613436B75C11D7 /* HostPasswordStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostPasswordStorage.swift; sourceTree = "<group>"; };
-		643201056D785ACAEAC08247 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/QuartzCore.framework; sourceTree = DEVELOPER_DIR; };
-		6B3831E88D6DC170A8324EBE /* TerminalRuntime.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalRuntime.swift; sourceTree = "<group>"; };
-		7123AD5F442ADEBC6AD16B16 /* RemoteFilePropertiesSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteFilePropertiesSheet.swift; sourceTree = "<group>"; };
-		715A2E56F9AE7F0580804936 /* SFTPProtocols.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SFTPProtocols.swift; path = Protocols/SFTPProtocols.swift; sourceTree = "<group>"; };
-		74EBBDD013C5407BBA0002F6 /* RemotePermissionsEditorViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemotePermissionsEditorViewModel.swift; sourceTree = "<group>"; };
-		75C98C5957F1C2CD86B3B41E /* SSHProtocols.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSHProtocols.swift; path = Protocols/SSHProtocols.swift; sourceTree = "<group>"; };
-		801027F89ABC134FD4337C1F /* VisualStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisualStyle.swift; sourceTree = "<group>"; };
-		82CA6F2991634A4DB634D1C4 /* TerminalAIService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIService.swift; sourceTree = "<group>"; };
-		8C532F41E34F26281FAF662E /* RemotePermissionsEditorSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemotePermissionsEditorSheet.swift; sourceTree = "<group>"; };
-		8C9EA3542A95486924BA16B9 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		8D88985B7F14C812B0B99CBC /* HostCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostCatalog.swift; sourceTree = "<group>"; };
-		8DA9172E9C19C952F4A3FF45 /* FileManagerPanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileManagerPanelView.swift; sourceTree = "<group>"; };
-		8F8531C8753F3E0D1F214DEC /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/SwiftUI.framework; sourceTree = DEVELOPER_DIR; };
-		90FDAC41C93D5A684A7202D1 /* TerminalDirectorySyncBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalDirectorySyncBridge.swift; sourceTree = "<group>"; };
-		92D7DE266B661F4CF725AC6D /* DisconnectedSFTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DisconnectedSFTPClient.swift; path = SFTP/DisconnectedSFTPClient.swift; sourceTree = "<group>"; };
-		92F261F1F8C8D44617C261EA /* SSHCompatibilityProfile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSHCompatibilityProfile.swift; path = SSH/SSHCompatibilityProfile.swift; sourceTree = "<group>"; };
-		9824865A5ED10AF452AD0432 /* HostCatalogPersistence.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostCatalogPersistence.swift; sourceTree = "<group>"; };
-		9C124BF1A102FF8E9396408E /* ArchiveSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArchiveSupport.swift; sourceTree = "<group>"; };
-		9DA9D2A6AB478A8E2AF116DE /* Localizable.strings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
-		A0CB7B6B919C4C3D7A3BB633 /* TerminalViewRepresentable.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalViewRepresentable.swift; sourceTree = "<group>"; };
-		A42760216BA9F9BC6A9AD182 /* AppKeyboardShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppKeyboardShortcuts.swift; sourceTree = "<group>"; };
-		A722E1626423D4595B7B2DC4 /* SystemSFTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SystemSFTPClient.swift; path = SFTP/SystemSFTPClient.swift; sourceTree = "<group>"; };
-		AC7F39343E535E5F0A31A8BD /* AppPreferences.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
-		B244939C599034857EF2DC4A /* PerformanceMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PerformanceMetrics.swift; path = Metrics/PerformanceMetrics.swift; sourceTree = "<group>"; };
-		B3871E0470DCAD8CF2B0B1B3 /* libRemoraTerminal.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libRemoraTerminal.a; sourceTree = BUILT_PRODUCTS_DIR; };
-		B681CF69F0DA9B6FC635EE15 /* libRemoraCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libRemoraCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
-		B7573078B6201BA2DA47754A /* RemoraJSONFileStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoraJSONFileStore.swift; path = Config/RemoraJSONFileStore.swift; sourceTree = "<group>"; };
-		BAC316597BC707065A2697AA /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/CoreText.framework; sourceTree = DEVELOPER_DIR; };
-		BD1B7448CE3D1A93047676CF /* LocalShellClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocalShellClient.swift; path = SSH/LocalShellClient.swift; sourceTree = "<group>"; };
-		C0E7C131773CE208DB786EAA /* MockSFTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSFTPClient.swift; path = SFTP/MockSFTPClient.swift; sourceTree = "<group>"; };
-		C18F99C0A309397347613BE7 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/Security.framework; sourceTree = DEVELOPER_DIR; };
-		C36B1AF082D631AD261B4E88 /* Localizable.strings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
-		C48B65F5CFE169FD9BABA65D /* RemoraSettingsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoraSettingsSheet.swift; sourceTree = "<group>"; };
-		C4ACEE4AFD0344594D557735 /* RemoteTextEditorSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteTextEditorSheet.swift; sourceTree = "<group>"; };
-		C81AB2B60D6C4D76C6526FA5 /* RuntimeConnectionSyncCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RuntimeConnectionSyncCoordinator.swift; sourceTree = "<group>"; };
-		C8220C01C80BBB67FCDAD9F9 /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
-		C9C130B7C78CE692B1ACC913 /* HostConnectionClipboardBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostConnectionClipboardBuilder.swift; sourceTree = "<group>"; };
-		CDA45370E18AAAB3035CA42D /* RemoteDropRouting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteDropRouting.swift; sourceTree = "<group>"; };
-		D173C30122DEF9545BAC2E0C /* TerminalSmartAssistNotificationState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalSmartAssistNotificationState.swift; sourceTree = "<group>"; };
-		D6F784AF9C2B25158AE6B32D /* AISettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISettings.swift; sourceTree = "<group>"; };
-		D9A32DBDD21D3884326A9CAA /* LocalizationHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalizationHelpers.swift; sourceTree = "<group>"; };
-		DD3B19FC2DFF535C7573E044 /* package_macos.sh */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.script.sh; name = package_macos.sh; path = scripts/package_macos.sh; sourceTree = "<group>"; };
-		DE63835DDBC4C9624B0D0E54 /* L10n.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
-		E2313E8DB8D4F4FDB73E0432 /* RingByteBuffer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RingByteBuffer.swift; path = IO/RingByteBuffer.swift; sourceTree = "<group>"; };
-		E252D84DC9D742B93B420CFA /* HostConnectionExporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostConnectionExporter.swift; sourceTree = "<group>"; };
-		E382EE70BE3B7BC1CB360755 /* RemoteListSelection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteListSelection.swift; sourceTree = "<group>"; };
-		E39934F55591AF92D46DAF6D /* HostConnectionImporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostConnectionImporter.swift; sourceTree = "<group>"; };
-		E7876F4A6AB3ED7EEE67A31F /* SSHConnectionReuse.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSHConnectionReuse.swift; path = SSH/SSHConnectionReuse.swift; sourceTree = "<group>"; };
-		EB665FD67B748730803110C3 /* TerminalPaneView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalPaneView.swift; sourceTree = "<group>"; };
-		EE17CDA7B2D6B871824DBC5F /* SystemSSHClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SystemSSHClient.swift; path = SSH/SystemSSHClient.swift; sourceTree = "<group>"; };
-		F04948629FF42AB81C422758 /* AISettingsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISettingsStore.swift; sourceTree = "<group>"; };
-		F1AC173606CE628E85F2589C /* RemoteTextEditorViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteTextEditorViewModel.swift; sourceTree = "<group>"; };
-		F27F43A7BAFB6BF44853C09E /* OpenSSHRemoteShellIntegrationInstaller.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OpenSSHRemoteShellIntegrationInstaller.swift; path = SSH/OpenSSHRemoteShellIntegrationInstaller.swift; sourceTree = "<group>"; };
-		F388E4CCBCD460BBD17222DF /* HostKeyStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HostKeyStore.swift; path = Security/HostKeyStore.swift; sourceTree = "<group>"; };
-		F647FF8D26CF1FA1EB8E5D46 /* RemoraConfigPaths.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoraConfigPaths.swift; path = Config/RemoraConfigPaths.swift; sourceTree = "<group>"; };
-		F869A74630CD9CD25A7862DC /* MockSSHClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSSHClient.swift; path = SSH/MockSSHClient.swift; sourceTree = "<group>"; };
+		024CF01F2C36D974525CA0D2 /* SFTPProtocols.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SFTPProtocols.swift; path = Protocols/SFTPProtocols.swift; sourceTree = "<group>"; };
+		0275362970E4F7FCEB7226C1 /* RemoraAppMain.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoraAppMain.swift; sourceTree = "<group>"; };
+		077DA40EBB1A85D71D1DC6E3 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/Security.framework; sourceTree = DEVELOPER_DIR; };
+		09F8E584C6040AFA4D716892 /* TerminalSessionDescriptor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TerminalSessionDescriptor.swift; path = Models/TerminalSessionDescriptor.swift; sourceTree = "<group>"; };
+		0A74C8F32D776489DAC4C33E /* ArchiveSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArchiveSupport.swift; sourceTree = "<group>"; };
+		0C2354929CD2D3C2B529D03E /* OpenSSHRemoteShellIntegrationInstaller.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OpenSSHRemoteShellIntegrationInstaller.swift; path = SSH/OpenSSHRemoteShellIntegrationInstaller.swift; sourceTree = "<group>"; };
+		0FA86E6E6E741D2BE5F658A0 /* RemoraConfigPaths.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoraConfigPaths.swift; path = Config/RemoraConfigPaths.swift; sourceTree = "<group>"; };
+		118144C2AD95A2023EA3A958 /* TerminalPaneView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalPaneView.swift; sourceTree = "<group>"; };
+		12D835EDBED1014AE3CF286A /* HostConnectionExporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostConnectionExporter.swift; sourceTree = "<group>"; };
+		1326317D86D5B0A551464952 /* VisualStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisualStyle.swift; sourceTree = "<group>"; };
+		15FEB275F910C07BD4DAF3ED /* SSHConnectionReuse.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSHConnectionReuse.swift; path = SSH/SSHConnectionReuse.swift; sourceTree = "<group>"; };
+		1657CA814F5ED85CEAC2D631 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		1AA51F21BC5C14F70D2CBE73 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/AppKit.framework; sourceTree = DEVELOPER_DIR; };
+		1D5AEBD74287A211672DD103 /* DisconnectedSFTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DisconnectedSFTPClient.swift; path = SFTP/DisconnectedSFTPClient.swift; sourceTree = "<group>"; };
+		1E03367E3A1DA8CE0E051A6F /* RemoteTextEditorViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteTextEditorViewModel.swift; sourceTree = "<group>"; };
+		1FEB9CF0BBD5ADDB2BF3E9F1 /* MockSSHClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSSHClient.swift; path = SSH/MockSSHClient.swift; sourceTree = "<group>"; };
+		23795D7EC03240C8A2EE85E2 /* FileTransferDiagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileTransferDiagnostics.swift; sourceTree = "<group>"; };
+		2408CDCA28D63E412BD36151 /* TerminalAIComposerInputView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIComposerInputView.swift; sourceTree = "<group>"; };
+		248EF6071A356232C95D1F73 /* CredentialStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CredentialStore.swift; path = Security/CredentialStore.swift; sourceTree = "<group>"; };
+		24FA7E649F14A61D146FF08E /* Localizable.strings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		2A9197304DAB3D2F48737D75 /* RemotePermissionsEditorSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemotePermissionsEditorSheet.swift; sourceTree = "<group>"; };
+		2D606DFC2294B5F71A40BF03 /* LocalShellClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocalShellClient.swift; path = SSH/LocalShellClient.swift; sourceTree = "<group>"; };
+		311632748BAF6F3C7DB98DBC /* SessionMetricsTooltip.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionMetricsTooltip.swift; sourceTree = "<group>"; };
+		316617B08F2D4ED99AC9F9E4 /* libRemoraCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libRemoraCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		32C5173F4753F3AF6F48EF3B /* SessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SessionManager.swift; path = Session/SessionManager.swift; sourceTree = "<group>"; };
+		35C66128453A0C79B1315522 /* RemoteCompressSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteCompressSheet.swift; sourceTree = "<group>"; };
+		37D6660C0781F7EDC2A86726 /* HostConnectionImportSource.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostConnectionImportSource.swift; sourceTree = "<group>"; };
+		39EE997E1E7815D0DC37BC66 /* PerformanceMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PerformanceMetrics.swift; path = Metrics/PerformanceMetrics.swift; sourceTree = "<group>"; };
+		3BF48EAB1867E7B2F38581C8 /* HostKeyStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HostKeyStore.swift; path = Security/HostKeyStore.swift; sourceTree = "<group>"; };
+		3E2A1C5F25BBC5BE42078BC3 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/QuartzCore.framework; sourceTree = DEVELOPER_DIR; };
+		4148DB35EE6EE176E025AA8A /* RingByteBuffer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RingByteBuffer.swift; path = IO/RingByteBuffer.swift; sourceTree = "<group>"; };
+		43E4A5507706A3681B00E93D /* TerminalAIModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIModels.swift; sourceTree = "<group>"; };
+		4B3EC1A0502D3CA1B7AEFC5C /* TransferCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransferCenter.swift; sourceTree = "<group>"; };
+		4E4E530E61B91C7D73A56C4A /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5045E811116CBDF6AEFFDBF3 /* SSHCompatibilityProfile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSHCompatibilityProfile.swift; path = SSH/SSHCompatibilityProfile.swift; sourceTree = "<group>"; };
+		5054834E5C06A68433E4DF72 /* AISettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISettings.swift; sourceTree = "<group>"; };
+		5283F72CF9236515F952CC1C /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/CoreText.framework; sourceTree = DEVELOPER_DIR; };
+		538A15DD23CAE8C5D26D2D38 /* RemoteLogViewerSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteLogViewerSheet.swift; sourceTree = "<group>"; };
+		58836E47AB888BA5A2FF3611 /* HostConnectionImporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostConnectionImporter.swift; sourceTree = "<group>"; };
+		5B241603D1D1129B3F8A1D81 /* RemoteDropRouting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteDropRouting.swift; sourceTree = "<group>"; };
+		5CE478564A1D44B8A06C588F /* TransferQueuePresentationState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransferQueuePresentationState.swift; sourceTree = "<group>"; };
+		620C4DB8A058ADA5720126F5 /* SSHProtocols.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSHProtocols.swift; path = Protocols/SSHProtocols.swift; sourceTree = "<group>"; };
+		634DDFD06542DB079E7A88CB /* RemoteListSelection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteListSelection.swift; sourceTree = "<group>"; };
+		635C320FA0D81E14113AEFB4 /* RemoraJSONFileStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoraJSONFileStore.swift; path = Config/RemoraJSONFileStore.swift; sourceTree = "<group>"; };
+		67853FAE45F0DB9A321C8686 /* TerminalAIAssistantView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIAssistantView.swift; sourceTree = "<group>"; };
+		6F54F25DF9089F2A9F241682 /* HostCatalogPersistence.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostCatalogPersistence.swift; sourceTree = "<group>"; };
+		70A10FF7554D29988E7E1BA8 /* ServerMetricsCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerMetricsCenter.swift; sourceTree = "<group>"; };
+		7283960F6D8059E4F3BDF319 /* AppSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		795B7B16405D6DC0D49ED5D6 /* TerminalAIService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIService.swift; sourceTree = "<group>"; };
+		7B1BFAABE4CF7133C5975C9D /* FileManagerPanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileManagerPanelView.swift; sourceTree = "<group>"; };
+		7C7C752746A5CA193A528F1D /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
+		7E61363A90F1E327018300A6 /* RemoteTextEditorRepresentable.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteTextEditorRepresentable.swift; sourceTree = "<group>"; };
+		7ED7B6724C40B72C17B96051 /* libRemoraTerminal.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libRemoraTerminal.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		7FC151203806DCF8C92CD802 /* package_macos.sh */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.script.sh; name = package_macos.sh; path = scripts/package_macos.sh; sourceTree = "<group>"; };
+		7FC7969B8509C7ABCEF90527 /* RuntimeConnectionSyncCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RuntimeConnectionSyncCoordinator.swift; sourceTree = "<group>"; };
+		7FCD357785B5E96E3CE0F31A /* ContextMenuPresentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContextMenuPresentation.swift; sourceTree = "<group>"; };
+		8019E7F23A533AC5E9121CBE /* RemoraSettingsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoraSettingsSheet.swift; sourceTree = "<group>"; };
+		82C69CA40E238918622E5D5D /* Localizable.strings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		8953E5567A950F435D6F4B65 /* TerminalDirectorySyncBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalDirectorySyncBridge.swift; sourceTree = "<group>"; };
+		92DA8ECC4AD6C1F0A979FAA4 /* AppKeyboardShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppKeyboardShortcuts.swift; sourceTree = "<group>"; };
+		95BC36083131BEB41DB67AB4 /* TerminalAIAssistantCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIAssistantCoordinator.swift; sourceTree = "<group>"; };
+		96F475433F2B947611D19887 /* AppLanguage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		9AFA572DF3FDEB0B4A337B56 /* HostPasswordStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostPasswordStorage.swift; sourceTree = "<group>"; };
+		9BC8F418031F9FFD61D10C73 /* SystemSFTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SystemSFTPClient.swift; path = SFTP/SystemSFTPClient.swift; sourceTree = "<group>"; };
+		9F429EAEB6CAE05083A952B3 /* RemoteFileModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteFileModels.swift; path = Models/RemoteFileModels.swift; sourceTree = "<group>"; };
+		A5BAC125A784B6E7E609B0A1 /* RemoteFilePropertiesSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteFilePropertiesSheet.swift; sourceTree = "<group>"; };
+		AD0C0D2543BA734D403074F6 /* ByteSizeFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ByteSizeFormatter.swift; sourceTree = "<group>"; };
+		B2D8FA9EFBC31696014007A1 /* SystemSSHClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SystemSSHClient.swift; path = SSH/SystemSSHClient.swift; sourceTree = "<group>"; };
+		B475A8D11572BA8A0C7F1C3A /* ServerStatusWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerStatusWindow.swift; sourceTree = "<group>"; };
+		BDE3CC7B1EED5623C09D99F5 /* MockSFTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockSFTPClient.swift; path = SFTP/MockSFTPClient.swift; sourceTree = "<group>"; };
+		BF703F7E9549BE798A823795 /* RemoteLogViewerViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteLogViewerViewModel.swift; sourceTree = "<group>"; };
+		C699AAD7AE1E0D9A53C4D63A /* LocalizationHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalizationHelpers.swift; sourceTree = "<group>"; };
+		C74941C3DE4CB9AD361A1E96 /* Host.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Host.swift; path = Models/Host.swift; sourceTree = "<group>"; };
+		C86415377821735C74725332 /* AppAppearance.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppAppearance.swift; sourceTree = "<group>"; };
+		C895C62C7A67E052C7BA4C59 /* Remora.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Remora.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9F7D1E1246B609D98C06881 /* SessionManagerProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SessionManagerProtocol.swift; path = Protocols/SessionManagerProtocol.swift; sourceTree = "<group>"; };
+		D6AD431BF45710A02D9AA8EC /* TerminalSmartAssistNotificationState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalSmartAssistNotificationState.swift; sourceTree = "<group>"; };
+		D946F12DA5BDA45F15C37327 /* AISettingsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISettingsStore.swift; sourceTree = "<group>"; };
+		DE2AED84CF7F5F5F58B9AA30 /* TerminalRuntime.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalRuntime.swift; sourceTree = "<group>"; };
+		DEFD895C1760B978CBFB43FA /* L10n.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
+		E3D67B4DFC600A64D5FD3E47 /* ServerMetricsPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerMetricsPanel.swift; sourceTree = "<group>"; };
+		E5E3D1276D38B7A2A2AC65FE /* FileTransferViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileTransferViewModel.swift; sourceTree = "<group>"; };
+		E641314E9F7D244B32918FDF /* FileManagerContextMenuPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileManagerContextMenuPolicy.swift; sourceTree = "<group>"; };
+		E6B249DD7DDE2A9B8DF750A9 /* RemoteTextEditorSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteTextEditorSheet.swift; sourceTree = "<group>"; };
+		E75A2D9CE84AA0A9BB3E5F3C /* RemotePermissionsEditorViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemotePermissionsEditorViewModel.swift; sourceTree = "<group>"; };
+		EAEF0051A3B3CCB8D53149BB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		ED3A60642541BB81F313ABAE /* TerminalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
+		F00C2F38C7B66AE9237353EA /* HostCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostCatalog.swift; sourceTree = "<group>"; };
+		F39451F0728741B68BD02666 /* RemoteFilePropertiesViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteFilePropertiesViewModel.swift; sourceTree = "<group>"; };
+		F3C1C960E77A12AEEFFBDFC4 /* TerminalViewRepresentable.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalViewRepresentable.swift; sourceTree = "<group>"; };
+		FA0A187D1F93E9A9BE382E7D /* AppPreferences.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
+		FB059844BEA0222482B61414 /* RemoteExtractSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteExtractSheet.swift; sourceTree = "<group>"; };
+		FBE7A8157B43A3D5C66AA520 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/SwiftUI.framework; sourceTree = DEVELOPER_DIR; };
+		FE5A8DDFE564B7E2A409EA89 /* HostConnectionClipboardBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostConnectionClipboardBuilder.swift; sourceTree = "<group>"; };
+		FFA66D64CA503448FA6DA6D0 /* ConnectionInfoPasswordCopyConsentGate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConnectionInfoPasswordCopyConsentGate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		0EF29D3D78C43CD54DB67214 /* Frameworks */ = {
+		292EDEAAE29F0298CD12E447 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B2A846ECBC8EF68EFE28EFF4 /* Security.framework in Frameworks */,
+				9511FB56BD38DB0B5AE24675 /* libRemoraCore.a in Frameworks */,
+				9C4D88153318254FF8DBFF7C /* SwiftTerm in Frameworks */,
+				D9F90F1F270584F7F174E709 /* AppKit.framework in Frameworks */,
+				40C2B90B87AC151ABB370697 /* CoreText.framework in Frameworks */,
+				E00E6FC68911ACA421EAEF80 /* QuartzCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		89C71E6A229BBDAAACFD33AE /* Frameworks */ = {
+		5DA5AD748F564E4B61FE70F3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7E3821890F9CF94CCE720919 /* libRemoraCore.a in Frameworks */,
-				7115D711575F849CE6667561 /* SwiftTerm in Frameworks */,
-				86D39C3EB22A9E081172D2F8 /* AppKit.framework in Frameworks */,
-				7BBCEBDE30D2E41953AA0DF0 /* CoreText.framework in Frameworks */,
-				20885870D11536D0F676837E /* QuartzCore.framework in Frameworks */,
+				2A381376B2459EEDF44A817E /* Cocoa.framework in Frameworks */,
+				BF939A917BD68DFC5FCF44FA /* libRemoraCore.a in Frameworks */,
+				A650BEF561F6A727ED705FE5 /* libRemoraTerminal.a in Frameworks */,
+				442AEA12A62267450F651B0F /* SwiftTerm in Frameworks */,
+				B803D42A09D26D33CF65710C /* SwiftUI.framework in Frameworks */,
+				72B7C0D5126E1AB764FFD561 /* AppKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		FD66F657583270EE99A8446D /* Frameworks */ = {
+		8930A9EEEA19E044BC3AA9EC /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				04AD1861B288FB1B13696CE0 /* Cocoa.framework in Frameworks */,
-				36DD11B7EAA0DC69F88CBC12 /* libRemoraCore.a in Frameworks */,
-				3B1F920957F079344E6AC8E5 /* libRemoraTerminal.a in Frameworks */,
-				3A1A62F392B528233F412FFD /* SwiftTerm in Frameworks */,
-				6EBF4D4989D1540BFC5FCFA3 /* SwiftUI.framework in Frameworks */,
-				825B48DB716A322FBE3E78EF /* AppKit.framework in Frameworks */,
+				E2E579FCFFA2A824CD223A41 /* Security.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0345A112EE142632DAE92E27 /* OS X */ = {
+		0AB219681CBA5DBC9388697A /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				48F66FCFEAC3BB4F52C41CD2 /* Cocoa.framework */,
-				C18F99C0A309397347613BE7 /* Security.framework */,
-				4819C73F2B3534CB879C5B4C /* AppKit.framework */,
-				BAC316597BC707065A2697AA /* CoreText.framework */,
-				643201056D785ACAEAC08247 /* QuartzCore.framework */,
-				8F8531C8753F3E0D1F214DEC /* SwiftUI.framework */,
+				DFC5109C38201D834CBED4A6 /* Localizable.strings */,
 			);
-			name = "OS X";
+			name = Resources;
+			path = Resources;
 			sourceTree = "<group>";
 		};
-		056E137D94319E6A03FCB384 /* Sources */ = {
+		21B10E795401FDD32C195ECB /* RemoraCore */ = {
 			isa = PBXGroup;
 			children = (
-				6300653B7285AAE5062DCF5E /* RemoraCore */,
-				A19559C32B11EDB724E201EB /* RemoraTerminal */,
-				EF32D35C82A16BAD5D0CF345 /* RemoraApp */,
-			);
-			name = Sources;
-			path = Sources;
-			sourceTree = "<group>";
-		};
-		07FB2E37BB3221393C099342 /* scripts */ = {
-			isa = PBXGroup;
-			children = (
-				DD3B19FC2DFF535C7573E044 /* package_macos.sh */,
-			);
-			name = scripts;
-			path = scripts;
-			sourceTree = "<group>";
-		};
-		39F78D6CADDE393BEC898E7F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				B681CF69F0DA9B6FC635EE15 /* libRemoraCore.a */,
-				B3871E0470DCAD8CF2B0B1B3 /* libRemoraTerminal.a */,
-				516F6025C2423C78A61A0216 /* Remora.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		45820E5DBCFA8EE7D2737765 = {
-			isa = PBXGroup;
-			children = (
-				39F78D6CADDE393BEC898E7F /* Products */,
-				811921F31BDA649B89087037 /* Frameworks */,
-				056E137D94319E6A03FCB384 /* Sources */,
-				F9D74921C68D0E844106C3F5 /* Resources */,
-				07FB2E37BB3221393C099342 /* scripts */,
-			);
-			sourceTree = "<group>";
-		};
-		6300653B7285AAE5062DCF5E /* RemoraCore */ = {
-			isa = PBXGroup;
-			children = (
-				F647FF8D26CF1FA1EB8E5D46 /* RemoraConfigPaths.swift */,
-				B7573078B6201BA2DA47754A /* RemoraJSONFileStore.swift */,
-				E2313E8DB8D4F4FDB73E0432 /* RingByteBuffer.swift */,
-				B244939C599034857EF2DC4A /* PerformanceMetrics.swift */,
-				0E474A8D576C93C1B5440E96 /* Host.swift */,
-				53973535D1899C150E0F8A10 /* RemoteFileModels.swift */,
-				3C0C42C8D382A84D730B8F76 /* TerminalSessionDescriptor.swift */,
-				715A2E56F9AE7F0580804936 /* SFTPProtocols.swift */,
-				75C98C5957F1C2CD86B3B41E /* SSHProtocols.swift */,
-				03CA0D10B92C8299F0CA7F42 /* SessionManagerProtocol.swift */,
-				92D7DE266B661F4CF725AC6D /* DisconnectedSFTPClient.swift */,
-				C0E7C131773CE208DB786EAA /* MockSFTPClient.swift */,
-				A722E1626423D4595B7B2DC4 /* SystemSFTPClient.swift */,
-				BD1B7448CE3D1A93047676CF /* LocalShellClient.swift */,
-				F869A74630CD9CD25A7862DC /* MockSSHClient.swift */,
-				F27F43A7BAFB6BF44853C09E /* OpenSSHRemoteShellIntegrationInstaller.swift */,
-				92F261F1F8C8D44617C261EA /* SSHCompatibilityProfile.swift */,
-				E7876F4A6AB3ED7EEE67A31F /* SSHConnectionReuse.swift */,
-				EE17CDA7B2D6B871824DBC5F /* SystemSSHClient.swift */,
-				4102577E726660AEBBA16315 /* CredentialStore.swift */,
-				F388E4CCBCD460BBD17222DF /* HostKeyStore.swift */,
-				28A9183519F402A1A468347C /* SessionManager.swift */,
+				0FA86E6E6E741D2BE5F658A0 /* RemoraConfigPaths.swift */,
+				635C320FA0D81E14113AEFB4 /* RemoraJSONFileStore.swift */,
+				4148DB35EE6EE176E025AA8A /* RingByteBuffer.swift */,
+				39EE997E1E7815D0DC37BC66 /* PerformanceMetrics.swift */,
+				C74941C3DE4CB9AD361A1E96 /* Host.swift */,
+				9F429EAEB6CAE05083A952B3 /* RemoteFileModels.swift */,
+				09F8E584C6040AFA4D716892 /* TerminalSessionDescriptor.swift */,
+				024CF01F2C36D974525CA0D2 /* SFTPProtocols.swift */,
+				620C4DB8A058ADA5720126F5 /* SSHProtocols.swift */,
+				C9F7D1E1246B609D98C06881 /* SessionManagerProtocol.swift */,
+				1D5AEBD74287A211672DD103 /* DisconnectedSFTPClient.swift */,
+				BDE3CC7B1EED5623C09D99F5 /* MockSFTPClient.swift */,
+				9BC8F418031F9FFD61D10C73 /* SystemSFTPClient.swift */,
+				2D606DFC2294B5F71A40BF03 /* LocalShellClient.swift */,
+				1FEB9CF0BBD5ADDB2BF3E9F1 /* MockSSHClient.swift */,
+				0C2354929CD2D3C2B529D03E /* OpenSSHRemoteShellIntegrationInstaller.swift */,
+				5045E811116CBDF6AEFFDBF3 /* SSHCompatibilityProfile.swift */,
+				15FEB275F910C07BD4DAF3ED /* SSHConnectionReuse.swift */,
+				B2D8FA9EFBC31696014007A1 /* SystemSSHClient.swift */,
+				248EF6071A356232C95D1F73 /* CredentialStore.swift */,
+				3BF48EAB1867E7B2F38581C8 /* HostKeyStore.swift */,
+				32C5173F4753F3AF6F48EF3B /* SessionManager.swift */,
 			);
 			name = RemoraCore;
 			path = RemoraCore;
 			sourceTree = "<group>";
 		};
-		811921F31BDA649B89087037 /* Frameworks */ = {
+		4B5F99C35DFDCE35E1B4AFE1 /* scripts */ = {
 			isa = PBXGroup;
 			children = (
-				0345A112EE142632DAE92E27 /* OS X */,
+				7FC151203806DCF8C92CD802 /* package_macos.sh */,
 			);
-			name = Frameworks;
+			name = scripts;
+			path = scripts;
 			sourceTree = "<group>";
 		};
-		9E19ECE875F8AB1768394CB5 /* Resources */ = {
+		4BAB777B46B9DC18086D268C /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				416AF3E1695646B2B338E2DC /* Localizable.strings */,
+				21B10E795401FDD32C195ECB /* RemoraCore */,
+				AF288EE254DE47CC3E8C4F75 /* RemoraTerminal */,
+				92F6D3277FEABE33083DAF0C /* RemoraApp */,
 			);
-			name = Resources;
-			path = Resources;
+			name = Sources;
+			path = Sources;
 			sourceTree = "<group>";
 		};
-		A19559C32B11EDB724E201EB /* RemoraTerminal */ = {
+		91FB6A63FE99F6036557251C = {
 			isa = PBXGroup;
 			children = (
-				2C6183B5C152B077005CC50D /* TerminalView.swift */,
+				FD3B7C65030899F27ACB9476 /* Products */,
+				ECDC60E45BA48BB96FD7DD48 /* Frameworks */,
+				4BAB777B46B9DC18086D268C /* Sources */,
+				AF9EAA89855B5D1EFAE057CB /* Resources */,
+				4B5F99C35DFDCE35E1B4AFE1 /* scripts */,
 			);
-			name = RemoraTerminal;
-			path = RemoraTerminal;
 			sourceTree = "<group>";
 		};
-		EF32D35C82A16BAD5D0CF345 /* RemoraApp */ = {
+		92F6D3277FEABE33083DAF0C /* RemoraApp */ = {
 			isa = PBXGroup;
 			children = (
-				9E19ECE875F8AB1768394CB5 /* Resources */,
-				D6F784AF9C2B25158AE6B32D /* AISettings.swift */,
-				F04948629FF42AB81C422758 /* AISettingsStore.swift */,
-				412E5BA141DCC208DCC31423 /* AppAppearance.swift */,
-				A42760216BA9F9BC6A9AD182 /* AppKeyboardShortcuts.swift */,
-				5D186E270E1B32F2D532FD84 /* AppLanguage.swift */,
-				AC7F39343E535E5F0A31A8BD /* AppPreferences.swift */,
-				0FEF2176CA492A9E51CCEC0C /* AppSettings.swift */,
-				9C124BF1A102FF8E9396408E /* ArchiveSupport.swift */,
-				1FC2BD4201D475EE92BC65E0 /* ByteSizeFormatter.swift */,
-				492FAE6E5D0022D66C002465 /* ConnectionInfoPasswordCopyConsentGate.swift */,
-				8C9EA3542A95486924BA16B9 /* ContentView.swift */,
-				8DA9172E9C19C952F4A3FF45 /* FileManagerPanelView.swift */,
-				5806CE05BC03C4DBBCD20746 /* FileTransferViewModel.swift */,
-				8D88985B7F14C812B0B99CBC /* HostCatalog.swift */,
-				9824865A5ED10AF452AD0432 /* HostCatalogPersistence.swift */,
-				C9C130B7C78CE692B1ACC913 /* HostConnectionClipboardBuilder.swift */,
-				E252D84DC9D742B93B420CFA /* HostConnectionExporter.swift */,
-				3E3D1FA8D3F9108535929E2E /* HostConnectionImportSource.swift */,
-				E39934F55591AF92D46DAF6D /* HostConnectionImporter.swift */,
-				636FA0750F613436B75C11D7 /* HostPasswordStorage.swift */,
-				DE63835DDBC4C9624B0D0E54 /* L10n.swift */,
-				D9A32DBDD21D3884326A9CAA /* LocalizationHelpers.swift */,
-				5AF865F0473B64070BAFF551 /* RemoraAppMain.swift */,
-				C48B65F5CFE169FD9BABA65D /* RemoraSettingsSheet.swift */,
-				168DD21B40A143AAF6CD5491 /* RemoteCompressSheet.swift */,
-				CDA45370E18AAAB3035CA42D /* RemoteDropRouting.swift */,
-				4060893CB58CCC144D085AAD /* RemoteExtractSheet.swift */,
-				7123AD5F442ADEBC6AD16B16 /* RemoteFilePropertiesSheet.swift */,
-				16A121AD46517C8BF3078C84 /* RemoteFilePropertiesViewModel.swift */,
-				E382EE70BE3B7BC1CB360755 /* RemoteListSelection.swift */,
-				501EFE3B0C9816886216050F /* RemoteLogViewerSheet.swift */,
-				0713F4EE563D39182816E010 /* RemoteLogViewerViewModel.swift */,
-				8C532F41E34F26281FAF662E /* RemotePermissionsEditorSheet.swift */,
-				74EBBDD013C5407BBA0002F6 /* RemotePermissionsEditorViewModel.swift */,
-				1A3BB7FA9493F3B3D2579AC8 /* RemoteTextEditorRepresentable.swift */,
-				C4ACEE4AFD0344594D557735 /* RemoteTextEditorSheet.swift */,
-				F1AC173606CE628E85F2589C /* RemoteTextEditorViewModel.swift */,
-				C81AB2B60D6C4D76C6526FA5 /* RuntimeConnectionSyncCoordinator.swift */,
-				614ED80C16F2BC0EEC905175 /* ServerMetricsCenter.swift */,
-				632135D55BF3AF1D297A9AEE /* ServerStatusWindow.swift */,
-				15689067D38F97FDDE76A809 /* TerminalAIAssistantCoordinator.swift */,
-				1692E1F3446F708407376132 /* TerminalAIAssistantView.swift */,
-				048FEB07522BE9179A3DE7FA /* TerminalAIComposerInputView.swift */,
-				1D62A4C5BA1EBBBE3821510B /* TerminalAIModels.swift */,
-				82CA6F2991634A4DB634D1C4 /* TerminalAIService.swift */,
-				90FDAC41C93D5A684A7202D1 /* TerminalDirectorySyncBridge.swift */,
-				EB665FD67B748730803110C3 /* TerminalPaneView.swift */,
-				6B3831E88D6DC170A8324EBE /* TerminalRuntime.swift */,
-				D173C30122DEF9545BAC2E0C /* TerminalSmartAssistNotificationState.swift */,
-				A0CB7B6B919C4C3D7A3BB633 /* TerminalViewRepresentable.swift */,
-				46FA671FD59185DAEA0CC4D2 /* TransferCenter.swift */,
-				801027F89ABC134FD4337C1F /* VisualStyle.swift */,
-				C8220C01C80BBB67FCDAD9F9 /* WorkspaceViewModel.swift */,
+				0AB219681CBA5DBC9388697A /* Resources */,
+				5054834E5C06A68433E4DF72 /* AISettings.swift */,
+				D946F12DA5BDA45F15C37327 /* AISettingsStore.swift */,
+				C86415377821735C74725332 /* AppAppearance.swift */,
+				92DA8ECC4AD6C1F0A979FAA4 /* AppKeyboardShortcuts.swift */,
+				96F475433F2B947611D19887 /* AppLanguage.swift */,
+				FA0A187D1F93E9A9BE382E7D /* AppPreferences.swift */,
+				7283960F6D8059E4F3BDF319 /* AppSettings.swift */,
+				0A74C8F32D776489DAC4C33E /* ArchiveSupport.swift */,
+				AD0C0D2543BA734D403074F6 /* ByteSizeFormatter.swift */,
+				FFA66D64CA503448FA6DA6D0 /* ConnectionInfoPasswordCopyConsentGate.swift */,
+				1657CA814F5ED85CEAC2D631 /* ContentView.swift */,
+				7FCD357785B5E96E3CE0F31A /* ContextMenuPresentation.swift */,
+				E641314E9F7D244B32918FDF /* FileManagerContextMenuPolicy.swift */,
+				7B1BFAABE4CF7133C5975C9D /* FileManagerPanelView.swift */,
+				23795D7EC03240C8A2EE85E2 /* FileTransferDiagnostics.swift */,
+				E5E3D1276D38B7A2A2AC65FE /* FileTransferViewModel.swift */,
+				F00C2F38C7B66AE9237353EA /* HostCatalog.swift */,
+				6F54F25DF9089F2A9F241682 /* HostCatalogPersistence.swift */,
+				FE5A8DDFE564B7E2A409EA89 /* HostConnectionClipboardBuilder.swift */,
+				12D835EDBED1014AE3CF286A /* HostConnectionExporter.swift */,
+				37D6660C0781F7EDC2A86726 /* HostConnectionImportSource.swift */,
+				58836E47AB888BA5A2FF3611 /* HostConnectionImporter.swift */,
+				9AFA572DF3FDEB0B4A337B56 /* HostPasswordStorage.swift */,
+				DEFD895C1760B978CBFB43FA /* L10n.swift */,
+				C699AAD7AE1E0D9A53C4D63A /* LocalizationHelpers.swift */,
+				0275362970E4F7FCEB7226C1 /* RemoraAppMain.swift */,
+				8019E7F23A533AC5E9121CBE /* RemoraSettingsSheet.swift */,
+				35C66128453A0C79B1315522 /* RemoteCompressSheet.swift */,
+				5B241603D1D1129B3F8A1D81 /* RemoteDropRouting.swift */,
+				FB059844BEA0222482B61414 /* RemoteExtractSheet.swift */,
+				A5BAC125A784B6E7E609B0A1 /* RemoteFilePropertiesSheet.swift */,
+				F39451F0728741B68BD02666 /* RemoteFilePropertiesViewModel.swift */,
+				634DDFD06542DB079E7A88CB /* RemoteListSelection.swift */,
+				538A15DD23CAE8C5D26D2D38 /* RemoteLogViewerSheet.swift */,
+				BF703F7E9549BE798A823795 /* RemoteLogViewerViewModel.swift */,
+				2A9197304DAB3D2F48737D75 /* RemotePermissionsEditorSheet.swift */,
+				E75A2D9CE84AA0A9BB3E5F3C /* RemotePermissionsEditorViewModel.swift */,
+				7E61363A90F1E327018300A6 /* RemoteTextEditorRepresentable.swift */,
+				E6B249DD7DDE2A9B8DF750A9 /* RemoteTextEditorSheet.swift */,
+				1E03367E3A1DA8CE0E051A6F /* RemoteTextEditorViewModel.swift */,
+				7FC7969B8509C7ABCEF90527 /* RuntimeConnectionSyncCoordinator.swift */,
+				70A10FF7554D29988E7E1BA8 /* ServerMetricsCenter.swift */,
+				E3D67B4DFC600A64D5FD3E47 /* ServerMetricsPanel.swift */,
+				B475A8D11572BA8A0C7F1C3A /* ServerStatusWindow.swift */,
+				311632748BAF6F3C7DB98DBC /* SessionMetricsTooltip.swift */,
+				95BC36083131BEB41DB67AB4 /* TerminalAIAssistantCoordinator.swift */,
+				67853FAE45F0DB9A321C8686 /* TerminalAIAssistantView.swift */,
+				2408CDCA28D63E412BD36151 /* TerminalAIComposerInputView.swift */,
+				43E4A5507706A3681B00E93D /* TerminalAIModels.swift */,
+				795B7B16405D6DC0D49ED5D6 /* TerminalAIService.swift */,
+				8953E5567A950F435D6F4B65 /* TerminalDirectorySyncBridge.swift */,
+				118144C2AD95A2023EA3A958 /* TerminalPaneView.swift */,
+				DE2AED84CF7F5F5F58B9AA30 /* TerminalRuntime.swift */,
+				D6AD431BF45710A02D9AA8EC /* TerminalSmartAssistNotificationState.swift */,
+				F3C1C960E77A12AEEFFBDFC4 /* TerminalViewRepresentable.swift */,
+				4B3EC1A0502D3CA1B7AEFC5C /* TransferCenter.swift */,
+				5CE478564A1D44B8A06C588F /* TransferQueuePresentationState.swift */,
+				1326317D86D5B0A551464952 /* VisualStyle.swift */,
+				7C7C752746A5CA193A528F1D /* WorkspaceViewModel.swift */,
 			);
 			name = RemoraApp;
 			path = RemoraApp;
 			sourceTree = "<group>";
 		};
-		F9D74921C68D0E844106C3F5 /* Resources */ = {
+		AF288EE254DE47CC3E8C4F75 /* RemoraTerminal */ = {
 			isa = PBXGroup;
 			children = (
-				3631CA4A6C912EF7354F0504 /* Assets.xcassets */,
+				ED3A60642541BB81F313ABAE /* TerminalView.swift */,
+			);
+			name = RemoraTerminal;
+			path = RemoraTerminal;
+			sourceTree = "<group>";
+		};
+		AF9EAA89855B5D1EFAE057CB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				4E4E530E61B91C7D73A56C4A /* Assets.xcassets */,
 			);
 			name = Resources;
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		C1A3955296AF2DFF08F18BB6 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				EAEF0051A3B3CCB8D53149BB /* Cocoa.framework */,
+				077DA40EBB1A85D71D1DC6E3 /* Security.framework */,
+				1AA51F21BC5C14F70D2CBE73 /* AppKit.framework */,
+				5283F72CF9236515F952CC1C /* CoreText.framework */,
+				3E2A1C5F25BBC5BE42078BC3 /* QuartzCore.framework */,
+				FBE7A8157B43A3D5C66AA520 /* SwiftUI.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
+		ECDC60E45BA48BB96FD7DD48 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C1A3955296AF2DFF08F18BB6 /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		FD3B7C65030899F27ACB9476 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				316617B08F2D4ED99AC9F9E4 /* libRemoraCore.a */,
+				7ED7B6724C40B72C17B96051 /* libRemoraTerminal.a */,
+				C895C62C7A67E052C7BA4C59 /* Remora.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
-		571B4AD8C7D16B3AD4BC187A /* Headers */ = {
+		373DCCACC326315D3909A1C2 /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5F115148F3465FC6EC4C1D05 /* Headers */ = {
+		5B321B32F119EC3DC35E7E4D /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -453,13 +471,56 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		7239CEFAECAD2CFBE3F0469B /* RemoraCore */ = {
+		4BE810EAA032A87161649B2B /* Remora */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FADCA5BF41D2A91C9BAA2C8C /* Build configuration list for PBXNativeTarget "RemoraCore" */;
+			buildConfigurationList = A03425673E8A0D973D915950 /* Build configuration list for PBXNativeTarget "Remora" */;
 			buildPhases = (
-				571B4AD8C7D16B3AD4BC187A /* Headers */,
-				73F99BE509E22D0FBB383A45 /* Sources */,
-				0EF29D3D78C43CD54DB67214 /* Frameworks */,
+				6DE1837C58415DFE647E7AF8 /* Sources */,
+				5DA5AD748F564E4B61FE70F3 /* Frameworks */,
+				BC6C919B73ACF46501A76B56 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B63D878BFD60083AD947F22A /* PBXTargetDependency */,
+				44B0A4A19837FFD6F1B2D254 /* PBXTargetDependency */,
+			);
+			name = Remora;
+			packageProductDependencies = (
+				958EC872EF16B0E38C7C55F9 /* SwiftTerm */,
+			);
+			productName = Remora;
+			productReference = C895C62C7A67E052C7BA4C59 /* Remora.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8235970D63C37E64531967EF /* RemoraTerminal */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 338DF85350A8F1D964110FF9 /* Build configuration list for PBXNativeTarget "RemoraTerminal" */;
+			buildPhases = (
+				373DCCACC326315D3909A1C2 /* Headers */,
+				1954F356375F919396FC79D8 /* Sources */,
+				292EDEAAE29F0298CD12E447 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5D1755DD54DABFA2259A7A28 /* PBXTargetDependency */,
+			);
+			name = RemoraTerminal;
+			packageProductDependencies = (
+				A5E54E8EDED06DA3AFF346C4 /* SwiftTerm */,
+			);
+			productName = RemoraTerminal;
+			productReference = 7ED7B6724C40B72C17B96051 /* libRemoraTerminal.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		CFD808B78F31E7BCA7234540 /* RemoraCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CCD56E37B31BA5440EF5CC8A /* Build configuration list for PBXNativeTarget "RemoraCore" */;
+			buildPhases = (
+				5B321B32F119EC3DC35E7E4D /* Headers */,
+				FB49ED155F84C504C8C222D2 /* Sources */,
+				8930A9EEEA19E044BC3AA9EC /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -467,62 +528,19 @@
 			);
 			name = RemoraCore;
 			productName = RemoraCore;
-			productReference = B681CF69F0DA9B6FC635EE15 /* libRemoraCore.a */;
-			productType = "com.apple.product-type.library.static";
-		};
-		D3ADAEA084A63706D3E0152C /* Remora */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 2E8725B30BD92C7D35B1EAB6 /* Build configuration list for PBXNativeTarget "Remora" */;
-			buildPhases = (
-				0C0C309960F0393495B9724B /* Sources */,
-				FD66F657583270EE99A8446D /* Frameworks */,
-				06D5CF2B623488E68F9AD9B4 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				2BEA4DE749C06C073C0B39A3 /* PBXTargetDependency */,
-				1D12569722C6F6A1BDEC655C /* PBXTargetDependency */,
-			);
-			name = Remora;
-			packageProductDependencies = (
-				25E4CA3A26E39C12B14B3E5A /* SwiftTerm */,
-			);
-			productName = Remora;
-			productReference = 516F6025C2423C78A61A0216 /* Remora.app */;
-			productType = "com.apple.product-type.application";
-		};
-		EA922E780BDF53DE6938CFAD /* RemoraTerminal */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = BF175D15C863635FBB0F77CC /* Build configuration list for PBXNativeTarget "RemoraTerminal" */;
-			buildPhases = (
-				5F115148F3465FC6EC4C1D05 /* Headers */,
-				6FF265A16B79A1A0E5AC2DAA /* Sources */,
-				89C71E6A229BBDAAACFD33AE /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				57339584186C1EFAC6D141B8 /* PBXTargetDependency */,
-			);
-			name = RemoraTerminal;
-			packageProductDependencies = (
-				191FE8CE7C945E2E3702CFCE /* SwiftTerm */,
-			);
-			productName = RemoraTerminal;
-			productReference = B3871E0470DCAD8CF2B0B1B3 /* libRemoraTerminal.a */;
+			productReference = 316617B08F2D4ED99AC9F9E4 /* libRemoraCore.a */;
 			productType = "com.apple.product-type.library.static";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		628A0E431191C1DBE3B892A3 /* Project object */ = {
+		9DDC5EE7F119EDC74BF7CEF2 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2600;
 			};
-			buildConfigurationList = D73AA03A968BA65EB32B56F2 /* Build configuration list for PBXProject "Remora" */;
+			buildConfigurationList = CAE9768DF4E368BDABB3EE70 /* Build configuration list for PBXProject "Remora" */;
 			compatibilityVersion = "Xcode 12.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -530,160 +548,166 @@
 				en,
 				"zh-Hans",
 			);
-			mainGroup = 45820E5DBCFA8EE7D2737765;
+			mainGroup = 91FB6A63FE99F6036557251C;
 			packageReferences = (
-				856F01E78085D1CC875AC169 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				6A81D4852951BC5F20B5F6B8 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
-			productRefGroup = 39F78D6CADDE393BEC898E7F /* Products */;
+			productRefGroup = FD3B7C65030899F27ACB9476 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				7239CEFAECAD2CFBE3F0469B /* RemoraCore */,
-				EA922E780BDF53DE6938CFAD /* RemoraTerminal */,
-				D3ADAEA084A63706D3E0152C /* Remora */,
+				CFD808B78F31E7BCA7234540 /* RemoraCore */,
+				8235970D63C37E64531967EF /* RemoraTerminal */,
+				4BE810EAA032A87161649B2B /* Remora */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		06D5CF2B623488E68F9AD9B4 /* Resources */ = {
+		BC6C919B73ACF46501A76B56 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				75037A7F424B496138D60F1C /* Localizable.strings in Resources */,
-				8DF1B8B840ABFE6B77962018 /* Assets.xcassets in Resources */,
+				8D12936832DF13ED07D8A97C /* Localizable.strings in Resources */,
+				02FF66C4D7251017F88683FB /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		0C0C309960F0393495B9724B /* Sources */ = {
+		1954F356375F919396FC79D8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5D5B6F62B57AEC8E2009E38B /* AISettings.swift in Sources */,
-				BCAE9512165BC2DF67075E4B /* AISettingsStore.swift in Sources */,
-				7C96F13EAE34DF12A6E427BE /* AppAppearance.swift in Sources */,
-				410CB6F540013F61C4E44240 /* AppKeyboardShortcuts.swift in Sources */,
-				C10B0C6501E2969B40BB532C /* AppLanguage.swift in Sources */,
-				C09FFF12759E33B763B13D4C /* AppPreferences.swift in Sources */,
-				0E3819FA935DF4D6457B2A61 /* AppSettings.swift in Sources */,
-				3DE25C01A3B36C89069484DC /* ArchiveSupport.swift in Sources */,
-				3529CFEC97B3B0FE86472FDD /* ByteSizeFormatter.swift in Sources */,
-				92C043C67584703D69976F05 /* ConnectionInfoPasswordCopyConsentGate.swift in Sources */,
-				861158B0EF28A9086FB1AA30 /* ContentView.swift in Sources */,
-				0038DB322DCE36A2DC4CE5F0 /* FileManagerPanelView.swift in Sources */,
-				A499F6961DD5B3C71E9B28EF /* FileTransferViewModel.swift in Sources */,
-				5EB5FEA13CBDCFDEE4C3E105 /* HostCatalog.swift in Sources */,
-				C1B8AA8132ABC41585BFD776 /* HostCatalogPersistence.swift in Sources */,
-				8C554839FD462F8940C90600 /* HostConnectionClipboardBuilder.swift in Sources */,
-				01B5324D7DFFA5AD3E035A6D /* HostConnectionExporter.swift in Sources */,
-				93E91E3710EC4FA02D224AD2 /* HostConnectionImportSource.swift in Sources */,
-				3FC3EE45B3F9525AE0C48AB2 /* HostConnectionImporter.swift in Sources */,
-				71785D8599974C79DEA32908 /* HostPasswordStorage.swift in Sources */,
-				EDDD3BA200F2C019A6E8BA0F /* L10n.swift in Sources */,
-				A07D329A1AABDC82221DBB9C /* LocalizationHelpers.swift in Sources */,
-				5DCAE0CCC0D6092799BDF5F1 /* RemoraAppMain.swift in Sources */,
-				9A4E4AD3F4011C4EC6DC0A23 /* RemoraSettingsSheet.swift in Sources */,
-				30EA3D69BB3267E913BE09A8 /* RemoteCompressSheet.swift in Sources */,
-				3231AED48FC914F9FB19F9B9 /* RemoteDropRouting.swift in Sources */,
-				107AE427625924749BA649F5 /* RemoteExtractSheet.swift in Sources */,
-				192527DE718F1904AA6B46EC /* RemoteFilePropertiesSheet.swift in Sources */,
-				31BAC3BFB6EDDB2B14F21907 /* RemoteFilePropertiesViewModel.swift in Sources */,
-				0C18BB4124FEB4E7DE34A1B5 /* RemoteListSelection.swift in Sources */,
-				C41C3D83F75DBA4A235D07FF /* RemoteLogViewerSheet.swift in Sources */,
-				01C14C6CC817D85DF9718F19 /* RemoteLogViewerViewModel.swift in Sources */,
-				0B384CCDE5A5D0DE35D714CE /* RemotePermissionsEditorSheet.swift in Sources */,
-				5CA3ED64D658528E0D0FDD7C /* RemotePermissionsEditorViewModel.swift in Sources */,
-				37D5036FD74EC712C5976D37 /* RemoteTextEditorRepresentable.swift in Sources */,
-				29C1D0F941F02CA0D5F1F215 /* RemoteTextEditorSheet.swift in Sources */,
-				F5494F065447417F58CCF85A /* RemoteTextEditorViewModel.swift in Sources */,
-				816CCC71F0F5D4AE3AA3EF16 /* RuntimeConnectionSyncCoordinator.swift in Sources */,
-				39A8E592ECA699A436B3CCD0 /* ServerMetricsCenter.swift in Sources */,
-				1B66E5C566D54109B1173755 /* ServerStatusWindow.swift in Sources */,
-				8C17CD5985478411E18C1D8F /* TerminalAIAssistantCoordinator.swift in Sources */,
-				ACA247C4EB702EAC4B756B08 /* TerminalAIAssistantView.swift in Sources */,
-				ED9E647B6D2719839DACD2BA /* TerminalAIComposerInputView.swift in Sources */,
-				1984019046342DCA07A3ECF5 /* TerminalAIModels.swift in Sources */,
-				1ED2F61622B6619DF2337E52 /* TerminalAIService.swift in Sources */,
-				DE758A389EDD1941F290C183 /* TerminalDirectorySyncBridge.swift in Sources */,
-				C335B5A1423BB989B55850D0 /* TerminalPaneView.swift in Sources */,
-				DA6A649496A4592FB434E164 /* TerminalRuntime.swift in Sources */,
-				FA54EFE0D453E2FFAC6A53C4 /* TerminalSmartAssistNotificationState.swift in Sources */,
-				991E54E9DAE95BE4C4308B0D /* TerminalViewRepresentable.swift in Sources */,
-				3FB1210921E3CB1DDB3ED393 /* TransferCenter.swift in Sources */,
-				7FC623D15FAFEEBE0AF16261 /* VisualStyle.swift in Sources */,
-				A36F49CD06581109DCDCFCE1 /* WorkspaceViewModel.swift in Sources */,
+				1C5229D9E793DB18EC05494A /* TerminalView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		6FF265A16B79A1A0E5AC2DAA /* Sources */ = {
+		6DE1837C58415DFE647E7AF8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E65A78619426A9EC9D4BEBD1 /* TerminalView.swift in Sources */,
+				89985C17E2575308087D629C /* AISettings.swift in Sources */,
+				8F40D27B28229C4C8E91A3CC /* AISettingsStore.swift in Sources */,
+				CCA297FE392B84919D864B18 /* AppAppearance.swift in Sources */,
+				96FA34C31C245D22DB98DE7C /* AppKeyboardShortcuts.swift in Sources */,
+				2954E8473C90EE2E8BC72043 /* AppLanguage.swift in Sources */,
+				044857B639E3E4B82E892090 /* AppPreferences.swift in Sources */,
+				6A23A67750B20326D5DEA342 /* AppSettings.swift in Sources */,
+				0CFEB5AA4C60044CEDAD5CA3 /* ArchiveSupport.swift in Sources */,
+				F8A93F93CE254AD705E0318A /* ByteSizeFormatter.swift in Sources */,
+				092B29F787181EA911215E08 /* ConnectionInfoPasswordCopyConsentGate.swift in Sources */,
+				8871DAE8CA7BBBB5A3F7AD71 /* ContentView.swift in Sources */,
+				80AC0A5A9B5654E8B93FE588 /* ContextMenuPresentation.swift in Sources */,
+				0974DCDEAF1DFC49957EFFA6 /* FileManagerContextMenuPolicy.swift in Sources */,
+				F8BA280DB36A11FCE9DF4F1D /* FileManagerPanelView.swift in Sources */,
+				2F6A4C0C3ECCF47B1F0F0B8B /* FileTransferDiagnostics.swift in Sources */,
+				623E30E2D95D777E4773706D /* FileTransferViewModel.swift in Sources */,
+				95426626B1B443C585BDFA79 /* HostCatalog.swift in Sources */,
+				8442DA5424840B0671E010F8 /* HostCatalogPersistence.swift in Sources */,
+				0BA83DFDA9614818F1EC1C6F /* HostConnectionClipboardBuilder.swift in Sources */,
+				21834CF51E97E828A2BFE936 /* HostConnectionExporter.swift in Sources */,
+				A12DDB4E4F67F38D56EAA929 /* HostConnectionImportSource.swift in Sources */,
+				8B9EF41BF978751A70BE4BE0 /* HostConnectionImporter.swift in Sources */,
+				AFF9C405A83BDB605EF8A672 /* HostPasswordStorage.swift in Sources */,
+				75F00474F67BCC2C38A7E187 /* L10n.swift in Sources */,
+				549ECDE88BD3D346AC33D04E /* LocalizationHelpers.swift in Sources */,
+				7AB6E1053DC5FC7E76D50145 /* RemoraAppMain.swift in Sources */,
+				756E8C21434A740454E6738B /* RemoraSettingsSheet.swift in Sources */,
+				D1F7F50752386663E8380FD3 /* RemoteCompressSheet.swift in Sources */,
+				BA39A070B7DD66847A4CF044 /* RemoteDropRouting.swift in Sources */,
+				4CBA1679A17B90A10F50B5A7 /* RemoteExtractSheet.swift in Sources */,
+				944FEEA5D71298AC4F8FA165 /* RemoteFilePropertiesSheet.swift in Sources */,
+				CF610BF2ECA895EC64C1A0CB /* RemoteFilePropertiesViewModel.swift in Sources */,
+				9067567C19C81F61CCECCB2A /* RemoteListSelection.swift in Sources */,
+				45E41DD5BA7013EEBC861E99 /* RemoteLogViewerSheet.swift in Sources */,
+				DCC7383C5997DB7A7AC4217D /* RemoteLogViewerViewModel.swift in Sources */,
+				F0218C393D07BAD19C5AAB87 /* RemotePermissionsEditorSheet.swift in Sources */,
+				7432B10952D71562C5570C56 /* RemotePermissionsEditorViewModel.swift in Sources */,
+				7654ED60BD81C00E32D1139B /* RemoteTextEditorRepresentable.swift in Sources */,
+				7F1A237527449D32AFA6DA56 /* RemoteTextEditorSheet.swift in Sources */,
+				49AA5E804EB4C5453552D47C /* RemoteTextEditorViewModel.swift in Sources */,
+				9329E771F29C4CAA1EFD1877 /* RuntimeConnectionSyncCoordinator.swift in Sources */,
+				CBBEE6AB650A4FAB248546A6 /* ServerMetricsCenter.swift in Sources */,
+				F12F43D91659C606DF128645 /* ServerMetricsPanel.swift in Sources */,
+				4390A4C81C86442274FF4350 /* ServerStatusWindow.swift in Sources */,
+				6EBAE937966B5B05142D4025 /* SessionMetricsTooltip.swift in Sources */,
+				0345F0C4952870CDFB5D8923 /* TerminalAIAssistantCoordinator.swift in Sources */,
+				FB1059290582DAD60976D732 /* TerminalAIAssistantView.swift in Sources */,
+				2384C0294C81737DC0D665C1 /* TerminalAIComposerInputView.swift in Sources */,
+				711B0F81ABAAD25B957A84C7 /* TerminalAIModels.swift in Sources */,
+				248D1395D3E83F7B87AFF58C /* TerminalAIService.swift in Sources */,
+				397B0F7F452BC93A1BB84215 /* TerminalDirectorySyncBridge.swift in Sources */,
+				41C21112F017B9BF0AFC9621 /* TerminalPaneView.swift in Sources */,
+				F7A151A3033CE597456A0B44 /* TerminalRuntime.swift in Sources */,
+				87E379109DFD8FA825FF3CA2 /* TerminalSmartAssistNotificationState.swift in Sources */,
+				D3B34074AB05A2A38549CD9F /* TerminalViewRepresentable.swift in Sources */,
+				E9370B6B0E875C8C4BC45EEE /* TransferCenter.swift in Sources */,
+				A28D3C7AD92A82F9B4D1E118 /* TransferQueuePresentationState.swift in Sources */,
+				36C2509C135268C7843150C0 /* VisualStyle.swift in Sources */,
+				D95C5D301BF8C6794E74849E /* WorkspaceViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		73F99BE509E22D0FBB383A45 /* Sources */ = {
+		FB49ED155F84C504C8C222D2 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5C416BE1C82740626DD0591F /* RemoraConfigPaths.swift in Sources */,
-				0627B5735B27B6609774130D /* RemoraJSONFileStore.swift in Sources */,
-				39AA2683AF7BFDEA3BB85848 /* RingByteBuffer.swift in Sources */,
-				4D07BC849CAD928F36B9F3A1 /* PerformanceMetrics.swift in Sources */,
-				6EF9523DB0B3DC532FDE4DEB /* Host.swift in Sources */,
-				061AA186127E28B05E70DECD /* RemoteFileModels.swift in Sources */,
-				7B5BF366EBAFA70718BD3FDE /* TerminalSessionDescriptor.swift in Sources */,
-				4C504B77FDDE7355ABE4751C /* SFTPProtocols.swift in Sources */,
-				9D3CFFCD0155BF96CFDEE7A7 /* SSHProtocols.swift in Sources */,
-				73F7215BDFE094DD23F17DD9 /* SessionManagerProtocol.swift in Sources */,
-				6C3235E285A36A2C96E7271E /* DisconnectedSFTPClient.swift in Sources */,
-				FF15B4687A6F21A6C775D698 /* MockSFTPClient.swift in Sources */,
-				20558F6D17CE3E9664097A78 /* SystemSFTPClient.swift in Sources */,
-				DCDF1C0F9755A1762F27EC83 /* LocalShellClient.swift in Sources */,
-				BCE7BCBC79975811DB221055 /* MockSSHClient.swift in Sources */,
-				6F91208A8DB46E0953EB5C09 /* OpenSSHRemoteShellIntegrationInstaller.swift in Sources */,
-				E27D6AB1B2F994AE19FF2B52 /* SSHCompatibilityProfile.swift in Sources */,
-				1A4B57BC35B45FADF0CD99A7 /* SSHConnectionReuse.swift in Sources */,
-				1E20EB1C9E821C82C3DBEB68 /* SystemSSHClient.swift in Sources */,
-				64FAABD0F1DA6448333B56E7 /* CredentialStore.swift in Sources */,
-				C37F3445CB3F31A32C5F30C2 /* HostKeyStore.swift in Sources */,
-				947F327C9ABEE75AFA0BCAD3 /* SessionManager.swift in Sources */,
+				39FF913A9A6C281D2ADD7ECA /* RemoraConfigPaths.swift in Sources */,
+				65523E9D18BA47EAF2F0DC75 /* RemoraJSONFileStore.swift in Sources */,
+				6FB25814A6643E220A146D27 /* RingByteBuffer.swift in Sources */,
+				8EE23AA91EE6941F7B22BF3C /* PerformanceMetrics.swift in Sources */,
+				883283FAA6CFDF04E27ADCDF /* Host.swift in Sources */,
+				6DC798B64ECF45B7F0FEDC4E /* RemoteFileModels.swift in Sources */,
+				8BD3A9F2C34D278A4F94F2A2 /* TerminalSessionDescriptor.swift in Sources */,
+				8C489BD65CDE17D5029F85F9 /* SFTPProtocols.swift in Sources */,
+				5A8D254E7B9BA4C5FA5BBD76 /* SSHProtocols.swift in Sources */,
+				13A922692CF9B122D48F698C /* SessionManagerProtocol.swift in Sources */,
+				085FA9E11408C5507D8986C1 /* DisconnectedSFTPClient.swift in Sources */,
+				8B13C92F5022852821BFDEC4 /* MockSFTPClient.swift in Sources */,
+				8A08E354AE402783F0F3C27D /* SystemSFTPClient.swift in Sources */,
+				8EE1A7EB91A94781592D2CC0 /* LocalShellClient.swift in Sources */,
+				4DEDF5FF24B29148745AA966 /* MockSSHClient.swift in Sources */,
+				AC775150D67866C29A7045BE /* OpenSSHRemoteShellIntegrationInstaller.swift in Sources */,
+				597834FFC93413F68E1FF8B8 /* SSHCompatibilityProfile.swift in Sources */,
+				51B439282FA280A71C4D7BF2 /* SSHConnectionReuse.swift in Sources */,
+				EE96196266366DB3324392BF /* SystemSSHClient.swift in Sources */,
+				928BABC8CBCB53BA246C1C8E /* CredentialStore.swift in Sources */,
+				583BA99BFD9F4B471315E063 /* HostKeyStore.swift in Sources */,
+				73D538B978981287D18A3E62 /* SessionManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		1D12569722C6F6A1BDEC655C /* PBXTargetDependency */ = {
+		44B0A4A19837FFD6F1B2D254 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = RemoraTerminal;
-			target = EA922E780BDF53DE6938CFAD /* RemoraTerminal */;
-			targetProxy = F1A123935FB4EA5C02862286 /* PBXContainerItemProxy */;
+			target = 8235970D63C37E64531967EF /* RemoraTerminal */;
+			targetProxy = A829CA0F1D01D026D0E62529 /* PBXContainerItemProxy */;
 		};
-		2BEA4DE749C06C073C0B39A3 /* PBXTargetDependency */ = {
+		5D1755DD54DABFA2259A7A28 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = RemoraCore;
-			target = 7239CEFAECAD2CFBE3F0469B /* RemoraCore */;
-			targetProxy = 8E178F59DEA094E4113BEF90 /* PBXContainerItemProxy */;
+			target = CFD808B78F31E7BCA7234540 /* RemoraCore */;
+			targetProxy = EABCA8648361FD4128CBBFD2 /* PBXContainerItemProxy */;
 		};
-		57339584186C1EFAC6D141B8 /* PBXTargetDependency */ = {
+		B63D878BFD60083AD947F22A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = RemoraCore;
-			target = 7239CEFAECAD2CFBE3F0469B /* RemoraCore */;
-			targetProxy = B178462CEF8BF4D81C4531F2 /* PBXContainerItemProxy */;
+			target = CFD808B78F31E7BCA7234540 /* RemoraCore */;
+			targetProxy = DCCF4E918A201E014B3CD14A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
-		416AF3E1695646B2B338E2DC /* Localizable.strings */ = {
+		DFC5109C38201D834CBED4A6 /* Localizable.strings */ = {
 			isa = PBXVariantGroup;
 			children = (
-				9DA9D2A6AB478A8E2AF116DE /* Localizable.strings */,
-				C36B1AF082D631AD261B4E88 /* Localizable.strings */,
+				24FA7E649F14A61D146FF08E /* Localizable.strings */,
+				82C69CA40E238918622E5D5D /* Localizable.strings */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";
@@ -691,7 +715,7 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		26C0ACFFCC412C99211FC3EC /* Release */ = {
+		3A4E941AFA05479401E46051 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
@@ -708,110 +732,7 @@
 			};
 			name = Release;
 		};
-		6C93B2D8B41124EBC64025C5 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "";
-				DEFINES_MODULE = YES;
-				EXECUTABLE_PREFIX = lib;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 6.0;
-			};
-			name = Debug;
-		};
-		7B6E6898790F692895A7DE95 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "";
-				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Remora;
-				INFOPLIST_KEY_CFBundleExecutable = "$(EXECUTABLE_NAME)";
-				INFOPLIST_KEY_CFBundleName = Remora;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHighResolutionCapable = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.wuujiawei.remora;
-				PRODUCT_NAME = Remora;
-				SDKROOT = macosx;
-				SWIFT_VERSION = 6.0;
-			};
-			name = Debug;
-		};
-		82AB6C3687BAFF2E730D45CB /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "";
-				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.14.2;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 6.0;
-			};
-			name = Release;
-		};
-		8E2CC38112551C46E89E4489 /* Release */ = {
+		521BD26879B35620949D11F8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
@@ -828,7 +749,7 @@
 			};
 			name = Release;
 		};
-		ACCAFD7BD3F21872902624FE /* Debug */ = {
+		8D8B4C46A2C88E14D6909222 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
@@ -845,33 +766,7 @@
 			};
 			name = Debug;
 		};
-		E5ED9F3270095AE58215B37C /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "";
-				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Remora;
-				INFOPLIST_KEY_CFBundleExecutable = "$(EXECUTABLE_NAME)";
-				INFOPLIST_KEY_CFBundleName = Remora;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHighResolutionCapable = YES;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.wuujiawei.remora;
-				PRODUCT_NAME = Remora;
-				SDKROOT = macosx;
-				SWIFT_VERSION = 6.0;
-			};
-			name = Release;
-		};
-		FF13AA4EB9FB23A4B6E1CD0E /* Debug */ = {
+		A55BA1B1CCCB96CB107CEB04 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -938,41 +833,170 @@
 			};
 			name = Debug;
 		};
+		ADAA8EEB68C26E92EB2983A6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Remora;
+				INFOPLIST_KEY_CFBundleExecutable = "$(EXECUTABLE_NAME)";
+				INFOPLIST_KEY_CFBundleName = Remora;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSHighResolutionCapable = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.wuujiawei.remora;
+				PRODUCT_NAME = Remora;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		D191BC8C3C626E439054FDB2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				DEFINES_MODULE = YES;
+				EXECUTABLE_PREFIX = lib;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		D772764C49D18BE2B4A57152 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Remora;
+				INFOPLIST_KEY_CFBundleExecutable = "$(EXECUTABLE_NAME)";
+				INFOPLIST_KEY_CFBundleName = Remora;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSHighResolutionCapable = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.wuujiawei.remora;
+				PRODUCT_NAME = Remora;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		F567B111C948A9A5F878CCD3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 5;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.14.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		2E8725B30BD92C7D35B1EAB6 /* Build configuration list for PBXNativeTarget "Remora" */ = {
+		338DF85350A8F1D964110FF9 /* Build configuration list for PBXNativeTarget "RemoraTerminal" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E5ED9F3270095AE58215B37C /* Release */,
-				7B6E6898790F692895A7DE95 /* Debug */,
+				521BD26879B35620949D11F8 /* Release */,
+				8D8B4C46A2C88E14D6909222 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BF175D15C863635FBB0F77CC /* Build configuration list for PBXNativeTarget "RemoraTerminal" */ = {
+		A03425673E8A0D973D915950 /* Build configuration list for PBXNativeTarget "Remora" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				26C0ACFFCC412C99211FC3EC /* Release */,
-				6C93B2D8B41124EBC64025C5 /* Debug */,
+				D772764C49D18BE2B4A57152 /* Release */,
+				ADAA8EEB68C26E92EB2983A6 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D73AA03A968BA65EB32B56F2 /* Build configuration list for PBXProject "Remora" */ = {
+		CAE9768DF4E368BDABB3EE70 /* Build configuration list for PBXProject "Remora" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				FF13AA4EB9FB23A4B6E1CD0E /* Debug */,
-				82AB6C3687BAFF2E730D45CB /* Release */,
+				A55BA1B1CCCB96CB107CEB04 /* Debug */,
+				F567B111C948A9A5F878CCD3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FADCA5BF41D2A91C9BAA2C8C /* Build configuration list for PBXNativeTarget "RemoraCore" */ = {
+		CCD56E37B31BA5440EF5CC8A /* Build configuration list for PBXNativeTarget "RemoraCore" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				8E2CC38112551C46E89E4489 /* Release */,
-				ACCAFD7BD3F21872902624FE /* Debug */,
+				3A4E941AFA05479401E46051 /* Release */,
+				D191BC8C3C626E439054FDB2 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -980,7 +1004,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		856F01E78085D1CC875AC169 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+		6A81D4852951BC5F20B5F6B8 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
 			requirement = {
@@ -991,17 +1015,17 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		191FE8CE7C945E2E3702CFCE /* SwiftTerm */ = {
+		958EC872EF16B0E38C7C55F9 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 856F01E78085D1CC875AC169 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			package = 6A81D4852951BC5F20B5F6B8 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
 		};
-		25E4CA3A26E39C12B14B3E5A /* SwiftTerm */ = {
+		A5E54E8EDED06DA3AFF346C4 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 856F01E78085D1CC875AC169 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			package = 6A81D4852951BC5F20B5F6B8 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 628A0E431191C1DBE3B892A3 /* Project object */;
+	rootObject = 9DDC5EE7F119EDC74BF7CEF2 /* Project object */;
 }

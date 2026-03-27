@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "D3ADAEA084A63706D3E0152C"
+               BlueprintIdentifier = "4BE810EAA032A87161649B2B"
                BuildableName = "Remora.app"
                BlueprintName = "Remora"
                ReferencedContainer = "container:Remora.xcodeproj">
@@ -30,7 +30,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D3ADAEA084A63706D3E0152C"
+            BlueprintIdentifier = "4BE810EAA032A87161649B2B"
             BuildableName = "Remora.app"
             BlueprintName = "Remora"
             ReferencedContainer = "container:Remora.xcodeproj">
@@ -53,7 +53,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D3ADAEA084A63706D3E0152C"
+            BlueprintIdentifier = "4BE810EAA032A87161649B2B"
             BuildableName = "Remora.app"
             BlueprintName = "Remora"
             ReferencedContainer = "container:Remora.xcodeproj">
@@ -70,7 +70,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D3ADAEA084A63706D3E0152C"
+            BlueprintIdentifier = "4BE810EAA032A87161649B2B"
             BuildableName = "Remora.app"
             BlueprintName = "Remora"
             ReferencedContainer = "container:Remora.xcodeproj">
