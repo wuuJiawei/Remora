@@ -65,12 +65,13 @@ struct HostConnectionImporterTests {
         let restoredRef = imported.first?.auth.passwordReference ?? ""
         let restoredSecret = await credentialStore.secret(for: restoredRef)
         #expect(restoredSecret == "json-pass")
+        let importingPhase = tr("Importing hosts")
         _ = await waitUntil(timeout: 1.0) {
             let events = await collector.snapshot()
-            return events.contains(where: { $0.phase == "Importing hosts" })
+            return events.contains(where: { $0.phase == importingPhase })
         }
         let progressEvents = await collector.snapshot()
-        #expect(progressEvents.contains(where: { $0.phase == "Importing hosts" }))
+        #expect(progressEvents.contains(where: { $0.phase == importingPhase }))
     }
 
     @Test
@@ -301,7 +302,7 @@ struct HostConnectionImporterTests {
         #expect(stage.group == "default / Nested")
         #expect(stage.port == 2202)
         #expect(stage.auth.method == .privateKey)
-        #expect(stage.note?.contains("Quick commands were not imported.") == true)
+        #expect(stage.note?.contains(tr("Quick commands were not imported.")) == true)
     }
 
     @Test

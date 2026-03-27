@@ -32,11 +32,17 @@ struct HostConnectionClipboardBuilderTests {
             credentialStore: credentialStore
         )
 
-        #expect(text.contains("Host: 10.0.0.12"))
-        #expect(text.contains("Port: 2222"))
-        #expect(text.contains("Username: ops"))
-        #expect(text.contains("Auth: Password"))
-        #expect(!text.contains("Password:"))
+        let hostLine = tr("Host") + ": 10.0.0.12"
+        let portLine = tr("Port") + ": 2222"
+        let usernameLine = tr("Username") + ": ops"
+        let authLine = tr("Auth") + ": " + tr("Password")
+        let passwordPrefix = tr("Password") + ":"
+
+        #expect(text.contains(hostLine))
+        #expect(text.contains(portLine))
+        #expect(text.contains(usernameLine))
+        #expect(text.contains(authLine))
+        #expect(!text.contains(passwordPrefix))
         #expect(!text.contains("super-secret"))
     }
 
@@ -68,7 +74,8 @@ struct HostConnectionClipboardBuilderTests {
             credentialStore: credentialStore
         )
 
-        #expect(text.contains("Password: super-secret"))
+        let passwordLine = tr("Password") + ": super-secret"
+        #expect(text.contains(passwordLine))
     }
 
     @Test
@@ -83,8 +90,10 @@ struct HostConnectionClipboardBuilderTests {
         )
 
         let text = await HostConnectionClipboardBuilder.connectionInfoText(for: host)
-        #expect(text.contains("Auth: Private Key"))
-        #expect(text.contains("Private Key Path: /Users/demo/.ssh/id_ed25519"))
+        let authLine = tr("Auth") + ": " + tr("Private Key")
+        let keyPathLine = tr("Private Key Path") + ": /Users/demo/.ssh/id_ed25519"
+        #expect(text.contains(authLine))
+        #expect(text.contains(keyPathLine))
     }
 
     @Test
@@ -99,8 +108,10 @@ struct HostConnectionClipboardBuilderTests {
         )
 
         let text = await HostConnectionClipboardBuilder.connectionInfoText(for: host)
-        #expect(text.contains("Auth: SSH Agent"))
-        #expect(text.contains("Credential: Managed by local SSH agent"))
+        let authLine = tr("Auth") + ": " + tr("SSH Agent")
+        let credentialLine = tr("Credential") + ": " + tr("Managed by local SSH agent")
+        #expect(text.contains(authLine))
+        #expect(text.contains(credentialLine))
     }
 
     @Test
