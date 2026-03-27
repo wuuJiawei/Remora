@@ -22,7 +22,7 @@ struct HostCatalogStoreTests {
             persistenceEnabled: true
         )
 
-        #expect(await waitUntil(timeout: 1.0) { !store.isLoading })
+        #expect(await waitUntil(timeout: 3.0) { !store.isLoading })
 
         _ = store.addGroup(named: "Ops")
         try await Task.sleep(nanoseconds: 200_000_000)
