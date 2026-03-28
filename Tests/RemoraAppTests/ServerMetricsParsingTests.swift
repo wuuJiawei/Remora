@@ -134,6 +134,43 @@ struct ServerMetricsParsingTests {
     }
 
     @Test
+    func parseSnapshotParsesNetworkAndProcessMonitoringRows() {
+        let output = """
+        cpu_permille=425
+        mem_total_kb=8192000
+        mem_used_kb=2048000
+        disk_total_kb=1024000
+        disk_used_kb=256000
+        net_0=1263|sshd|0.0.0.0|22|1|2|1433|560
+        net_1=1128|python3|0.0.0.0|8888|40|55|0|0
+        ps_0=783214|root|97382|5.0|AliYunDunMonito|/usr/local/aegis/aegis_client/aegis_12_91/AliYunDunMonitor
+        ps_1=1383|redis|12240|0.3|redis-server|/www/server/redis/src/redis-server
+        """
+
+        let snapshot = RemoteServerMetricsProbe.parseSnapshot(from: output)
+        #expect(snapshot != nil)
+        guard let snapshot else { return }
+
+        #expect(snapshot.networkConnections.count == 2)
+        #expect(snapshot.networkConnections.first?.pid == 1263)
+        #expect(snapshot.networkConnections.first?.processName == "sshd")
+        #expect(snapshot.networkConnections.first?.listenAddress == "0.0.0.0")
+        #expect(snapshot.networkConnections.first?.port == 22)
+        #expect(snapshot.networkConnections.first?.remoteAddressCount == 1)
+        #expect(snapshot.networkConnections.first?.connectionCount == 2)
+        #expect(snapshot.networkConnections.first?.sentBytes == 1_433)
+        #expect(snapshot.networkConnections.first?.receivedBytes == 560)
+
+        #expect(snapshot.processDetails.count == 2)
+        #expect(snapshot.processDetails.first?.pid == 783_214)
+        #expect(snapshot.processDetails.first?.user == "root")
+        #expect(snapshot.processDetails.first?.memoryBytes == 99_719_168)
+        #expect(abs((snapshot.processDetails.first?.cpuPercent ?? -1) - 5.0) < 0.0001)
+        #expect(snapshot.processDetails.first?.command == "AliYunDunMonito")
+        #expect(snapshot.processDetails.first?.location == "/usr/local/aegis/aegis_client/aegis_12_91/AliYunDunMonitor")
+    }
+
+    @Test
     func deltaComputesRatesFromSequentialSnapshots() {
         let previous = ServerResourceMetricsSnapshot(
             cpuFraction: 0.2,
@@ -157,6 +194,8 @@ struct ServerMetricsParsingTests {
             uptimeSeconds: 120,
             topProcesses: [],
             filesystems: [],
+            networkConnections: [],
+            processDetails: [],
             sampledAt: Date(timeIntervalSince1970: 100)
         )
         let current = ServerResourceMetricsSnapshot(
@@ -181,6 +220,8 @@ struct ServerMetricsParsingTests {
             uptimeSeconds: 126,
             topProcesses: [],
             filesystems: [],
+            networkConnections: [],
+            processDetails: [],
             sampledAt: Date(timeIntervalSince1970: 103)
         )
 

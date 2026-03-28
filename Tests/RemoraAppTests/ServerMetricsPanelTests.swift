@@ -94,6 +94,8 @@ struct ServerMetricsPanelTests {
             filesystems: [
                 ServerFilesystemMetric(mountPath: "/", availableBytes: 4_724_637_696, totalBytes: 24_980_656_128)
             ],
+            networkConnections: [],
+            processDetails: [],
             sampledAt: Date(timeIntervalSince1970: 100)
         )
         let current = ServerResourceMetricsSnapshot(
@@ -124,6 +126,8 @@ struct ServerMetricsPanelTests {
                 ServerFilesystemMetric(mountPath: "/", availableBytes: 4_724_637_696, totalBytes: 24_980_656_128),
                 ServerFilesystemMetric(mountPath: "/dev/shm", availableBytes: 2_038_063_104, totalBytes: 2_038_063_104)
             ],
+            networkConnections: [],
+            processDetails: [],
             sampledAt: Date(timeIntervalSince1970: 103)
         )
         let state = ServerHostMetricsState(

@@ -64,6 +64,8 @@ struct SessionMetricsTooltipTests {
             uptimeSeconds: 86_430,
             topProcesses: [],
             filesystems: [],
+            networkConnections: [],
+            processDetails: [],
             sampledAt: Date(timeIntervalSince1970: 103)
         )
 
