@@ -368,7 +368,7 @@ actor RemoteServerMetricsProbe {
     fi
 
     proc_index=0
-    ps -eo pid=,user=,rss=,pcpu=,comm= --sort=-pcpu 2>/dev/null | while read -r pid user rss cpu command; do
+    ps -eo pid=,user=,rss=,pcpu=,args= --sort=-pcpu 2>/dev/null | while read -r pid user rss cpu command; do
       [ "$proc_index" -lt 30 ] || break
       [ -n "$pid" ] || continue
       [ -n "$command" ] || continue
