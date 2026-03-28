@@ -45,10 +45,34 @@ struct ServerMetricsDelta: Equatable, Sendable {
     }
 }
 
+enum ServerMonitoringTab: Hashable {
+    case system
+    case network
+    case process
+}
+
 struct ServerMetricsPanel: View {
     let hostTitle: String
     let connectionState: String
     let state: ServerHostMetricsState
+
+    @State private var selectedTab: ServerMonitoringTab
+    @State private var networkSortOrder: [KeyPathComparator<ServerNetworkConnectionMetric>]
+    @State private var processSortOrder: [KeyPathComparator<ServerProcessDetailsMetric>]
+
+    init(
+        hostTitle: String,
+        connectionState: String,
+        state: ServerHostMetricsState,
+        initialTab: ServerMonitoringTab = .system
+    ) {
+        self.hostTitle = hostTitle
+        self.connectionState = connectionState
+        self.state = state
+        _selectedTab = State(initialValue: initialTab)
+        _networkSortOrder = State(initialValue: ServerMonitoringSortOrder.defaultNetwork)
+        _processSortOrder = State(initialValue: ServerMonitoringSortOrder.defaultProcess)
+    }
 
     private var snapshot: ServerResourceMetricsSnapshot? { state.snapshot }
     private var delta: ServerMetricsDelta {
@@ -60,12 +84,35 @@ struct ServerMetricsPanel: View {
             header
             content
         }
-        .frame(width: 456, alignment: .leading)
+        .frame(width: 960, alignment: .leading)
         .accessibilityIdentifier("server-metrics-panel")
     }
 
-    @ViewBuilder
     private var content: some View {
+        TabView(selection: $selectedTab) {
+            systemTab
+                .tag(ServerMonitoringTab.system)
+                .tabItem {
+                    Text(tr("System Information Monitoring"))
+                }
+
+            networkTab
+                .tag(ServerMonitoringTab.network)
+                .tabItem {
+                    Text(tr("Network Monitoring"))
+                }
+
+            processTab
+                .tag(ServerMonitoringTab.process)
+                .tabItem {
+                    Text(tr("Process Monitoring"))
+                }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var systemTab: some View {
         if let snapshot {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -78,7 +125,112 @@ struct ServerMetricsPanel: View {
                 }
                 .padding(.top, 2)
             }
-        } else if state.isLoading {
+        } else {
+            loadingOrErrorPlaceholder
+        }
+    }
+
+    @ViewBuilder
+    private var networkTab: some View {
+        GroupBox {
+            if let snapshot {
+                if snapshot.networkConnections.isEmpty {
+                    ContentUnavailableView(
+                        tr("No network monitoring data yet."),
+                        systemImage: "network",
+                        description: Text(tr("Network activity rows will appear after the next successful sampling cycle."))
+                    )
+                } else {
+                    Table(snapshot.networkConnections.sorted(using: networkSortOrder), sortOrder: $networkSortOrder) {
+                        TableColumn(tr("PID"), value: \.pidSortValue) { row in
+                            Text(row.pid.map(String.init) ?? "--")
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("Name"), value: \.processName) { row in
+                            Text(row.processName)
+                        }
+                        TableColumn(tr("Listen IP"), value: \.listenAddress) { row in
+                            Text(row.listenAddress)
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("Port"), value: \.portSortValue) { row in
+                            Text(row.port.map(String.init) ?? "--")
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("IP Count"), value: \.remoteAddressCountSortValue) { row in
+                            Text(formatInteger(row.remoteAddressCount))
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("Connections"), value: \.connectionCountSortValue) { row in
+                            Text(formatInteger(row.connectionCount))
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("Upload"), value: \.sentBytesSortValue) { row in
+                            Text(formatBytes(row.sentBytes))
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("Download"), value: \.receivedBytesSortValue) { row in
+                            Text(formatBytes(row.receivedBytes))
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                    }
+                }
+            } else {
+                loadingOrErrorPlaceholder
+            }
+        } label: {
+            Label(tr("Network Monitoring"), systemImage: "network")
+        }
+    }
+
+    @ViewBuilder
+    private var processTab: some View {
+        GroupBox {
+            if let snapshot {
+                if snapshot.processDetails.isEmpty {
+                    ContentUnavailableView(
+                        tr("No process monitoring data yet."),
+                        systemImage: "list.bullet.rectangle.portrait",
+                        description: Text(tr("Process rows will appear after the next successful sampling cycle."))
+                    )
+                } else {
+                    Table(snapshot.processDetails.sorted(using: processSortOrder), sortOrder: $processSortOrder) {
+                        TableColumn(tr("PID"), value: \.pidSortValue) { row in
+                            Text(row.pid.map(String.init) ?? "--")
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("User"), value: \.user) { row in
+                            Text(row.user)
+                        }
+                        TableColumn(tr("Memory"), value: \.memoryBytesSortValue) { row in
+                            Text(formatBytes(row.memoryBytes))
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("CPU"), value: \.cpuPercentSortValue) { row in
+                            Text(formatCPUPercent(row.cpuPercent))
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+                        TableColumn(tr("Command"), value: \.command) { row in
+                            Text(row.command)
+                        }
+                        TableColumn(tr("Location"), value: \.location) { row in
+                            Text(row.location)
+                                .font(.system(size: 11, design: .monospaced))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            } else {
+                loadingOrErrorPlaceholder
+            }
+        } label: {
+            Label(tr("Process Monitoring"), systemImage: "list.bullet.rectangle.portrait")
+        }
+    }
+
+    @ViewBuilder
+    private var loadingOrErrorPlaceholder: some View {
+        if state.isLoading {
             ServerMetricsPlaceholderCard(
                 title: tr("Collecting metrics…"),
                 message: tr("Remora is sampling the remote host for CPU, memory, traffic, and process details.")
@@ -329,6 +481,11 @@ struct ServerMetricsPanel: View {
     }
 
     private func formatCount(_ value: Int64?) -> String {
+        guard let value else { return "--" }
+        return "\(value)"
+    }
+
+    private func formatInteger(_ value: Int?) -> String {
         guard let value else { return "--" }
         return "\(value)"
     }

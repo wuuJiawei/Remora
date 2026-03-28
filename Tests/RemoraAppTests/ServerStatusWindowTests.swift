@@ -68,7 +68,7 @@ struct ServerStatusWindowTests {
         defer { closeServerStatusWindows() }
 
         let width = serverStatusWindows().first?.frame.width ?? 0
-        #expect(width >= 420, "Server Status window should expand into a dashboard-style width.")
+        #expect(width >= 820, "Server Status window should expand into a table-friendly dashboard width.")
     }
 
     private func waitUntil(timeout: TimeInterval, condition: @escaping @MainActor () -> Bool) async -> Bool {

@@ -23,19 +23,33 @@ struct ServerMetricsPanelTests {
         })
     }
 
+    @Test
+    func networkTabRendersAtTableFriendlyWidth() {
+        let image = renderPanelImage(colorScheme: ColorScheme.light, initialTab: .network)
+        #expect(image != nil)
+        #expect(image?.size.width ?? 0 >= 820)
+    }
+
+    @Test
+    func processTabRendersAtTableFriendlyWidth() {
+        let image = renderPanelImage(colorScheme: ColorScheme.dark, initialTab: .process)
+        #expect(image != nil)
+        #expect(image?.size.width ?? 0 >= 820)
+    }
+
     private func assertPanelRendering(for colorScheme: ColorScheme) {
         let image = renderPanelImage(colorScheme: colorScheme)
         #expect(image != nil, "Panel should render in \(String(describing: colorScheme)) mode.")
-        #expect(image?.size.width ?? 0 >= 420, "Rendered panel should keep a readable dashboard width in \(String(describing: colorScheme)) mode.")
+        #expect(image?.size.width ?? 0 >= 820, "Rendered panel should keep a readable dashboard width in \(String(describing: colorScheme)) mode.")
         #expect(image?.size.height ?? 0 >= 300, "Rendered panel should keep a readable height in \(String(describing: colorScheme)) mode.")
     }
 
-    private func renderPanelImage(colorScheme: ColorScheme) -> NSImage? {
+    private func renderPanelImage(colorScheme: ColorScheme, initialTab: ServerMonitoringTab = .system) -> NSImage? {
         let renderer = ImageRenderer(
-            content: makePanel()
+            content: makePanel(initialTab: initialTab)
                 .environment(\.colorScheme, colorScheme)
         )
-        renderer.proposedSize = .init(width: 472, height: 720)
+        renderer.proposedSize = ProposedViewSize(width: 960, height: 720)
         renderer.scale = 1
         return renderer.nsImage
     }
@@ -51,11 +65,11 @@ struct ServerMetricsPanelTests {
         return image
     }
 
-    private func makeHostingView(colorScheme: ColorScheme) -> NSHostingView<some View> {
-        let host = NSHostingView(rootView: makePanel().environment(\.colorScheme, colorScheme))
-        host.frame = NSRect(x: 0, y: 0, width: 472, height: 720)
+    private func makeHostingView(colorScheme: ColorScheme, initialTab: ServerMonitoringTab = .system) -> NSHostingView<AnyView> {
+        let host = NSHostingView(rootView: AnyView(makePanel(initialTab: initialTab).environment(\.colorScheme, colorScheme)))
+        host.frame = NSRect(x: 0, y: 0, width: 960, height: 720)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 472, height: 720),
+            contentRect: NSRect(x: 0, y: 0, width: 960, height: 720),
             styleMask: [.titled],
             backing: .buffered,
             defer: false
@@ -67,7 +81,7 @@ struct ServerMetricsPanelTests {
         return host
     }
 
-    private func makePanel() -> some View {
+    private func makePanel(initialTab: ServerMonitoringTab = .system) -> some View {
         let previous = ServerResourceMetricsSnapshot(
             cpuFraction: 0.24,
             memoryFraction: 0.56,
@@ -94,8 +108,12 @@ struct ServerMetricsPanelTests {
             filesystems: [
                 ServerFilesystemMetric(mountPath: "/", availableBytes: 4_724_637_696, totalBytes: 24_980_656_128)
             ],
-            networkConnections: [],
-            processDetails: [],
+            networkConnections: [
+                ServerNetworkConnectionMetric(pid: 1263, processName: "sshd", listenAddress: "0.0.0.0", port: 22, remoteAddressCount: 1, connectionCount: 1, sentBytes: 900, receivedBytes: 300)
+            ],
+            processDetails: [
+                ServerProcessDetailsMetric(pid: 1383, user: "redis", memoryBytes: 12_517_376, cpuPercent: 0.3, command: "redis-server", location: "/www/server/redis/src/redis-server")
+            ],
             sampledAt: Date(timeIntervalSince1970: 100)
         )
         let current = ServerResourceMetricsSnapshot(
@@ -126,8 +144,14 @@ struct ServerMetricsPanelTests {
                 ServerFilesystemMetric(mountPath: "/", availableBytes: 4_724_637_696, totalBytes: 24_980_656_128),
                 ServerFilesystemMetric(mountPath: "/dev/shm", availableBytes: 2_038_063_104, totalBytes: 2_038_063_104)
             ],
-            networkConnections: [],
-            processDetails: [],
+            networkConnections: [
+                ServerNetworkConnectionMetric(pid: 1263, processName: "sshd", listenAddress: "0.0.0.0", port: 22, remoteAddressCount: 1, connectionCount: 2, sentBytes: 1_433, receivedBytes: 560),
+                ServerNetworkConnectionMetric(pid: 1128, processName: "python3", listenAddress: "0.0.0.0", port: 8888, remoteAddressCount: 40, connectionCount: 55, sentBytes: 0, receivedBytes: 0)
+            ],
+            processDetails: [
+                ServerProcessDetailsMetric(pid: 783_214, user: "root", memoryBytes: 99_719_168, cpuPercent: 5.0, command: "AliYunDunMonito", location: "/usr/local/aegis/aegis_client/aegis_12_91/AliYunDunMonitor"),
+                ServerProcessDetailsMetric(pid: 1383, user: "redis", memoryBytes: 12_533_760, cpuPercent: 0.3, command: "redis-server", location: "/www/server/redis/src/redis-server")
+            ],
             sampledAt: Date(timeIntervalSince1970: 103)
         )
         let state = ServerHostMetricsState(
@@ -141,7 +165,8 @@ struct ServerMetricsPanelTests {
         return ServerMetricsPanel(
             hostTitle: "root@192.0.2.10:22",
             connectionState: "Connected",
-            state: state
+            state: state,
+            initialTab: initialTab
         )
     }
 

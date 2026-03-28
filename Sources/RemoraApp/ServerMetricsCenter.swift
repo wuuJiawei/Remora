@@ -69,6 +69,13 @@ struct ServerNetworkConnectionMetric: Equatable, Sendable, Identifiable {
     var id: String {
         "\(pid ?? -1)|\(processName)|\(listenAddress)|\(port ?? -1)"
     }
+
+    var pidSortValue: Int { pid ?? -1 }
+    var portSortValue: Int { port ?? -1 }
+    var remoteAddressCountSortValue: Int { remoteAddressCount ?? -1 }
+    var connectionCountSortValue: Int { connectionCount ?? -1 }
+    var sentBytesSortValue: Int64 { sentBytes ?? -1 }
+    var receivedBytesSortValue: Int64 { receivedBytes ?? -1 }
 }
 
 struct ServerProcessDetailsMetric: Equatable, Sendable, Identifiable {
@@ -80,6 +87,9 @@ struct ServerProcessDetailsMetric: Equatable, Sendable, Identifiable {
     let location: String
 
     var id: Int { pid ?? -1 }
+    var pidSortValue: Int { pid ?? -1 }
+    var memoryBytesSortValue: Int64 { memoryBytes ?? -1 }
+    var cpuPercentSortValue: Double { cpuPercent ?? -1 }
 }
 
 struct ServerHostMetricsState: Equatable, Sendable {
