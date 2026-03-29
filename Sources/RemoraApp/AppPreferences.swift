@@ -23,6 +23,7 @@ struct AppPreferencesSnapshot: Codable, Equatable {
     var serverMetricsActiveRefreshSeconds: Int
     var serverMetricsInactiveRefreshSeconds: Int
     var serverMetricsMaxConcurrentFetches: Int
+    var automaticallyCheckForUpdates: Bool
 
     static func defaultValue(fileManager: FileManager = .default) -> AppPreferencesSnapshot {
         AppPreferencesSnapshot(
@@ -45,7 +46,8 @@ struct AppPreferencesSnapshot: Codable, Equatable {
             connectionInfoPasswordCopyMuteForever: false,
             serverMetricsActiveRefreshSeconds: AppSettings.defaultServerMetricsActiveRefreshSeconds,
             serverMetricsInactiveRefreshSeconds: AppSettings.defaultServerMetricsInactiveRefreshSeconds,
-            serverMetricsMaxConcurrentFetches: AppSettings.defaultServerMetricsMaxConcurrentFetches
+            serverMetricsMaxConcurrentFetches: AppSettings.defaultServerMetricsMaxConcurrentFetches,
+            automaticallyCheckForUpdates: AppSettings.defaultAutomaticallyCheckForUpdates
         )
     }
 
@@ -61,6 +63,58 @@ struct AppPreferencesSnapshot: Codable, Equatable {
         normalized.serverMetricsInactiveRefreshSeconds = AppSettings.clampedServerMetricsInactiveRefreshSeconds(serverMetricsInactiveRefreshSeconds)
         normalized.serverMetricsMaxConcurrentFetches = AppSettings.clampedServerMetricsMaxConcurrentFetches(serverMetricsMaxConcurrentFetches)
         return normalized
+    }
+}
+
+extension AppPreferencesSnapshot {
+    private enum CodingKeys: String, CodingKey {
+        case appearanceModeRawValue
+        case languageModeRawValue
+        case downloadDirectoryPath
+        case aiEnabled
+        case aiProviderRawValue
+        case aiAPIFormatRawValue
+        case aiBaseURL
+        case aiModel
+        case aiLanguageRawValue
+        case aiSmartAssistEnabled
+        case aiIncludeWorkingDirectory
+        case aiIncludeTranscript
+        case aiTranscriptLineCount
+        case aiRequireRunConfirmation
+        case aiAPIKey
+        case connectionInfoPasswordCopyMutedUntilEpoch
+        case connectionInfoPasswordCopyMuteForever
+        case serverMetricsActiveRefreshSeconds
+        case serverMetricsInactiveRefreshSeconds
+        case serverMetricsMaxConcurrentFetches
+        case automaticallyCheckForUpdates
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        appearanceModeRawValue = try container.decode(String.self, forKey: .appearanceModeRawValue)
+        languageModeRawValue = try container.decode(String.self, forKey: .languageModeRawValue)
+        downloadDirectoryPath = try container.decode(String.self, forKey: .downloadDirectoryPath)
+        aiEnabled = try container.decode(Bool.self, forKey: .aiEnabled)
+        aiProviderRawValue = try container.decode(String.self, forKey: .aiProviderRawValue)
+        aiAPIFormatRawValue = try container.decode(String.self, forKey: .aiAPIFormatRawValue)
+        aiBaseURL = try container.decode(String.self, forKey: .aiBaseURL)
+        aiModel = try container.decode(String.self, forKey: .aiModel)
+        aiLanguageRawValue = try container.decode(String.self, forKey: .aiLanguageRawValue)
+        aiSmartAssistEnabled = try container.decode(Bool.self, forKey: .aiSmartAssistEnabled)
+        aiIncludeWorkingDirectory = try container.decode(Bool.self, forKey: .aiIncludeWorkingDirectory)
+        aiIncludeTranscript = try container.decode(Bool.self, forKey: .aiIncludeTranscript)
+        aiTranscriptLineCount = try container.decode(Int.self, forKey: .aiTranscriptLineCount)
+        aiRequireRunConfirmation = try container.decode(Bool.self, forKey: .aiRequireRunConfirmation)
+        aiAPIKey = try container.decode(String.self, forKey: .aiAPIKey)
+        connectionInfoPasswordCopyMutedUntilEpoch = try container.decode(Double.self, forKey: .connectionInfoPasswordCopyMutedUntilEpoch)
+        connectionInfoPasswordCopyMuteForever = try container.decode(Bool.self, forKey: .connectionInfoPasswordCopyMuteForever)
+        serverMetricsActiveRefreshSeconds = try container.decode(Int.self, forKey: .serverMetricsActiveRefreshSeconds)
+        serverMetricsInactiveRefreshSeconds = try container.decode(Int.self, forKey: .serverMetricsInactiveRefreshSeconds)
+        serverMetricsMaxConcurrentFetches = try container.decode(Int.self, forKey: .serverMetricsMaxConcurrentFetches)
+        automaticallyCheckForUpdates = try container.decodeIfPresent(Bool.self, forKey: .automaticallyCheckForUpdates)
+            ?? AppSettings.defaultAutomaticallyCheckForUpdates
     }
 }
 

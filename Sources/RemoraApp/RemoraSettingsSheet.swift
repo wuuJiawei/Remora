@@ -59,10 +59,12 @@ struct RemoraSettingsSheet: View {
     @EnvironmentObject private var keyboardShortcutStore: AppKeyboardShortcutStore
     @Environment(\.openURL) private var openURL
     private let aiSettingsStore = AISettingsStore()
+    @StateObject private var updateChecker = UpdateChecker.shared
 
     @RemoraStored(\.languageModeRawValue) private var languageModeRawValue: String
     @RemoraStored(\.appearanceModeRawValue) private var appearanceModeRawValue: String
     @RemoraStored(\.downloadDirectoryPath) private var downloadDirectoryPath: String
+    @RemoraStored(\.automaticallyCheckForUpdates) private var automaticallyCheckForUpdates: Bool
     @RemoraStored(\.aiEnabled) private var aiEnabled: Bool
     @RemoraStored(\.aiProviderRawValue) private var aiProviderRawValue: String
     @RemoraStored(\.aiAPIFormatRawValue) private var aiAPIFormatRawValue: String
@@ -249,6 +251,34 @@ struct RemoraSettingsSheet: View {
                         }
                     }
                     .accessibilityIdentifier("settings-download-path-row")
+                }
+
+                settingsSectionCard(
+                    title: tr("Updates"),
+                    message: tr("Check GitHub Releases for newer Remora versions.")
+                ) {
+                    compactSettingRow(title: tr("Automatically check at launch")) {
+                        Toggle("", isOn: $automaticallyCheckForUpdates)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-updates-auto-check")
+                    }
+
+                    HStack(spacing: 8) {
+                        Button(tr("Check for Updates")) {
+                            checkForUpdates()
+                        }
+                        .controlSize(.small)
+                        .disabled(updateChecker.isChecking)
+                        .accessibilityIdentifier("settings-updates-check-now")
+
+                        if updateChecker.isChecking {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(tr("Checking…"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(VisualStyle.textSecondary)
+                        }
+                    }
                 }
 
                 settingsSectionCard(
@@ -896,6 +926,12 @@ struct RemoraSettingsSheet: View {
         }
         if normalizedConcurrent != serverMetricsMaxConcurrentFetches {
             serverMetricsMaxConcurrentFetches = normalizedConcurrent
+        }
+    }
+
+    private func checkForUpdates() {
+        Task {
+            await updateChecker.checkForUpdates(trigger: .manual)
         }
     }
 

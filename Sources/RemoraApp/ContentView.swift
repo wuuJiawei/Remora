@@ -301,6 +301,9 @@ struct ContentView: View {
         return syncedContent
             .animation(.spring(response: 0.28, dampingFraction: 0.86), value: workspace.activeTabID)
             .animation(.spring(response: 0.32, dampingFraction: 0.84), value: bottomPanelVisibility)
+            .task {
+                await UpdateChecker.shared.performAutomaticCheckIfNeeded()
+            }
     }
 
 

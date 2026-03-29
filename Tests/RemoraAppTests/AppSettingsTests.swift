@@ -14,14 +14,18 @@ struct AppSettingsTests {
         let preferences = AppPreferences(fileURL: fileURL)
         preferences.set(AppAppearanceMode.dark.rawValue, for: \.appearanceModeRawValue)
         preferences.set("sk-test-123", for: \.aiAPIKey)
+        preferences.set(false, for: \.automaticallyCheckForUpdates)
 
         let rawText = try String(contentsOf: fileURL, encoding: .utf8)
+        let rawObject = try #require(JSONSerialization.jsonObject(with: Data(rawText.utf8)) as? [String: Any])
         #expect(rawText.contains(AppAppearanceMode.dark.rawValue))
         #expect(rawText.contains("sk-test-123"))
+        #expect(rawObject["automaticallyCheckForUpdates"] as? Bool == false)
 
         let reloaded = AppPreferences(fileURL: fileURL)
         #expect(reloaded.value(for: \.appearanceModeRawValue) == AppAppearanceMode.dark.rawValue)
         #expect(reloaded.value(for: \.aiAPIKey) == "sk-test-123")
+        #expect(reloaded.value(for: \.automaticallyCheckForUpdates) == false)
     }
 
     @Test
@@ -92,5 +96,60 @@ struct AppSettingsTests {
         #expect(AIProviderOption.deepSeek.suggestedModels.contains(where: { $0.displayName.contains("V3.2") }))
         #expect(AppSettings.defaultAILanguage == AILanguageOption.system.rawValue)
         #expect(AppSettings.defaultAIRequireRunConfirmation == true)
+    }
+
+    @Test
+    func updateChecksDefaultToAutomaticAtLaunch() {
+        let defaults = AppPreferencesSnapshot.defaultValue()
+        #expect(AppSettings.defaultAutomaticallyCheckForUpdates == true)
+        #expect(defaults.automaticallyCheckForUpdates == true)
+    }
+
+    @Test
+    func legacyPreferencesWithoutUpdateFlagStillLoad() throws {
+        let legacyJSON = """
+        {
+          "appearanceModeRawValue": "dark",
+          "languageModeRawValue": "system",
+          "downloadDirectoryPath": "/tmp",
+          "aiEnabled": true,
+          "aiProviderRawValue": "openai",
+          "aiAPIFormatRawValue": "openai_compatible",
+          "aiBaseURL": "https://api.openai.com/v1",
+          "aiModel": "gpt-5.4",
+          "aiLanguageRawValue": "system",
+          "aiSmartAssistEnabled": true,
+          "aiIncludeWorkingDirectory": true,
+          "aiIncludeTranscript": true,
+          "aiTranscriptLineCount": 120,
+          "aiRequireRunConfirmation": true,
+          "aiAPIKey": "",
+          "connectionInfoPasswordCopyMutedUntilEpoch": 0,
+          "connectionInfoPasswordCopyMuteForever": false,
+          "serverMetricsActiveRefreshSeconds": 1,
+          "serverMetricsInactiveRefreshSeconds": 1,
+          "serverMetricsMaxConcurrentFetches": 2
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(AppPreferencesSnapshot.self, from: Data(legacyJSON.utf8))
+        #expect(decoded.appearanceModeRawValue == "dark")
+        #expect(decoded.automaticallyCheckForUpdates == true)
+    }
+
+    @Test
+    func versionComparisonUsesNumericOrderingAndStripsTagPrefix() {
+        #expect(UpdateChecker.normalizedVersion(" v0.14.3 ") == "0.14.3")
+        #expect(UpdateChecker.isVersion("v0.14.4", newerThan: "0.14.3"))
+        #expect(UpdateChecker.isVersion("0.14.10", newerThan: "0.14.9"))
+        #expect(!UpdateChecker.isVersion("0.14.3", newerThan: "0.14.3"))
+        #expect(!UpdateChecker.isVersion("0.14.2", newerThan: "0.14.3"))
+    }
+
+    @Test
+    func releaseNotesAreTrimmedAndEmptyNotesCollapseToNil() {
+        #expect(UpdateChecker.normalizedReleaseNotes("\n- Added updater\n- Fixed issue\n") == "- Added updater\n- Fixed issue")
+        #expect(UpdateChecker.normalizedReleaseNotes("   \n\t  ") == nil)
+        #expect(UpdateChecker.normalizedReleaseNotes(nil) == nil)
     }
 }

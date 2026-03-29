@@ -21,10 +21,12 @@ enum AppSettings {
     static let serverMetricsActiveRefreshSecondsKey = "settings.metrics.activeRefreshSeconds"
     static let serverMetricsInactiveRefreshSecondsKey = "settings.metrics.inactiveRefreshSeconds"
     static let serverMetricsMaxConcurrentFetchesKey = "settings.metrics.maxConcurrentFetches"
+    static let automaticallyCheckForUpdatesKey = "settings.updates.automaticallyCheckAtLaunch"
 
     static let defaultServerMetricsActiveRefreshSeconds = 1
     static let defaultServerMetricsInactiveRefreshSeconds = 1
     static let defaultServerMetricsMaxConcurrentFetches = 2
+    static let defaultAutomaticallyCheckForUpdates = true
     static let defaultAIEnabled = true
     static let defaultAIActiveProvider = AIProviderOption.openAI.rawValue
     static let defaultAIAPIFormat = AIProviderOption.openAI.defaultAPIFormat.rawValue
@@ -105,6 +107,8 @@ enum AppSettings {
 enum AppLinks {
     static let repositoryURL = URL(string: "https://github.com/wuuJiawei/Remora")!
     static let issuesURL = URL(string: "https://github.com/wuuJiawei/Remora/issues")!
+    static let releasesURL = URL(string: "https://github.com/wuuJiawei/Remora/releases")!
+    static let latestReleaseAPIURL = URL(string: "https://api.github.com/repos/wuuJiawei/Remora/releases/latest")!
 }
 
 extension Notification.Name {
