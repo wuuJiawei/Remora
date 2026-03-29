@@ -1,5 +1,5 @@
 {
-  "originHash" : "3423c950cde8d743faa4faeed4e432dd715c6f9f467acbc845cbdc34981a6eea",
+  "originHash" : "be29fe58acf9638fdaab74705f22b551f3d8fcdb837959ac5cc97801fb401d30",
   "pins" : [
     {
       "identity" : "swift-argument-parser",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/migueldeicaza/SwiftTerm",
       "state" : {
-        "revision" : "b1262db5b6bea699a8260a8c66999436c508ca56",
-        "version" : "1.11.2"
+        "revision" : "8e7a1e154f470e19c709a00a8768df348ba5fc43",
+        "version" : "1.13.0"
       }
     }
   ],

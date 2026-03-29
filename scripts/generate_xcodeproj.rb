@@ -8,7 +8,7 @@ ROOT = Pathname.new(__dir__).join('..').realpath
 PROJECT_PATH = ROOT.join('Remora.xcodeproj')
 DEPLOYMENT_TARGET = '14.0'
 SWIFTTERM_URL = 'https://github.com/migueldeicaza/SwiftTerm'
-SWIFTTERM_MIN_VERSION = '1.11.2'
+SWIFTTERM_MIN_VERSION = '1.13.0'
 
 def sorted_swift_files(path, relative_to:)
   Dir.glob(path.join('**/*.swift').to_s).sort.map { |file| Pathname(file).relative_path_from(relative_to).to_s }
