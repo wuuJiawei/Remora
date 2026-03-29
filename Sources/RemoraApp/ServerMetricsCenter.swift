@@ -39,6 +39,8 @@ struct ServerResourceMetricsSnapshot: Equatable, Sendable {
     let uptimeSeconds: Int64?
     let topProcesses: [ServerTopProcessMetric]
     let filesystems: [ServerFilesystemMetric]
+    let networkConnections: [ServerNetworkConnectionMetric]
+    let processDetails: [ServerProcessDetailsMetric]
     let sampledAt: Date
 }
 
@@ -52,6 +54,42 @@ struct ServerFilesystemMetric: Equatable, Sendable {
     let mountPath: String
     let availableBytes: Int64?
     let totalBytes: Int64?
+}
+
+struct ServerNetworkConnectionMetric: Equatable, Sendable, Identifiable {
+    let pid: Int?
+    let processName: String
+    let listenAddress: String
+    let port: Int?
+    let remoteAddressCount: Int?
+    let connectionCount: Int?
+    let sentBytes: Int64?
+    let receivedBytes: Int64?
+
+    var id: String {
+        "\(pid ?? -1)|\(processName)|\(listenAddress)|\(port ?? -1)"
+    }
+
+    var pidSortValue: Int { pid ?? -1 }
+    var portSortValue: Int { port ?? -1 }
+    var remoteAddressCountSortValue: Int { remoteAddressCount ?? -1 }
+    var connectionCountSortValue: Int { connectionCount ?? -1 }
+    var sentBytesSortValue: Int64 { sentBytes ?? -1 }
+    var receivedBytesSortValue: Int64 { receivedBytes ?? -1 }
+}
+
+struct ServerProcessDetailsMetric: Equatable, Sendable, Identifiable {
+    let pid: Int?
+    let user: String
+    let memoryBytes: Int64?
+    let cpuPercent: Double?
+    let command: String
+    let location: String
+
+    var id: Int { pid ?? -1 }
+    var pidSortValue: Int { pid ?? -1 }
+    var memoryBytesSortValue: Int64 { memoryBytes ?? -1 }
+    var cpuPercentSortValue: Double { cpuPercent ?? -1 }
 }
 
 struct ServerHostMetricsState: Equatable, Sendable {
@@ -71,7 +109,7 @@ struct ServerHostMetricsState: Equatable, Sendable {
 }
 
 actor RemoteServerMetricsProbe {
-    private static let metricsCommand = """
+    private static let metricsCommand = #"""
     LC_ALL=C /bin/sh <<'REMORA_METRICS'
     cpu_permille=-1
     if [ -r /proc/stat ]; then
@@ -185,7 +223,7 @@ actor RemoteServerMetricsProbe {
           cpu=$2
           cmd=$3
           if (cmd == "") next
-          printf("proc_%d=%s|%s|%s\\n", NR-1, rss, cpu, cmd)
+          printf("proc_%d=%s|%s|%s\n", NR-1, rss, cpu, cmd)
         }'
 
     df -Pk 2>/dev/null \
@@ -195,28 +233,170 @@ actor RemoteServerMetricsProbe {
             mount = mount (i == 6 ? "" : " ") $i
           }
           if (mount == "") next
-          printf("fs_%d=%s|%s|%s\\n", count, mount, $4, $2)
+          printf("fs_%d=%s|%s|%s\n", count, mount, $4, $2)
           count++
         }'
 
-    printf 'cpu_permille=%s\\n' "$cpu_permille"
-    printf 'mem_total_kb=%s\\n' "$mem_total_kb"
-    printf 'mem_used_kb=%s\\n' "$mem_used_kb"
-    printf 'swap_total_kb=%s\\n' "$swap_total_kb"
-    printf 'swap_used_kb=%s\\n' "$swap_used_kb"
-    printf 'disk_total_kb=%s\\n' "$disk_total_kb"
-    printf 'disk_used_kb=%s\\n' "$disk_used_kb"
-    printf 'load1=%s\\n' "$load1"
-    printf 'load5=%s\\n' "$load5"
-    printf 'load15=%s\\n' "$load15"
-    printf 'uptime_s=%s\\n' "$uptime_s"
-    printf 'proc_count=%s\\n' "$proc_count"
-    printf 'net_rx_bytes=%s\\n' "$net_rx_bytes"
-    printf 'net_tx_bytes=%s\\n' "$net_tx_bytes"
-    printf 'disk_read_bytes=%s\\n' "$disk_read_bytes"
-    printf 'disk_write_bytes=%s\\n' "$disk_write_bytes"
+    if command -v ss >/dev/null 2>&1; then
+      listeners_file=$(mktemp 2>/dev/null)
+      connections_file=$(mktemp 2>/dev/null)
+
+      if [ -n "$listeners_file" ] && [ -n "$connections_file" ]; then
+        ss -Htunlp 2>/dev/null | awk '
+          function parse_local(value,    addr, parts, port, start) {
+            addr=value
+            port=""
+            if (addr ~ /^\[/) {
+              sub(/^\[/, "", addr)
+              split(addr, parts, /\]:/)
+              addr=parts[1]
+              port=parts[2]
+            } else {
+              start=match(addr, /:[^:]+$/)
+              if (start > 0) {
+                port=substr(addr, start + 1)
+                addr=substr(addr, 1, start - 1)
+              }
+            }
+            return addr "|" port
+          }
+          {
+            users=$NF
+            if (users == "") next
+            pid=""
+            name=""
+            if (match(users, /pid=[0-9]+/)) pid=substr(users, RSTART + 4, RLENGTH - 4)
+            if (match(users, /\("[^"]+"/)) name=substr(users, RSTART + 2, RLENGTH - 3)
+            if (pid == "" || name == "") next
+            parsed=parse_local($5)
+            split(parsed, pieces, "|")
+            addr=pieces[1]
+            port=pieces[2]
+            if (addr == "" || port == "") next
+            print pid "|" name "|" addr "|" port
+          }' | awk '!seen[$0]++' > "$listeners_file"
+
+        ss -Htnpi 2>/dev/null | awk '
+          function parse_local(value,    addr, parts, port, start) {
+            addr=value
+            port=""
+            if (addr ~ /^\[/) {
+              sub(/^\[/, "", addr)
+              split(addr, parts, /\]:/)
+              addr=parts[1]
+              port=parts[2]
+            } else {
+              start=match(addr, /:[^:]+$/)
+              if (start > 0) {
+                port=substr(addr, start + 1)
+                addr=substr(addr, 1, start - 1)
+              }
+            }
+            return addr "|" port
+          }
+          function parse_remote(value,    host, parts, start) {
+            host=value
+            if (host ~ /^\[/) {
+              sub(/^\[/, "", host)
+              split(host, parts, /\]:/)
+              host=parts[1]
+            } else {
+              start=match(host, /:[^:]+$/)
+              if (start > 0) host=substr(host, 1, start - 1)
+            }
+            return host
+          }
+          {
+            pid=""
+            sent=0
+            recv=0
+            if (match($0, /pid=[0-9]+/)) pid=substr($0, RSTART + 4, RLENGTH - 4)
+            if (pid == "") next
+            if (match($0, /bytes_acked:[0-9]+/)) sent=substr($0, RSTART + 12, RLENGTH - 12)
+            if (match($0, /bytes_received:[0-9]+/)) recv=substr($0, RSTART + 15, RLENGTH - 15)
+            parsed=parse_local($4)
+            split(parsed, pieces, "|")
+            localAddr=pieces[1]
+            localPort=pieces[2]
+            if (localPort == "") next
+            remoteHost=parse_remote($5)
+            print pid "|" localAddr "|" localPort "|" remoteHost "|" sent "|" recv
+          }' > "$connections_file"
+
+        awk -F'|' '
+          NR == FNR {
+            listenerCount++
+            listenerPid[listenerCount]=$1
+            listenerName[listenerCount]=$2
+            listenerAddr[listenerCount]=$3
+            listenerPort[listenerCount]=$4
+            next
+          }
+          {
+            pid=$1
+            localAddr=$2
+            localPort=$3
+            remoteHost=$4
+            sent=$5 + 0
+            recv=$6 + 0
+            for (i=1; i<=listenerCount; i++) {
+              if (listenerPid[i] != pid || listenerPort[i] != localPort) continue
+              if (listenerAddr[i] != "0.0.0.0" && listenerAddr[i] != "::" && listenerAddr[i] != localAddr) continue
+              key=i
+              connectionCount[key]++
+              sentBytes[key]+=sent
+              receivedBytes[key]+=recv
+              if (remoteHost != "") remoteSeen[key SUBSEP remoteHost]=1
+            }
+          }
+          END {
+            maxRows=24
+            emitted=0
+            for (i=1; i<=listenerCount && emitted<maxRows; i++) {
+              uniqueRemoteCount=0
+              for (remoteKey in remoteSeen) {
+                split(remoteKey, remoteParts, SUBSEP)
+                if (remoteParts[1] == i) uniqueRemoteCount++
+              }
+              printf("net_%d=%s|%s|%s|%s|%d|%d|%d|%d\n", emitted, listenerPid[i], listenerName[i], listenerAddr[i], listenerPort[i], uniqueRemoteCount, connectionCount[i] + 0, sentBytes[i] + 0, receivedBytes[i] + 0)
+              emitted++
+            }
+          }' "$listeners_file" "$connections_file"
+
+        rm -f "$listeners_file" "$connections_file"
+      fi
+    fi
+
+    proc_index=0
+    ps -eo pid=,user=,rss=,pcpu=,comm= --sort=-pcpu 2>/dev/null | while read -r pid user rss cpu command; do
+      [ "$proc_index" -lt 30 ] || break
+      [ -n "$pid" ] || continue
+      [ -n "$command" ] || continue
+      location=$(readlink "/proc/$pid/exe" 2>/dev/null || true)
+      sanitized_command=$(printf '%s' "$command" | tr '|' '/')
+      sanitized_location=$(printf '%s' "$location" | tr '|' '/')
+      printf 'ps_%s=%s|%s|%s|%s|%s|%s\n' "$proc_index" "$pid" "$user" "$rss" "$cpu" "$sanitized_command" "$sanitized_location"
+      proc_index=$((proc_index + 1))
+    done
+
+    printf 'cpu_permille=%s\n' "$cpu_permille"
+    printf 'mem_total_kb=%s\n' "$mem_total_kb"
+    printf 'mem_used_kb=%s\n' "$mem_used_kb"
+    printf 'swap_total_kb=%s\n' "$swap_total_kb"
+    printf 'swap_used_kb=%s\n' "$swap_used_kb"
+    printf 'disk_total_kb=%s\n' "$disk_total_kb"
+    printf 'disk_used_kb=%s\n' "$disk_used_kb"
+    printf 'load1=%s\n' "$load1"
+    printf 'load5=%s\n' "$load5"
+    printf 'load15=%s\n' "$load15"
+    printf 'uptime_s=%s\n' "$uptime_s"
+    printf 'proc_count=%s\n' "$proc_count"
+    printf 'net_rx_bytes=%s\n' "$net_rx_bytes"
+    printf 'net_tx_bytes=%s\n' "$net_tx_bytes"
+    printf 'disk_read_bytes=%s\n' "$disk_read_bytes"
+    printf 'disk_write_bytes=%s\n' "$disk_write_bytes"
     REMORA_METRICS
-    """
+    """#
 
     private var clients: [SSHHostMetricsKey: SystemSFTPClient] = [:]
 
@@ -244,8 +424,11 @@ actor RemoteServerMetricsProbe {
         sampledAt: Date = Date()
     ) -> ServerResourceMetricsSnapshot? {
         var values: [String: String] = [:]
-        let lines = output
+        let normalizedOutput = output
+            .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\\n", with: "\n")
+        let lines = normalizedOutput
             .split(separator: "\n")
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -290,6 +473,8 @@ actor RemoteServerMetricsProbe {
         let diskWriteBytes = parseNonNegativeInt("disk_write_bytes")
         let topProcesses = (0..<4).compactMap { parseTopProcess(values["proc_\($0)"]) }
         let filesystems = (0..<4).compactMap { parseFilesystem(values["fs_\($0)"]) }
+        let networkConnections = (0..<24).compactMap { parseNetworkConnection(values["net_\($0)"]) }
+        let processDetails = (0..<30).compactMap { parseProcessDetails(values["ps_\($0)"]) }
 
         let cpuFraction = cpuPermille.map { clampFraction(Double($0) / 1000) }
         let memoryFraction = fraction(used: memoryUsedKB, total: memoryTotalKB)
@@ -316,7 +501,9 @@ actor RemoteServerMetricsProbe {
            diskReadBytes == nil,
            diskWriteBytes == nil,
            topProcesses.isEmpty,
-           filesystems.isEmpty
+           filesystems.isEmpty,
+           networkConnections.isEmpty,
+           processDetails.isEmpty
         {
             return nil
         }
@@ -343,6 +530,8 @@ actor RemoteServerMetricsProbe {
             uptimeSeconds: uptimeSeconds,
             topProcesses: topProcesses,
             filesystems: filesystems,
+            networkConnections: networkConnections,
+            processDetails: processDetails,
             sampledAt: sampledAt
         )
     }
@@ -369,6 +558,94 @@ actor RemoteServerMetricsProbe {
         return ServerFilesystemMetric(mountPath: mountPath, availableBytes: availableBytes, totalBytes: totalBytes)
     }
 
+    private static func parseNetworkConnection(_ raw: String?) -> ServerNetworkConnectionMetric? {
+        guard let raw else { return nil }
+        let parts = raw.split(separator: "|", maxSplits: 7, omittingEmptySubsequences: false)
+        guard parts.count == 8 else { return nil }
+        let processName = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let listenAddress = String(parts[2]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !processName.isEmpty, !listenAddress.isEmpty else { return nil }
+        return ServerNetworkConnectionMetric(
+            pid: Int(parts[0]),
+            processName: processName,
+            listenAddress: listenAddress,
+            port: Int(parts[3]),
+            remoteAddressCount: Int(parts[4]),
+            connectionCount: Int(parts[5]),
+            sentBytes: Int64(parts[6]).map { max(0, $0) },
+            receivedBytes: Int64(parts[7]).map { max(0, $0) }
+        )
+    }
+
+    private static func parseProcessDetails(_ raw: String?) -> ServerProcessDetailsMetric? {
+        guard let raw else { return nil }
+        let parts = raw.split(separator: "|", maxSplits: 5, omittingEmptySubsequences: false)
+        guard parts.count == 6 else { return nil }
+        let user = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let location = String(parts[5]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let command = preferredProcessDisplayCommand(
+            rawCommand: String(parts[4]).trimmingCharacters(in: .whitespacesAndNewlines),
+            location: location
+        )
+        guard !user.isEmpty, !command.isEmpty else { return nil }
+        return ServerProcessDetailsMetric(
+            pid: Int(parts[0]),
+            user: user,
+            memoryBytes: Int64(parts[2]).map { max(0, $0) * 1024 },
+            cpuPercent: Double(parts[3]).map { max(0, $0) },
+            command: command,
+            location: location
+        )
+    }
+
+    private static func preferredProcessDisplayCommand(rawCommand: String, location: String) -> String {
+        let normalizedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedLocation.isEmpty {
+            let basename = URL(fileURLWithPath: normalizedLocation).lastPathComponent
+            if !basename.isEmpty {
+                return basename
+            }
+        }
+        return sanitizedProcessDisplayCommand(rawCommand)
+    }
+
+    private static func sanitizedProcessDisplayCommand(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        let tokens = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
+        let visibleTokens = tokens.drop(while: isEnvironmentAssignmentToken)
+        guard let executable = visibleTokens.first else { return "" }
+
+        let normalizedExecutable = normalizedProcessToken(executable)
+        guard !normalizedExecutable.isEmpty else { return "" }
+        return visibleTokens.count > 1 ? "\(normalizedExecutable) ..." : normalizedExecutable
+    }
+
+    private static func normalizedProcessToken(_ token: String) -> String {
+        let trimmed = token.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        guard !trimmed.isEmpty else { return "" }
+        if trimmed.contains("/") {
+            let basename = URL(fileURLWithPath: trimmed).lastPathComponent
+            if !basename.isEmpty {
+                return basename
+            }
+        }
+        return trimmed
+    }
+
+    private static func isEnvironmentAssignmentToken(_ token: String) -> Bool {
+        let trimmed = token.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        guard let equalsIndex = trimmed.firstIndex(of: "="), equalsIndex != trimmed.startIndex else {
+            return false
+        }
+        let key = trimmed[..<equalsIndex]
+        guard let first = key.first, first == "_" || first.isLetter else {
+            return false
+        }
+        return key.allSatisfy { $0 == "_" || $0.isLetter || $0.isNumber }
+    }
+
     private static func fraction(used: Int64?, total: Int64?) -> Double? {
         guard let used, let total, total > 0 else { return nil }
         return clampFraction(Double(used) / Double(total))
@@ -389,8 +666,10 @@ final class ServerMetricsCenter: ObservableObject {
     private let retentionInterval: TimeInterval
     private var maxConcurrentFetches: Int
 
-    private var trackedHosts: [SSHHostMetricsKey: RemoraCore.Host] = [:]
+    private var tabTrackedHosts: [SSHHostMetricsKey: RemoraCore.Host] = [:]
     private var activeHostKey: SSHHostMetricsKey?
+    private var observedWindowHost: RemoraCore.Host?
+    private var observedWindowHostKey: SSHHostMetricsKey?
     private var inFlightKeys: Set<SSHHostMetricsKey> = []
     private var lastFetchAt: [SSHHostMetricsKey: Date] = [:]
     private var lastSeenAt: [SSHHostMetricsKey: Date] = [:]
@@ -425,9 +704,24 @@ final class ServerMetricsCenter: ObservableObject {
             unique[key] = host
             lastSeenAt[key] = now
         }
-        trackedHosts = unique
+        tabTrackedHosts = unique
         activeHostKey = activeHost.map(SSHHostMetricsKey.init(host:))
+        if let observedWindowHost {
+            lastSeenAt[SSHHostMetricsKey(host: observedWindowHost)] = now
+        }
         cleanupStaleEntries(now: now)
+        scheduleDueFetches()
+    }
+
+    func setObservedWindowHost(_ host: RemoraCore.Host?) {
+        observedWindowHost = host
+        observedWindowHostKey = host.map(SSHHostMetricsKey.init(host:))
+        let now = Date()
+        if let observedWindowHostKey {
+            lastSeenAt[observedWindowHostKey] = now
+        }
+        cleanupStaleEntries(now: now)
+        scheduleDueFetches()
     }
 
     func state(for host: RemoraCore.Host?) -> ServerHostMetricsState? {
@@ -474,6 +768,7 @@ final class ServerMetricsCenter: ObservableObject {
         let now = Date()
         let availableSlots = max(0, maxConcurrentFetches - inFlightKeys.count)
         guard availableSlots > 0 else { return }
+        let trackedHosts = mergedTrackedHosts()
 
         let dueHosts = trackedHosts.compactMap { key, host -> (key: SSHHostMetricsKey, host: RemoraCore.Host, age: TimeInterval, isActive: Bool)? in
             guard !inFlightKeys.contains(key) else { return nil }
@@ -481,7 +776,12 @@ final class ServerMetricsCenter: ObservableObject {
             let lastFetched = lastFetchAt[key] ?? .distantPast
             let age = now.timeIntervalSince(lastFetched)
             guard age >= interval else { return nil }
-            return (key: key, host: host, age: age, isActive: key == activeHostKey)
+            return (
+                key: key,
+                host: host,
+                age: age,
+                isActive: key == activeHostKey || key == observedWindowHostKey
+            )
         }
         .sorted { lhs, rhs in
             if lhs.isActive != rhs.isActive {
@@ -496,7 +796,7 @@ final class ServerMetricsCenter: ObservableObject {
     }
 
     private func refreshInterval(for key: SSHHostMetricsKey) -> TimeInterval {
-        key == activeHostKey ? activeRefreshInterval : inactiveRefreshInterval
+        key == activeHostKey || key == observedWindowHostKey ? activeRefreshInterval : inactiveRefreshInterval
     }
 
     private func launchFetch(for key: SSHHostMetricsKey, host: RemoraCore.Host, startedAt: Date) {
@@ -544,7 +844,7 @@ final class ServerMetricsCenter: ObservableObject {
     }
 
     private func cleanupStaleEntries(now: Date) {
-        let trackedKeys = Set(trackedHosts.keys)
+        let trackedKeys = Set(mergedTrackedHosts().keys)
         let staleKeys = lastSeenAt.compactMap { key, lastSeen -> SSHHostMetricsKey? in
             guard !trackedKeys.contains(key) else { return nil }
             guard !inFlightKeys.contains(key) else { return nil }
@@ -558,5 +858,13 @@ final class ServerMetricsCenter: ObservableObject {
             lastFetchAt.removeValue(forKey: key)
             states.removeValue(forKey: key)
         }
+    }
+
+    private func mergedTrackedHosts() -> [SSHHostMetricsKey: RemoraCore.Host] {
+        var merged = tabTrackedHosts
+        if let observedWindowHost, let observedWindowHostKey {
+            merged[observedWindowHostKey] = observedWindowHost
+        }
+        return merged
     }
 }

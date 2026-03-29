@@ -216,6 +216,11 @@
 "To edit this file, right-click it and choose Edit." = "To edit this file, right-click it and choose Edit.";
 
 "Server Status" = "Server Status";
+"Server Monitoring" = "Server Monitoring";
+"%@ - Server Monitoring" = "%@ - Server Monitoring";
+"System Information Monitoring" = "System Information Monitoring";
+"Network Monitoring" = "Network Monitoring";
+"Process Monitoring" = "Process Monitoring";
 "No Server Selected" = "No Server Selected";
 "Click metrics bars in a session tab to inspect server status." = "Click metrics bars in a session tab to inspect server status.";
 "Memory" = "Memory";
@@ -242,6 +247,13 @@
 "Collecting metrics…" = "Collecting metrics…";
 "Remora is sampling the remote host for CPU, memory, traffic, and process details." = "Remora is sampling the remote host for CPU, memory, traffic, and process details.";
 "Metrics unavailable" = "Metrics unavailable";
+"Search" = "Search";
+"Search network monitoring" = "Search network monitoring";
+"Search process monitoring" = "Search process monitoring";
+"Sort" = "Sort";
+"Ascending" = "Ascending";
+"Descending" = "Descending";
+"Port" = "Port";
 "Hover again after the SSH session finishes its first sampling cycle." = "Hover again after the SSH session finishes its first sampling cycle.";
 "Metrics will appear after the first sampling cycle." = "Metrics will appear after the first sampling cycle.";
 "Resources" = "Resources";
@@ -249,6 +261,19 @@
 "Load 1m" = "Load 1m";
 "Load 5m" = "Load 5m";
 "Load 15m" = "Load 15m";
+"PID" = "PID";
+"Listen IP" = "Listen IP";
+"IP Count" = "IP Count";
+"Connections" = "Connections";
+"Upload" = "Upload";
+"Location" = "Location";
+"No network monitoring data yet." = "No network monitoring data yet.";
+"Network activity rows will appear after the next successful sampling cycle." = "Network activity rows will appear after the next successful sampling cycle.";
+"No matching network monitoring results." = "No matching network monitoring results.";
+"No process monitoring data yet." = "No process monitoring data yet.";
+"Process rows will appear after the next successful sampling cycle." = "Process rows will appear after the next successful sampling cycle.";
+"No matching process monitoring results." = "No matching process monitoring results.";
+"Try a different keyword or sort option." = "Try a different keyword or sort option.";
 "Available / Size" = "Available / Size";
 "Last sample" = "Last sample";
 "RX/s" = "RX/s";

@@ -212,6 +212,11 @@
 "Go to Root" = "前往根目录";
 
 "Server Status" = "服务器状态";
+"Server Monitoring" = "服务器监控";
+"%@ - Server Monitoring" = "%@-服务器监控";
+"System Information Monitoring" = "系统信息监控";
+"Network Monitoring" = "网络监控";
+"Process Monitoring" = "进程监控";
 "No Server Selected" = "未选择服务器";
 "Click metrics bars in a session tab to inspect server status." = "点击会话标签中的指标条以查看服务器状态。";
 "Memory" = "内存";
@@ -238,6 +243,13 @@
 "Collecting metrics…" = "正在采集指标…";
 "Remora is sampling the remote host for CPU, memory, traffic, and process details." = "Remora 正在采集远端主机的 CPU、内存、流量与进程详情。";
 "Metrics unavailable" = "指标不可用";
+"Search" = "搜索";
+"Search network monitoring" = "搜索网络监控";
+"Search process monitoring" = "搜索进程监控";
+"Sort" = "排序";
+"Ascending" = "升序";
+"Descending" = "降序";
+"Port" = "端口";
 "Hover again after the SSH session finishes its first sampling cycle." = "等待 SSH 会话完成首次采样后，再次悬停即可查看。";
 "Metrics will appear after the first sampling cycle." = "完成首次采样后，这里会显示监控数据。";
 "Resources" = "资源概览";
@@ -245,6 +257,19 @@
 "Load 1m" = "1 分钟负载";
 "Load 5m" = "5 分钟负载";
 "Load 15m" = "15 分钟负载";
+"PID" = "PID";
+"Listen IP" = "监听 IP";
+"IP Count" = "IP 数";
+"Connections" = "连接数";
+"Upload" = "上传";
+"Location" = "位置";
+"No network monitoring data yet." = "暂无网络监控数据。";
+"Network activity rows will appear after the next successful sampling cycle." = "下一次成功采样后，这里会显示网络活动行。";
+"No matching network monitoring results." = "没有匹配的网络监控结果。";
+"No process monitoring data yet." = "暂无进程监控数据。";
+"Process rows will appear after the next successful sampling cycle." = "下一次成功采样后，这里会显示进程行。";
+"No matching process monitoring results." = "没有匹配的进程监控结果。";
+"Try a different keyword or sort option." = "试试别的关键词或排序方式。";
 "Available / Size" = "可用 / 总大小";
 "Last sample" = "最近采样";
 "RX/s" = "RX/s";

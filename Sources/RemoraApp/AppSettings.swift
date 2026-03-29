@@ -22,8 +22,8 @@ enum AppSettings {
     static let serverMetricsInactiveRefreshSecondsKey = "settings.metrics.inactiveRefreshSeconds"
     static let serverMetricsMaxConcurrentFetchesKey = "settings.metrics.maxConcurrentFetches"
 
-    static let defaultServerMetricsActiveRefreshSeconds = 4
-    static let defaultServerMetricsInactiveRefreshSeconds = 10
+    static let defaultServerMetricsActiveRefreshSeconds = 1
+    static let defaultServerMetricsInactiveRefreshSeconds = 1
     static let defaultServerMetricsMaxConcurrentFetches = 2
     static let defaultAIEnabled = true
     static let defaultAIActiveProvider = AIProviderOption.openAI.rawValue
@@ -86,11 +86,11 @@ enum AppSettings {
     }
 
     static func clampedServerMetricsActiveRefreshSeconds(_ value: Int) -> Int {
-        min(max(value, 2), 30)
+        min(max(value, 1), 30)
     }
 
     static func clampedServerMetricsInactiveRefreshSeconds(_ value: Int) -> Int {
-        min(max(value, 4), 90)
+        min(max(value, 1), 90)
     }
 
     static func clampedServerMetricsMaxConcurrentFetches(_ value: Int) -> Int {

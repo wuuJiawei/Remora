@@ -464,7 +464,7 @@ struct RemoraSettingsSheet: View {
                     message: tr("Higher refresh and concurrency improve responsiveness but increase local and remote load.")
                 ) {
                     compactSettingRow(title: tr("Active tab refresh (seconds)")) {
-                        Stepper(value: $serverMetricsActiveRefreshSeconds, in: 2...30) {
+                        Stepper(value: $serverMetricsActiveRefreshSeconds, in: 1...30) {
                             Text("\(serverMetricsActiveRefreshSeconds)")
                                 .font(.system(.body, design: .monospaced))
                         }
@@ -473,7 +473,7 @@ struct RemoraSettingsSheet: View {
                     }
 
                     compactSettingRow(title: tr("Inactive tab refresh (seconds)")) {
-                        Stepper(value: $serverMetricsInactiveRefreshSeconds, in: 4...90) {
+                        Stepper(value: $serverMetricsInactiveRefreshSeconds, in: 1...90) {
                             Text("\(serverMetricsInactiveRefreshSeconds)")
                                 .font(.system(.body, design: .monospaced))
                         }

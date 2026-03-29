@@ -3,21 +3,25 @@ import SwiftUI
 import RemoraCore
 
 @MainActor
-final class ServerStatusWindowManager: ObservableObject {
+final class ServerStatusWindowManager: NSObject, ObservableObject, NSWindowDelegate {
     private let context = ServerStatusWindowContext()
     private var window: NSWindow?
+    private weak var metricsCenter: ServerMetricsCenter?
 
     func present(
         host: RemoraCore.Host,
         runtime: TerminalRuntime,
         metricsCenter: ServerMetricsCenter
     ) {
+        self.metricsCenter = metricsCenter
         context.host = host
         context.runtime = runtime
+        metricsCenter.setObservedWindowHost(host)
 
         if window == nil {
             createWindow(metricsCenter: metricsCenter)
         }
+        updateWindowTitle(for: host)
         applyAppearanceMode()
         positionWindowBesidePrimaryWindow()
         window?.makeKeyAndOrderFront(nil)
@@ -28,12 +32,13 @@ final class ServerStatusWindowManager: ObservableObject {
         let rootView = ServerStatusWindowView(context: context, metricsCenter: metricsCenter)
         let hostingController = NSHostingController(rootView: rootView)
         let nextWindow = NSWindow(contentViewController: hostingController)
-        nextWindow.title = L10n.tr("Server Status", fallback: "Server Status")
+        nextWindow.title = L10n.tr("Server Monitoring", fallback: "Server Monitoring")
         nextWindow.identifier = NSUserInterfaceItemIdentifier("remora.server-status-window")
         nextWindow.styleMask = [.titled, .closable, .miniaturizable]
-        nextWindow.setContentSize(NSSize(width: 472, height: 720))
-        nextWindow.minSize = NSSize(width: 436, height: 560)
+        nextWindow.setContentSize(NSSize(width: 592, height: 720))
+        nextWindow.minSize = NSSize(width: 532, height: 560)
         nextWindow.isReleasedWhenClosed = false
+        nextWindow.delegate = self
         window = nextWindow
     }
 
@@ -87,6 +92,26 @@ final class ServerStatusWindowManager: ObservableObject {
 
         window.setFrame(targetFrame, display: true)
     }
+
+    private func updateWindowTitle(for host: RemoraCore.Host) {
+        guard let window else { return }
+        let format = L10n.tr("%@ - Server Monitoring", fallback: "%@ - Server Monitoring")
+        window.title = String(format: format, displayHostName(for: host))
+    }
+
+    private func displayHostName(for host: RemoraCore.Host) -> String {
+        let trimmedName = host.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty {
+            return trimmedName
+        }
+        return "\(host.username)@\(host.address):\(host.port)"
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        metricsCenter?.setObservedWindowHost(nil)
+        context.host = nil
+        context.runtime = nil
+    }
 }
 
 @MainActor
@@ -113,17 +138,25 @@ private struct ServerStatusWindowView: View {
                 )
             }
         }
-        .frame(minWidth: 436, minHeight: 560)
-        .frame(width: 472)
+        .frame(minWidth: 532, minHeight: 560)
     }
 
     private func statusContent(for host: RemoraCore.Host) -> some View {
         let state = metricsCenter.state(for: host) ?? .idle
         return ServerMetricsPanel(
-            hostTitle: "\(host.username)@\(host.address):\(host.port)",
+            hostTitle: displayHostName(for: host),
+            hostSubtitle: "\(host.username)@\(host.address):\(host.port)",
             connectionState: localizedConnectionState(context.runtime?.connectionState ?? "Disconnected"),
             state: state
         )
         .padding(16)
+    }
+
+    private func displayHostName(for host: RemoraCore.Host) -> String {
+        let trimmedName = host.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty {
+            return trimmedName
+        }
+        return "\(host.username)@\(host.address):\(host.port)"
     }
 }

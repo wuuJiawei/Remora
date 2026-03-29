@@ -40,4 +40,29 @@ struct L10nTests {
         #expect(L10n.tr("Uploading archive…", fallback: "Uploading archive…", modeOverride: .simplifiedChinese) == "正在上传压缩包…")
         #expect(L10n.tr("Extracting archive…", fallback: "Extracting archive…", modeOverride: .simplifiedChinese) == "正在解压压缩包…")
     }
+
+    @Test
+    func monitoringTabStringsAreLocalizedInSimplifiedChinese() {
+        #expect(L10n.tr("Server Monitoring", fallback: "Server Monitoring", modeOverride: .simplifiedChinese) == "服务器监控")
+        #expect(L10n.tr("System Information Monitoring", fallback: "System Information Monitoring", modeOverride: .simplifiedChinese) == "系统信息监控")
+        #expect(L10n.tr("Network Monitoring", fallback: "Network Monitoring", modeOverride: .simplifiedChinese) == "网络监控")
+        #expect(L10n.tr("Process Monitoring", fallback: "Process Monitoring", modeOverride: .simplifiedChinese) == "进程监控")
+        #expect(L10n.tr("Listen IP", fallback: "Listen IP", modeOverride: .simplifiedChinese) == "监听 IP")
+        #expect(L10n.tr("IP Count", fallback: "IP Count", modeOverride: .simplifiedChinese) == "IP 数")
+        #expect(L10n.tr("Connections", fallback: "Connections", modeOverride: .simplifiedChinese) == "连接数")
+        #expect(L10n.tr("Upload", fallback: "Upload", modeOverride: .simplifiedChinese) == "上传")
+        #expect(L10n.tr("Location", fallback: "Location", modeOverride: .simplifiedChinese) == "位置")
+        #expect(L10n.tr("Search", fallback: "Search", modeOverride: .simplifiedChinese) == "搜索")
+        #expect(L10n.tr("Sort", fallback: "Sort", modeOverride: .simplifiedChinese) == "排序")
+        #expect(L10n.tr("Descending", fallback: "Descending", modeOverride: .simplifiedChinese) == "降序")
+        #expect(L10n.tr("No network monitoring data yet.", fallback: "No network monitoring data yet.", modeOverride: .simplifiedChinese) == "暂无网络监控数据。")
+        #expect(L10n.tr("Network activity rows will appear after the next successful sampling cycle.", fallback: "Network activity rows will appear after the next successful sampling cycle.", modeOverride: .simplifiedChinese) == "下一次成功采样后，这里会显示网络活动行。")
+        #expect(L10n.tr("No matching network monitoring results.", fallback: "No matching network monitoring results.", modeOverride: .simplifiedChinese) == "没有匹配的网络监控结果。")
+        #expect(L10n.tr("No process monitoring data yet.", fallback: "No process monitoring data yet.", modeOverride: .simplifiedChinese) == "暂无进程监控数据。")
+        #expect(L10n.tr("Process rows will appear after the next successful sampling cycle.", fallback: "Process rows will appear after the next successful sampling cycle.", modeOverride: .simplifiedChinese) == "下一次成功采样后，这里会显示进程行。")
+        #expect(L10n.tr("No matching process monitoring results.", fallback: "No matching process monitoring results.", modeOverride: .simplifiedChinese) == "没有匹配的进程监控结果。")
+        #expect(L10n.tr("Try a different keyword or sort option.", fallback: "Try a different keyword or sort option.", modeOverride: .simplifiedChinese) == "试试别的关键词或排序方式。")
+        let title = String(format: L10n.tr("%@ - Server Monitoring", fallback: "%@ - Server Monitoring", modeOverride: .simplifiedChinese), "prod-api")
+        #expect(title == "prod-api-服务器监控")
+    }
 }

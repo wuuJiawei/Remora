@@ -27,7 +27,6 @@ struct ServerStatusWindowTests {
             auth: HostAuth(method: .agent)
         )
 
-        metricsCenter.updateTrackedHosts([host], activeHost: host)
         manager.present(host: host, runtime: runtime, metricsCenter: metricsCenter)
         defer { closeServerStatusWindows() }
 
@@ -39,7 +38,7 @@ struct ServerStatusWindowTests {
 
         let loadingHeight = serverStatusWindowContentHeight()
 
-        #expect(didEnterLoadingState, "Server Metrics should enter a loading state for the tracked host.")
+        #expect(didEnterLoadingState, "Server Metrics should enter a loading state for the presented host.")
         #expect(loadingHeight == initialHeight, "Server Status should not grow when metrics refresh silently.")
     }
 
@@ -63,12 +62,12 @@ struct ServerStatusWindowTests {
             auth: HostAuth(method: .agent)
         )
 
-        metricsCenter.updateTrackedHosts([host], activeHost: host)
         manager.present(host: host, runtime: runtime, metricsCenter: metricsCenter)
         defer { closeServerStatusWindows() }
 
         let width = serverStatusWindows().first?.frame.width ?? 0
-        #expect(width >= 420, "Server Status window should expand into a dashboard-style width.")
+        #expect(width >= 592, "Server Status window should keep a compact monitoring width.")
+        #expect(width <= 640, "Server Status window should no longer open as an oversized dashboard.")
     }
 
     private func waitUntil(timeout: TimeInterval, condition: @escaping @MainActor () -> Bool) async -> Bool {
