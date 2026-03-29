@@ -48,6 +48,24 @@ struct SystemSSHClientTests {
     }
 
     @Test
+    func buildsArgumentsForPasswordWithMultiPromptSupport() {
+        let host = Host(
+            name: "prod-password",
+            address: "example.com",
+            username: "root",
+            auth: HostAuth(method: .password, passwordReference: "pw-ref")
+        )
+
+        let args = ProcessSSHShellSession.makeSSHArguments(for: host)
+
+        #expect(args.contains("PreferredAuthentications=keyboard-interactive,password"))
+        #expect(args.contains("NumberOfPasswordPrompts=3"))
+        #expect(args.contains("PubkeyAuthentication=no"))
+        #expect(args.contains("GSSAPIAuthentication=no"))
+        #expect(args.contains("KbdInteractiveAuthentication=yes"))
+    }
+
+    @Test
     func prefersScriptWrapperWhenAvailable() {
         let host = Host(
             name: "staging",

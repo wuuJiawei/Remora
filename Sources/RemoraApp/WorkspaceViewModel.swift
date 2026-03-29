@@ -84,7 +84,15 @@ final class WorkspaceViewModel: ObservableObject {
     @Published var activePaneByTab: [UUID: UUID]
     private let paneFactory: () -> TerminalPaneModel
 
-    init(paneFactory: @escaping () -> TerminalPaneModel = { TerminalPaneModel() }) {
+    init() {
+        self.tabs = []
+        self.activeTabID = nil
+        self.activePaneByTab = [:]
+        self.paneFactory = { TerminalPaneModel() }
+        applyPaneVisibility()
+    }
+
+    init(paneFactory: @escaping () -> TerminalPaneModel) {
         self.tabs = []
         self.activeTabID = nil
         self.activePaneByTab = [:]

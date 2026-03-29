@@ -50,6 +50,10 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     private var recentFailureProbeBuffer = Data()
     private var activeAttemptStartedAt: Date?
     private var compatibilityPersistenceTask: Task<Void, Never>?
+    private var skipAutoPasswordDelivery = false
+    private var cachedStoredPassword: String?
+    private var interactivePromptBuffer = ""
+    private var interactivePasswordAutofillUsed = false
 
     public init(host: Host, pty: PTYSize) {
         self.host = host
@@ -120,6 +124,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             let data = handle.availableData
             guard !data.isEmpty else { return }
             self?.recordFailureProbeOutput(data)
+            self?.handleInteractivePasswordAutofillIfNeeded(for: data)
             self?.onOutput?(data)
         }
 
@@ -224,6 +229,8 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             masterFileDescriptor = nil
             process = nil
             activeAttemptStartedAt = nil
+            interactivePromptBuffer.removeAll(keepingCapacity: true)
+            interactivePasswordAutofillUsed = false
 
             return handle
         }
@@ -257,6 +264,54 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         }
     }
 
+    private func handleInteractivePasswordAutofillIfNeeded(for data: Data) {
+        let command: Data? = stateQueue.sync {
+            guard skipAutoPasswordDelivery,
+                  host.auth.method == .password,
+                  !interactivePasswordAutofillUsed,
+                  let cachedStoredPassword,
+                  !cachedStoredPassword.isEmpty
+            else {
+                return nil
+            }
+
+            let chunk = String(decoding: data, as: UTF8.self)
+            guard !chunk.isEmpty else { return nil }
+
+            interactivePromptBuffer.append(chunk.lowercased())
+            if interactivePromptBuffer.count > 4096 {
+                interactivePromptBuffer = String(interactivePromptBuffer.suffix(4096))
+            }
+
+            if Self.looksLikeOTPChallenge(interactivePromptBuffer) {
+                return nil
+            }
+
+            guard Self.looksLikePasswordPrompt(interactivePromptBuffer) else {
+                return nil
+            }
+
+            interactivePasswordAutofillUsed = true
+            interactivePromptBuffer.removeAll(keepingCapacity: true)
+            return Data((cachedStoredPassword + "\n").utf8)
+        }
+
+        guard let command else { return }
+        try? writeSync(command)
+    }
+
+    private static func looksLikePasswordPrompt(_ output: String) -> Bool {
+        output.contains("password:")
+    }
+
+    private static func looksLikeOTPChallenge(_ output: String) -> Bool {
+        output.contains("verification code")
+            || output.contains("one-time password")
+            || output.contains("otp")
+            || output.contains("token code")
+            || output.contains("authenticator code")
+    }
+
     private func handleProcessTermination(
         status: Int32,
         output: String,
@@ -287,12 +342,63 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             }
         }
 
+        if !skipAutoPasswordDelivery,
+           host.auth.method == .password,
+           elapsed <= compatibilityRetryWindow,
+           Self.looksLikeInteractiveAuthRetryCandidate(output) {
+            skipAutoPasswordDelivery = true
+            do {
+                try await startProcess(using: compatibilityProfile)
+                return
+            } catch {
+                let message = error.localizedDescription
+                onOutput?(Data((message + "\r\n").utf8))
+                onStateChange?(.failed(message))
+                return
+            }
+        }
+
         let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = trimmedOutput.isEmpty ? "ssh exited with status \(status)" : trimmedOutput
         if trimmedOutput.isEmpty {
             onOutput?(Data((message + "\r\n").utf8))
         }
         onStateChange?(.failed(message))
+    }
+
+    private static func looksLikeInteractiveAuthRetryCandidate(_ output: String) -> Bool {
+        let lower = output.lowercased()
+
+        if lower.contains("keyboard-interactive") {
+            return true
+        }
+
+        if lower.contains("one-time password")
+            || lower.contains("verification code")
+            || lower.contains("otp")
+            || lower.contains("authenticator code")
+            || lower.contains("token code")
+        {
+            return true
+        }
+
+        if lower.contains("too many authentication failures") {
+            return true
+        }
+
+        if lower.contains("permission denied, please try again.")
+            || lower.contains("permission denied (")
+        {
+            return true
+        }
+
+        if lower.contains("permission denied")
+            && (lower.contains("password") || lower.contains("keyboard-interactive"))
+        {
+            return true
+        }
+
+        return false
     }
 
     private func scheduleCompatibilityProfilePersistence(
@@ -355,9 +461,13 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         } else {
             nil
         }
+        stateQueue.sync {
+            cachedStoredPassword = storedPassword
+        }
         let hasStoredPassword = storedPassword != nil
 
         if host.auth.method == .password,
+           !skipAutoPasswordDelivery,
            hasStoredPassword,
            let password = storedPassword,
            let launch = Self.makePasswordLaunchConfiguration(
@@ -409,8 +519,11 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             }
             args.append(contentsOf: ["-o", "PreferredAuthentications=publickey"])
         case .password:
-            args.append(contentsOf: ["-o", "PreferredAuthentications=password,keyboard-interactive"])
-            args.append(contentsOf: ["-o", "NumberOfPasswordPrompts=1"])
+            args.append(contentsOf: ["-o", "PreferredAuthentications=keyboard-interactive,password"])
+            args.append(contentsOf: ["-o", "NumberOfPasswordPrompts=3"])
+            args.append(contentsOf: ["-o", "PubkeyAuthentication=no"])
+            args.append(contentsOf: ["-o", "GSSAPIAuthentication=no"])
+            args.append(contentsOf: ["-o", "KbdInteractiveAuthentication=yes"])
         case .agent:
             args.append(contentsOf: ["-o", "PreferredAuthentications=publickey"])
         }

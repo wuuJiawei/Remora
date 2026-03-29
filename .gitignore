@@ -41,3 +41,6 @@ DerivedData/
 docs/wiki/node_modules/
 docs/wiki/.astro/
 docs/wiki/dist/
+AGENTS.md
+
+.gitignore
