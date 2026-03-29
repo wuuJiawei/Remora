@@ -41,6 +41,7 @@
 		501D61FC809AF34D03CE3993 /* VisualStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF78167226EC248020BC119 /* VisualStyle.swift */; };
 		55C314907435A7E8BEBFB5DA /* RemoraAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D60CD3119444DD1053F741 /* RemoraAppMain.swift */; };
 		586830F5EB6B00D0D0302C27 /* ServerMetricsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE2D1707CBF2331DC00F3E81 /* ServerMetricsPanel.swift */; };
+		5C2133A2E5A144C8A1B34001 /* ServerMonitoringSortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C2133A3E5A144C8A1B34001 /* ServerMonitoringSortOrder.swift */; };
 		58B61036EB15C6FB61122CE8 /* TransferQueuePresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AA832553362613B3F667E2D /* TransferQueuePresentationState.swift */; };
 		5A80CD9E96CCC8E085ED91A9 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC487D995DAC3F36804D2744 /* TerminalView.swift */; };
 		5F3AFDA90728A6B84A9E95A1 /* ContentViewSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E03A76D71BC8C180B0FA0E1F /* ContentViewSheets.swift */; };
@@ -230,6 +231,7 @@
 		EB8A5E141AC1A0BF4548078D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/SwiftUI.framework; sourceTree = DEVELOPER_DIR; };
 		EC487D995DAC3F36804D2744 /* TerminalView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 		EE2D1707CBF2331DC00F3E81 /* ServerMetricsPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerMetricsPanel.swift; sourceTree = "<group>"; };
+		5C2133A3E5A144C8A1B34001 /* ServerMonitoringSortOrder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerMonitoringSortOrder.swift; sourceTree = "<group>"; };
 		EF52F39114C1B1CB03432E57 /* AISettingsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISettingsStore.swift; sourceTree = "<group>"; };
 		EF69E7F9359794F9FA744935 /* SSHProtocols.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSHProtocols.swift; path = Protocols/SSHProtocols.swift; sourceTree = "<group>"; };
 		F0F236BF669A1425CD68C826 /* AppPreferences.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
@@ -379,6 +381,7 @@
 				73FF0BF6492BA4CD78F13F4F /* RuntimeConnectionSyncCoordinator.swift */,
 				3F8E3C15688644EB2C018C94 /* ServerMetricsCenter.swift */,
 				EE2D1707CBF2331DC00F3E81 /* ServerMetricsPanel.swift */,
+				5C2133A3E5A144C8A1B34001 /* ServerMonitoringSortOrder.swift */,
 				587A82004665949D19050E64 /* ServerStatusWindow.swift */,
 				A8A3B024C091C07B6418CAE5 /* SessionMetricsTooltip.swift */,
 				362ADC1CE817B1E8A75F85AD /* TerminalAIAssistantCoordinator.swift */,
@@ -684,6 +687,7 @@
 				A11FDCA49256A4BFA7A6BA1A /* RuntimeConnectionSyncCoordinator.swift in Sources */,
 				639D86CEDFFC5020EED536E9 /* ServerMetricsCenter.swift in Sources */,
 				586830F5EB6B00D0D0302C27 /* ServerMetricsPanel.swift in Sources */,
+				5C2133A2E5A144C8A1B34001 /* ServerMonitoringSortOrder.swift in Sources */,
 				BCB3CC081753C42CFF1D8BB5 /* ServerStatusWindow.swift in Sources */,
 				9AE66BBC696BD0C7C83F459D /* SessionMetricsTooltip.swift in Sources */,
 				955E655CF84C6C841BF40A5B /* TerminalAIAssistantCoordinator.swift in Sources */,
