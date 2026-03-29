@@ -14,6 +14,9 @@ struct AppKeyboardShortcutStoreTests {
         #expect(store.shortcut(for: .newSSHConnection)?.displayText == "⌘⇧N")
         #expect(store.shortcut(for: .importConnections)?.displayText == "⌘I")
         #expect(store.shortcut(for: .exportConnections)?.displayText == "⌘E")
+        #expect(store.shortcut(for: .terminalCopy)?.displayText == "⌘C")
+        #expect(store.shortcut(for: .terminalPaste)?.displayText == "⌘V")
+        #expect(store.shortcut(for: .terminalClearScreen)?.displayText == "⌘K")
     }
 
     @Test

@@ -529,6 +529,10 @@ final class TerminalRuntime: ObservableObject {
         guard !trimmed.isEmpty else { return }
         enqueueInput(Data("\(trimmed)\n".utf8))
     }
+
+    func clearScreen() {
+        runAssistantCommand("clear")
+    }
     
     func setBracketedPasteEnabled(_ enabled: Bool) {
         bracketedPasteEnabled = enabled

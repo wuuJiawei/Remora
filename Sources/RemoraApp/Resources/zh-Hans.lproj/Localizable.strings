@@ -165,6 +165,8 @@
 "Move To" = "移动到";
 "Retry Failed" = "重试失败项";
 "Paste" = "粘贴";
+"Select All" = "全选";
+"Clear Screen" = "清屏";
 "Refresh" = "刷新";
 "New File" = "新建文件";
 "New Folder" = "新建文件夹";
@@ -183,6 +185,7 @@
 "Created \"%@\"." = "已创建“%@”。";
 "Rename" = "重命名";
 "Copy" = "复制";
+"Terminal" = "终端";
 "Cut" = "剪切";
 "Download Current" = "下载当前项";
 "Move Selected Files" = "移动所选文件";

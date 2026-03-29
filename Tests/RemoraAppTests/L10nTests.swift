@@ -65,4 +65,11 @@ struct L10nTests {
         let title = String(format: L10n.tr("%@ - Server Monitoring", fallback: "%@ - Server Monitoring", modeOverride: .simplifiedChinese), "prod-api")
         #expect(title == "prod-api-服务器监控")
     }
+
+    @Test
+    func terminalActionStringsAreLocalizedInSimplifiedChinese() {
+        #expect(L10n.tr("Select All", fallback: "Select All", modeOverride: .simplifiedChinese) == "全选")
+        #expect(L10n.tr("Clear Screen", fallback: "Clear Screen", modeOverride: .simplifiedChinese) == "清屏")
+        #expect(L10n.tr("Terminal", fallback: "Terminal", modeOverride: .simplifiedChinese) == "终端")
+    }
 }

@@ -657,6 +657,33 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func clearScreenExecutesClearCommandThroughRuntimePath() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        await recorder.reset()
+        runtime.clearScreen()
+
+        let cleared = await waitUntilAsync(timeout: 2.0) {
+            await recorder.commands.contains("clear")
+        }
+        #expect(cleared, "Clear screen should send a real clear command through the runtime input path.")
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

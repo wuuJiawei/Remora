@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import RemoraTerminal
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -64,13 +65,27 @@ struct RemoraAppMain: App {
                 commandButton(for: .importConnections)
                 commandButton(for: .exportConnections)
             }
+
+            CommandMenu(L10n.tr("Terminal", fallback: "Terminal")) {
+                commandButton(for: .terminalCopy)
+                commandButton(for: .terminalPaste)
+                Button(L10n.tr("Select All", fallback: "Select All")) {
+                    _ = NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+                }
+                Divider()
+                commandButton(for: .terminalClearScreen)
+            }
         }
     }
 
     @ViewBuilder
     private func commandButton(for command: AppShortcutCommand) -> some View {
         Button(L10n.tr(command.titleKey, fallback: command.fallbackTitle)) {
-            NotificationCenter.default.post(name: command.notificationName, object: nil)
+            if let notificationName = command.notificationName {
+                NotificationCenter.default.post(name: notificationName, object: nil)
+            } else if let selector = command.selector {
+                _ = NSApp.sendAction(selector, to: nil, from: nil)
+            }
         }
         .appKeyboardShortcut(keyboardShortcutStore.shortcut(for: command))
     }

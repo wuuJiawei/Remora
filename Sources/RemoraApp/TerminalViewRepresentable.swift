@@ -6,22 +6,34 @@ struct TerminalViewRepresentable: NSViewRepresentable {
     let pane: TerminalPaneModel
     @ObservedObject var runtime: TerminalRuntime
     var onFocus: () -> Void = {}
+    private var actionLabels: TerminalActionLabels {
+        TerminalActionLabels(
+            copy: tr("Copy"),
+            paste: tr("Paste"),
+            selectAll: tr("Select All"),
+            clearScreen: tr("Clear Screen")
+        )
+    }
 
     func makeNSView(context: Context) -> TerminalView {
         let view = pane.terminalView
-        view.onFocus = onFocus
-        view.onResize = { columns, rows in
-            runtime.resize(columns: columns, rows: rows)
-        }
-        runtime.attach(view: view)
+        configure(view)
         return view
     }
 
     func updateNSView(_ nsView: TerminalView, context: Context) {
-        nsView.onFocus = onFocus
-        nsView.onResize = { columns, rows in
+        configure(nsView)
+    }
+
+    private func configure(_ view: TerminalView) {
+        view.onFocus = onFocus
+        view.onClearScreen = {
+            runtime.clearScreen()
+        }
+        view.onResize = { columns, rows in
             runtime.resize(columns: columns, rows: rows)
         }
-        runtime.attach(view: nsView)
+        view.actionLabels = actionLabels
+        runtime.attach(view: view)
     }
 }

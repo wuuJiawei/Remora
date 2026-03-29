@@ -167,6 +167,8 @@
 "Move To" = "Move To";
 "Retry Failed" = "Retry Failed";
 "Paste" = "Paste";
+"Select All" = "Select All";
+"Clear Screen" = "Clear Screen";
 "Refresh" = "Refresh";
 "New File" = "New File";
 "New Folder" = "New Folder";
@@ -185,6 +187,7 @@
 "Created \"%@\"." = "Created \"%@\".";
 "Rename" = "Rename";
 "Copy" = "Copy";
+"Terminal" = "Terminal";
 "Cut" = "Cut";
 "Download Current" = "Download Current";
 "Move Selected Files" = "Move Selected Files";
