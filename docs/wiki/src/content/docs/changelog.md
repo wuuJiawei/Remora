@@ -7,6 +7,56 @@ description: Remora 版本更新历史
 
 ## [Unreleased]
 
+## [v0.15.0] - 2026-03-30
+
+### English
+
+#### Added
+
+- Added a tabbed server monitoring dashboard with dedicated Overview, Network, and Process views, sortable monitoring tables, localized tab labels, and a denser layout for live operational data.
+- Added native terminal context-menu actions with visible shortcut hints so copy, paste, clear, and related terminal workflows are easier to discover from the mouse path.
+- Added a prominent sidebar create-connection entry point so new SSH hosts can be created directly from the main sidebar workflow.
+- Added a GitHub release update checker in Settings so Remora can detect newer published versions and show release notes inline before users leave the app.
+
+#### Changed
+
+- Upgraded the embedded SwiftTerm dependency to `1.13.0` to pick up recent macOS terminal fixes and keyboard-behavior improvements.
+- Refined the monitoring presentation so longer process command lines stay more readable and the new multi-tab monitoring flow feels more stable in the dedicated status window.
+
+#### Fixed
+
+- Fixed server monitoring snapshots so process rows retain full command-line context instead of dropping important details from running commands.
+- Fixed regressions in the monitoring feature wave so packaged builds now include the latest monitoring sort-order sources and runtime behavior matches local development builds.
+
+#### Internal
+
+- Stabilized asynchronous file-transfer and terminal directory-sync tests to reduce CI-only timing flakes around runtime coordination paths.
+- Updated the generated Xcode project and release packaging metadata so the shipped app stays aligned with the current SwiftPM source layout and release-checker implementation.
+
+### 中文
+
+#### 新增
+
+- 新增标签页式服务器监控面板，提供 Overview、Network、Process 三个独立视图，支持可排序的监控表格、本地化标签标题，以及更适合实时运维数据的紧凑布局。
+- 新增原生终端右键菜单操作，并直接展示对应快捷键提示，让复制、粘贴、清屏等常用终端操作在鼠标路径下也更容易发现。
+- 在侧边栏中新增更显眼的新建连接入口，可以直接从主侧边栏工作流创建新的 SSH 主机。
+- 在设置中新增 GitHub Release 更新检查器，Remora 现在可以检测是否有新版本，并在应用内直接展示对应的更新说明。
+
+#### 变更
+
+- 将内置 SwiftTerm 依赖升级到 `1.13.0`，纳入近期 macOS 终端修复和键盘行为改进。
+- 调整了服务器监控展示方式，让更长的进程命令行保持可读，并让新的多标签监控流程在独立状态窗口中更稳定自然。
+
+#### 修复
+
+- 修复了服务器监控快照中的进程采集问题，进程行现在会保留完整命令行上下文，不再丢失正在运行命令的重要信息。
+- 修复了这一轮监控功能迭代带来的集成回归，打包构建现在会包含最新的监控排序逻辑源码，并与本地开发构建保持一致的运行时行为。
+
+#### 内部
+
+- 稳定了文件传输和终端目录同步相关的异步测试，减少运行时协同路径在 CI 中偶发的时序抖动。
+- 更新了生成式 Xcode 工程和发布打包元数据，确保最终发布的应用始终与当前 SwiftPM 源码布局和更新检查实现保持一致。
+
 ## [v0.14.3] - 2026-03-27
 
 ### English
