@@ -92,6 +92,17 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func ignoresHistoricalPasswordPromptOnceShellPromptAppears() {
+        let transcript = """
+        root@14.238.1.250's password:
+        Last login: Tue Mar 31 12:05:25 2026 from 218.93.10.10
+        [root@localhost ~]# ls
+        """
+
+        #expect(TerminalRuntime.detectSSHAuthStage(in: transcript.lowercased()) == nil)
+    }
+
+    @Test
     func hostKeyPromptMessageIncludesHostAndRelevantLines() {
         let prompt = """
         The authenticity of host '192.168.30.120 (192.168.30.120)' can't be established.

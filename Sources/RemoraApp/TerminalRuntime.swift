@@ -976,36 +976,54 @@ final class TerminalRuntime: ObservableObject {
     }
 
     static func detectSSHAuthStage(in lowercasedText: String) -> SSHAuthStage? {
-        if lowercasedText.contains("are you sure you want to continue connecting"),
-           lowercasedText.contains("yes/no")
+        let promptLine = currentAuthenticationPromptLine(in: lowercasedText)
+
+        if promptLine.contains("are you sure you want to continue connecting"),
+           promptLine.contains("yes/no")
         {
             return .hostKey
         }
 
-        if lowercasedText.contains("continue connecting"),
-           lowercasedText.contains("fingerprint")
+        if promptLine.contains("continue connecting"),
+           promptLine.contains("fingerprint")
         {
             return .hostKey
         }
 
-        if lowercasedText.contains("enter passphrase for key") || lowercasedText.contains("passphrase for key") {
+        if promptLine.contains("enter passphrase for key") || promptLine.contains("passphrase for key") {
             return .passphrase
         }
 
-        if lowercasedText.contains("one-time password")
-            || lowercasedText.contains("verification code:")
-            || lowercasedText.contains("otp:")
-            || lowercasedText.contains("authenticator code")
-            || lowercasedText.contains("token code")
+        if promptLine.contains("one-time password")
+            || promptLine.contains("verification code:")
+            || promptLine.contains("otp:")
+            || promptLine.contains("authenticator code")
+            || promptLine.contains("token code")
         {
             return .otp
         }
 
-        if lowercasedText.contains("password:") {
+        if promptLine.contains("password:") {
             return .password
         }
 
         return nil
+    }
+
+    private static func currentAuthenticationPromptLine(in lowercasedText: String) -> String {
+        let normalized = lowercasedText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        if let lastNonEmptyLine = normalized
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .reversed()
+            .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+        {
+            return lastNonEmptyLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return normalized.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func makeHostKeyPromptMessage(from probeText: String, hostAddress: String?) -> String {
