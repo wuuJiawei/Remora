@@ -909,6 +909,57 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func currentDirectorySearchMatchesOnlyCurrentListing() async throws {
+        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        await vm.refreshRemoteEntries()
+
+        vm.performRemoteSearch(query: "read", scope: .currentDirectory, rootPath: "/")
+
+        #expect(vm.remoteSearchStatus.isRunning == false)
+        #expect(vm.remoteSearchStatus.rootPath == "/")
+        #expect(vm.remoteSearchStatus.matchedCount == 1)
+        #expect(vm.remoteSearchResults.map(\.path) == ["/README.txt"])
+    }
+
+    @Test
+    func recursiveSearchFindsNestedMatchesAndPublishesProgress() async throws {
+        let client = CountingMockSFTPClient(listDelayMS: 120)
+        let vm = FileTransferViewModel(sftpClient: client, remoteDirectoryPath: "/")
+        await vm.refreshRemoteEntries()
+
+        vm.performRemoteSearch(query: "app", scope: .currentDirectoryRecursive, rootPath: "/")
+
+        try await waitUntil(timeoutLoops: 60, intervalMS: 25) {
+            vm.remoteSearchStatus.isRunning && vm.remoteSearchStatus.visitedCount > 0
+        }
+
+        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+            !vm.remoteSearchStatus.isRunning
+                && vm.remoteSearchResults.contains(where: { $0.path == "/logs/app.log" })
+        }
+
+        #expect(vm.remoteSearchStatus.matchedCount == 1)
+        #expect(!vm.remoteSearchStatus.activity.isEmpty)
+    }
+
+    @Test
+    func entireServerSearchAlwaysUsesRootPath() async throws {
+        let client = CountingMockSFTPClient(listDelayMS: 40)
+        let vm = FileTransferViewModel(sftpClient: client, remoteDirectoryPath: "/logs")
+        await vm.refreshRemoteEntries()
+
+        vm.performRemoteSearch(query: "read", scope: .entireServer, rootPath: "/logs")
+
+        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+            !vm.remoteSearchStatus.isRunning
+                && vm.remoteSearchResults.contains(where: { $0.path == "/README.txt" })
+        }
+
+        #expect(vm.remoteSearchStatus.rootPath == "/")
+        #expect(vm.remoteSearchStatus.scope == .entireServer)
+    }
+
+    @Test
     func bindSFTPClientSwitchesRemoteSourceAndResetsTransientState() async throws {
         let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
         await vm.refreshRemoteEntries()

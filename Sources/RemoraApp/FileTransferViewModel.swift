@@ -88,6 +88,63 @@ enum RemoteTextDocumentError: Error, Equatable, Sendable {
     case fileTooLarge(actualBytes: Int64, maxBytes: Int64)
 }
 
+enum RemoteSearchScope: String, CaseIterable, Identifiable, Sendable {
+    case currentDirectory
+    case currentDirectoryRecursive
+    case entireServer
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .currentDirectory:
+            return tr("Current Directory")
+        case .currentDirectoryRecursive:
+            return tr("Subfolders")
+        case .entireServer:
+            return tr("Entire Server")
+        }
+    }
+}
+
+enum RemoteSearchActivityKind: Equatable, Sendable {
+    case directory
+    case file
+}
+
+struct RemoteSearchActivity: Identifiable, Equatable, Sendable {
+    var path: String
+    var kind: RemoteSearchActivityKind
+
+    var id: String { path }
+}
+
+struct RemoteSearchResult: Identifiable, Equatable, Sendable {
+    var path: String
+    var name: String
+    var parentPath: String
+    var isDirectory: Bool
+
+    var id: String { path }
+}
+
+struct RemoteSearchStatus: Equatable, Sendable {
+    var query: String = ""
+    var scope: RemoteSearchScope = .currentDirectory
+    var rootPath: String = "/"
+    var isRunning: Bool = false
+    var visitedCount: Int = 0
+    var matchedCount: Int = 0
+    var statusText: String?
+    var errorMessage: String?
+    var activity: [RemoteSearchActivity] = []
+    var isResultTruncated: Bool = false
+
+    var hasActiveQuery: Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 struct TransferItem: Identifiable, Sendable {
     let id: UUID
     var batchID: Int
@@ -164,6 +221,7 @@ final class FileTransferViewModel: ObservableObject {
     static let maxInlineEditableTextDocumentBytes = 2 * 1024 * 1024
     static let defaultRemoteLogTailLineCount = 399
     static let maxRemoteLogTailLineCount = 5000
+    static let maxRemoteSearchResults = 500
 
     private struct CachedRemoteDirectory {
         var entries: [RemoteFileEntry]
@@ -194,10 +252,14 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var archiveOperationStatusText: String?
     @Published private(set) var transferQueue: [TransferItem] = []
     @Published private(set) var currentTransferBatchID: Int?
+    @Published private(set) var remoteSearchResults: [RemoteSearchResult] = []
+    @Published private(set) var remoteSearchStatus = RemoteSearchStatus()
 
     private var sftpClient: SFTPClientProtocol
     private let transferCenter: TransferCenter
     private var transferTasks: [UUID: Task<Void, Never>] = [:]
+    private var remoteSearchTask: Task<Void, Never>?
+    private var remoteSearchGeneration: Int = 0
     private var nextTransferBatchSeed: Int = 0
     private var remoteDirectoryCache: [String: CachedRemoteDirectory] = [:]
     private var remoteRefreshInFlightPaths: Set<String> = []
@@ -293,6 +355,7 @@ final class FileTransferViewModel: ObservableObject {
 
         sftpClient = client
         activeRemoteBindingKey = normalizedBindingKey
+        clearRemoteSearch()
         remoteClipboard = nil
         cancelTrackedTransfers(clearQueue: true)
         currentTransferBatchID = nil
@@ -332,6 +395,86 @@ final class FileTransferViewModel: ObservableObject {
         Task {
             await refreshRemoteEntries(bindingGeneration: bindingGeneration)
         }
+    }
+
+    func performRemoteSearch(
+        query rawQuery: String,
+        scope: RemoteSearchScope,
+        rootPath: String? = nil
+    ) {
+        let trimmedQuery = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            clearRemoteSearch()
+            return
+        }
+
+        cancelRemoteSearch(resetState: false)
+        let normalizedRootPath = scope == .entireServer
+            ? "/"
+            : normalizeRemoteDirectoryPath(rootPath ?? remoteDirectoryPath)
+
+        remoteSearchStatus = RemoteSearchStatus(
+            query: trimmedQuery,
+            scope: scope,
+            rootPath: normalizedRootPath,
+            isRunning: scope != .currentDirectory,
+            visitedCount: 0,
+            matchedCount: 0,
+            statusText: initialRemoteSearchStatusText(scope: scope, rootPath: normalizedRootPath),
+            errorMessage: nil,
+            activity: [],
+            isResultTruncated: false
+        )
+        remoteSearchResults = []
+
+        switch scope {
+        case .currentDirectory:
+            applyCurrentDirectorySearch(query: trimmedQuery, rootPath: normalizedRootPath)
+
+        case .currentDirectoryRecursive, .entireServer:
+            remoteSearchGeneration += 1
+            let generation = remoteSearchGeneration
+            remoteSearchTask = Task { [weak self] in
+                guard let self else { return }
+                await self.runRemoteSearch(
+                    query: trimmedQuery,
+                    scope: scope,
+                    rootPath: normalizedRootPath,
+                    generation: generation
+                )
+            }
+        }
+    }
+
+    func cancelRemoteSearch(resetState: Bool = false) {
+        remoteSearchGeneration += 1
+        remoteSearchTask?.cancel()
+        remoteSearchTask = nil
+
+        guard remoteSearchStatus.hasActiveQuery else {
+            if resetState {
+                remoteSearchResults = []
+                remoteSearchStatus = RemoteSearchStatus()
+            }
+            return
+        }
+
+        remoteSearchStatus.isRunning = false
+        remoteSearchStatus.activity = []
+        remoteSearchStatus.errorMessage = nil
+        remoteSearchStatus.statusText = completedRemoteSearchStatusText(
+            visitedCount: remoteSearchStatus.visitedCount,
+            matchedCount: remoteSearchStatus.matchedCount
+        )
+
+        if resetState {
+            remoteSearchResults = []
+            remoteSearchStatus = RemoteSearchStatus()
+        }
+    }
+
+    func clearRemoteSearch() {
+        cancelRemoteSearch(resetState: true)
     }
 
     func refreshLocalEntries() {
@@ -932,6 +1075,344 @@ final class FileTransferViewModel: ObservableObject {
                 )
             )
         }
+    }
+
+    private func applyCurrentDirectorySearch(query: String, rootPath: String) {
+        let sourceEntries: [RemoteFileEntry]
+        if normalizeRemoteDirectoryPath(remoteDirectoryPath) == rootPath {
+            sourceEntries = remoteEntries
+        } else {
+            sourceEntries = remoteDirectoryCache[rootPath]?.entries ?? []
+        }
+
+        let matches = sourceEntries
+            .filter { remoteSearchEntryName($0).localizedCaseInsensitiveContains(query) }
+            .map(makeRemoteSearchResult(from:))
+            .sorted { lhs, rhs in
+                remoteSearchResultSort(lhs: lhs, rhs: rhs)
+            }
+
+        remoteSearchResults = Array(matches.prefix(Self.maxRemoteSearchResults))
+        remoteSearchStatus.isRunning = false
+        remoteSearchStatus.visitedCount = sourceEntries.count
+        remoteSearchStatus.matchedCount = matches.count
+        remoteSearchStatus.statusText = completedRemoteSearchStatusText(
+            visitedCount: sourceEntries.count,
+            matchedCount: matches.count
+        )
+        remoteSearchStatus.activity = Array(
+            sourceEntries
+                .prefix(4)
+                .map { RemoteSearchActivity(path: $0.path, kind: $0.isDirectory ? .directory : .file) }
+        )
+        remoteSearchStatus.isResultTruncated = matches.count > Self.maxRemoteSearchResults
+    }
+
+    private func runRemoteSearch(
+        query: String,
+        scope: RemoteSearchScope,
+        rootPath: String,
+        generation: Int
+    ) async {
+        var matches: [RemoteSearchResult] = []
+        var matchedPaths: Set<String> = []
+        var visitedCount = 0
+        var matchedCount = 0
+        var recentActivity: [RemoteSearchActivity] = []
+        var lastUIUpdate = Date.distantPast
+
+        func publishProgress(force: Bool = false, errorMessage: String? = nil) {
+            let now = Date()
+            guard force || now.timeIntervalSince(lastUIUpdate) >= 0.12 else { return }
+            lastUIUpdate = now
+            guard remoteSearchGeneration == generation else { return }
+
+            remoteSearchResults = Array(matches.prefix(Self.maxRemoteSearchResults))
+            remoteSearchStatus.isRunning = true
+            remoteSearchStatus.visitedCount = visitedCount
+            remoteSearchStatus.matchedCount = matchedCount
+            remoteSearchStatus.activity = recentActivity
+            remoteSearchStatus.errorMessage = errorMessage
+            remoteSearchStatus.isResultTruncated = matchedCount > Self.maxRemoteSearchResults
+            remoteSearchStatus.statusText = runningRemoteSearchStatusText(
+                visitedCount: visitedCount,
+                matchedCount: matchedCount
+            )
+        }
+
+        func completeSearch(errorMessage: String? = nil) {
+            guard remoteSearchGeneration == generation else { return }
+
+            remoteSearchResults = Array(
+                matches
+                    .sorted { lhs, rhs in
+                        remoteSearchResultSort(lhs: lhs, rhs: rhs)
+                    }
+                    .prefix(Self.maxRemoteSearchResults)
+            )
+            remoteSearchStatus.isRunning = false
+            remoteSearchStatus.visitedCount = visitedCount
+            remoteSearchStatus.matchedCount = matchedCount
+            remoteSearchStatus.activity = errorMessage == nil ? recentActivity : []
+            remoteSearchStatus.errorMessage = errorMessage
+            remoteSearchStatus.isResultTruncated = matchedCount > Self.maxRemoteSearchResults
+            remoteSearchStatus.statusText = completedRemoteSearchStatusText(
+                visitedCount: visitedCount,
+                matchedCount: matchedCount
+            )
+            remoteSearchTask = nil
+        }
+
+        func handleVisitedPath(_ rawPath: String, isDirectory: Bool) {
+            let normalizedPath = normalizeRemoteDirectoryPath(rawPath)
+            guard normalizedPath != "/" else { return }
+
+            visitedCount += 1
+            recentActivity = appendRemoteSearchActivity(
+                RemoteSearchActivity(
+                    path: normalizedPath,
+                    kind: isDirectory ? .directory : .file
+                ),
+                to: recentActivity
+            )
+
+            let itemName = normalizedPath == "/" ? "/" : URL(fileURLWithPath: normalizedPath).lastPathComponent
+            if itemName.localizedCaseInsensitiveContains(query),
+               matchedPaths.insert(normalizedPath).inserted
+            {
+                matchedCount += 1
+                matches.append(
+                    RemoteSearchResult(
+                        path: normalizedPath,
+                        name: itemName,
+                        parentPath: remoteSearchParentPath(for: normalizedPath),
+                        isDirectory: isDirectory
+                    )
+                )
+                publishProgress(force: true)
+                return
+            }
+
+            publishProgress()
+        }
+
+        do {
+            let didUseStreamingSearch = try await streamRemoteSearch(
+                rootPath: rootPath,
+                generation: generation,
+                onVisit: handleVisitedPath
+            )
+
+            if !didUseStreamingSearch {
+                try await recursiveRemoteSearchFallback(
+                    query: query,
+                    rootPath: rootPath,
+                    generation: generation,
+                    onVisit: handleVisitedPath
+                )
+            }
+
+            completeSearch()
+        } catch is CancellationError {
+            guard remoteSearchGeneration == generation else { return }
+            remoteSearchTask = nil
+            remoteSearchStatus.isRunning = false
+            remoteSearchStatus.activity = []
+            remoteSearchStatus.statusText = completedRemoteSearchStatusText(
+                visitedCount: visitedCount,
+                matchedCount: matchedCount
+            )
+            remoteSearchResults = Array(matches.prefix(Self.maxRemoteSearchResults))
+        } catch {
+            if visitedCount == 0 {
+                do {
+                    try await recursiveRemoteSearchFallback(
+                        query: query,
+                        rootPath: rootPath,
+                        generation: generation,
+                        onVisit: handleVisitedPath
+                    )
+                    completeSearch()
+                } catch is CancellationError {
+                    guard remoteSearchGeneration == generation else { return }
+                    remoteSearchTask = nil
+                    remoteSearchStatus.isRunning = false
+                    remoteSearchStatus.activity = []
+                    remoteSearchStatus.statusText = completedRemoteSearchStatusText(
+                        visitedCount: visitedCount,
+                        matchedCount: matchedCount
+                    )
+                    remoteSearchResults = Array(matches.prefix(Self.maxRemoteSearchResults))
+                } catch {
+                    completeSearch(errorMessage: error.localizedDescription)
+                }
+            } else {
+                completeSearch(errorMessage: error.localizedDescription)
+            }
+        }
+    }
+
+    private func streamRemoteSearch(
+        rootPath: String,
+        generation: Int,
+        onVisit: (String, Bool) -> Void
+    ) async throws -> Bool {
+        let stream = try await sftpClient.streamRemoteShellCommand(
+            Self.makeRemoteSearchShellCommand(rootPath: rootPath)
+        )
+
+        var didReceiveEvent = false
+        var buffer = ""
+        for try await chunk in stream {
+            try Task.checkCancellation()
+            guard remoteSearchGeneration == generation else {
+                throw CancellationError()
+            }
+
+            buffer += chunk
+            while let newlineIndex = buffer.firstIndex(of: "\n") {
+                let line = String(buffer[..<newlineIndex])
+                buffer.removeSubrange(...newlineIndex)
+                guard let event = parseRemoteSearchEvent(line) else { continue }
+                didReceiveEvent = true
+                onVisit(event.path, event.isDirectory)
+            }
+        }
+
+        if let event = parseRemoteSearchEvent(buffer) {
+            didReceiveEvent = true
+            onVisit(event.path, event.isDirectory)
+        }
+
+        return didReceiveEvent
+    }
+
+    private func recursiveRemoteSearchFallback(
+        query: String,
+        rootPath: String,
+        generation: Int,
+        onVisit: (String, Bool) -> Void
+    ) async throws {
+        _ = query
+        var pendingDirectories = [rootPath]
+        var visitedDirectories = Set<String>()
+
+        while let directoryPath = pendingDirectories.first {
+            try Task.checkCancellation()
+            guard remoteSearchGeneration == generation else {
+                throw CancellationError()
+            }
+
+            pendingDirectories.removeFirst()
+            let normalizedDirectoryPath = normalizeRemoteDirectoryPath(directoryPath)
+            guard visitedDirectories.insert(normalizedDirectoryPath).inserted else { continue }
+
+            let entries: [RemoteFileEntry]
+            do {
+                entries = try await sftpClient.list(path: normalizedDirectoryPath)
+            } catch {
+                continue
+            }
+
+            for entry in entries {
+                try Task.checkCancellation()
+                guard remoteSearchGeneration == generation else {
+                    throw CancellationError()
+                }
+
+                let normalizedPath = normalizeRemoteDirectoryPath(entry.path)
+                onVisit(normalizedPath, entry.isDirectory)
+                if entry.isDirectory {
+                    pendingDirectories.append(normalizedPath)
+                }
+            }
+        }
+    }
+
+    private func appendRemoteSearchActivity(
+        _ item: RemoteSearchActivity,
+        to activity: [RemoteSearchActivity]
+    ) -> [RemoteSearchActivity] {
+        var updated = activity.filter { $0.path != item.path }
+        updated.insert(item, at: 0)
+        if updated.count > 6 {
+            updated.removeLast(updated.count - 6)
+        }
+        return updated
+    }
+
+    private func remoteSearchParentPath(for path: String) -> String {
+        let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        return parent.isEmpty ? "/" : parent
+    }
+
+    private func makeRemoteSearchResult(from entry: RemoteFileEntry) -> RemoteSearchResult {
+        RemoteSearchResult(
+            path: entry.path,
+            name: remoteSearchEntryName(entry),
+            parentPath: remoteSearchParentPath(for: entry.path),
+            isDirectory: entry.isDirectory
+        )
+    }
+
+    private func remoteSearchEntryName(_ entry: RemoteFileEntry) -> String {
+        let trimmed = entry.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed.contains("/") {
+            let candidate = URL(fileURLWithPath: entry.path).lastPathComponent
+            return candidate.isEmpty ? entry.path : candidate
+        }
+        return trimmed
+    }
+
+    private func remoteSearchResultSort(lhs: RemoteSearchResult, rhs: RemoteSearchResult) -> Bool {
+        if lhs.isDirectory != rhs.isDirectory {
+            return lhs.isDirectory && !rhs.isDirectory
+        }
+
+        let nameOrder = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+        if nameOrder != .orderedSame {
+            return nameOrder == .orderedAscending
+        }
+
+        return lhs.path.localizedCaseInsensitiveCompare(rhs.path) == .orderedAscending
+    }
+
+    private func initialRemoteSearchStatusText(scope: RemoteSearchScope, rootPath: String) -> String {
+        switch scope {
+        case .currentDirectory:
+            return String(format: tr("Searching %@"), rootPath)
+        case .currentDirectoryRecursive:
+            return String(format: tr("Searching %@ recursively"), rootPath)
+        case .entireServer:
+            return tr("Searching the entire server")
+        }
+    }
+
+    private func runningRemoteSearchStatusText(visitedCount: Int, matchedCount: Int) -> String {
+        String(format: tr("Scanning %lld items · %lld matches"), Int64(visitedCount), Int64(matchedCount))
+    }
+
+    private func completedRemoteSearchStatusText(visitedCount: Int, matchedCount: Int) -> String {
+        String(format: tr("Scanned %lld items · %lld matches"), Int64(visitedCount), Int64(matchedCount))
+    }
+
+    private func parseRemoteSearchEvent(_ rawLine: String) -> (path: String, isDirectory: Bool)? {
+        let line = rawLine.trimmingCharacters(in: .newlines)
+        guard !line.isEmpty else { return nil }
+        let parts = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return nil }
+
+        let kind = String(parts[0])
+        let path = String(parts[1])
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return (path: path, isDirectory: kind == "d")
+    }
+
+    private static func makeRemoteSearchShellCommand(rootPath: String) -> String {
+        let quotedRootPath = quoteShellArgument(rootPath)
+        return """
+        LC_ALL=C find \(quotedRootPath) -mindepth 1 -print 2>/dev/null | while IFS= read -r path; do if [ -d "$path" ]; then kind=d; else kind=f; fi; printf '%s\\t%s\\n' "$kind" "$path"; done
+        """
     }
 
     private func executeTransfer(itemID: UUID) async {
