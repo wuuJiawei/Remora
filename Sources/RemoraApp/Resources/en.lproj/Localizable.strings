@@ -435,7 +435,6 @@
 "Ready to import" = "Ready to import";
 "Choose File" = "Choose File";
 "Supported Formats" = "Supported Formats";
-"Suggested Location" = "Suggested Location";
 "Select the export or config file for this source to begin importing." = "Select the export or config file for this source to begin importing.";
 "This importer is planned for a future update." = "This importer is planned for a future update.";
 "Import file is empty." = "Import file is empty.";

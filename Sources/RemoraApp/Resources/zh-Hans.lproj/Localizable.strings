@@ -426,7 +426,6 @@
 "Ready to import" = "可立即导入";
 "Choose File" = "选择文件";
 "Supported Formats" = "支持格式";
-"Suggested Location" = "建议位置";
 "Select the export or config file for this source to begin importing." = "选择该来源对应的导出文件或配置文件，即可开始导入。";
 "This importer is planned for a future update." = "该导入器计划在后续版本中提供。";
 "Import file is empty." = "导入文件为空。";

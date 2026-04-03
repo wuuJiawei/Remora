@@ -10,31 +10,14 @@ struct HostImportSourceSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(tr("Choose Import Source"))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(VisualStyle.textPrimary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(tr("Choose Import Source"))
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textPrimary)
 
-                    Text(tr("Choose a source from the list, then import a file in that format."))
-                        .font(.subheadline)
-                        .foregroundStyle(VisualStyle.textSecondary)
-                }
-
-                Spacer(minLength: 12)
-
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(VisualStyle.textSecondary)
-                        .frame(width: 28, height: 28)
-                }
-                .buttonStyle(.plain)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(VisualStyle.mutedSurfaceBackground)
-                )
-                .help(tr("Close"))
+                Text(tr("Choose a source from the list, then import a file in that format."))
+                    .font(.subheadline)
+                    .foregroundStyle(VisualStyle.textSecondary)
             }
             .padding(20)
 
@@ -54,10 +37,10 @@ struct HostImportSourceSheet: View {
             Divider()
 
             HStack {
+                Spacer()
+
                 Button(tr("Cancel"), action: onCancel)
                     .buttonStyle(.bordered)
-
-                Spacer()
 
                 Button(tr("Choose File")) {
                     onSelect(selectedSource)
@@ -92,8 +75,10 @@ struct HostImportSourcePicker: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .glassCard(
             radius: 14,
             fill: VisualStyle.inputFieldBackground,
@@ -117,7 +102,9 @@ struct HostImportSourcePickerSection<Content: View>: View {
             VStack(spacing: 4) {
                 content()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -159,6 +146,8 @@ struct HostImportSourcePickerRow: View {
             .background(rowBackground)
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) {
                 isHovering = hovering
@@ -201,6 +190,7 @@ struct HostImportSourceUpcomingRow: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(VisualStyle.mutedSurfaceBackground.opacity(0.55))
         )
+        .contentShape(Rectangle())
     }
 }
 
@@ -236,17 +226,10 @@ struct HostImportSourceDetailPane: View {
                     .foregroundStyle(VisualStyle.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 10) {
-                    HostImportSourceFactCard(
-                        title: tr("Supported Formats"),
-                        value: source.importFormatsSummary
-                    )
-
-                    HostImportSourceFactCard(
-                        title: tr("Suggested Location"),
-                        value: source.importSuggestedLocationSummary
-                    )
-                }
+                HostImportSourceFactCard(
+                    title: tr("Supported Formats"),
+                    value: source.importFormatsSummary
+                )
 
                 Text(tr("Select the export or config file for this source to begin importing."))
                     .font(.system(size: 13))
@@ -286,7 +269,7 @@ struct HostImportSourceFactCard: View {
                 .foregroundStyle(VisualStyle.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, minHeight: 68, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -340,12 +323,6 @@ private extension HostConnectionImportSource {
         case .termius:
             return "Termius export"
         }
-    }
-
-    var importSuggestedLocationSummary: String {
-        guard let defaultDirectoryURL else { return "—" }
-        let homePath = FileManager.default.homeDirectoryForCurrentUser.path
-        return defaultDirectoryURL.path.replacingOccurrences(of: homePath, with: "~")
     }
 }
 

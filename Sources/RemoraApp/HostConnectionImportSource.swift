@@ -25,7 +25,7 @@ enum HostConnectionImportSource: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .remoraJSONCSV:
-            return tr("Remora JSON / CSV")
+            return tr("Remora")
         case .openSSH:
             return tr("OpenSSH Config")
         case .windTerm:
