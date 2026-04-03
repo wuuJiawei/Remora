@@ -173,36 +173,33 @@ extension ContentView {
 
     var sidebarHeader: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SidebarActionRowButton(
-                title: tr("New SSH Connection"),
-                systemImage: "plus"
-            ) {
-                beginCreateHostInPreferredGroup()
+            HStack(spacing: 6) {
+                SidebarPrimaryActionButton(
+                    title: tr("New SSH Connection"),
+                    systemImage: "plus"
+                ) {
+                    beginCreateHostInPreferredGroup()
+                }
+                .accessibilityIdentifier("sidebar-new-ssh-connection")
+
+                SidebarIconButton(systemImage: "square.and.arrow.up") {
+                    beginExportAllHosts()
+                }
+                .help(isExportingHosts ? tr("Exporting...") : tr("Export Connections"))
+                .accessibilityLabel(isExportingHosts ? tr("Exporting...") : tr("Export Connections"))
+                .accessibilityIdentifier("sidebar-export-connections")
+                .disabled(isExportingHosts || isImportingHosts || hostCatalog.isLoading)
+
+                SidebarIconButton(systemImage: "square.and.arrow.down") {
+                    beginImportHosts()
+                }
+                .help(isImportingHosts ? tr("Importing...") : tr("Import Connections"))
+                .accessibilityLabel(isImportingHosts ? tr("Importing...") : tr("Import Connections"))
+                .accessibilityIdentifier("sidebar-import-connections")
+                .disabled(isExportingHosts || isImportingHosts || hostCatalog.isLoading)
             }
-            .accessibilityIdentifier("sidebar-new-ssh-connection")
             .padding(.horizontal, 8)
             .padding(.top, 10)
-            .padding(.bottom, 6)
-
-            SidebarActionRowButton(
-                title: isExportingHosts ? tr("Exporting...") : tr("Export Connections"),
-                systemImage: "square.and.arrow.up"
-            ) {
-                beginExportAllHosts()
-            }
-            .disabled(isExportingHosts || isImportingHosts || hostCatalog.isLoading)
-            .padding(.horizontal, 8)
-            .padding(.bottom, 6)
-
-            SidebarActionRowButton(
-                title: isImportingHosts ? tr("Importing...") : tr("Import Connections"),
-                systemImage: "square.and.arrow.down"
-            ) {
-                beginImportHosts()
-            }
-            .accessibilityIdentifier("sidebar-import-connections")
-            .disabled(isExportingHosts || isImportingHosts || hostCatalog.isLoading)
-            .padding(.horizontal, 8)
             .padding(.bottom, 10)
 
             TextField(tr("Search SSH host"), text: $hostSearchQuery)
