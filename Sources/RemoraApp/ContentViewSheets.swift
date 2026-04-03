@@ -117,10 +117,10 @@ struct HostImportSourcePickerRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 10) {
-                Image(systemName: source.importSymbolName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isSelected ? Color.accentColor : VisualStyle.textSecondary)
-                    .frame(width: 18)
+                HostImportSourceListIcon(
+                    source: source,
+                    tint: isSelected ? Color.accentColor : VisualStyle.textSecondary
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(source.title)
@@ -166,10 +166,10 @@ struct HostImportSourceUpcomingRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: source.importSymbolName)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(VisualStyle.textTertiary)
-                .frame(width: 18)
+            HostImportSourceListIcon(
+                source: source,
+                tint: VisualStyle.textTertiary
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(source.title)
@@ -201,14 +201,7 @@ struct HostImportSourceDetailPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .center, spacing: 14) {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(VisualStyle.leftHoverBackground)
-                        .frame(width: 44, height: 44)
-                        .overlay {
-                            Image(systemName: source.importSymbolName)
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(Color.accentColor)
-                        }
+                    HostImportSourceDetailIcon(source: source)
 
                     VStack(alignment: .leading, spacing: 5) {
                         Text(source.title)
@@ -278,11 +271,46 @@ struct HostImportSourceFactCard: View {
     }
 }
 
+struct HostImportSourceListIcon: View {
+    let source: HostConnectionImportSource
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: source.importSymbolName)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: 18)
+    }
+}
+
+struct HostImportSourceDetailIcon: View {
+    let source: HostConnectionImportSource
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(VisualStyle.leftHoverBackground)
+            .frame(width: 72, height: 72)
+            .overlay {
+                if source == .remoraJSONCSV, let appIconImage = ContentView.resolveWelcomeAppIconImage() {
+                    Image(nsImage: appIconImage)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                } else {
+                    Image(systemName: source.importSymbolName)
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+    }
+}
+
 private extension HostConnectionImportSource {
     var importSymbolName: String {
         switch self {
         case .remoraJSONCSV:
-            return "doc.badge.arrow.down"
+            return "fish"
         case .openSSH:
             return "terminal"
         case .windTerm:
