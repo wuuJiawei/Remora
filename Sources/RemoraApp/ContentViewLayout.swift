@@ -801,40 +801,26 @@ extension ContentView {
 
     var fileManagerDisclosure: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Button {
+            fileManagerHeader(
+                showsDisclosure: true,
+                isExpanded: isFileManagerPanelVisible,
+                isFocusActive: isFileManagerFocusMode,
+                onToggleDisclosure: {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         bottomPanelVisibility.toggleFileManager(fileManagerAvailable: shouldShowFileManager)
                     }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: isFileManagerPanelVisible ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(VisualStyle.textSecondary)
-                        Label(tr("File Manager"), systemImage: "folder")
-                            .panelTitleStyle()
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 2)
-                    .padding(.vertical, 2)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("file-manager-disclosure-toggle")
-
-                panelFocusButton(
-                    isActive: isFileManagerFocusMode,
-                    enterLabel: tr("Focus File Manager"),
-                    exitLabel: tr("Exit File Manager Focus")
-                ) {
+                },
+                onToggleFocus: {
                     toggleWorkspaceFocusMode(.fileManager)
                 }
-            }
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 5)
+            .padding(.bottom, 5)
 
             if isFileManagerPanelVisible {
                 Divider()
                     .overlay(VisualStyle.borderSoft)
-                    .padding(.top, 2)
                 let fileManagerHostID = workspace.activePane?.runtime.reconnectableSSHHost?.id
                 FileManagerPanelView(
                     viewModel: fileTransfer,
@@ -859,11 +845,11 @@ extension ContentView {
                 )
                     .frame(minHeight: 280, maxHeight: fileManagerShouldFillRemainingHeight ? .infinity : 420, alignment: .top)
                     .layoutPriority(fileManagerShouldFillRemainingHeight ? 1 : 0)
-                    .padding(.top, 6)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                    .padding(.bottom, 8)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
         .glassCard(fill: VisualStyle.rightPanelBackground, border: VisualStyle.borderSoft, showsShadow: false)
         .frame(maxWidth: .infinity, maxHeight: fileManagerShouldFillRemainingHeight ? .infinity : nil, alignment: .top)
         .layoutPriority(fileManagerShouldFillRemainingHeight ? 1 : 0)
@@ -876,20 +862,18 @@ extension ContentView {
 
     var focusedFileManagerWorkspace: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Label(tr("File Manager"), systemImage: "folder")
-                    .panelTitleStyle()
-                Spacer()
-                panelFocusButton(
-                    isActive: true,
-                    enterLabel: tr("Focus File Manager"),
-                    exitLabel: tr("Exit File Manager Focus")
-                ) {
+            fileManagerHeader(
+                showsDisclosure: false,
+                isExpanded: true,
+                isFocusActive: true,
+                onToggleDisclosure: nil,
+                onToggleFocus: {
                     toggleWorkspaceFocusMode(.fileManager)
                 }
-            }
+            )
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.top, 5)
+            .padding(.bottom, 5)
 
             Divider()
                 .overlay(VisualStyle.borderSoft)
@@ -917,10 +901,60 @@ extension ContentView {
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
         }
         .glassCard(fill: VisualStyle.rightPanelBackground, border: VisualStyle.borderSoft, showsShadow: false)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    func fileManagerHeader(
+        showsDisclosure: Bool,
+        isExpanded: Bool,
+        isFocusActive: Bool,
+        onToggleDisclosure: (() -> Void)?,
+        onToggleFocus: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 8) {
+            if let onToggleDisclosure, showsDisclosure {
+                Button(action: onToggleDisclosure) {
+                    fileManagerHeaderTitle(disclosureState: isExpanded)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("file-manager-disclosure-toggle")
+            } else {
+                fileManagerHeaderTitle(disclosureState: nil)
+            }
+
+            panelFocusButton(
+                isActive: isFocusActive,
+                enterLabel: tr("Focus File Manager"),
+                exitLabel: tr("Exit File Manager Focus")
+            ) {
+                onToggleFocus()
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 24, alignment: .center)
+    }
+
+    func fileManagerHeaderTitle(disclosureState: Bool?) -> some View {
+        HStack(spacing: 8) {
+            if let disclosureState {
+                Image(systemName: disclosureState ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textSecondary)
+                    .frame(width: 14, height: 14, alignment: .center)
+            }
+
+            Label(tr("File Manager"), systemImage: "folder")
+                .panelTitleStyle()
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     func panelFocusButton(
@@ -931,8 +965,8 @@ extension ContentView {
     ) -> some View {
         Button(action: action) {
             Image(systemName: isActive ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                .font(.caption.weight(.semibold))
-                .frame(width: 18, height: 18)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 24, height: 24, alignment: .center)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

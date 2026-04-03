@@ -210,7 +210,8 @@ struct TerminalPaneView: View {
                     .foregroundStyle(VisualStyle.textSecondary)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.vertical, 5)
+            .frame(minHeight: 24, alignment: .center)
             .background(VisualStyle.rightPanelBackground)
 
             Divider()
