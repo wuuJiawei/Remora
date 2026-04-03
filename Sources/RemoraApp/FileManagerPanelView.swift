@@ -871,37 +871,47 @@ struct FileManagerPanelView: View {
             .help(tr("Open quick paths"))
             .accessibilityIdentifier("file-manager-quick-paths")
 
-            HStack(spacing: 4) {
+            HStack(spacing: 0) {
                 TextField("/path/to/dir", text: $remotePathDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .controlSize(.small)
+                    .textFieldStyle(.plain)
                     .font(.caption.monospaced())
-                    .frame(minWidth: 180, maxWidth: .infinity)
-                    .frame(height: 26)
+                    .frame(minWidth: 180, maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .layoutPriority(1)
                     .onSubmit {
                         jumpToRemotePath()
                     }
                     .accessibilityIdentifier("file-manager-path-field")
+                    .padding(.leading, 10)
+                    .padding(.trailing, 8)
 
-                toolbarIconButton(
-                    "arrow.right.circle",
-                    accessibilityIdentifier: "file-manager-go",
-                    helpText: tr("Go"),
-                    disabled: false
-                ) {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor).opacity(0.35))
+                    .frame(width: 1, height: 18)
+                    .padding(.trailing, 2)
+
+                Button {
                     jumpToRemotePath()
+                } label: {
+                    Image(systemName: "arrow.right.circle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(VisualStyle.textSecondary)
+                        .frame(width: 30)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help(tr("Go"))
+                .accessibilityIdentifier("file-manager-go")
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            .frame(minWidth: 220, maxWidth: .infinity)
+            .frame(height: 26)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.68))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(VisualStyle.inputFieldBackground)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.36), lineWidth: 1)
             )
 
             toolbarToggleChip(
