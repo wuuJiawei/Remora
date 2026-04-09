@@ -90,6 +90,7 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
     private let workingDirectoryEventStyle: RecordingSSHClient.WorkingDirectoryEventStyle
     private var commandBuffer = ""
     private var isRunning = false
+    private var isBracketedPasteActive = false
 
     init(
         host: RemoraCore.Host,
@@ -119,21 +120,49 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
         guard let input = String(data: data, encoding: .utf8) else { return }
         await recorder.appendRawWrite(input)
 
-        for character in input {
+        let characters = Array(input)
+        var index = 0
+        while index < characters.count {
+            if matchesEscapeSequence("\u{001B}[200~", in: characters, at: index) {
+                isBracketedPasteActive = true
+                index += 6
+                continue
+            }
+
+            if matchesEscapeSequence("\u{001B}[201~", in: characters, at: index) {
+                isBracketedPasteActive = false
+                index += 6
+                continue
+            }
+
+            let character = characters[index]
+            if isBracketedPasteActive {
+                if character == "\r" {
+                    commandBuffer.append("\n")
+                } else {
+                    commandBuffer.append(character)
+                }
+                index += 1
+                continue
+            }
+
             if character == "\r" || character == "\n" {
                 let command = commandBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
                 commandBuffer.removeAll(keepingCapacity: true)
                 guard !command.isEmpty else { continue }
                 await recorder.append(command)
                 try await handle(command)
+                index += 1
                 continue
             }
 
             if character.unicodeScalars.allSatisfy({ CharacterSet.controlCharacters.contains($0) }) {
+                index += 1
                 continue
             }
 
             commandBuffer.append(character)
+            index += 1
         }
     }
 
@@ -148,6 +177,17 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
     }
 
     private func handle(_ command: String) async throws {
+        if command.contains("\n") {
+            for line in command.split(separator: "\n", omittingEmptySubsequences: true) {
+                try await handleSingleCommand(String(line))
+            }
+            return
+        }
+
+        try await handleSingleCommand(command)
+    }
+
+    private func handleSingleCommand(_ command: String) async throws {
         if command == "pwd" {
             switch pwdOutputStyle {
             case .plain:
@@ -167,6 +207,12 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
         }
 
         emitWorkingDirectoryIfNeeded()
+    }
+
+    private func matchesEscapeSequence(_ sequence: String, in characters: [Character], at index: Int) -> Bool {
+        let sequenceCharacters = Array(sequence)
+        guard index + sequenceCharacters.count <= characters.count else { return false }
+        return Array(characters[index ..< index + sequenceCharacters.count]) == sequenceCharacters
     }
 
     private func parseShellSingleQuoted(_ value: String) -> String? {

@@ -9,27 +9,33 @@ import RemoraCore
 @MainActor
 struct QuickCommandExecutionTests {
     @Test
-    func executionPayloadAppendsTrailingNewlineForSingleLineCommand() {
+    func executionRequestUsesDirectSendForSingleLineCommand() {
         let command = HostQuickCommand(name: "List", command: "ls -la")
 
-        #expect(command.executionPayload() == "ls -la\n")
+        #expect(
+            command.executionRequest()
+                == HostQuickCommand.ExecutionRequest(text: "ls -la", usesBracketedPaste: false)
+        )
     }
 
     @Test
-    func executionPayloadPreservesInternalNewlines() {
+    func executionRequestPreservesInternalNewlinesAndUsesBracketedPaste() {
         let command = HostQuickCommand(
             name: "Deploy",
             command: "cd /srv/app\n./deploy.sh\nsystemctl status remora"
         )
 
         #expect(
-            command.executionPayload()
-                == "cd /srv/app\n./deploy.sh\nsystemctl status remora\n"
+            command.executionRequest()
+                == HostQuickCommand.ExecutionRequest(
+                    text: "cd /srv/app\n./deploy.sh\nsystemctl status remora",
+                    usesBracketedPaste: true
+                )
         )
     }
 
     @Test
-    func executionPayloadRunsEachLineThroughTerminalRuntime() async {
+    func executionRequestPastesMultilineCommandAsSingleBlockBeforeExecuting() async {
         let recorder = TerminalCommandRecorder()
         let manager = SessionManager(
             sshClientFactory: {
@@ -53,21 +59,22 @@ struct QuickCommandExecutionTests {
         #expect(connected)
         guard connected else { return }
 
-        guard let payload = command.executionPayload() else {
-            Issue.record("Expected multiline quick command payload.")
+        guard let request = command.executionRequest() else {
+            Issue.record("Expected multiline quick command execution request.")
             return
         }
 
         await recorder.reset()
-        runtime.sendText(payload)
+        runtime.sendText(request.text, bracketedPaste: request.usesBracketedPaste)
+        runtime.sendText("\n")
 
         let executed = await waitUntilAsync(timeout: 2.0) {
-            await recorder.commands == ["cd '/srv/app/releases'", "./deploy.sh"]
+            await recorder.commands == ["cd '/srv/app/releases'\n./deploy.sh"]
         }
-        #expect(executed, "Multiline quick command should execute each line in order.")
+        #expect(executed, "Multiline quick command should stay as one pasted block until the final execute newline.")
 
-        let rawWrites = await recorder.rawWrites
-        #expect(rawWrites.last == payload)
+        let rawPayload = await recorder.rawWrites.joined()
+        #expect(rawPayload == "\u{001B}[200~\(request.text)\u{001B}[201~\n")
         runtime.disconnect()
     }
 

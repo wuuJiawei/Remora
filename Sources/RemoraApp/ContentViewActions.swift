@@ -551,8 +551,9 @@ extension ContentView {
     }
 
     func runQuickCommand(_ quickCommand: HostQuickCommand, in runtime: TerminalRuntime) {
-        guard let payload = quickCommand.executionPayload() else { return }
-        runtime.sendText(payload)
+        guard let request = quickCommand.executionRequest() else { return }
+        runtime.sendText(request.text, bracketedPaste: request.usesBracketedPaste)
+        runtime.sendText("\n")
     }
 
     func beginManageQuickPaths(for hostID: UUID) {
