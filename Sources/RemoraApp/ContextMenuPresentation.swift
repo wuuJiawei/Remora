@@ -7,6 +7,7 @@ enum ContextMenuIconCatalog {
     static let splitHorizontal = "rectangle.split.2x1"
     static let splitVertical = "rectangle.split.1x2"
     static let reconnect = "arrow.clockwise"
+    static let cloneSession = "doc.on.doc.fill"
     static let disconnect = "xmark.circle"
     static let closeCurrent = "xmark"
     static let closeAll = "xmark.square"

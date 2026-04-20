@@ -572,6 +572,7 @@
 "SSH Password" = "SSH 密码";
 "Enter password" = "请输入密码";
 
+<<<<<<< HEAD
 /* ZMODEM */
 "ZMODEM Download" = "ZMODEM 下载";
 "Save" = "保存";
@@ -586,3 +587,6 @@
 "Terminal" = "终端";
 "Copy on select & right-click paste" = "选中即复制，右键粘贴";
 "Select to copy, right-click to paste. Like a classic Linux terminal." = "选中文本自动复制，右键直接粘贴，类似经典 Linux 终端操作习惯。";
+
+/* Clone Session */
+"Clone Session" = "克隆会话";

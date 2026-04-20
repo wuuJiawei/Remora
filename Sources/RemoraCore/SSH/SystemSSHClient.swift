@@ -527,7 +527,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             return LaunchPlan(
                 configuration: makeStandardLaunchConfiguration(
                     for: host,
-                    useConnectionReuse: false,
+                    useConnectionReuse: true,
                     compatibilityProfile: compatibilityProfile
                 ),
                 interactivePasswordAutofill: password
@@ -667,7 +667,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         let wrapped = wrappedSSHLaunchConfiguration(
             sshArguments: makeSSHArguments(
                 for: host,
-                useConnectionReuse: false,
+                useConnectionReuse: true,
                 allocateTTY: allocateTTY,
                 remoteCommand: remoteCommand,
                 compatibilityProfile: compatibilityProfile

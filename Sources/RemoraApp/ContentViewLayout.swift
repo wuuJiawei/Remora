@@ -740,6 +740,11 @@ extension ContentView {
             }
             .disabled(!canReconnectSSH)
 
+            contextMenuButton(tr("Clone Session"), systemImage: ContextMenuIconCatalog.cloneSession) {
+                cloneSession(tab.id)
+            }
+            .disabled(!canReconnectSSH)
+
             contextMenuButton(tr("Disconnect Session"), systemImage: ContextMenuIconCatalog.disconnect) {
                 disconnectSession(tab.id)
             }
