@@ -571,3 +571,13 @@
 /* SSH Password */
 "SSH Password" = "SSH 密码";
 "Enter password" = "请输入密码";
+
+/* ZMODEM */
+"ZMODEM Download" = "ZMODEM 下载";
+"Save" = "保存";
+"ZMODEM Upload" = "ZMODEM 上传";
+"Upload" = "上传";
+"ZMODEM Transfer" = "ZMODEM 传输";
+"Receiving file…" = "正在接收文件…";
+"Transfer complete" = "传输完成";
+"Cancel Transfer" = "取消传输";

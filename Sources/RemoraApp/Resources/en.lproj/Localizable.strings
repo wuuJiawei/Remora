@@ -574,3 +574,13 @@
 /* SSH Password */
 "SSH Password" = "SSH Password";
 "Enter password" = "Enter password";
+
+/* ZMODEM */
+"ZMODEM Download" = "ZMODEM Download";
+"Save" = "Save";
+"ZMODEM Upload" = "ZMODEM Upload";
+"Upload" = "Upload";
+"ZMODEM Transfer" = "ZMODEM Transfer";
+"Receiving file…" = "Receiving file…";
+"Transfer complete" = "Transfer complete";
+"Cancel Transfer" = "Cancel Transfer";
