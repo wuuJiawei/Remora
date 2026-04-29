@@ -6,6 +6,56 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.16.0] - 2026-04-29
+
+### English
+
+#### Added
+
+- Added file-manager search to the remote file panel so large directories can be filtered without leaving the workspace.
+- Added a terminal workspace focus mode for temporarily prioritizing the active terminal pane.
+- Added multiline terminal quick-command support, including execution through paste so multi-line snippets preserve formatting and shell behavior more reliably.
+- Added a repo-local `scripts/run_local.sh` launcher for consistent local startup from the checked-out repository root.
+
+#### Changed
+
+- Refined the file manager and terminal chrome with tighter header spacing, improved FTP path-field styling, clearer sidebar action hierarchy, and better SSH group selection feedback.
+- Redesigned the import source chooser with refreshed layout polish and dedicated Remora import iconography.
+- Updated the app icon assets to match the latest visual refresh.
+
+#### Fixed
+
+- Fixed SSH auth state handling after password login so the connection flow stays in sync once authentication completes.
+- Fixed terminal mouse-selection autoscroll so dragging beyond the visible edge continues expanding the selection across multiple screens.
+
+#### Documentation
+
+- Updated macOS version guidance in the contributor and documentation set to stay aligned with the current support baseline.
+
+### 中文
+
+#### 新增
+
+- 为远程文件面板新增搜索能力，浏览大目录时可以直接在当前工作区内筛选文件和文件夹。
+- 新增终端工作区聚焦模式，可临时突出当前活跃终端 pane，减少其他区域干扰。
+- 新增多行快速命令支持，并改为通过粘贴整块内容执行，让多行片段的格式和 shell 行为更稳定可靠。
+- 新增仓库内的 `scripts/run_local.sh` 本地启动脚本，便于始终从当前 checkout 根目录一致地启动应用。
+
+#### 变更
+
+- 调整了文件管理器与终端区域的界面细节，包括更紧凑的头部间距、改进后的 FTP 路径输入框样式、更清晰的侧边栏操作层级，以及更顺手的 SSH 分组选择反馈。
+- 重做了导入来源选择器，更新整体布局细节，并为 Remora 导入来源补充了专用图标。
+- 更新了应用图标资源，使其与当前视觉风格保持一致。
+
+#### 修复
+
+- 修复了密码登录完成后的 SSH 认证状态同步问题，避免连接流程在认证成功后出现状态不一致。
+- 修复了终端鼠标选区自动滚动问题，现在拖拽超出可视边界时会继续向多屏内容扩展选区。
+
+#### 文档
+
+- 更新了贡献文档和站点文档中的 macOS 版本说明，使其与当前支持基线保持一致。
+
 ## [v0.15.1] - 2026-03-31
 
 ### English
