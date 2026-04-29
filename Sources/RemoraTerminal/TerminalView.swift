@@ -2,6 +2,47 @@ import AppKit
 import Foundation
 @preconcurrency import SwiftTerm
 
+enum TerminalSelectionAutoscroll {
+    static func delta(
+        for pointY: CGFloat,
+        viewHeight: CGFloat,
+        visibleRows: Int
+    ) -> Int {
+        guard viewHeight > 0, visibleRows > 0 else {
+            return 0
+        }
+
+        if pointY < 0 {
+            return velocity(
+                forDistanceInRows: Int(ceil(abs(pointY) / max(viewHeight / CGFloat(visibleRows), 1))),
+                visibleRows: visibleRows
+            )
+        }
+
+        if pointY > viewHeight {
+            return -velocity(
+                forDistanceInRows: Int(ceil((pointY - viewHeight) / max(viewHeight / CGFloat(visibleRows), 1))),
+                visibleRows: visibleRows
+            )
+        }
+
+        return 0
+    }
+
+    static func velocity(forDistanceInRows distance: Int, visibleRows: Int) -> Int {
+        if distance > 9 {
+            return max(visibleRows, 20)
+        }
+        if distance > 5 {
+            return 10
+        }
+        if distance > 1 {
+            return 3
+        }
+        return 1
+    }
+}
+
 public enum TerminalAction: String, CaseIterable, Equatable {
     case copy
     case paste
@@ -49,11 +90,16 @@ public struct TerminalActionShortcut: Equatable {
 }
 
 public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTerm.TerminalViewDelegate {
+    private static let selectionAutoscrollInterval: TimeInterval = 1.0 / 30.0
+
     public var onInput: (@Sendable (Data) -> Void)?
     public var onFocus: (() -> Void)?
     public var onResize: ((Int, Int) -> Void)?
     public var onClearScreen: (() -> Void)?
     public var actionLabels = TerminalActionLabels()
+
+    private var selectionAutoscrollTimer: Timer?
+    private var selectionEventMonitor: Any?
 
     public init(rows: Int = 30, columns: Int = 120) {
         super.init(frame: .zero)
@@ -72,9 +118,18 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
 
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        installSelectionEventMonitorIfNeeded()
         DispatchQueue.main.async { [weak self] in
             self?.focusTerminal()
         }
+    }
+
+    public override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil {
+            stopSelectionAutoscroll()
+            uninstallSelectionEventMonitor()
+        }
+        super.viewWillMove(toWindow: newWindow)
     }
 
     public override func menu(for event: NSEvent) -> NSMenu? {
@@ -172,6 +227,7 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
         resize(cols: columns, rows: rows)
         frame = getOptimalFrameSize()
         setAccessibilityIdentifier("terminal-view")
+        installSelectionEventMonitorIfNeeded()
     }
 
     public func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
@@ -259,5 +315,133 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
         case .clearScreen:
             return #selector(clearScreen(_:))
         }
+    }
+
+    private func installSelectionEventMonitorIfNeeded() {
+        guard selectionEventMonitor == nil else {
+            return
+        }
+
+        selectionEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in
+            self?.handleObservedSelectionEvent(event)
+            return event
+        }
+    }
+
+    private func uninstallSelectionEventMonitor() {
+        guard let selectionEventMonitor else {
+            return
+        }
+        NSEvent.removeMonitor(selectionEventMonitor)
+        self.selectionEventMonitor = nil
+    }
+
+    private func handleObservedSelectionEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:
+            stopSelectionAutoscroll()
+        case .leftMouseDragged:
+            guard event.window === window, window?.firstResponder === self else {
+                return
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.updateSelectionAutoscroll(with: event.locationInWindow)
+            }
+        case .leftMouseUp:
+            stopSelectionAutoscroll()
+        default:
+            break
+        }
+    }
+
+    private func updateSelectionAutoscroll(with locationInWindow: NSPoint) {
+        guard selectionActive, (NSEvent.pressedMouseButtons & 1) != 0 else {
+            stopSelectionAutoscroll()
+            return
+        }
+
+        let point = convert(locationInWindow, from: nil)
+        let delta = TerminalSelectionAutoscroll.delta(
+            for: point.y,
+            viewHeight: bounds.height,
+            visibleRows: max(terminal.rows, 1)
+        )
+
+        if delta == 0 {
+            stopSelectionAutoscroll()
+            return
+        }
+
+        startSelectionAutoscrollIfNeeded()
+    }
+
+    private func startSelectionAutoscrollIfNeeded() {
+        guard selectionAutoscrollTimer == nil else {
+            return
+        }
+
+        let timer = Timer(
+            timeInterval: Self.selectionAutoscrollInterval,
+            target: self,
+            selector: #selector(handleSelectionAutoscrollTimer(_:)),
+            userInfo: nil,
+            repeats: true
+        )
+        selectionAutoscrollTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+        RunLoop.main.add(timer, forMode: .eventTracking)
+    }
+
+    private func stopSelectionAutoscroll() {
+        selectionAutoscrollTimer?.invalidate()
+        selectionAutoscrollTimer = nil
+    }
+
+    @objc private func handleSelectionAutoscrollTimer(_ timer: Timer) {
+        handleSelectionAutoscrollTick()
+    }
+
+    private func handleSelectionAutoscrollTick() {
+        guard selectionActive, (NSEvent.pressedMouseButtons & 1) != 0, let window else {
+            stopSelectionAutoscroll()
+            return
+        }
+
+        let locationInWindow = window.mouseLocationOutsideOfEventStream
+        let point = convert(locationInWindow, from: nil)
+        let delta = TerminalSelectionAutoscroll.delta(
+            for: point.y,
+            viewHeight: bounds.height,
+            visibleRows: max(terminal.rows, 1)
+        )
+
+        guard delta != 0 else {
+            stopSelectionAutoscroll()
+            return
+        }
+
+        if delta > 0 {
+            scrollDown(lines: delta)
+        } else {
+            scrollUp(lines: abs(delta))
+        }
+
+        guard let dragEvent = NSEvent.mouseEvent(
+            with: .leftMouseDragged,
+            location: locationInWindow,
+            modifierFlags: NSEvent.modifierFlags,
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ) else {
+            return
+        }
+
+        mouseDragged(with: dragEvent)
     }
 }
