@@ -838,6 +838,39 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func zmodemActiveSessionBlocksUserInputWrites() async {
+        let recorder = TerminalCommandRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+
+        runtime.connectLocalShell()
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected")
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        await recorder.reset()
+        runtime.zmodemCoordinator.isActive = true
+        runtime.sendText("ls -lah\n")
+        try? await Task.sleep(nanoseconds: 200_000_000)
+
+        #expect(await recorder.rawWrites.isEmpty, "User input should be blocked while ZMODEM transfer is active.")
+
+        runtime.zmodemCoordinator.isActive = false
+        runtime.sendText("pwd\n")
+        let resumed = await waitUntilAsync(timeout: 2.0) {
+            await recorder.rawWrites.joined().contains("pwd")
+        }
+        #expect(resumed, "User input should resume once ZMODEM transfer is inactive.")
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
