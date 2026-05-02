@@ -89,6 +89,30 @@ public struct TerminalActionShortcut: Equatable {
     }
 }
 
+public struct TerminalRenderingConfiguration: Equatable {
+    public var coalescesOutput: Bool
+    public var outputFlushInterval: TimeInterval
+    public var maxPendingOutputBytes: Int
+    public var maxOutputBytesPerFlush: Int
+    public var automaticallyEnableMetal: Bool
+
+    public init(
+        coalescesOutput: Bool = true,
+        outputFlushInterval: TimeInterval = 1.0 / 120.0,
+        maxPendingOutputBytes: Int = 512 * 1024,
+        maxOutputBytesPerFlush: Int = 32 * 1024,
+        automaticallyEnableMetal: Bool = true
+    ) {
+        self.coalescesOutput = coalescesOutput
+        self.outputFlushInterval = outputFlushInterval
+        self.maxPendingOutputBytes = maxPendingOutputBytes
+        self.maxOutputBytesPerFlush = maxOutputBytesPerFlush
+        self.automaticallyEnableMetal = automaticallyEnableMetal
+    }
+
+    public static let interactiveSSH = TerminalRenderingConfiguration()
+}
+
 public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTerm.TerminalViewDelegate {
     private static let selectionAutoscrollInterval: TimeInterval = 1.0 / 30.0
 
@@ -98,6 +122,16 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
     public var onClearScreen: (() -> Void)?
     public var actionLabels = TerminalActionLabels()
 
+    public var renderingConfiguration: TerminalRenderingConfiguration = .interactiveSSH {
+        didSet {
+            rebuildOutputCoalescerIfNeeded()
+            configureMetalIfNeeded()
+        }
+    }
+
+    public private(set) var isMetalRenderingEnabledByRemora = false
+
+    private var outputCoalescer: TerminalFeedCoalescer?
     private var selectionAutoscrollTimer: Timer?
     private var selectionEventMonitor: Any?
 
@@ -119,6 +153,7 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         installSelectionEventMonitorIfNeeded()
+        configureMetalIfNeeded()
         DispatchQueue.main.async { [weak self] in
             self?.focusTerminal()
         }
@@ -138,7 +173,23 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
     }
 
     public func feed(data: Data) {
-        feed(byteArray: ArraySlice(data))
+        if renderingConfiguration.coalescesOutput {
+            outputCoalescer?.append(data: data)
+        } else {
+            feed(byteArray: ArraySlice(data))
+        }
+    }
+
+    public func flushPendingOutput() {
+        outputCoalescer?.flushAll()
+    }
+
+    public var pendingOutputByteCount: Int {
+        outputCoalescer?.pendingByteCount ?? 0
+    }
+
+    public var droppedOutputByteCount: UInt64 {
+        outputCoalescer?.droppedByteCount ?? 0
     }
 
     public var hasSelection: Bool {
@@ -227,7 +278,41 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
         resize(cols: columns, rows: rows)
         frame = getOptimalFrameSize()
         setAccessibilityIdentifier("terminal-view")
+        rebuildOutputCoalescerIfNeeded()
         installSelectionEventMonitorIfNeeded()
+    }
+
+    private func rebuildOutputCoalescerIfNeeded() {
+        outputCoalescer?.flushAll()
+        outputCoalescer?.invalidate()
+        outputCoalescer = nil
+
+        guard renderingConfiguration.coalescesOutput else {
+            return
+        }
+
+        outputCoalescer = makeFeedCoalescer(
+            flushInterval: renderingConfiguration.outputFlushInterval,
+            maxPendingBytes: renderingConfiguration.maxPendingOutputBytes,
+            maxBytesPerFlush: renderingConfiguration.maxOutputBytesPerFlush,
+            backpressurePolicy: .keepOldest
+        )
+    }
+
+    private func configureMetalIfNeeded() {
+        guard renderingConfiguration.automaticallyEnableMetal,
+              window != nil,
+              !isMetalRenderingEnabledByRemora
+        else {
+            return
+        }
+
+        do {
+            try setUseMetal(true)
+            isMetalRenderingEnabledByRemora = true
+        } catch {
+            isMetalRenderingEnabledByRemora = false
+        }
     }
 
     public func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
@@ -443,5 +528,9 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
         }
 
         mouseDragged(with: dragEvent)
+    }
+
+    deinit {
+        outputCoalescer?.invalidate()
     }
 }
