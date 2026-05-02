@@ -581,3 +581,8 @@
 "Receiving file…" = "正在接收文件…";
 "Transfer complete" = "传输完成";
 "Cancel Transfer" = "取消传输";
+
+/* Terminal Behavior */
+"Terminal" = "终端";
+"Copy on select & right-click paste" = "选中即复制，右键粘贴";
+"Select to copy, right-click to paste. Like a classic Linux terminal." = "选中文本自动复制，右键直接粘贴，类似经典 Linux 终端操作习惯。";

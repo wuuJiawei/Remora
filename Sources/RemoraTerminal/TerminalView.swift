@@ -121,6 +121,8 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
     public var onResize: ((Int, Int) -> Void)?
     public var onClearScreen: (() -> Void)?
     public var actionLabels = TerminalActionLabels()
+    public var copyOnSelect = false
+    private var mouseUpMonitor: Any?
 
     public var renderingConfiguration: TerminalRenderingConfiguration = .interactiveSSH {
         didSet {
@@ -157,6 +159,16 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
         DispatchQueue.main.async { [weak self] in
             self?.focusTerminal()
         }
+        if window != nil {
+            installMouseUpMonitorIfNeeded()
+        } else {
+            removeMouseUpMonitor()
+        }
+    }
+
+    public override func removeFromSuperview() {
+        removeMouseUpMonitor()
+        super.removeFromSuperview()
     }
 
     public override func viewWillMove(toWindow newWindow: NSWindow?) {
@@ -169,6 +181,10 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
 
     public override func menu(for event: NSEvent) -> NSMenu? {
         focusTerminal()
+        if copyOnSelect {
+            paste(self)
+            return nil
+        }
         return contextMenu()
     }
 
@@ -358,6 +374,28 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
     private func focusTerminal() {
         window?.makeFirstResponder(self)
         onFocus?()
+    }
+
+    private func installMouseUpMonitorIfNeeded() {
+        guard mouseUpMonitor == nil else { return }
+        mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
+            guard let self, self.copyOnSelect, self.hasSelection else { return event }
+            let locationInView = self.convert(event.locationInWindow, from: nil)
+            if self.bounds.contains(locationInView) {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.copyOnSelect, self.hasSelection else { return }
+                    self.copy(self)
+                }
+            }
+            return event
+        }
+    }
+
+    private func removeMouseUpMonitor() {
+        if let monitor = mouseUpMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseUpMonitor = nil
+        }
     }
 
     private func contextMenu() -> NSMenu {

@@ -65,6 +65,7 @@ struct RemoraSettingsSheet: View {
     @RemoraStored(\.appearanceModeRawValue) private var appearanceModeRawValue: String
     @RemoraStored(\.downloadDirectoryPath) private var downloadDirectoryPath: String
     @RemoraStored(\.automaticallyCheckForUpdates) private var automaticallyCheckForUpdates: Bool
+    @RemoraStored(\.terminalCopyOnSelect) private var terminalCopyOnSelect: Bool
     @RemoraStored(\.aiEnabled) private var aiEnabled: Bool
     @RemoraStored(\.aiProviderRawValue) private var aiProviderRawValue: String
     @RemoraStored(\.aiAPIFormatRawValue) private var aiAPIFormatRawValue: String
@@ -251,6 +252,17 @@ struct RemoraSettingsSheet: View {
                         }
                     }
                     .accessibilityIdentifier("settings-download-path-row")
+                }
+
+                settingsSectionCard(
+                    title: tr("Terminal"),
+                    message: tr("Select to copy, right-click to paste. Like a classic Linux terminal.")
+                ) {
+                    compactSettingRow(title: tr("Copy on select & right-click paste")) {
+                        Toggle("", isOn: $terminalCopyOnSelect)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings-terminal-copy-on-select")
+                    }
                 }
 
                 settingsSectionCard(

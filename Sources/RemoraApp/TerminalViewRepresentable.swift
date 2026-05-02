@@ -5,6 +5,7 @@ import RemoraTerminal
 struct TerminalViewRepresentable: NSViewRepresentable {
     let pane: TerminalPaneModel
     @ObservedObject var runtime: TerminalRuntime
+    @RemoraStored(\.terminalCopyOnSelect) private var terminalCopyOnSelect: Bool
     var onFocus: () -> Void = {}
     private var actionLabels: TerminalActionLabels {
         TerminalActionLabels(
@@ -34,6 +35,7 @@ struct TerminalViewRepresentable: NSViewRepresentable {
             runtime.resize(columns: columns, rows: rows)
         }
         view.actionLabels = actionLabels
+        view.copyOnSelect = terminalCopyOnSelect
         runtime.attach(view: view)
     }
 }
