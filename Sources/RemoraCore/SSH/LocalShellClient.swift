@@ -118,7 +118,7 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
             masterFileDescriptor = masterFD
         }
 
-        let bootstrapCommand = "export LANG=\(shellSingleQuoted(utf8Locale)) LC_ALL=\(shellSingleQuoted(utf8Locale)) LC_CTYPE=\(shellSingleQuoted(utf8Locale))\n"
+        let bootstrapCommand = makeBootstrapCommand(utf8Locale: utf8Locale)
         try? masterHandle.write(contentsOf: Data(bootstrapCommand.utf8))
 
         onStateChange?(.running)
@@ -289,6 +289,23 @@ public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Se
 
     private func shellSingleQuoted(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    func makeBootstrapCommand(utf8Locale: String) -> String {
+        """
+        export LANG=\(shellSingleQuoted(utf8Locale)) LC_ALL=\(shellSingleQuoted(utf8Locale)) LC_CTYPE=\(shellSingleQuoted(utf8Locale))
+        if [ -z "${REMORA_LOCAL_PROMPT_HOOK_LOADED:-}" ]; then
+          export REMORA_LOCAL_PROMPT_HOOK_LOADED=1
+          __remora_emit_prompt_start() { printf '\\033]133;A\\007'; }
+          autoload -Uz add-zsh-hook 2>/dev/null || true
+          if whence add-zsh-hook >/dev/null 2>&1; then
+            add-zsh-hook precmd __remora_emit_prompt_start
+          else
+            precmd_functions=(${precmd_functions[@]} __remora_emit_prompt_start)
+          fi
+        fi
+        
+        """
     }
 
     private func createPseudoTerminal(initialSize: PTYSize) throws -> (master: Int32, slave: Int32) {

@@ -42,6 +42,36 @@ struct TerminalViewTests {
     }
 
     @Test
+    func outputWithoutTrailingNewlineKeepsPromptOnSameLine() {
+        let view = TerminalView(rows: 6, columns: 80)
+        view.feed(data: Data("{\"code\":404}PROMPT> ".utf8))
+        view.selectAll()
+
+        NSPasteboard.general.clearContents()
+        view.performTerminalAction(.copy)
+
+        let copied = NSPasteboard.general.string(forType: .string)?
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        #expect(copied?.contains("{\"code\":404}PROMPT> ") == true)
+    }
+
+    @Test
+    func outputWithTrailingNewlineStartsPromptOnNextLine() {
+        let view = TerminalView(rows: 6, columns: 80)
+        view.feed(data: Data("ok\r\nPROMPT> ".utf8))
+        view.selectAll()
+
+        NSPasteboard.general.clearContents()
+        view.performTerminalAction(.copy)
+
+        let copied = NSPasteboard.general.string(forType: .string)?
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        #expect(copied?.contains("ok\nPROMPT> ") == true)
+    }
+
+    @Test
     func clearScreenActionCallsHandler() {
         let view = TerminalView(rows: 6, columns: 40)
         var clearCalls = 0

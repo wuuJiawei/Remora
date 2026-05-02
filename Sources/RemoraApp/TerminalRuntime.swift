@@ -65,6 +65,7 @@ final class TerminalRuntime: ObservableObject {
     private var pendingOutput = Data()
     private var outputBatchBuffer = Data()
     private var outputBatchSessionID: UUID?
+    private var promptBoundaryProcessor = TerminalPromptBoundaryProcessor()
     private var transcriptBuffer = ""
     private let maxTranscriptCharacters = 4_096
     private var transcriptRefreshTask: Task<Void, Never>?
@@ -74,6 +75,7 @@ final class TerminalRuntime: ObservableObject {
     private var activeSSHAuthStage: SSHAuthStage?
     private var sshAuthProbeTail = ""
     private var activeSSHHostAddress: String?
+    private var displayEndsAtLineStart = true
     private var isWorkingDirectoryTrackingEnabled = false
     private var pendingWorkingDirectoryProbeTask: Task<Void, Never>?
     private var awaitingPwdResponse = false
@@ -377,13 +379,41 @@ final class TerminalRuntime: ObservableObject {
 
     private func flushOutputBatch(_ data: Data) {
         guard !data.isEmpty else { return }
+        let tokens = promptBoundaryProcessor.process(data)
+        for token in tokens {
+            switch token {
+            case .promptStart:
+                injectPromptLineBreakIfNeeded()
+            case .output(let payload):
+                deliverOutputPayload(payload)
+            }
+        }
+    }
+
+    private func deliverOutputPayload(_ data: Data, updateAuthentication: Bool = true) {
+        guard !data.isEmpty else { return }
         appendTranscript(data)
-        updateAuthenticationState(with: data)
+        if updateAuthentication {
+            updateAuthenticationState(with: data)
+        }
         if let terminalView {
             terminalView.feed(data: data)
+            displayEndsAtLineStart = terminalView.isCursorAtLineStart
         } else {
             enqueuePendingOutput(data)
+            updateDisplayLineState(with: data)
         }
+    }
+
+    private func injectPromptLineBreakIfNeeded() {
+        let shouldInsertLineBreak: Bool = if let terminalView {
+            !terminalView.isCursorAtLineStart
+        } else {
+            !displayEndsAtLineStart
+        }
+
+        guard shouldInsertLineBreak else { return }
+        deliverOutputPayload(Data("\r\n".utf8), updateAuthentication: false)
     }
 
     private func enqueueOutputChunk(_ data: Data, for sessionID: UUID) {
@@ -610,10 +640,12 @@ final class TerminalRuntime: ObservableObject {
         pendingOutput.removeAll(keepingCapacity: false)
         outputBatchBuffer.removeAll(keepingCapacity: false)
         outputBatchSessionID = nil
+        promptBoundaryProcessor = TerminalPromptBoundaryProcessor()
         clearInputQueue()
         pendingResizeApplyTask?.cancel()
         pendingResizeApplyTask = nil
         lastAppliedPTYSize = nil
+        displayEndsAtLineStart = true
         activeSSHAuthStage = nil
         activeSSHHostAddress = nil
         connectedSSHHost = nil
@@ -709,6 +741,7 @@ final class TerminalRuntime: ObservableObject {
     private func flushPendingOutputIfNeeded() {
         guard let terminalView, !pendingOutput.isEmpty else { return }
         terminalView.feed(data: pendingOutput)
+        displayEndsAtLineStart = terminalView.isCursorAtLineStart
         pendingOutput.removeAll(keepingCapacity: false)
     }
 
@@ -722,6 +755,8 @@ final class TerminalRuntime: ObservableObject {
         outputBatchBuffer.removeAll(keepingCapacity: false)
         outputBatchSessionID = nil
         pendingOutput.removeAll(keepingCapacity: false)
+        promptBoundaryProcessor = TerminalPromptBoundaryProcessor()
+        displayEndsAtLineStart = true
         activeSSHAuthStage = nil
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         hostKeyPromptMessage = nil
@@ -764,6 +799,19 @@ final class TerminalRuntime: ObservableObject {
         transcriptSnapshot = String(sanitized)
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    private func updateDisplayLineState(with data: Data) {
+        for byte in data {
+            switch byte {
+            case 0x0A, 0x0D:
+                displayEndsAtLineStart = true
+            case 0x20...0x7E, 0xA0...0xFF:
+                displayEndsAtLineStart = false
+            default:
+                break
+            }
+        }
     }
 
     private func scheduleWorkingDirectoryProbe() {

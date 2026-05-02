@@ -128,6 +128,10 @@ struct SystemSSHClientTests {
         #expect(command.contains("remora.fish"))
         #expect(command.contains("# >>> Remora shell integration >>>"))
         #expect(command.contains("\\033]7;file://"))
+        #expect(command.contains("\\033]133;A\\007"))
+        #expect(command.contains("--on-event fish_prompt"))
+        #expect(command.contains("${PROMPT_COMMAND:+$PROMPT_COMMAND; }__remora_pre_prompt"))
+        #expect(command.contains("precmd_functions=(${precmd_functions[@]} __remora_precmd)"))
     }
 
     @Test

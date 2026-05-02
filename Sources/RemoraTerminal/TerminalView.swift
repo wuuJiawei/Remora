@@ -204,6 +204,10 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
         window?.firstResponder === self
     }
 
+    public var isCursorAtLineStart: Bool {
+        terminal.buffer.x == 0
+    }
+
     public func contextMenuItems() -> [TerminalContextMenuItem] {
         Self.contextMenuItems(
             hasSelection: hasSelection,

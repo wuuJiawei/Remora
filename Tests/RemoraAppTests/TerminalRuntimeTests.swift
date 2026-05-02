@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 import RemoraCore
@@ -626,6 +627,33 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func promptBoundaryMarkerMovesPromptToNextLineAcrossChunkBoundaries() async {
+        let manager = SessionManager(sshClientFactory: { PromptBoundarySSHClient() })
+        let runtime = TerminalRuntime(
+            localSessionManager: manager,
+            sshSessionManager: manager,
+            remoteShellIntegrationInstaller: { _ in }
+        )
+        let view = TerminalView(rows: 4, columns: 40)
+        runtime.attach(view: view)
+
+        runtime.connectLocalShell()
+
+        let rendered = await waitUntil(timeout: 2.0) {
+            view.selectAll()
+            NSPasteboard.general.clearContents()
+            view.performTerminalAction(.copy)
+            let copied = NSPasteboard.general.string(forType: .string)?
+                .replacingOccurrences(of: "\r\n", with: "\n")
+                .replacingOccurrences(of: "\r", with: "\n")
+            return copied?.contains("FAIL\nPROMPT> ") == true
+                && runtime.transcriptSnapshot.contains("FAIL\nPROMPT> ")
+        }
+        #expect(rendered, "Prompt boundary markers should force a visual line break before the next prompt.")
+        runtime.disconnect()
+    }
+
+    @Test
     func typedEchoReachesTerminalViewWithoutFrameScaleDelay() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
         let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
@@ -776,6 +804,50 @@ struct TerminalRuntimeTests {
         let components = duration.components
         return Double(components.seconds) * 1_000
             + Double(components.attoseconds) / 1_000_000_000_000_000
+    }
+}
+
+private actor PromptBoundarySSHClient: SSHTransportClientProtocol {
+    private var connectedHost: RemoraCore.Host?
+
+    func connect(to host: RemoraCore.Host) async throws {
+        connectedHost = host
+    }
+
+    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
+        guard connectedHost != nil else {
+            throw SSHError.notConnected
+        }
+        return PromptBoundaryShellSession()
+    }
+
+    func disconnect() async {
+        connectedHost = nil
+    }
+}
+
+private final class PromptBoundaryShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+    var onOutput: (@Sendable (Data) -> Void)?
+    var onStateChange: (@Sendable (ShellSessionState) -> Void)?
+
+    func start() async throws {
+        onStateChange?(.running)
+        emit("FAIL")
+        emit("\u{001B}]133;")
+        emit("A\u{0007}")
+        emit("PROMPT> ")
+    }
+
+    func write(_ data: Data) async throws {}
+
+    func resize(_ size: PTYSize) async throws {}
+
+    func stop() async {
+        onStateChange?(.stopped)
+    }
+
+    private func emit(_ text: String) {
+        onOutput?(Data(text.utf8))
     }
 }
 
