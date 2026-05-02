@@ -420,9 +420,12 @@ final class TerminalRuntime: ObservableObject {
             case .promptStart:
                 injectPromptLineBreakIfNeeded()
             case .output(let payload):
+                let suppressTerminalFeed = shouldSuppressTerminalFeed(
+                    for: predictedAuthenticationStage(afterReceiving: payload)
+                )
                 deliverOutputPayload(
                     payload,
-                    suppressTerminalFeed: shouldSuppressTerminalFeed(for: activeSSHAuthStage)
+                    suppressTerminalFeed: suppressTerminalFeed
                 )
             }
         }
@@ -1046,6 +1049,14 @@ final class TerminalRuntime: ObservableObject {
         case .hostKey, .passphrase, nil:
             false
         }
+    }
+
+    private func predictedAuthenticationStage(afterReceiving data: Data) -> SSHAuthStage? {
+        guard connectionMode == .ssh else { return activeSSHAuthStage }
+        let chunk = String(decoding: data, as: UTF8.self)
+        guard !chunk.isEmpty else { return activeSSHAuthStage }
+        let probeText = sshAuthProbeTail + chunk
+        return Self.detectSSHAuthStage(in: probeText.lowercased()) ?? activeSSHAuthStage
     }
 
     private func updateAuthenticationState(with data: Data) {

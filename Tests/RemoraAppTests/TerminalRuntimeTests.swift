@@ -122,6 +122,104 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func passwordPromptPublishesDialogStateAndSuppressesVisiblePromptEcho() async {
+        let manager = SessionManager(
+            sshClientFactory: {
+                AuthPromptSSHClient(promptSequence: [
+                    "deploy@example.com's password:"
+                ])
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let view = TerminalView(rows: 4, columns: 80)
+        runtime.attach(view: view)
+
+        let host = Host(
+            name: "prod",
+            address: "example.com",
+            username: "deploy",
+            auth: HostAuth(method: .password)
+        )
+        runtime.connectSSH(host: host)
+
+        let prompted = await waitUntil(timeout: 2.0) {
+            runtime.passwordPromptMessage == "example.com"
+                && runtime.connectionState == "Waiting (password)"
+        }
+        #expect(prompted)
+        guard prompted else { return }
+
+        view.selectAll()
+        NSPasteboard.general.clearContents()
+        view.performTerminalAction(.copy)
+        let copied = NSPasteboard.general.string(forType: .string) ?? ""
+        #expect(copied.contains("password:") == false)
+        runtime.disconnect()
+    }
+
+    @Test
+    func otpPromptPublishesDialogStateAndSuppressesVisiblePromptEcho() async {
+        let manager = SessionManager(
+            sshClientFactory: {
+                AuthPromptSSHClient(promptSequence: [
+                    "Verification code:"
+                ])
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let view = TerminalView(rows: 4, columns: 80)
+        runtime.attach(view: view)
+
+        runtime.connectSSH(address: "otp.example.com", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let prompted = await waitUntil(timeout: 2.0) {
+            runtime.otpPromptMessage == "otp.example.com"
+                && runtime.connectionState == "Waiting (otp)"
+        }
+        #expect(prompted)
+        guard prompted else { return }
+
+        view.selectAll()
+        NSPasteboard.general.clearContents()
+        view.performTerminalAction(.copy)
+        let copied = NSPasteboard.general.string(forType: .string) ?? ""
+        #expect(copied.contains("Verification code:") == false)
+        runtime.disconnect()
+    }
+
+    @Test
+    func passphrasePromptDoesNotReusePasswordOrOtpDialogState() async {
+        let manager = SessionManager(
+            sshClientFactory: {
+                AuthPromptSSHClient(promptSequence: [
+                    "Enter passphrase for key '/Users/demo/.ssh/id_ed25519':"
+                ])
+            }
+        )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let view = TerminalView(rows: 4, columns: 80)
+        runtime.attach(view: view)
+
+        runtime.connectSSH(address: "key.example.com", port: 22, username: "deploy", privateKeyPath: "/Users/demo/.ssh/id_ed25519")
+
+        let waiting = await waitUntil(timeout: 2.0) {
+            runtime.connectionState == "Waiting (passphrase)"
+        }
+        #expect(waiting)
+        guard waiting else { return }
+
+        #expect(runtime.passwordPromptMessage == nil)
+        #expect(runtime.otpPromptMessage == nil)
+
+        view.selectAll()
+        NSPasteboard.general.clearContents()
+        view.performTerminalAction(.copy)
+        let copied = NSPasteboard.general.string(forType: .string) ?? ""
+        #expect(copied.contains("passphrase for key") == true)
+        runtime.disconnect()
+    }
+
+    @Test
     func connectLocalShellPublishesTranscript() async {
         let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
         let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() }), remoteShellIntegrationInstaller: { _ in })
@@ -848,6 +946,56 @@ private final class PromptBoundaryShellSession: SSHTransportSessionProtocol, @un
 
     private func emit(_ text: String) {
         onOutput?(Data(text.utf8))
+    }
+}
+
+private actor AuthPromptSSHClient: SSHTransportClientProtocol {
+    private let promptSequence: [String]
+    private var connectedHost: RemoraCore.Host?
+
+    init(promptSequence: [String]) {
+        self.promptSequence = promptSequence
+    }
+
+    func connect(to host: RemoraCore.Host) async throws {
+        connectedHost = host
+    }
+
+    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
+        guard connectedHost != nil else {
+            throw SSHError.notConnected
+        }
+        return AuthPromptShellSession(promptSequence: promptSequence)
+    }
+
+    func disconnect() async {
+        connectedHost = nil
+    }
+}
+
+private final class AuthPromptShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+    var onOutput: (@Sendable (Data) -> Void)?
+    var onStateChange: (@Sendable (ShellSessionState) -> Void)?
+
+    private let promptSequence: [String]
+
+    init(promptSequence: [String]) {
+        self.promptSequence = promptSequence
+    }
+
+    func start() async throws {
+        onStateChange?(.running)
+        for prompt in promptSequence {
+            onOutput?(Data(prompt.utf8))
+        }
+    }
+
+    func write(_ data: Data) async throws {}
+
+    func resize(_ size: PTYSize) async throws {}
+
+    func stop() async {
+        onStateChange?(.stopped)
     }
 }
 
