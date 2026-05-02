@@ -50,8 +50,6 @@ final class ZmodemTransferCoordinator: ObservableObject {
             }
         }
         self.sendEngine = engine
-
-        // Feed initial data — engine buffers in waitingForFiles state
         engine.feedOutput(initialData)
 
         presentOpenPanel { [weak self] urls in
@@ -92,7 +90,7 @@ final class ZmodemTransferCoordinator: ObservableObject {
         case .fileOffered(let name, let size):
             fileName = name
             fileSize = size
-            presentSavePanel(suggestedName: name)
+            autoAcceptFile(name: name)
 
         case .progress(let progress):
             fileName = progress.fileName
@@ -113,6 +111,23 @@ final class ZmodemTransferCoordinator: ObservableObject {
             sendEngine = nil
             writeToSession = nil
         }
+    }
+
+    // MARK: - Auto-save to Download Directory
+
+    private func autoAcceptFile(name: String) {
+        let downloadDir = resolvedDownloadDirectory()
+        // Ensure directory exists
+        try? FileManager.default.createDirectory(at: downloadDir, withIntermediateDirectories: true)
+
+        let fileURL = downloadDir.appendingPathComponent(name)
+        // Overwrite existing file without asking
+        receiveEngine?.acceptFile(saveTo: fileURL)
+    }
+
+    private func resolvedDownloadDirectory() -> URL {
+        let storedPath = AppPreferences.shared.snapshot.downloadDirectoryPath
+        return AppSettings.resolvedDownloadDirectoryURL(from: storedPath)
     }
 
     // MARK: - Serial Write Queue
@@ -137,25 +152,6 @@ final class ZmodemTransferCoordinator: ObservableObject {
     }
 
     // MARK: - File Dialogs
-
-    private func presentSavePanel(suggestedName: String) {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = suggestedName
-        panel.canCreateDirectories = true
-        panel.title = tr("ZMODEM Download")
-        panel.prompt = tr("Save")
-
-        panel.begin { [weak self] response in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if response == .OK, let url = panel.url {
-                    self.receiveEngine?.acceptFile(saveTo: url)
-                } else {
-                    self.receiveEngine?.skipFile()
-                }
-            }
-        }
-    }
 
     private func presentOpenPanel(completion: @escaping ([URL]?) -> Void) {
         let panel = NSOpenPanel()
