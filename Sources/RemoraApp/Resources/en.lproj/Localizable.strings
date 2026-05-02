@@ -564,3 +564,13 @@
 "menu.remora.new_ssh" = "New SSH Connection";
 "menu.remora.import" = "Import Connections";
 "menu.remora.export" = "Export Connections";
+
+/* OTP */
+"OTP Verification" = "OTP Verification";
+"Enter code" = "Enter code";
+"OK" = "OK";
+"Cancel" = "Cancel";
+
+/* SSH Password */
+"SSH Password" = "SSH Password";
+"Enter password" = "Enter password";

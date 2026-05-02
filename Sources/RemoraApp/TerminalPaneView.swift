@@ -19,6 +19,8 @@ struct TerminalPaneView: View {
     var onManageQuickCommands: () -> Void
     @RemoraStored(\.aiEnabled) private var aiEnabled: Bool
     @State private var smartAssistNotificationState = TerminalSmartAssistNotificationState()
+    @State private var otpInputCode: String = ""
+    @State private var passwordInput: String = ""
 
     private var hostKeyPromptBinding: Binding<Bool> {
         Binding(
@@ -26,6 +28,28 @@ struct TerminalPaneView: View {
             set: { isPresented in
                 if !isPresented {
                     runtime.dismissHostKeyPrompt()
+                }
+            }
+        )
+    }
+
+    private var otpPromptBinding: Binding<Bool> {
+        Binding(
+            get: { runtime.otpPromptMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    runtime.dismissOTPPrompt()
+                }
+            }
+        )
+    }
+
+    private var passwordPromptBinding: Binding<Bool> {
+        Binding(
+            get: { runtime.passwordPromptMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    runtime.dismissPasswordPrompt()
                 }
             }
         )
@@ -293,6 +317,36 @@ struct TerminalPaneView: View {
             }
         } message: {
             Text(runtime.hostKeyPromptMessage ?? tr("The server requested host key confirmation."))
+        }
+        .alert(tr("OTP Verification"), isPresented: otpPromptBinding) {
+            TextField(tr("Enter code"), text: $otpInputCode)
+            Button(tr("Cancel"), role: .cancel) {
+                otpInputCode = ""
+                runtime.dismissOTPPrompt()
+            }
+            Button(tr("OK")) {
+                runtime.respondToOTPPrompt(code: otpInputCode)
+                otpInputCode = ""
+            }
+        } message: {
+            if let host = runtime.otpPromptMessage, !host.isEmpty {
+                Text(host)
+            }
+        }
+        .alert(tr("SSH Password"), isPresented: passwordPromptBinding) {
+            SecureField(tr("Enter password"), text: $passwordInput)
+            Button(tr("Cancel"), role: .cancel) {
+                passwordInput = ""
+                runtime.dismissPasswordPrompt()
+            }
+            Button(tr("OK")) {
+                runtime.respondToPasswordPrompt(password: passwordInput)
+                passwordInput = ""
+            }
+        } message: {
+            if let host = runtime.passwordPromptMessage, !host.isEmpty {
+                Text(host)
+            }
         }
     }
 
