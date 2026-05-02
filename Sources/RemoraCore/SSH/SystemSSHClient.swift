@@ -728,12 +728,9 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
     private static func mergedTerminalEnvironment(_ base: [String: String]) -> [String: String] {
         var environment = base
-        let inheritedTerm = ProcessInfo.processInfo.environment["TERM"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-
         if environment["TERM"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
-            environment["TERM"] = (inheritedTerm?.isEmpty == false ? inheritedTerm : nil) ?? "xterm-256color"
+            environment["TERM"] = "xterm-256color"
         }
-
         return environment
     }
 
