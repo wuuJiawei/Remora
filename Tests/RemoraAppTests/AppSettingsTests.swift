@@ -137,6 +137,25 @@ struct AppSettingsTests {
         #expect(decoded.automaticallyCheckForUpdates == true)
     }
 
+    @MainActor
+    @Test
+    func terminalCopyOnSelectPersistsToPreferencesFile() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-terminal-copy-on-select-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = root.appendingPathComponent("settings.json", isDirectory: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let preferences = AppPreferences(fileURL: fileURL)
+        preferences.set(true, for: \.terminalCopyOnSelect)
+
+        let rawData = try Data(contentsOf: fileURL)
+        let rawObject = try #require(JSONSerialization.jsonObject(with: rawData) as? [String: Any])
+        #expect(rawObject["terminalCopyOnSelect"] as? Bool == true)
+
+        let reloaded = AppPreferences(fileURL: fileURL)
+        #expect(reloaded.value(for: \.terminalCopyOnSelect) == true)
+    }
+
     @Test
     func versionComparisonUsesNumericOrderingAndStripsTagPrefix() {
         #expect(UpdateChecker.normalizedVersion(" v0.14.3 ") == "0.14.3")

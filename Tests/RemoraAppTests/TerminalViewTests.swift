@@ -88,6 +88,56 @@ struct TerminalViewTests {
     }
 
     @Test
+    func rightClickKeepsContextMenuWhenCopyOnSelectIsDisabled() throws {
+        let view = TerminalView(rows: 6, columns: 40)
+        view.copyOnSelect = false
+
+        let event = try #require(
+            NSEvent.mouseEvent(
+                with: .rightMouseUp,
+                location: .init(x: 10, y: 10),
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                eventNumber: 1,
+                clickCount: 1,
+                pressure: 1
+            )
+        )
+
+        let menu = view.menu(for: event)
+        #expect(menu != nil)
+        #expect(menu?.items.contains(where: { $0.action == #selector(TerminalView.paste(_:)) }) == true)
+    }
+
+    @Test
+    func rightClickTriggersPasteWhenCopyOnSelectIsEnabled() throws {
+        let view = TerminalView(rows: 6, columns: 40)
+        view.copyOnSelect = true
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("copied text", forType: .string)
+
+        let event = try #require(
+            NSEvent.mouseEvent(
+                with: .rightMouseUp,
+                location: .init(x: 10, y: 10),
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                eventNumber: 1,
+                clickCount: 1,
+                pressure: 1
+            )
+        )
+
+        let menu = view.menu(for: event)
+        #expect(menu == nil)
+    }
+
+    @Test
     func contextMenuShortcutMappingMatchesTerminalCommands() {
         #expect(TerminalView.shortcut(for: .copy) == TerminalActionShortcut(keyEquivalent: "c", modifierFlags: [.command]))
         #expect(TerminalView.shortcut(for: .paste) == TerminalActionShortcut(keyEquivalent: "v", modifierFlags: [.command]))
