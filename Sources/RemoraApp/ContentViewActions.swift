@@ -758,8 +758,8 @@ extension ContentView {
         }
 
         // Create a new tab and connect with the same host.
-        // SSH ControlMaster multiplexing will reuse the existing connection,
-        // so no password/2FA prompt is needed.
+        // For key/agent auth: ControlMaster reuses the connection (no prompt).
+        // For password auth: sshpass auto-fills the stored password.
         workspace.createTab(title: tab.title, connectLocalShell: false)
         guard let newTabID = workspace.activeTabID else { return }
         workspace.selectTab(newTabID)

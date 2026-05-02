@@ -36,8 +36,6 @@ enum SSHConnectionReusePolicy {
         authMethod: AuthenticationMethod,
         hasStoredPassword: Bool
     ) -> Bool {
-        // Always enable connection reuse to support session cloning.
-        // ControlMaster is compatible with all auth methods including sshpass.
-        true
+        authMethod != .password || !hasStoredPassword
     }
 }

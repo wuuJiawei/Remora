@@ -13,9 +13,9 @@ struct SSHConnectionReusePolicyTests {
     }
 
     @Test
-    func passwordAuthWithStoredPasswordAlsoUsesConnectionReuse() {
+    func passwordAuthWithStoredPasswordDoesNotRequireConnectionReuse() {
         #expect(
-            SSHConnectionReusePolicy.shouldUseConnectionReuse(
+            !SSHConnectionReusePolicy.shouldUseConnectionReuse(
                 authMethod: .password,
                 hasStoredPassword: true
             )

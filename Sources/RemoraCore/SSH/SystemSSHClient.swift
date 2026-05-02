@@ -664,10 +664,29 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         allocateTTY: Bool = true,
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile()
     ) -> LaunchConfiguration? {
+        // When sshpass is available, enable ControlMaster for connection reuse (clone session).
+        // sshpass handles PTY internally so we skip the `script` wrapper to avoid
+        // interfering with ControlMaster socket lifecycle.
+        if let sshpassPath {
+            let sshArgs = makeSSHArguments(
+                for: host,
+                useConnectionReuse: true,
+                allocateTTY: allocateTTY,
+                remoteCommand: remoteCommand,
+                compatibilityProfile: compatibilityProfile
+            )
+            return LaunchConfiguration(
+                executablePath: sshpassPath,
+                arguments: ["-e", "/usr/bin/ssh"] + sshArgs,
+                environment: mergedTerminalEnvironment(["SSHPASS": password])
+            )
+        }
+
+        // Fallback: askpass (no ControlMaster — script wrapper interferes)
         let wrapped = wrappedSSHLaunchConfiguration(
             sshArguments: makeSSHArguments(
                 for: host,
-                useConnectionReuse: true,
+                useConnectionReuse: false,
                 allocateTTY: allocateTTY,
                 remoteCommand: remoteCommand,
                 compatibilityProfile: compatibilityProfile
@@ -675,14 +694,6 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             environment: [:],
             wrapInScript: allocateTTY
         )
-
-        if let sshpassPath {
-            return LaunchConfiguration(
-                executablePath: sshpassPath,
-                arguments: ["-e", wrapped.executablePath] + wrapped.arguments,
-                environment: ["SSHPASS": password]
-            )
-        }
 
         guard let askPassScriptPath else { return nil }
         return LaunchConfiguration(
