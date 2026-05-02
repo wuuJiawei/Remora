@@ -4,7 +4,7 @@ enum SSHConnectionReuse {
     static func masterOptions(for host: Host) -> [String] {
         [
             "-o", "ControlMaster=auto",
-            "-o", "ControlPersist=600",
+            "-o", "ControlPersist=no",
             "-o", "ControlPath=\(controlPath(for: host))",
         ]
     }
