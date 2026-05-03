@@ -25,8 +25,15 @@ struct TerminalPromptBoundaryProcessor {
         var index = 0
 
         while index < bytes.count {
+            if bytes[index] == Self.oscPrefix[0], index + 1 >= bytes.count {
+                if plainStart < index {
+                    tokens.append(.output(Data(bytes[plainStart..<index])))
+                }
+                pendingOSCSequence = Data(bytes[index...])
+                return Self.coalescing(tokens)
+            }
+
             guard bytes[index] == Self.oscPrefix[0],
-                  index + 1 < bytes.count,
                   bytes[index + 1] == Self.oscPrefix[1] else {
                 index += 1
                 continue
