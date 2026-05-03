@@ -14,6 +14,10 @@ struct LocalShellClientTests {
         func text() -> String {
             String(decoding: buffer, as: UTF8.self)
         }
+
+        func reset() {
+            buffer.removeAll(keepingCapacity: false)
+        }
     }
 
     private func waitUntil(
@@ -142,5 +146,27 @@ struct LocalShellClientTests {
 
         let cleanupCommand = "cd .. && rm -rf -- '\(tempDirectoryName)'\n"
         try? await shell.write(Data(cleanupCommand.utf8))
+    }
+
+    @Test
+    func localShellBootstrapCommandInstallsPromptBoundaryHook() {
+        let session = LocalShellSession(
+            host: Host(
+                name: "local",
+                address: "127.0.0.1",
+                username: NSUserName(),
+                auth: HostAuth(method: .agent)
+            ),
+            pty: .init(columns: 120, rows: 30)
+        )
+
+        let command = session.makeBootstrapCommand(utf8Locale: "en_US.UTF-8")
+
+        #expect(command.contains("export REMORA_LOCAL_PROMPT_HOOK_LOADED=1"))
+        #expect(command.contains("__remora_emit_prompt_start()"))
+        #expect(command.contains("add-zsh-hook precmd __remora_emit_prompt_start"))
+        #expect(command.contains("precmd_functions=(${precmd_functions[@]} __remora_emit_prompt_start)"))
+        #expect(command.contains("\\033]133;A\\007"))
+        #expect(command.hasSuffix("\n"))
     }
 }

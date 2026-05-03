@@ -33,6 +33,8 @@ final class TerminalRuntime: ObservableObject {
     @Published var connectionMode: ConnectionMode = .local
     @Published var transcriptSnapshot: String = ""
     @Published var hostKeyPromptMessage: String?
+    @Published var otpPromptMessage: String?
+    @Published var passwordPromptMessage: String?
     @Published private(set) var workingDirectory: String?
     @Published private(set) var connectedSSHHost: RemoraCore.Host?
     @Published private(set) var lastConnectedSSHHost: RemoraCore.Host?
@@ -65,6 +67,7 @@ final class TerminalRuntime: ObservableObject {
     private var pendingOutput = Data()
     private var outputBatchBuffer = Data()
     private var outputBatchSessionID: UUID?
+    private var promptBoundaryProcessor = TerminalPromptBoundaryProcessor()
     private var transcriptBuffer = ""
     private let maxTranscriptCharacters = 4_096
     private var transcriptRefreshTask: Task<Void, Never>?
@@ -74,6 +77,8 @@ final class TerminalRuntime: ObservableObject {
     private var activeSSHAuthStage: SSHAuthStage?
     private var sshAuthProbeTail = ""
     private var activeSSHHostAddress: String?
+    private var displayEndsAtLineStart = true
+    private var activeSSHHasStoredPassword = false
     private var isWorkingDirectoryTrackingEnabled = false
     private var pendingWorkingDirectoryProbeTask: Task<Void, Never>?
     private var awaitingPwdResponse = false
@@ -182,6 +187,10 @@ final class TerminalRuntime: ObservableObject {
 
             await MainActor.run {
                 activeSSHHostAddress = host.address
+                activeSSHHasStoredPassword = {
+                    guard let ref = host.auth.passwordReference else { return false }
+                    return !ref.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }()
                 if config.mode == .ssh {
                     lastConnectedSSHHost = host
                 }
@@ -286,6 +295,33 @@ final class TerminalRuntime: ObservableObject {
         hostKeyPromptMessage = nil
     }
 
+    func respondToOTPPrompt(code: String) {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        enqueueInput(Data("\(trimmed)\n".utf8), trackWorkingDirectory: false)
+        otpPromptMessage = nil
+        activeSSHAuthStage = nil
+        sshAuthProbeTail.removeAll(keepingCapacity: false)
+        connectionState = "Waiting (authentication)"
+    }
+
+    func dismissOTPPrompt() {
+        otpPromptMessage = nil
+    }
+
+    func respondToPasswordPrompt(password: String) {
+        guard !password.isEmpty else { return }
+        enqueueInput(Data((password + "\n").utf8), trackWorkingDirectory: false)
+        passwordPromptMessage = nil
+        activeSSHAuthStage = nil
+        sshAuthProbeTail.removeAll(keepingCapacity: false)
+        connectionState = "Waiting (authentication)"
+    }
+
+    func dismissPasswordPrompt() {
+        passwordPromptMessage = nil
+    }
+
     // PTY Debug Logging
     private static let ptyDebugQueue = DispatchQueue(label: "io.lighting-tech.remora.pty-diagnostics")
     private static let ptyDebugEnabled: Bool = {
@@ -377,13 +413,55 @@ final class TerminalRuntime: ObservableObject {
 
     private func flushOutputBatch(_ data: Data) {
         guard !data.isEmpty else { return }
+        let tokens = promptBoundaryProcessor.process(data)
+        for token in tokens {
+            switch token {
+            case .promptStart:
+                injectPromptLineBreakIfNeeded()
+            case .output(let payload):
+                let suppressTerminalFeed = shouldSuppressTerminalFeed(
+                    for: predictedAuthenticationStage(afterReceiving: payload)
+                )
+                deliverOutputPayload(
+                    payload,
+                    suppressTerminalFeed: suppressTerminalFeed
+                )
+            }
+        }
+    }
+
+    private func deliverOutputPayload(
+        _ data: Data,
+        updateAuthentication: Bool = true,
+        suppressTerminalFeed: Bool = false
+    ) {
+        guard !data.isEmpty else { return }
         appendTranscript(data)
-        updateAuthenticationState(with: data)
+        if updateAuthentication {
+            updateAuthenticationState(with: data)
+        }
+        if suppressTerminalFeed {
+            updateDisplayLineState(with: data)
+            return
+        }
         if let terminalView {
             terminalView.feed(data: data)
+            displayEndsAtLineStart = terminalView.isCursorAtLineStart
         } else {
             enqueuePendingOutput(data)
+            updateDisplayLineState(with: data)
         }
+    }
+
+    private func injectPromptLineBreakIfNeeded() {
+        let shouldInsertLineBreak: Bool = if let terminalView {
+            !terminalView.isCursorAtLineStart
+        } else {
+            !displayEndsAtLineStart
+        }
+
+        guard shouldInsertLineBreak else { return }
+        deliverOutputPayload(Data("\r\n".utf8), updateAuthentication: false)
     }
 
     private func enqueueOutputChunk(_ data: Data, for sessionID: UUID) {
@@ -444,11 +522,15 @@ final class TerminalRuntime: ObservableObject {
                         connectionState = "Disconnected"
                         connectedSSHHost = nil
                         hostKeyPromptMessage = nil
+                        otpPromptMessage = nil
+                        passwordPromptMessage = nil
                         activeSSHAuthStage = nil
                     case .failed(let reason):
                         connectionState = "Failed: \(reason)"
                         connectedSSHHost = nil
                         hostKeyPromptMessage = nil
+                        otpPromptMessage = nil
+                        passwordPromptMessage = nil
                         activeSSHAuthStage = nil
                     }
                 }
@@ -610,15 +692,20 @@ final class TerminalRuntime: ObservableObject {
         pendingOutput.removeAll(keepingCapacity: false)
         outputBatchBuffer.removeAll(keepingCapacity: false)
         outputBatchSessionID = nil
+        promptBoundaryProcessor = TerminalPromptBoundaryProcessor()
         clearInputQueue()
         pendingResizeApplyTask?.cancel()
         pendingResizeApplyTask = nil
         lastAppliedPTYSize = nil
+        displayEndsAtLineStart = true
         activeSSHAuthStage = nil
         activeSSHHostAddress = nil
+        activeSSHHasStoredPassword = false
         connectedSSHHost = nil
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         hostKeyPromptMessage = nil
+        otpPromptMessage = nil
+        passwordPromptMessage = nil
         pendingWorkingDirectoryProbeTask?.cancel()
         pendingWorkingDirectoryProbeTask = nil
         transcriptRefreshTask?.cancel()
@@ -709,6 +796,7 @@ final class TerminalRuntime: ObservableObject {
     private func flushPendingOutputIfNeeded() {
         guard let terminalView, !pendingOutput.isEmpty else { return }
         terminalView.feed(data: pendingOutput)
+        displayEndsAtLineStart = terminalView.isCursorAtLineStart
         pendingOutput.removeAll(keepingCapacity: false)
     }
 
@@ -722,9 +810,13 @@ final class TerminalRuntime: ObservableObject {
         outputBatchBuffer.removeAll(keepingCapacity: false)
         outputBatchSessionID = nil
         pendingOutput.removeAll(keepingCapacity: false)
+        promptBoundaryProcessor = TerminalPromptBoundaryProcessor()
+        displayEndsAtLineStart = true
         activeSSHAuthStage = nil
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         hostKeyPromptMessage = nil
+        otpPromptMessage = nil
+        passwordPromptMessage = nil
     }
 
     private func appendTranscript(_ data: Data) {
@@ -764,6 +856,19 @@ final class TerminalRuntime: ObservableObject {
         transcriptSnapshot = String(sanitized)
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    private func updateDisplayLineState(with data: Data) {
+        for byte in data {
+            switch byte {
+            case 0x0A, 0x0D:
+                displayEndsAtLineStart = true
+            case 0x20...0x7E, 0xA0...0xFF:
+                displayEndsAtLineStart = false
+            default:
+                break
+            }
+        }
     }
 
     private func scheduleWorkingDirectoryProbe() {
@@ -936,6 +1041,23 @@ final class TerminalRuntime: ObservableObject {
         return "'\(escaped)'"
     }
 
+    private func shouldSuppressTerminalFeed(for stage: SSHAuthStage?) -> Bool {
+        switch stage {
+        case .password, .otp:
+            true
+        case .hostKey, .passphrase, nil:
+            false
+        }
+    }
+
+    private func predictedAuthenticationStage(afterReceiving data: Data) -> SSHAuthStage? {
+        guard connectionMode == .ssh else { return activeSSHAuthStage }
+        let chunk = String(decoding: data, as: UTF8.self)
+        guard !chunk.isEmpty else { return activeSSHAuthStage }
+        let probeText = sshAuthProbeTail + chunk
+        return Self.detectSSHAuthStage(in: probeText.lowercased()) ?? activeSSHAuthStage
+    }
+
     private func updateAuthenticationState(with data: Data) {
         guard connectionMode == .ssh else { return }
         let chunk = String(decoding: data, as: UTF8.self)
@@ -957,14 +1079,25 @@ final class TerminalRuntime: ObservableObject {
                 }
             case .password:
                 connectionState = "Waiting (password)"
+                if passwordPromptMessage == nil, !activeSSHHasStoredPassword {
+                    passwordPromptMessage = activeSSHHostAddress ?? ""
+                }
             case .otp:
                 connectionState = "Waiting (otp)"
+                if otpPromptMessage == nil {
+                    otpPromptMessage = Self.makeOTPPromptMessage(
+                        from: probeText,
+                        hostAddress: activeSSHHostAddress
+                    )
+                }
             case .passphrase:
                 connectionState = "Waiting (passphrase)"
             }
         } else if activeSSHAuthStage != nil {
             activeSSHAuthStage = nil
             hostKeyPromptMessage = nil
+            otpPromptMessage = nil
+            passwordPromptMessage = nil
             connectionState = "Connected (\(connectionMode.rawValue))"
         }
 
@@ -1055,5 +1188,13 @@ final class TerminalRuntime: ObservableObject {
 
         let snippet = relevantLines.suffix(4).joined(separator: "\n")
         return hostPart + snippet
+    }
+
+    static func makeOTPPromptMessage(from probeText: String, hostAddress: String?) -> String {
+        let trimmedHost = hostAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedHost, !trimmedHost.isEmpty {
+            return trimmedHost
+        }
+        return ""
     }
 }

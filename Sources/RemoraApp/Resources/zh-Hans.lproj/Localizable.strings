@@ -561,3 +561,13 @@
 "menu.remora.new_ssh" = "新建 SSH 连接";
 "menu.remora.import" = "导入连接";
 "menu.remora.export" = "导出连接";
+
+/* OTP */
+"OTP Verification" = "OTP 验证码";
+"Enter code" = "请输入验证码";
+"OK" = "确定";
+"Cancel" = "取消";
+
+/* SSH Password */
+"SSH Password" = "SSH 密码";
+"Enter password" = "请输入密码";

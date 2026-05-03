@@ -20,9 +20,11 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
     REMORA_SHELL_INTEGRATION_LOADED=1
     __remora_host_name() { hostname -f 2>/dev/null || hostname 2>/dev/null || printf localhost; }
     __remora_emit_cwd() { printf '\\033]7;file://%s%s\\007' "$(__remora_host_name)" "$PWD"; }
+    __remora_emit_prompt_start() { printf '\\033]133;A\\007'; }
+    __remora_pre_prompt() { __remora_emit_cwd; __remora_emit_prompt_start; }
     case ";${PROMPT_COMMAND-};" in
-      *";__remora_emit_cwd;"*) ;;
-      *) PROMPT_COMMAND="__remora_emit_cwd${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;;
+      *";__remora_pre_prompt;"*) ;;
+      *) PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }__remora_pre_prompt" ;;
     esac
     __remora_emit_cwd
     REMORA_BASH
@@ -38,13 +40,20 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
     function __remora_emit_cwd() {
       printf '\\033]7;file://%s%s\\007' "$(__remora_host_name)" "$PWD"
     }
+    function __remora_emit_prompt_start() {
+      printf '\\033]133;A\\007'
+    }
+    function __remora_precmd() {
+      __remora_emit_cwd
+      __remora_emit_prompt_start
+    }
     autoload -Uz add-zsh-hook 2>/dev/null || true
     if whence add-zsh-hook >/dev/null 2>&1; then
       add-zsh-hook chpwd __remora_emit_cwd
-      add-zsh-hook precmd __remora_emit_cwd
+      add-zsh-hook precmd __remora_precmd
     else
       chpwd_functions=(__remora_emit_cwd ${chpwd_functions[@]})
-      precmd_functions=(__remora_emit_cwd ${precmd_functions[@]})
+      precmd_functions=(${precmd_functions[@]} __remora_precmd)
     fi
     __remora_emit_cwd
     REMORA_ZSH
@@ -54,6 +63,9 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
     function __remora_emit_cwd --on-variable PWD
         set -l __remora_host_name (hostname -f 2>/dev/null; or hostname 2>/dev/null; or printf localhost)
         printf '\\033]7;file://%s%s\\007' "$__remora_host_name" "$PWD"
+    end
+    function __remora_emit_prompt_start --on-event fish_prompt
+        printf '\\033]133;A\\007'
     end
     __remora_emit_cwd
     REMORA_FISH

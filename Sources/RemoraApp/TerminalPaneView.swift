@@ -2,6 +2,12 @@ import SwiftUI
 import RemoraCore
 
 struct TerminalPaneView: View {
+    private enum AuthPromptKind {
+        case hostKey
+        case otp
+        case password
+    }
+
     @ObservedObject var pane: TerminalPaneModel
     @ObservedObject private var runtime: TerminalRuntime
     @ObservedObject private var aiAssistant: TerminalAIAssistantCoordinator
@@ -19,6 +25,8 @@ struct TerminalPaneView: View {
     var onManageQuickCommands: () -> Void
     @RemoraStored(\.aiEnabled) private var aiEnabled: Bool
     @State private var smartAssistNotificationState = TerminalSmartAssistNotificationState()
+    @State private var otpInputCode: String = ""
+    @State private var passwordInput: String = ""
 
     private var hostKeyPromptBinding: Binding<Bool> {
         Binding(
@@ -29,6 +37,35 @@ struct TerminalPaneView: View {
                 }
             }
         )
+    }
+
+    private var otpPromptBinding: Binding<Bool> {
+        Binding(
+            get: { runtime.otpPromptMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    runtime.dismissOTPPrompt()
+                }
+            }
+        )
+    }
+
+    private var passwordPromptBinding: Binding<Bool> {
+        Binding(
+            get: { runtime.passwordPromptMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    runtime.dismissPasswordPrompt()
+                }
+            }
+        )
+    }
+
+    private var activeAuthPrompt: AuthPromptKind? {
+        if runtime.hostKeyPromptMessage != nil { return .hostKey }
+        if runtime.otpPromptMessage != nil { return .otp }
+        if runtime.passwordPromptMessage != nil { return .password }
+        return nil
     }
 
     init(
@@ -284,15 +321,73 @@ struct TerminalPaneView: View {
             guard pane.isAIAssistantVisible, let smartAssist = aiAssistant.smartAssist else { return }
             smartAssistNotificationState.dismiss(smartAssist)
         }
-        .alert(tr("Trust SSH Host Key?"), isPresented: hostKeyPromptBinding) {
-            Button(tr("Reject"), role: .destructive) {
-                runtime.respondToHostKeyPrompt(accept: false)
-            }
-            Button(tr("Trust")) {
-                runtime.respondToHostKeyPrompt(accept: true)
+        .alert(
+            activeAuthPrompt == .hostKey ? tr("Trust SSH Host Key?")
+                : activeAuthPrompt == .otp ? tr("OTP Verification")
+                : tr("SSH Password"),
+            isPresented: Binding(
+                get: { activeAuthPrompt != nil },
+                set: { isPresented in
+                    guard !isPresented else { return }
+                    switch activeAuthPrompt {
+                    case .hostKey:
+                        runtime.dismissHostKeyPrompt()
+                    case .otp:
+                        runtime.dismissOTPPrompt()
+                    case .password:
+                        runtime.dismissPasswordPrompt()
+                    case nil:
+                        break
+                    }
+                }
+            )
+        ) {
+            switch activeAuthPrompt {
+            case .hostKey:
+                Button(tr("Reject"), role: .destructive) {
+                    runtime.respondToHostKeyPrompt(accept: false)
+                }
+                Button(tr("Trust")) {
+                    runtime.respondToHostKeyPrompt(accept: true)
+                }
+            case .otp:
+                TextField(tr("Enter code"), text: $otpInputCode)
+                Button(tr("Cancel"), role: .cancel) {
+                    otpInputCode = ""
+                    runtime.dismissOTPPrompt()
+                }
+                Button(tr("OK")) {
+                    runtime.respondToOTPPrompt(code: otpInputCode)
+                    otpInputCode = ""
+                }
+            case .password:
+                SecureField(tr("Enter password"), text: $passwordInput)
+                Button(tr("Cancel"), role: .cancel) {
+                    passwordInput = ""
+                    runtime.dismissPasswordPrompt()
+                }
+                Button(tr("OK")) {
+                    runtime.respondToPasswordPrompt(password: passwordInput)
+                    passwordInput = ""
+                }
+            case nil:
+                EmptyView()
             }
         } message: {
-            Text(runtime.hostKeyPromptMessage ?? tr("The server requested host key confirmation."))
+            switch activeAuthPrompt {
+            case .hostKey:
+                Text(runtime.hostKeyPromptMessage ?? tr("The server requested host key confirmation."))
+            case .otp:
+                if let host = runtime.otpPromptMessage, !host.isEmpty {
+                    Text(host)
+                }
+            case .password:
+                if let host = runtime.passwordPromptMessage, !host.isEmpty {
+                    Text(host)
+                }
+            case nil:
+                EmptyView()
+            }
         }
     }
 
