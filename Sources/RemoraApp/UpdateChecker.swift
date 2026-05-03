@@ -7,6 +7,7 @@ final class UpdateChecker: ObservableObject {
     static let shared = UpdateChecker()
 
     @Published private(set) var isChecking = false
+    @Published private(set) var isDownloading = false
 
     private let session: URLSession
     private let bundle: Bundle
@@ -80,7 +81,8 @@ final class UpdateChecker: ObservableObject {
         return GitHubRelease(
             version: version,
             releaseURL: payload.htmlURL ?? AppLinks.releasesURL,
-            releaseNotes: Self.normalizedReleaseNotes(payload.body)
+            releaseNotes: Self.normalizedReleaseNotes(payload.body),
+            downloadAsset: Self.preferredDownloadAsset(from: payload.assets)
         )
     }
 
@@ -90,16 +92,29 @@ final class UpdateChecker: ObservableObject {
             let alert = NSAlert()
             alert.alertStyle = .informational
             alert.messageText = tr("Update available")
-            alert.informativeText = String(
-                format: tr("Remora %@ is available on GitHub Releases. You are currently using %@."),
-                release.version,
-                currentVersion
-            )
+            alert.informativeText = updateAvailableMessage(for: release, currentVersion: currentVersion)
             alert.accessoryView = makeReleaseNotesView(for: release)
-            alert.addButton(withTitle: tr("View Release"))
-            alert.addButton(withTitle: tr("Later"))
 
-            if alert.runModal() == .alertFirstButtonReturn {
+            if release.downloadAsset != nil {
+                alert.addButton(withTitle: tr("Download Update"))
+                alert.addButton(withTitle: tr("View Release"))
+                alert.addButton(withTitle: tr("Later"))
+            } else {
+                alert.addButton(withTitle: tr("View Release"))
+                alert.addButton(withTitle: tr("Later"))
+            }
+
+            let response = alert.runModal()
+            if let asset = release.downloadAsset {
+                switch response {
+                case .alertFirstButtonReturn:
+                    Task { await downloadReleaseAsset(asset, release: release) }
+                case .alertSecondButtonReturn:
+                    openURL(release.releaseURL)
+                default:
+                    break
+                }
+            } else if response == .alertFirstButtonReturn {
                 openURL(release.releaseURL)
             }
 
@@ -127,6 +142,103 @@ final class UpdateChecker: ObservableObject {
 
         case (.upToDate, .automatic), (.failed, .automatic):
             break
+        }
+    }
+
+    private func updateAvailableMessage(for release: GitHubRelease, currentVersion: String) -> String {
+        var message = String(
+            format: tr("Remora %@ is available on GitHub Releases. You are currently using %@."),
+            release.version,
+            currentVersion
+        )
+
+        if let asset = release.downloadAsset {
+            message += "\n\n"
+            message += String(
+                format: tr("Remora can download %@ directly to your download directory."),
+                asset.name
+            )
+        } else {
+            message += "\n\n"
+            message += tr("No compatible macOS download asset was found for this Mac. You can still view the release manually.")
+        }
+
+        return message
+    }
+
+    private func downloadReleaseAsset(_ asset: GitHubReleaseAsset, release: GitHubRelease) async {
+        guard !isDownloading else { return }
+        isDownloading = true
+        defer { isDownloading = false }
+
+        do {
+            let destinationURL = try await download(asset: asset)
+            presentDownloadCompleteAlert(destinationURL: destinationURL, release: release)
+        } catch {
+            presentDownloadFailedAlert(error: error, release: release)
+        }
+    }
+
+    private func download(asset: GitHubReleaseAsset) async throws -> URL {
+        var request = URLRequest(url: asset.downloadURL)
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
+        request.setValue("Remora/\(Self.currentVersion(from: bundle))", forHTTPHeaderField: "User-Agent")
+
+        let (temporaryURL, response) = try await session.download(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UpdateCheckError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw UpdateCheckError.httpStatus(httpResponse.statusCode)
+        }
+
+        let fileManager = FileManager.default
+        let downloadDirectory = AppSettings.resolvedDownloadDirectoryURL(
+            from: AppPreferences.shared.value(for: \.downloadDirectoryPath),
+            fileManager: fileManager
+        )
+
+        try fileManager.createDirectory(at: downloadDirectory, withIntermediateDirectories: true)
+        let destinationURL = Self.availableDestinationURL(
+            forFileNamed: asset.name,
+            in: downloadDirectory,
+            fileManager: fileManager
+        )
+        try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+        return destinationURL
+    }
+
+    private func presentDownloadCompleteAlert(destinationURL: URL, release: GitHubRelease) {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = tr("Update downloaded")
+        alert.informativeText = String(
+            format: tr("Remora %@ was downloaded to:\n%@"),
+            release.version,
+            destinationURL.path
+        )
+        alert.addButton(withTitle: tr("Reveal in Finder"))
+        alert.addButton(withTitle: tr("OK"))
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
+        }
+    }
+
+    private func presentDownloadFailedAlert(error: Error, release: GitHubRelease) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = tr("Update download failed")
+        alert.informativeText = String(
+            format: tr("Remora could not download version %@.\n\n%@"),
+            release.version,
+            error.localizedDescription
+        )
+        alert.addButton(withTitle: tr("View Release"))
+        alert.addButton(withTitle: tr("OK"))
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            openURL(release.releaseURL)
         }
     }
 
@@ -199,6 +311,74 @@ final class UpdateChecker: ObservableObject {
         return normalizedCandidate.compare(normalizedBaseline, options: .numeric) == .orderedDescending
     }
 
+    nonisolated static func preferredDownloadAsset(from assets: [GitHubReleaseAsset]) -> GitHubReleaseAsset? {
+        let downloadableAssets = assets.filter { asset in
+            let lowercasedName = asset.name.lowercased()
+            return lowercasedName.hasSuffix(".zip") || lowercasedName.hasSuffix(".dmg")
+        }
+        guard !downloadableAssets.isEmpty else { return nil }
+
+        let compatibleAssets = downloadableAssets.filter { asset in
+            let lowercasedName = asset.name.lowercased()
+            return lowercasedName.contains("mac") || lowercasedName.contains("darwin") || lowercasedName.contains("remora")
+        }
+        let candidates = compatibleAssets.isEmpty ? downloadableAssets : compatibleAssets
+
+        #if arch(arm64)
+        let architectureKeywords = ["arm64", "aarch64", "apple-silicon", "apple_silicon"]
+        #else
+        let architectureKeywords = ["x86_64", "x64", "amd64", "intel"]
+        #endif
+
+        if let architectureMatch = candidates.first(where: { asset in
+            let lowercasedName = asset.name.lowercased()
+            return architectureKeywords.contains(where: lowercasedName.contains)
+        }) {
+            return architectureMatch
+        }
+
+        if let universalMatch = candidates.first(where: { asset in
+            let lowercasedName = asset.name.lowercased()
+            return lowercasedName.contains("universal") || lowercasedName.contains("universal2")
+        }) {
+            return universalMatch
+        }
+
+        return candidates.first
+    }
+
+    nonisolated static func availableDestinationURL(
+        forFileNamed fileName: String,
+        in directoryURL: URL,
+        fileManager: FileManager = .default
+    ) -> URL {
+        let sanitizedFileName = fileName
+            .split(separator: "/")
+            .last
+            .map(String.init) ?? "Remora-update.zip"
+        let baseURL = directoryURL.appendingPathComponent(sanitizedFileName, isDirectory: false)
+        guard fileManager.fileExists(atPath: baseURL.path) else {
+            return baseURL
+        }
+
+        let fileExtension = baseURL.pathExtension
+        let baseName = baseURL.deletingPathExtension().lastPathComponent
+        for index in 1..<1000 {
+            let candidateName: String
+            if fileExtension.isEmpty {
+                candidateName = "\(baseName)-\(index)"
+            } else {
+                candidateName = "\(baseName)-\(index).\(fileExtension)"
+            }
+            let candidateURL = directoryURL.appendingPathComponent(candidateName, isDirectory: false)
+            if !fileManager.fileExists(atPath: candidateURL.path) {
+                return candidateURL
+            }
+        }
+
+        return directoryURL.appendingPathComponent(UUID().uuidString + "-" + sanitizedFileName, isDirectory: false)
+    }
+
     private func tr(_ key: String) -> String {
         L10n.tr(key, fallback: key)
     }
@@ -219,17 +399,32 @@ struct GitHubRelease: Equatable {
     let version: String
     let releaseURL: URL
     let releaseNotes: String?
+    let downloadAsset: GitHubReleaseAsset?
+}
+
+struct GitHubReleaseAsset: Equatable {
+    let name: String
+    let downloadURL: URL
 }
 
 private struct GitHubLatestReleasePayload: Decodable {
     let tagName: String
     let htmlURL: URL?
     let body: String?
+    let assets: [GitHubReleaseAsset]
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case htmlURL = "html_url"
         case body
+        case assets
+    }
+}
+
+extension GitHubReleaseAsset: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case downloadURL = "browser_download_url"
     }
 }
 
