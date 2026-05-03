@@ -917,7 +917,8 @@ final class TerminalRuntime: ObservableObject {
     }
 
     private func updateDisplayLineState(with data: Data) {
-        for byte in data {
+        let sanitized = stripANSISequences(from: String(decoding: data, as: UTF8.self))
+        for byte in sanitized.utf8 {
             switch byte {
             case 0x0A, 0x0D:
                 displayEndsAtLineStart = true

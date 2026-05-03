@@ -24,6 +24,7 @@ struct AppPreferencesSnapshot: Codable, Equatable {
     var serverMetricsInactiveRefreshSeconds: Int
     var serverMetricsMaxConcurrentFetches: Int
     var automaticallyCheckForUpdates: Bool
+    var terminalCopyOnSelect: Bool
 
     static func defaultValue(fileManager: FileManager = .default) -> AppPreferencesSnapshot {
         AppPreferencesSnapshot(
@@ -47,7 +48,8 @@ struct AppPreferencesSnapshot: Codable, Equatable {
             serverMetricsActiveRefreshSeconds: AppSettings.defaultServerMetricsActiveRefreshSeconds,
             serverMetricsInactiveRefreshSeconds: AppSettings.defaultServerMetricsInactiveRefreshSeconds,
             serverMetricsMaxConcurrentFetches: AppSettings.defaultServerMetricsMaxConcurrentFetches,
-            automaticallyCheckForUpdates: AppSettings.defaultAutomaticallyCheckForUpdates
+            automaticallyCheckForUpdates: AppSettings.defaultAutomaticallyCheckForUpdates,
+            terminalCopyOnSelect: false
         )
     }
 
@@ -89,6 +91,7 @@ extension AppPreferencesSnapshot {
         case serverMetricsInactiveRefreshSeconds
         case serverMetricsMaxConcurrentFetches
         case automaticallyCheckForUpdates
+        case terminalCopyOnSelect
     }
 
     init(from decoder: Decoder) throws {
@@ -115,6 +118,8 @@ extension AppPreferencesSnapshot {
         serverMetricsMaxConcurrentFetches = try container.decode(Int.self, forKey: .serverMetricsMaxConcurrentFetches)
         automaticallyCheckForUpdates = try container.decodeIfPresent(Bool.self, forKey: .automaticallyCheckForUpdates)
             ?? AppSettings.defaultAutomaticallyCheckForUpdates
+        terminalCopyOnSelect = try container.decodeIfPresent(Bool.self, forKey: .terminalCopyOnSelect)
+            ?? false
     }
 }
 
