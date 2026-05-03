@@ -9,7 +9,12 @@ enum L10n {
         #endif
     }()
 
-    static func tr(_ key: String, fallback: String, modeOverride: AppLanguageMode? = nil) -> String {
+    static func tr(
+        _ key: String,
+        fallback: String,
+        table: String? = nil,
+        modeOverride: AppLanguageMode? = nil
+    ) -> String {
         let mode: AppLanguageMode = modeOverride ?? AppLanguageMode.resolved(
             from: AppPreferences.shared.value(for: \.languageModeRawValue)
         )
@@ -17,9 +22,9 @@ enum L10n {
         if let localizationCode = mode.bundleLocalizationCode,
            let path = resourceBundle.path(forResource: localizationCode, ofType: "lproj"),
            let localizedBundle = Bundle(path: path) {
-            return localizedBundle.localizedString(forKey: key, value: fallback, table: nil)
+            return localizedBundle.localizedString(forKey: key, value: fallback, table: table)
         }
 
-        return resourceBundle.localizedString(forKey: key, value: fallback, table: nil)
+        return resourceBundle.localizedString(forKey: key, value: fallback, table: table)
     }
 }
