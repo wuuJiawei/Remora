@@ -419,7 +419,10 @@ final class TerminalRuntime: ObservableObject {
         guard !data.isEmpty else { return }
 
         if zmodemCoordinator.isActive {
-            zmodemCoordinator.feedOutput(data)
+            let trailing = zmodemCoordinator.feedOutput(data)
+            if !trailing.isEmpty {
+                flushOutputBatch(trailing)
+            }
             return
         }
 

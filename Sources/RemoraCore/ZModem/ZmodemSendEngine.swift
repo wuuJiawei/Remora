@@ -90,6 +90,11 @@ public final class ZmodemSendEngine: @unchecked Sendable {
         processBuffer()
     }
 
+    public func drainRemainingOutput() -> Data {
+        defer { buffer.removeAll(keepingCapacity: false) }
+        return buffer
+    }
+
     /// Cancel the transfer
     public func cancel() {
         guard state != .finished else { return }

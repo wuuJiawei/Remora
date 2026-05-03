@@ -64,9 +64,28 @@ final class ZmodemTransferCoordinator: ObservableObject {
 
     // MARK: - Common
 
-    func feedOutput(_ data: Data) {
-        receiveEngine?.feedOutput(data)
-        sendEngine?.feedOutput(data)
+    func feedOutput(_ data: Data) -> Data {
+        if let receiveEngine {
+            let wasActive = receiveEngine.isActive
+            receiveEngine.feedOutput(data)
+            if wasActive && !receiveEngine.isActive {
+                let trailing = receiveEngine.drainRemainingOutput()
+                self.receiveEngine = nil
+                return trailing
+            }
+            return Data()
+        }
+        if let sendEngine {
+            let wasActive = sendEngine.isActive
+            sendEngine.feedOutput(data)
+            if wasActive && !sendEngine.isActive {
+                let trailing = sendEngine.drainRemainingOutput()
+                self.sendEngine = nil
+                return trailing
+            }
+            return Data()
+        }
+        return data
     }
 
     func cancelTransfer() {
@@ -117,17 +136,28 @@ final class ZmodemTransferCoordinator: ObservableObject {
 
     private func autoAcceptFile(name: String) {
         let downloadDir = resolvedDownloadDirectory()
-        // Ensure directory exists
         try? FileManager.default.createDirectory(at: downloadDir, withIntermediateDirectories: true)
 
-        let fileURL = downloadDir.appendingPathComponent(name)
-        // Overwrite existing file without asking
+        let safeName = sanitizedDownloadFileName(from: name)
+        let fileURL = downloadDir.appendingPathComponent(safeName)
+        guard fileURL.standardizedFileURL.path.hasPrefix(downloadDir.standardizedFileURL.path + "/")
+                || fileURL.standardizedFileURL == downloadDir.standardizedFileURL.appendingPathComponent(safeName)
+        else {
+            receiveEngine?.skipFile()
+            return
+        }
         receiveEngine?.acceptFile(saveTo: fileURL)
     }
 
     private func resolvedDownloadDirectory() -> URL {
         let storedPath = AppPreferences.shared.snapshot.downloadDirectoryPath
         return AppSettings.resolvedDownloadDirectoryURL(from: storedPath)
+    }
+
+    private func sanitizedDownloadFileName(from offeredName: String) -> String {
+        let trimmed = offeredName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidate = URL(fileURLWithPath: trimmed.isEmpty ? "download.bin" : trimmed).lastPathComponent
+        return candidate.isEmpty || candidate == "." || candidate == ".." ? "download.bin" : candidate
     }
 
     // MARK: - Serial Write Queue

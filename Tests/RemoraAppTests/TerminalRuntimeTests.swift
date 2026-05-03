@@ -871,6 +871,26 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
+    @Test
+    func zmodemFinishedChunkStillDeliversTrailingPromptOutput() async {
+        let manager = SessionManager(sshClientFactory: { PromptAfterZmodemSSHClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let view = TerminalView(rows: 8, columns: 80)
+        runtime.attach(view: view)
+
+        runtime.connectLocalShell()
+
+        let rendered = await waitUntil(timeout: 2.0) {
+            view.selectAll()
+            NSPasteboard.general.clearContents()
+            view.performTerminalAction(.copy)
+            let copied = NSPasteboard.general.string(forType: .string) ?? ""
+            return copied.contains("PROMPT> ") || runtime.transcriptSnapshot.contains("PROMPT> ")
+        }
+        #expect(rendered, "Trailing shell output after ZMODEM completion should still reach the terminal view.")
+        runtime.disconnect()
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -958,6 +978,43 @@ private final class AuthPromptShellSession: SSHTransportSessionProtocol, @unchec
         for prompt in promptSequence {
             onOutput?(Data(prompt.utf8))
         }
+    }
+
+    func write(_ data: Data) async throws {}
+
+    func resize(_ size: PTYSize) async throws {}
+
+    func stop() async {
+        onStateChange?(.stopped)
+    }
+}
+
+private actor PromptAfterZmodemSSHClient: SSHTransportClientProtocol {
+    private var connectedHost: RemoraCore.Host?
+
+    func connect(to host: RemoraCore.Host) async throws {
+        connectedHost = host
+    }
+
+    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
+        guard connectedHost != nil else {
+            throw SSHError.notConnected
+        }
+        return PromptAfterZmodemShellSession()
+    }
+
+    func disconnect() async {
+        connectedHost = nil
+    }
+}
+
+private final class PromptAfterZmodemShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+    var onOutput: (@Sendable (Data) -> Void)?
+    var onStateChange: (@Sendable (ShellSessionState) -> Void)?
+
+    func start() async throws {
+        onStateChange?(.running)
+        onOutput?(Data("PROMPT> ".utf8))
     }
 
     func write(_ data: Data) async throws {}

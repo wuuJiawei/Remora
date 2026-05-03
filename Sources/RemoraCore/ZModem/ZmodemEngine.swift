@@ -89,6 +89,11 @@ public final class ZmodemReceiveEngine: @unchecked Sendable {
         processBuffer()
     }
 
+    public func drainRemainingOutput() -> Data {
+        defer { buffer.removeAll(keepingCapacity: false) }
+        return buffer
+    }
+
     /// Accept the offered file, saving to the given URL
     public func acceptFile(saveTo url: URL) {
         guard state == .waitingForFileAccept else { return }
