@@ -89,7 +89,7 @@ public struct TerminalActionShortcut: Equatable {
     }
 }
 
-public struct TerminalRenderingConfiguration: Equatable {
+public struct TerminalRenderingConfiguration: Equatable, Sendable {
     public var coalescesOutput: Bool
     public var outputFlushInterval: TimeInterval
     public var maxPendingOutputBytes: Int

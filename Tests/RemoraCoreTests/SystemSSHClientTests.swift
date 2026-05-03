@@ -94,8 +94,7 @@ struct SystemSSHClientTests {
         )
 
         let launch = ProcessSSHShellSession.makeStandardLaunchConfiguration(for: host)
-        let inheritedTerm = ProcessInfo.processInfo.environment["TERM"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let expectedTerm = (inheritedTerm?.isEmpty == false ? inheritedTerm : nil) ?? "xterm-256color"
+        let expectedTerm = "xterm-256color"
 
         #expect(launch.environment["TERM"] == expectedTerm)
     }

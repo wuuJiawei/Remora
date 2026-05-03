@@ -33,6 +33,7 @@ struct TerminalViewTests {
     func copyActionWritesSelectedTextToPasteboard() {
         let view = TerminalView(rows: 6, columns: 40)
         view.feed(data: Data("alpha beta\r\n".utf8))
+        view.flushPendingOutput()
         view.selectAll()
 
         NSPasteboard.general.clearContents()
