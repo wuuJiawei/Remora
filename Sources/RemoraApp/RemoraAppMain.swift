@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import RemoraCore
 import RemoraTerminal
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -9,6 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             AppKeyboardShortcutStore.shared.reportConflictsAtLaunchIfNeeded()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        SSHControlMasterCleanup.killAll()
     }
 }
 

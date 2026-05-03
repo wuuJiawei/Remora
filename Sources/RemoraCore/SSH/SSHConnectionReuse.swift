@@ -2,10 +2,12 @@ import Foundation
 
 enum SSHConnectionReuse {
     static func masterOptions(for host: Host) -> [String] {
-        [
+        let path = controlPath(for: host)
+        SSHControlMasterCleanup.registerControlPath(path)
+        return [
             "-o", "ControlMaster=auto",
-            "-o", "ControlPersist=600",
-            "-o", "ControlPath=\(controlPath(for: host))",
+            "-o", "ControlPersist=no",
+            "-o", "ControlPath=\(path)",
         ]
     }
 
