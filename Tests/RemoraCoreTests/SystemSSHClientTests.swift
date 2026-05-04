@@ -129,8 +129,18 @@ struct SystemSSHClientTests {
         #expect(command.contains("\\033]7;file://"))
         #expect(command.contains("\\033]133;A\\007"))
         #expect(command.contains("--on-event fish_prompt"))
-        #expect(command.contains("${PROMPT_COMMAND:+$PROMPT_COMMAND; }__remora_pre_prompt"))
+        #expect(command.contains("__remora_prompt_command=\"${PROMPT_COMMAND-}\""))
+        #expect(command.contains("PROMPT_COMMAND=\"${__remora_prompt_command:+$__remora_prompt_command; }__remora_pre_prompt\""))
         #expect(command.contains("precmd_functions=(${precmd_functions[@]} __remora_precmd)"))
+    }
+
+    @Test
+    func remoteShellIntegrationInstallCommandTrimsTrailingBashPromptSeparators() {
+        let command = OpenSSHRemoteShellIntegrationInstaller.installCommand
+
+        #expect(command.contains("__remora_prompt_command=\"${PROMPT_COMMAND-}\""))
+        #expect(command.contains("__remora_prompt_command=\"${__remora_prompt_command%\"${__remora_prompt_command##*[![:space:];]}\"}\""))
+        #expect(command.contains("PROMPT_COMMAND=\"${__remora_prompt_command:+$__remora_prompt_command; }__remora_pre_prompt\""))
     }
 
     @Test

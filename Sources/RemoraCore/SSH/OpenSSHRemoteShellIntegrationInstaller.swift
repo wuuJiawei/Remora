@@ -24,7 +24,11 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
     __remora_pre_prompt() { __remora_emit_cwd; __remora_emit_prompt_start; }
     case ";${PROMPT_COMMAND-};" in
       *";__remora_pre_prompt;"*) ;;
-      *) PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }__remora_pre_prompt" ;;
+      *)
+        __remora_prompt_command="${PROMPT_COMMAND-}"
+        __remora_prompt_command="${__remora_prompt_command%"${__remora_prompt_command##*[![:space:];]}"}"
+        PROMPT_COMMAND="${__remora_prompt_command:+$__remora_prompt_command; }__remora_pre_prompt"
+        ;;
     esac
     __remora_emit_cwd
     REMORA_BASH
