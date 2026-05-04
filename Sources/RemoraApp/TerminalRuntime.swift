@@ -102,10 +102,12 @@ final class TerminalRuntime: ObservableObject {
     }
 
     func attach(view: TerminalView) {
-        terminalView = view
-        view.onInput = { [weak self] data in
-            DispatchQueue.main.async {
-                self?.enqueueInput(data)
+        if terminalView !== view {
+            terminalView = view
+            view.onInput = { [weak self] data in
+                DispatchQueue.main.async {
+                    self?.enqueueInput(data)
+                }
             }
         }
         flushPendingOutputIfNeeded()
