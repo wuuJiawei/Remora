@@ -11,6 +11,8 @@ struct TerminalCommandMenuTests {
         #expect(AppShortcutCommand.terminalCopy.selector == #selector(NSText.copy(_:)))
         #expect(AppShortcutCommand.terminalPaste.selector == #selector(NSText.paste(_:)))
         #expect(AppShortcutCommand.terminalClearScreen.selector != nil)
-        #expect(AppShortcutCommand.terminalCopy.notificationName == nil)
+        #expect(AppShortcutCommand.terminalCopy.notificationName == .remoraTerminalCopyCommand)
+        #expect(AppShortcutCommand.terminalPaste.notificationName == .remoraTerminalPasteCommand)
+        #expect(AppShortcutCommand.terminalClearScreen.notificationName == .remoraTerminalClearScreenCommand)
     }
 }

@@ -91,8 +91,12 @@ enum AppShortcutCommand: String, CaseIterable, Identifiable {
             return .remoraImportConnectionsCommand
         case .exportConnections:
             return .remoraExportConnectionsCommand
-        case .terminalCopy, .terminalPaste, .terminalClearScreen:
-            return nil
+        case .terminalCopy:
+            return .remoraTerminalCopyCommand
+        case .terminalPaste:
+            return .remoraTerminalPasteCommand
+        case .terminalClearScreen:
+            return .remoraTerminalClearScreenCommand
         }
     }
 
