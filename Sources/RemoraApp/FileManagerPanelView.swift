@@ -1745,10 +1745,6 @@ struct FileManagerPanelView: View {
     private func beginEdit(_ item: RemoteListRowItem) {
         guard !item.isDirectory else { return }
         let entry = remoteFileEntry(for: item)
-        if entry.size > Int64(FileTransferViewModel.maxInlineEditableTextDocumentBytes) {
-            presentLargeFileEditPrompt(for: entry)
-            return
-        }
         remoteEditorWindowManager.present(
             path: entry.path,
             loadOptions: RemoteTextDocumentLoadOptions(
@@ -1761,24 +1757,6 @@ struct FileManagerPanelView: View {
     private func beginViewLog(_ item: RemoteListRowItem) {
         guard !item.isDirectory else { return }
         logViewerTargetPath = item.path
-    }
-
-    private func presentLargeFileEditPrompt(for entry: RemoteFileEntry) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = tr("Large file detected")
-        alert.informativeText = String(
-            format: tr("This file is too large for in-app editing (%@ > %@). Download it and open locally to avoid high memory usage."),
-            ByteSizeFormatter.format(entry.size),
-            ByteSizeFormatter.format(Int64(FileTransferViewModel.maxInlineEditableTextDocumentBytes))
-        )
-        alert.addButton(withTitle: tr("Download"))
-        alert.addButton(withTitle: tr("Cancel"))
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            viewModel.performContextAction(.download(paths: [entry.path]))
-            transferQueueOverlayState.expand()
-        }
     }
 
     private func commitRename() {
