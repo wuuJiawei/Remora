@@ -543,6 +543,10 @@
 "To edit this file, right-click it and choose Edit." = "要编辑这个文件，请右键并选择“编辑”。";
 "Ungrouped" = "未分组";
 "Unsaved changes" = "未保存的更改";
+"Loading… - %@" = "加载中… - %@";
+"Saving… - %@" = "保存中… - %@";
+"Not Saved - %@" = "未保存 - %@";
+"Save Failed - %@" = "保存失败 - %@";
 "Unsupported import format. Please select a Remora JSON/CSV export file." = "不支持的导入格式。请选择 Remora 导出的 JSON/CSV 文件。";
 "Username" = "用户名";
 "Waiting (host-key)" = "等待中（主机密钥）";

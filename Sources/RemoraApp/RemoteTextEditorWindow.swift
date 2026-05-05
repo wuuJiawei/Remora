@@ -1,5 +1,29 @@
 import AppKit
 
+private enum RemoteTextEditorTitleFormatter {
+    static func title(
+        fileName: String,
+        isLoading: Bool,
+        isDirty: Bool,
+        saveStatus: RemoteTextEditorViewModel.SaveStatus
+    ) -> String {
+        if isLoading {
+            return String(format: tr("Loading… - %@"), fileName)
+        }
+
+        switch saveStatus {
+        case .idle:
+            return isDirty
+                ? String(format: tr("Not Saved - %@"), fileName)
+                : fileName
+        case .saving:
+            return String(format: tr("Saving… - %@"), fileName)
+        case .failed:
+            return String(format: tr("Save Failed - %@"), fileName)
+        }
+    }
+}
+
 @MainActor
 final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowDelegate {
     private final class WindowRecord {
@@ -54,17 +78,12 @@ final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowD
     private func refreshWindowTitle(for path: String) {
         guard let record = windows[path], let window = record.windowController.window else { return }
         let fileName = URL(fileURLWithPath: path).lastPathComponent
-        let prefix: String = {
-            switch record.viewModel.saveStatus {
-            case .idle:
-                return record.viewModel.isDirty ? "Not Saved - " : ""
-            case .saving:
-                return "Saving… - "
-            case .failed:
-                return "Save Failed - "
-            }
-        }()
-        window.title = prefix + fileName
+        window.title = RemoteTextEditorTitleFormatter.title(
+            fileName: fileName,
+            isLoading: record.viewModel.isLoading,
+            isDirty: record.viewModel.isDirty,
+            saveStatus: record.viewModel.saveStatus
+        )
         window.isDocumentEdited = record.viewModel.isDirty
     }
 
@@ -199,8 +218,8 @@ final class RemoteTextEditorWindowController: NSWindowController {
             guard let self else { return }
             guard self.viewModel.editorMode.isEditable else { return }
             Task {
-                self.loadingIndicator.startAnimation(nil)
-                self.window?.title = "Saving… - " + URL(fileURLWithPath: self.viewModel.path).lastPathComponent
+                self.viewModel.beginSaving()
+                self.refreshWindowState()
                 await self.viewModel.save(request: request)
                 self.editorViewController.savedRevision = self.viewModel.lastSavedRevision
                 self.refreshWindowState()
@@ -242,22 +261,12 @@ final class RemoteTextEditorWindowController: NSWindowController {
 
     private func refreshTitle() {
         let fileName = URL(fileURLWithPath: viewModel.path).lastPathComponent
-
-        let prefix: String = {
-            if viewModel.isLoading {
-                return "Loading… - "
-            }
-            switch viewModel.saveStatus {
-            case .idle:
-                return viewModel.isDirty ? "Not Saved - " : ""
-            case .saving:
-                return "Saving… - "
-            case .failed:
-                return "Save Failed - "
-            }
-        }()
-
-        window?.title = prefix + fileName
+        window?.title = RemoteTextEditorTitleFormatter.title(
+            fileName: fileName,
+            isLoading: viewModel.isLoading,
+            isDirty: viewModel.isDirty,
+            saveStatus: viewModel.saveStatus
+        )
         window?.isDocumentEdited = viewModel.isDirty
     }
 

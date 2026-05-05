@@ -546,6 +546,10 @@
 "Trust SSH Host Key?" = "Trust SSH Host Key?";
 "Ungrouped" = "Ungrouped";
 "Unsaved changes" = "Unsaved changes";
+"Loading… - %@" = "Loading… - %@";
+"Saving… - %@" = "Saving… - %@";
+"Not Saved - %@" = "Not Saved - %@";
+"Save Failed - %@" = "Save Failed - %@";
 "Unsupported import format. Please select a Remora JSON/CSV export file." = "Unsupported import format. Please select a Remora JSON/CSV export file.";
 "Username" = "Username";
 "Waiting (host-key)" = "Waiting (host-key)";

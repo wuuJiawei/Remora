@@ -174,6 +174,11 @@ final class RemoteTextEditorViewModel: ObservableObject {
         EditorDebugLog.log("viewModel.requestSave saveRequestID=\(saveRequestGeneration)")
     }
 
+    func beginSaving() {
+        guard !isLoading, saveStatus != .saving else { return }
+        saveStatus = .saving
+    }
+
     func markDirty(revision: Int) {
         currentRevision = max(currentRevision, revision)
         if !isDirty {
