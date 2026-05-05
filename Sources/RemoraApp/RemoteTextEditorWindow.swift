@@ -198,6 +198,8 @@ final class RemoteTextEditorWindowController: NSWindowController {
         editorViewController.onSaveRequested = { [weak self] request in
             guard let self else { return }
             Task {
+                self.loadingIndicator.startAnimation(nil)
+                self.window?.title = "Saving… - " + URL(fileURLWithPath: self.viewModel.path).lastPathComponent
                 await self.viewModel.save(request: request)
                 self.editorViewController.savedRevision = self.viewModel.lastSavedRevision
                 self.refreshWindowState()
@@ -228,6 +230,9 @@ final class RemoteTextEditorWindowController: NSWindowController {
     }
 
     private func loadDocument() async {
+        loadingIndicator.startAnimation(nil)
+        refreshTitle()
+
         await viewModel.load()
         editorViewController.descriptor = viewModel.documentDescriptor
         editorViewController.initialContent = viewModel.initialContent
@@ -238,6 +243,9 @@ final class RemoteTextEditorWindowController: NSWindowController {
         let fileName = URL(fileURLWithPath: viewModel.path).lastPathComponent
 
         let prefix: String = {
+            if viewModel.isLoading {
+                return "Loading… - "
+            }
             switch viewModel.saveStatus {
             case .idle:
                 return viewModel.isDirty ? "Not Saved - " : ""

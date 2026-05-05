@@ -179,11 +179,17 @@ function createEditor() {
         ".cm-content": {
           caretColor: "var(--remora-caret)"
         },
-        ".cm-cursor": {
-          borderLeftColor: "var(--remora-caret)"
+        ".cm-cursor, .cm-dropCursor": {
+          borderLeft: "2px solid var(--remora-caret)"
         },
-        ".cm-dropCursor": {
-          borderLeftColor: "var(--remora-caret)"
+        ".cm-focused .cm-cursor": {
+          borderLeft: "2px solid var(--remora-caret)"
+        },
+        ".cm-cursorLayer": {
+          zIndex: "20"
+        },
+        ".cm-selectionLayer": {
+          zIndex: "10"
         },
         ".cm-focused": {
           outline: "none"

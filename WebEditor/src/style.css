@@ -46,6 +46,18 @@ body {
   color: var(--remora-fg);
 }
 
+.cm-editor.cm-focused .cm-cursor {
+  border-left: 2px solid var(--remora-caret) !important;
+}
+
+.cm-cursor {
+  border-left: 2px solid var(--remora-caret) !important;
+}
+
+.cm-cursorLayer {
+  z-index: 20;
+}
+
 .cm-scroller {
   overflow: auto;
 }
