@@ -332,6 +332,7 @@ function debugFocus() {
     [
       `focus active=${active?.tagName ?? "none"}`,
       `activeClass=${active?.className ?? "none"}`,
+      `documentHasFocus=${document.hasFocus()}`,
       `viewHasFocus=${view.hasFocus}`,
       `editorClass=${editor?.className ?? "none"}`,
       `contentClass=${content?.className ?? "none"}`,

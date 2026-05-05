@@ -4,10 +4,6 @@ import WebKit
 final class FocusableCodeMirrorWebView: WKWebView {
     override var acceptsFirstResponder: Bool { true }
 
-    override func becomeFirstResponder() -> Bool {
-        true
-    }
-
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         super.mouseDown(with: event)
