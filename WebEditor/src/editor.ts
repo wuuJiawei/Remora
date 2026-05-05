@@ -3,7 +3,6 @@ import "./style.css";
 import { Compartment, EditorState } from "@codemirror/state";
 import {
   EditorView,
-  drawSelection,
   highlightActiveLine,
   highlightActiveLineGutter,
   keymap,
@@ -108,7 +107,6 @@ function createEditor() {
       lintGutter(),
       highlightActiveLineGutter(),
       highlightActiveLine(),
-      drawSelection(),
       history(),
       closeBrackets(),
       bracketMatching(),
