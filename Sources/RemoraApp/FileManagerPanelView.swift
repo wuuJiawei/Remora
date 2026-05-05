@@ -180,6 +180,7 @@ struct FileManagerPanelView: View {
     var onRefreshRemote: () -> Void = {}
     var onEditDownloadPath: (() -> Void)?
     @StateObject private var remoteEditorWindowManager: RemoteTextEditorWindowManager
+    @StateObject private var remoteLiveLogWindowManager: RemoteLiveLogWindowManager
 
     @State private var selectedRemotePaths: Set<String> = []
     @State private var hoveredRemotePath: String?
@@ -194,7 +195,6 @@ struct FileManagerPanelView: View {
     @State private var isRenameSheetPresented = false
     @State private var renameTargetPath: String?
     @State private var renameDraft = ""
-    @State private var logViewerTargetPath: String?
     @State private var propertiesTargetPath: String?
     @State private var permissionsEditorTargetPath: String?
     @State private var compressSourcePaths: [String] = []
@@ -241,6 +241,9 @@ struct FileManagerPanelView: View {
         self.onEditDownloadPath = onEditDownloadPath
         _remoteEditorWindowManager = StateObject(
             wrappedValue: RemoteTextEditorWindowManager(fileTransfer: viewModel)
+        )
+        _remoteLiveLogWindowManager = StateObject(
+            wrappedValue: RemoteLiveLogWindowManager(fileTransfer: viewModel)
         )
     }
 
@@ -434,20 +437,6 @@ struct FileManagerPanelView: View {
         }
         .sheet(isPresented: $isCreateRemoteSheetPresented) {
             createRemoteSheet
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { logViewerTargetPath != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        logViewerTargetPath = nil
-                    }
-                }
-            )
-        ) {
-            if let logViewerTargetPath {
-                RemoteLogViewerSheet(path: logViewerTargetPath, fileTransfer: viewModel)
-            }
         }
         .sheet(
             isPresented: Binding(
@@ -1756,7 +1745,7 @@ struct FileManagerPanelView: View {
 
     private func beginViewLog(_ item: RemoteListRowItem) {
         guard !item.isDirectory else { return }
-        logViewerTargetPath = item.path
+        remoteLiveLogWindowManager.present(path: item.path)
     }
 
     private func commitRename() {

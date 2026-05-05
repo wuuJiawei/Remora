@@ -1,5 +1,10 @@
 import Foundation
 
+enum RemoraEditorInteractionMode {
+    case editor
+    case logViewer
+}
+
 struct EditorDocumentPayload: Encodable {
     let documentID: String
     let contentVersion: Int

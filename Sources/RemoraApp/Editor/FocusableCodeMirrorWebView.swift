@@ -2,6 +2,8 @@ import AppKit
 import WebKit
 
 final class FocusableCodeMirrorWebView: WKWebView {
+    var interactionMode: RemoraEditorInteractionMode = .editor
+
     override var acceptsFirstResponder: Bool { true }
 
     override func mouseDown(with event: NSEvent) {
@@ -17,27 +19,41 @@ final class FocusableCodeMirrorWebView: WKWebView {
             return super.performKeyEquivalent(with: event)
         }
 
-        switch key {
-        case "a":
-            selectAll(nil)
-            return true
-        case "c":
-            copy(nil)
-            return true
-        case "x":
-            cut(nil)
-            return true
-        case "v":
-            paste(nil)
-            return true
-        case "s":
-            invokeEditorAction("requestSave")
-            return true
-        case "f":
-            invokeEditorAction("openSearch")
-            return true
-        default:
-            return super.performKeyEquivalent(with: event)
+        switch interactionMode {
+        case .editor:
+            switch key {
+            case "a":
+                selectAll(nil)
+                return true
+            case "c":
+                copy(nil)
+                return true
+            case "x":
+                cut(nil)
+                return true
+            case "v":
+                paste(nil)
+                return true
+            case "s":
+                invokeEditorAction("requestSave")
+                return true
+            case "f":
+                invokeEditorAction("openSearch")
+                return true
+            default:
+                return super.performKeyEquivalent(with: event)
+            }
+        case .logViewer:
+            switch key {
+            case "c":
+                copy(nil)
+                return true
+            case "v", "x", "s":
+                NSSound.beep()
+                return true
+            default:
+                return super.performKeyEquivalent(with: event)
+            }
         }
     }
 

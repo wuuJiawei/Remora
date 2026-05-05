@@ -3,6 +3,8 @@ import WebKit
 
 @MainActor
 final class AppKitCodeMirrorEditorViewController: NSViewController {
+    let interactionMode: RemoraEditorInteractionMode
+
     var descriptor: EditorDocumentDescriptor {
         didSet {
             coordinator.parentDescriptor = descriptor
@@ -62,6 +64,7 @@ final class AppKitCodeMirrorEditorViewController: NSViewController {
         configuration.userContentController = userContentController
 
         let webView = FocusableCodeMirrorWebView(frame: .zero, configuration: configuration)
+        webView.interactionMode = interactionMode
         webView.navigationDelegate = coordinator
         webView.setValue(false, forKey: "drawsBackground")
         coordinator.webView = webView
@@ -69,12 +72,14 @@ final class AppKitCodeMirrorEditorViewController: NSViewController {
     }()
 
     init(
+        interactionMode: RemoraEditorInteractionMode = .editor,
         descriptor: EditorDocumentDescriptor,
         initialContent: EditorInitialContent,
         saveRequestID: Int = 0,
         savedRevision: Int? = nil,
         autoScrollToBottom: Bool = false
     ) {
+        self.interactionMode = interactionMode
         self.descriptor = descriptor
         self.initialContent = initialContent
         self.saveRequestID = saveRequestID

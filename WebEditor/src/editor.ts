@@ -59,6 +59,7 @@ let view: EditorView;
 let revision = 0;
 let cleanRevision = 0;
 let suppressChangeNotifications = false;
+let maxLogChars = 2 * 1024 * 1024;
 
 const languageCompartment = new Compartment();
 const editableCompartment = new Compartment();
@@ -90,6 +91,16 @@ function replaceWholeDocument(text: string) {
     }
   });
   suppressChangeNotifications = false;
+}
+
+function trimLogText(text: string) {
+  if (text.length <= maxLogChars) {
+    return text;
+  }
+
+  const tail = text.slice(-maxLogChars);
+  const newlineIndex = tail.indexOf("\n");
+  return newlineIndex >= 0 ? tail.slice(newlineIndex + 1) : tail;
 }
 
 function createEditor() {
@@ -296,6 +307,22 @@ function pasteText(text: string) {
   insertText(text);
 }
 
+function setLogDocument(text: string, follow: boolean) {
+  replaceWholeDocument(trimLogText(text));
+  if (follow) {
+    view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight;
+  }
+}
+
+function appendLogText(text: string, follow: boolean) {
+  const current = view.state.doc.toString();
+  const next = trimLogText(current + text);
+  replaceWholeDocument(next);
+  if (follow) {
+    view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight;
+  }
+}
+
 function focusEditor() {
   debugToNative("api focus()");
   view.focus();
@@ -398,6 +425,18 @@ function runSearch(query: string, options?: SearchOptions) {
 
   pasteText(text: string) {
     pasteText(text);
+  },
+
+  setLogDocument(text: string, follow: boolean) {
+    setLogDocument(text, follow);
+  },
+
+  appendLogText(text: string, follow: boolean) {
+    appendLogText(text, follow);
+  },
+
+  setMaxLogChars(value: number) {
+    maxLogChars = value;
   },
 
   setLanguage(language: RemoraLanguage) {
