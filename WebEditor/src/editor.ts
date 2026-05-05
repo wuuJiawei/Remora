@@ -14,9 +14,7 @@ import {
   history,
   historyKeymap,
   indentWithTab,
-  redo,
   selectAll,
-  undo
 } from "@codemirror/commands";
 import {
   SearchQuery,
@@ -266,9 +264,49 @@ function replaceSelection(text: string) {
   insertText(text);
 }
 
+function pasteText(text: string) {
+  focusPreservingScroll();
+  insertText(text);
+}
+
 function focusEditor() {
   debugToNative("api focus()");
   view.focus();
+}
+
+function focusPreservingScroll() {
+  const previousTop = view.scrollDOM.scrollTop;
+  const previousLeft = view.scrollDOM.scrollLeft;
+
+  view.focus();
+
+  requestAnimationFrame(() => {
+    view.scrollDOM.scrollTop = previousTop;
+    view.scrollDOM.scrollLeft = previousLeft;
+  });
+}
+
+function focusAfterMouseEvent() {
+  requestAnimationFrame(() => {
+    focusPreservingScroll();
+  });
+}
+
+function debugFocus() {
+  const activeTag = document.activeElement?.tagName ?? "none";
+  debugToNative(
+    `focus active=${activeTag} hasFocus=${view.hasFocus} scrollTop=${view.scrollDOM.scrollTop} anchor=${view.state.selection.main.anchor}`
+  );
+}
+
+function copySelection() {
+  focusPreservingScroll();
+  document.execCommand("copy");
+}
+
+function cutSelection() {
+  focusPreservingScroll();
+  document.execCommand("cut");
 }
 
 function runSearch(query: string, options?: SearchOptions) {
@@ -310,6 +348,10 @@ function runSearch(query: string, options?: SearchOptions) {
     insertText(text);
   },
 
+  pasteText(text: string) {
+    pasteText(text);
+  },
+
   setLanguage(language: RemoraLanguage) {
     view.dispatch({
       effects: languageCompartment.reconfigure(languageExtension(language))
@@ -339,6 +381,18 @@ function runSearch(query: string, options?: SearchOptions) {
     focusEditor();
   },
 
+  focusAfterMouseEvent() {
+    focusAfterMouseEvent();
+  },
+
+  focusPreservingScroll() {
+    focusPreservingScroll();
+  },
+
+  debugFocus() {
+    debugFocus();
+  },
+
   requestSave() {
     requestSave();
   },
@@ -365,6 +419,19 @@ function runSearch(query: string, options?: SearchOptions) {
 
   openSearch() {
     openSearchPanel(view);
+  },
+
+  selectAll() {
+    focusPreservingScroll();
+    selectAll(view);
+  },
+
+  copySelection() {
+    copySelection();
+  },
+
+  cutSelection() {
+    cutSelection();
   },
 
   scrollToBottom() {

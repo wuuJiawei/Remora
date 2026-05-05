@@ -1,17 +1,16 @@
 import AppKit
-import SwiftUI
 
 @MainActor
 final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowDelegate {
     private final class WindowRecord {
         let path: String
         let viewModel: RemoteTextEditorViewModel
-        let window: NSWindow
+        let windowController: RemoteTextEditorWindowController
 
-        init(path: String, viewModel: RemoteTextEditorViewModel, window: NSWindow) {
+        init(path: String, viewModel: RemoteTextEditorViewModel, windowController: RemoteTextEditorWindowController) {
             self.path = path
             self.viewModel = viewModel
-            self.window = window
+            self.windowController = windowController
         }
     }
 
@@ -26,7 +25,8 @@ final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowD
         let normalizedPath = NSString(string: path).standardizingPath
 
         if let existing = windows[normalizedPath] {
-            existing.window.makeKeyAndOrderFront(nil)
+            existing.windowController.showWindow(nil)
+            existing.windowController.window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
@@ -36,31 +36,23 @@ final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowD
             loadOptions: loadOptions,
             fileTransfer: fileTransfer
         )
-        let rootView = RemoteTextEditorWindowView(viewModel: viewModel) { [weak self] in
-            self?.refreshWindowTitle(for: normalizedPath)
-        }
-        let hostingController = NSHostingController(rootView: rootView)
 
-        let window = NSWindow(contentViewController: hostingController)
-        window.identifier = NSUserInterfaceItemIdentifier("remora.remote-editor.\(normalizedPath)")
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 1000, height: 720))
-        window.minSize = NSSize(width: 640, height: 400)
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-        window.tabbingMode = .preferred
-        applyAppearanceMode(to: window)
+        let windowController = RemoteTextEditorWindowController(viewModel: viewModel)
+        windowController.window?.identifier = NSUserInterfaceItemIdentifier("remora.remote-editor.\(normalizedPath)")
+        windowController.window?.delegate = self
+        applyAppearanceMode(to: windowController.window)
 
-        let record = WindowRecord(path: normalizedPath, viewModel: viewModel, window: window)
+        let record = WindowRecord(path: normalizedPath, viewModel: viewModel, windowController: windowController)
         windows[normalizedPath] = record
         refreshWindowTitle(for: normalizedPath)
-        positionWindowNearPrimaryWindow(window)
-        window.makeKeyAndOrderFront(nil)
+        positionWindowNearPrimaryWindow(windowController.window)
+        windowController.showWindow(nil)
+        windowController.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     private func refreshWindowTitle(for path: String) {
-        guard let record = windows[path] else { return }
+        guard let record = windows[path], let window = record.windowController.window else { return }
         let fileName = URL(fileURLWithPath: path).lastPathComponent
         let prefix: String = {
             switch record.viewModel.saveStatus {
@@ -72,12 +64,12 @@ final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowD
                 return "Save Failed - "
             }
         }()
-        record.window.title = prefix + fileName
-        record.window.isDocumentEdited = record.viewModel.isDirty
-        EditorDebugLog.log("window.title path=\(path) title=\(record.window.title)")
+        window.title = prefix + fileName
+        window.isDocumentEdited = record.viewModel.isDirty
     }
 
-    private func applyAppearanceMode(to window: NSWindow) {
+    private func applyAppearanceMode(to window: NSWindow?) {
+        guard let window else { return }
         let rawValue = AppPreferences.shared.value(for: \.appearanceModeRawValue)
         let mode = AppAppearanceMode.resolved(from: rawValue)
         if let appearanceName = mode.nsAppearanceName {
@@ -87,7 +79,9 @@ final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowD
         }
     }
 
-    private func positionWindowNearPrimaryWindow(_ window: NSWindow) {
+    private func positionWindowNearPrimaryWindow(_ window: NSWindow?) {
+        guard let window else { return }
+
         let anchorWindow: NSWindow? = {
             if let keyWindow = NSApp.keyWindow, keyWindow != window {
                 return keyWindow
@@ -126,7 +120,7 @@ final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowD
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard let record = windows.values.first(where: { $0.window === sender }) else { return true }
+        guard let record = windows.values.first(where: { $0.windowController.window === sender }) else { return true }
         guard record.viewModel.isDirty else { return true }
 
         let alert = NSAlert()
@@ -140,72 +134,123 @@ final class RemoteTextEditorWindowManager: NSObject, ObservableObject, NSWindowD
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
-        windows = windows.filter { $0.value.window !== window }
+        windows = windows.filter { $0.value.windowController.window !== window }
     }
 }
 
-struct RemoteTextEditorWindowView: View {
-    @StateObject private var viewModel: RemoteTextEditorViewModel
-    private let onWindowStateChange: () -> Void
+@MainActor
+final class RemoteTextEditorWindowController: NSWindowController {
+    let viewModel: RemoteTextEditorViewModel
+    let editorViewController: AppKitCodeMirrorEditorViewController
 
-    init(viewModel: RemoteTextEditorViewModel, onWindowStateChange: @escaping () -> Void) {
-        _viewModel = StateObject(wrappedValue: viewModel)
-        self.onWindowStateChange = onWindowStateChange
+    private lazy var loadingIndicator: NSProgressIndicator = {
+        let indicator = NSProgressIndicator()
+        indicator.controlSize = .small
+        indicator.style = .spinning
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        return indicator
+    }()
+
+    private lazy var errorLabel: NSTextField = {
+        let label = NSTextField(labelWithString: "")
+        label.textColor = .white
+        label.backgroundColor = NSColor.systemRed.withAlphaComponent(0.88)
+        label.drawsBackground = true
+        label.isBordered = false
+        label.isHidden = true
+        label.lineBreakMode = .byWordWrapping
+        label.maximumNumberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
+    init(viewModel: RemoteTextEditorViewModel) {
+        self.viewModel = viewModel
+        self.editorViewController = AppKitCodeMirrorEditorViewController(
+            descriptor: viewModel.documentDescriptor,
+            initialContent: viewModel.initialContent
+        )
+
+        let window = NSWindow(contentViewController: editorViewController)
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 1000, height: 720))
+        window.minSize = NSSize(width: 640, height: 400)
+        window.isReleasedWhenClosed = false
+        window.tabbingMode = .preferred
+
+        super.init(window: window)
+        configureBindings()
+        installOverlayUI()
+        Task { await loadDocument() }
     }
 
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            RemoteTextEditorRepresentable(
-                descriptor: viewModel.documentDescriptor,
-                initialContent: viewModel.initialContent,
-                saveRequestID: viewModel.saveRequestID,
-                savedRevision: viewModel.lastSavedRevision,
-                onChange: { revision in
-                    viewModel.markDirty(revision: revision)
-                    onWindowStateChange()
-                },
-                onSaveRequested: { request in
-                    Task {
-                        await viewModel.save(request: request)
-                        onWindowStateChange()
-                    }
-                },
-                onError: { message in
-                    viewModel.errorMessage = message
-                }
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
-            if viewModel.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .padding(10)
-            }
+    private func configureBindings() {
+        editorViewController.onChange = { [weak self] revision in
+            self?.viewModel.markDirty(revision: revision)
+            self?.refreshWindowState()
+        }
 
-            if let errorMessage = viewModel.errorMessage, !errorMessage.isEmpty {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.red.opacity(0.88))
-                    )
-                    .padding(10)
+        editorViewController.onSaveRequested = { [weak self] request in
+            guard let self else { return }
+            Task {
+                await self.viewModel.save(request: request)
+                self.editorViewController.savedRevision = self.viewModel.lastSavedRevision
+                self.refreshWindowState()
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.clear)
-        .task {
-            await viewModel.load()
-            onWindowStateChange()
+
+        editorViewController.onError = { [weak self] message in
+            self?.viewModel.errorMessage = message
+            self?.refreshWindowState()
         }
-        .onChange(of: viewModel.saveStatus) { _, _ in
-            onWindowStateChange()
+    }
+
+    private func installOverlayUI() {
+        guard let contentView = window?.contentView else { return }
+
+        loadingIndicator.isDisplayedWhenStopped = false
+        contentView.addSubview(loadingIndicator)
+        contentView.addSubview(errorLabel)
+
+        NSLayoutConstraint.activate([
+            loadingIndicator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 10),
+            loadingIndicator.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 10),
+
+            errorLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 10),
+            errorLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 10),
+            errorLabel.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -10),
+        ])
+    }
+
+    private func loadDocument() async {
+        await viewModel.load()
+        editorViewController.descriptor = viewModel.documentDescriptor
+        editorViewController.initialContent = viewModel.initialContent
+        refreshWindowState()
+    }
+
+    private func refreshWindowState() {
+        editorViewController.descriptor = viewModel.documentDescriptor
+        editorViewController.saveRequestID = viewModel.saveRequestID
+        editorViewController.savedRevision = viewModel.lastSavedRevision
+
+        if viewModel.isLoading {
+            loadingIndicator.startAnimation(nil)
+        } else {
+            loadingIndicator.stopAnimation(nil)
         }
-        .onChange(of: viewModel.isDirty) { _, _ in
-            onWindowStateChange()
+
+        if let errorMessage = viewModel.errorMessage, !errorMessage.isEmpty {
+            errorLabel.stringValue = errorMessage
+            errorLabel.isHidden = false
+        } else {
+            errorLabel.stringValue = ""
+            errorLabel.isHidden = true
         }
     }
 }

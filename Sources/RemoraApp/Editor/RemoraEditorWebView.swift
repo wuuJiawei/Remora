@@ -28,7 +28,7 @@ struct RemoraEditorWebView: NSViewRepresentable {
         userContentController.add(context.coordinator, name: "remoraEditor")
         configuration.userContentController = userContentController
 
-        let webView = FocusableWKWebView(frame: .zero, configuration: configuration)
+        let webView = FocusableCodeMirrorWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         context.coordinator.webView = webView
