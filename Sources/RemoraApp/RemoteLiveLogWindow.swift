@@ -38,10 +38,63 @@ final class RemoteLiveLogWindowManager: ObservableObject {
         let controller = RemoteLiveLogWindowController(viewModel: viewModel) { [weak self] in
             self?.windows.removeValue(forKey: normalizedPath)
         }
+        applyAppearanceMode(to: controller.window)
+        positionWindowNearPrimaryWindow(controller.window)
         windows[normalizedPath] = WindowRecord(path: normalizedPath, controller: controller)
         controller.showWindow(nil)
         controller.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func applyAppearanceMode(to window: NSWindow?) {
+        guard let window else { return }
+        let rawValue = AppPreferences.shared.value(for: \.appearanceModeRawValue)
+        let mode = AppAppearanceMode.resolved(from: rawValue)
+        if let appearanceName = mode.nsAppearanceName {
+            window.appearance = NSAppearance(named: appearanceName)
+        } else {
+            window.appearance = nil
+        }
+    }
+
+    private func positionWindowNearPrimaryWindow(_ window: NSWindow?) {
+        guard let window else { return }
+
+        let anchorWindow: NSWindow? = {
+            if let keyWindow = NSApp.keyWindow, keyWindow != window {
+                return keyWindow
+            }
+            if let mainWindow = NSApp.mainWindow, mainWindow != window {
+                return mainWindow
+            }
+            return NSApp.windows.first(where: { $0.isVisible && $0 != window })
+        }()
+
+        guard let anchorWindow else { return }
+
+        let anchorFrame = anchorWindow.frame
+        var targetFrame = window.frame
+        targetFrame.origin.x = anchorFrame.minX + 32
+        targetFrame.origin.y = anchorFrame.maxY - targetFrame.height - 32
+
+        let visibleFrame = (anchorWindow.screen ?? NSScreen.main)?.visibleFrame
+            ?? NSScreen.screens.first?.visibleFrame
+        if let visibleFrame {
+            if targetFrame.maxX > visibleFrame.maxX {
+                targetFrame.origin.x = visibleFrame.maxX - targetFrame.width
+            }
+            if targetFrame.minX < visibleFrame.minX {
+                targetFrame.origin.x = visibleFrame.minX
+            }
+            if targetFrame.maxY > visibleFrame.maxY {
+                targetFrame.origin.y = visibleFrame.maxY - targetFrame.height
+            }
+            if targetFrame.minY < visibleFrame.minY {
+                targetFrame.origin.y = visibleFrame.minY
+            }
+        }
+
+        window.setFrame(targetFrame, display: true)
     }
 }
 
@@ -56,9 +109,13 @@ final class RemoteLiveLogWindowController: NSWindowController, NSWindowDelegate 
         self.viewController = AppKitCodeMirrorLogViewerViewController()
         self.onClose = onClose
 
-        let window = NSWindow(contentViewController: viewController)
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 1000, height: 720))
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1000, height: 720),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = viewController
         window.minSize = NSSize(width: 640, height: 400)
         window.isReleasedWhenClosed = false
         window.tabbingMode = .preferred
