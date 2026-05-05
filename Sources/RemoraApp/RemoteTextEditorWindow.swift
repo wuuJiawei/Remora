@@ -197,6 +197,7 @@ final class RemoteTextEditorWindowController: NSWindowController {
 
         editorViewController.onSaveRequested = { [weak self] request in
             guard let self else { return }
+            guard self.viewModel.editorMode.isEditable else { return }
             Task {
                 self.loadingIndicator.startAnimation(nil)
                 self.window?.title = "Saving… - " + URL(fileURLWithPath: self.viewModel.path).lastPathComponent
@@ -273,6 +274,9 @@ final class RemoteTextEditorWindowController: NSWindowController {
 
         if let errorMessage = viewModel.errorMessage, !errorMessage.isEmpty {
             errorLabel.stringValue = errorMessage
+            errorLabel.isHidden = false
+        } else if let modeMessage = viewModel.editorModeMessage {
+            errorLabel.stringValue = modeMessage
             errorLabel.isHidden = false
         } else {
             errorLabel.stringValue = ""
