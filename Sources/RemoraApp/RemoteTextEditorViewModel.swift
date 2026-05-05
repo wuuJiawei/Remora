@@ -8,11 +8,12 @@ final class RemoteTextEditorViewModel: ObservableObject {
         case failed(String)
     }
 
-    @Published var text: String = ""
     @Published private(set) var encodingLabel: String = "UTF-8"
     @Published private(set) var isLoading = false
     @Published private(set) var isDirty = false
     @Published private(set) var saveStatus: SaveStatus = .idle
+    @Published private(set) var contentVersion: Int = 0
+    @Published private(set) var lastSavedRevision: Int?
     @Published var errorMessage: String?
 
     let path: String
@@ -22,7 +23,9 @@ final class RemoteTextEditorViewModel: ObservableObject {
     private let loadOptions: RemoteTextDocumentLoadOptions
     private var expectedModifiedAt: Date?
     private var saveRequestGeneration = 0
-    private var contentVersionGeneration = 0
+    private var contentSnapshot = ""
+    private var lastSavedText = ""
+    private var currentRevision = 0
 
     init(
         path: String,
@@ -39,8 +42,26 @@ final class RemoteTextEditorViewModel: ObservableObject {
         saveRequestGeneration
     }
 
-    var contentVersion: Int {
-        contentVersionGeneration
+    var documentDescriptor: EditorDocumentDescriptor {
+        EditorDocumentDescriptor(
+            id: path,
+            path: path,
+            language: language,
+            isEditable: !isLoading,
+            lineWrapping: true
+        )
+    }
+
+    var initialContent: EditorInitialContent {
+        EditorInitialContent(
+            documentID: path,
+            text: contentSnapshot,
+            contentVersion: contentVersion
+        )
+    }
+
+    var persistedTextSnapshot: String {
+        contentSnapshot
     }
 
     func load() async {
@@ -50,12 +71,16 @@ final class RemoteTextEditorViewModel: ObservableObject {
 
         do {
             let doc = try await fileTransfer.loadTextDocument(path: path, options: loadOptions)
-            text = doc.text
+            contentSnapshot = doc.text
+            lastSavedText = doc.text
+            currentRevision = 0
+            lastSavedRevision = nil
             encodingLabel = doc.encoding
             expectedModifiedAt = doc.modifiedAt
-            contentVersionGeneration += 1
+            contentVersion += 1
             isDirty = false
-            EditorDebugLog.log("viewModel.load success chars=\(doc.text.count) contentVersion=\(contentVersionGeneration)")
+            saveStatus = .idle
+            EditorDebugLog.log("viewModel.load success chars=\(doc.text.count) contentVersion=\(contentVersion)")
             errorMessage = nil
         } catch let error as RemoteTextDocumentError {
             switch error {
@@ -79,29 +104,34 @@ final class RemoteTextEditorViewModel: ObservableObject {
         EditorDebugLog.log("viewModel.requestSave saveRequestID=\(saveRequestGeneration)")
     }
 
-    func markDirty() {
+    func markDirty(revision: Int) {
+        currentRevision = max(currentRevision, revision)
         if !isDirty {
             isDirty = true
-            EditorDebugLog.log("viewModel.markDirty")
+            EditorDebugLog.log("viewModel.markDirty revision=\(revision)")
         }
     }
 
-    func save(text: String) async {
+    func save(request: EditorSaveRequest) async {
+        guard !isLoading, saveStatus != .saving else { return }
+
         saveStatus = .saving
-        self.text = text
-        EditorDebugLog.log("viewModel.save begin chars=\(text.count)")
+        EditorDebugLog.log("viewModel.save begin rev=\(request.revision) chars=\(request.text.count)")
 
         do {
             expectedModifiedAt = try await fileTransfer.saveTextDocument(
                 path: path,
-                text: text,
+                text: request.text,
                 expectedModifiedAt: expectedModifiedAt
             )
-            self.text = text
-            contentVersionGeneration += 1
-            isDirty = false
+            contentSnapshot = request.text
+            lastSavedText = request.text
+            lastSavedRevision = request.revision
+            isDirty = request.revision < currentRevision
             saveStatus = .idle
-            EditorDebugLog.log("viewModel.save success contentVersion=\(contentVersionGeneration)")
+            EditorDebugLog.log(
+                "viewModel.save success rev=\(request.revision) currentRevision=\(currentRevision) contentVersion=\(contentVersion)"
+            )
             errorMessage = nil
         } catch {
             saveStatus = .failed(error.localizedDescription)

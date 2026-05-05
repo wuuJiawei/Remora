@@ -1,8 +1,7 @@
 export type EditorToNativeMessage =
   | { type: "ready" }
-  | { type: "change"; revision: number }
-  | { type: "selectionChange"; from: number; to: number }
-  | { type: "saveRequested" }
+  | { type: "changed"; revision: number }
+  | { type: "saveRequested"; revision: number }
   | { type: "debug"; message: string }
   | { type: "error"; message: string };
 

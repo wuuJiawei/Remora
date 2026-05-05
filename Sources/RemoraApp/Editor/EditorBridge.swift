@@ -2,8 +2,7 @@ import Foundation
 
 enum EditorBridgeMessageType: String, Decodable {
     case ready
-    case change
-    case selectionChange
+    case changed
     case saveRequested
     case debug
     case error
@@ -12,14 +11,12 @@ enum EditorBridgeMessageType: String, Decodable {
 struct EditorBridgeMessage: Decodable {
     let type: EditorBridgeMessageType
     let revision: Int?
-    let from: Int?
-    let to: Int?
     let message: String?
 }
 
 enum EditorTextSyncMode {
-    case continuous
     case onDemand
+    case continuous
 }
 
 enum EditorDebugLog {

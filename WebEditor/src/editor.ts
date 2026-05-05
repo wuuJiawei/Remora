@@ -13,7 +13,10 @@ import {
   defaultKeymap,
   history,
   historyKeymap,
-  indentWithTab
+  indentWithTab,
+  redo,
+  selectAll,
+  undo
 } from "@codemirror/commands";
 import {
   SearchQuery,
@@ -45,6 +48,8 @@ type SearchOptions = {
 };
 
 type DocumentPayload = {
+  documentID: string;
+  contentVersion: number;
   text: string;
   path?: string;
   language?: RemoraLanguage;
@@ -54,6 +59,7 @@ type DocumentPayload = {
 
 let view: EditorView;
 let revision = 0;
+let cleanRevision = 0;
 let suppressChangeNotifications = false;
 
 const languageCompartment = new Compartment();
@@ -122,7 +128,7 @@ function createEditor() {
           preventDefault: true,
           run: () => {
             debugToNative("keydown Mod-s");
-            postToNative({ type: "saveRequested" });
+            requestSave();
             return true;
           }
         },
@@ -160,17 +166,7 @@ function createEditor() {
         if (update.docChanged && !suppressChangeNotifications) {
           revision += 1;
           debugToNative(`docChanged revision=${revision} chars=${update.state.doc.length}`);
-          postToNative({ type: "change", revision });
-        }
-
-        if (update.selectionSet && !suppressChangeNotifications) {
-          const range = update.state.selection.main;
-          debugToNative(`selection from=${range.from} to=${range.to} scrollTop=${view.scrollDOM.scrollTop}`);
-          postToNative({
-            type: "selectionChange",
-            from: range.from,
-            to: range.to
-          });
+          postToNative({ type: "changed", revision });
         }
       }),
       EditorView.theme({
@@ -213,15 +209,6 @@ function createEditor() {
     parent
   });
 
-  view.dom.addEventListener(
-    "mousedown",
-    () => {
-      debugToNative(`mousedown scrollTop=${view.scrollDOM.scrollTop} anchor=${view.state.selection.main.anchor}`);
-      focusWithoutScroll();
-    },
-    { capture: true }
-  );
-
   view.scrollDOM.addEventListener("scroll", () => {
     debugToNative(`scroll scrollTop=${view.scrollDOM.scrollTop}`);
   });
@@ -229,29 +216,36 @@ function createEditor() {
   postToNative({ type: "ready" });
 }
 
-function focusWithoutScroll() {
-  const target = view.contentDOM as HTMLElement & {
-    focus: (options?: { preventScroll?: boolean }) => void;
-  };
-
-  try {
-    debugToNative(`focus preventScroll before=${view.scrollDOM.scrollTop}`);
-    target.focus({ preventScroll: true });
-  } catch {
-    debugToNative(`focus fallback before=${view.scrollDOM.scrollTop}`);
-    target.focus();
-  }
-}
-
 function setTheme(theme: "light" | "dark") {
   document.documentElement.dataset.theme = theme;
 }
 
 function setDocument(payload: DocumentPayload) {
-  debugToNative(`setDocument chars=${(payload.text ?? "").length} path=${payload.path ?? ""}`);
+  debugToNative(
+    `setDocument id=${payload.documentID} contentVersion=${payload.contentVersion} chars=${(payload.text ?? "").length} path=${payload.path ?? ""}`
+  );
   replaceWholeDocument(payload.text ?? "");
   reconfigureDocumentState(payload);
   revision = 0;
+  cleanRevision = 0;
+  view.dispatch({
+    selection: { anchor: 0 },
+    scrollIntoView: true
+  });
+}
+
+function requestSave() {
+  debugToNative(`requestSave revision=${revision}`);
+  postToNative({ type: "saveRequested", revision });
+}
+
+function markSaved(savedRevision?: number) {
+  cleanRevision = savedRevision ?? revision;
+  debugToNative(`markSaved cleanRevision=${cleanRevision} revision=${revision}`);
+}
+
+function isDirty() {
+  return revision !== cleanRevision;
 }
 
 function insertText(text: string) {
@@ -271,6 +265,11 @@ function insertText(text: string) {
 
 function replaceSelection(text: string) {
   insertText(text);
+}
+
+function focusEditor() {
+  debugToNative("api focus()");
+  view.focus();
 }
 
 function runSearch(query: string, options?: SearchOptions) {
@@ -293,11 +292,6 @@ function runSearch(query: string, options?: SearchOptions) {
 }).RemoraEditor = {
   setDocument(payload: DocumentPayload) {
     setDocument(payload);
-  },
-
-  setText(text: string) {
-    replaceWholeDocument(text);
-    revision = 0;
   },
 
   getText() {
@@ -343,8 +337,19 @@ function runSearch(query: string, options?: SearchOptions) {
   },
 
   focus() {
-    debugToNative("api focus()");
-    focusWithoutScroll();
+    focusEditor();
+  },
+
+  requestSave() {
+    requestSave();
+  },
+
+  markSaved(savedRevision?: number) {
+    markSaved(savedRevision);
+  },
+
+  isDirty() {
+    return isDirty();
   },
 
   search(query: string, options?: SearchOptions) {
@@ -357,6 +362,22 @@ function runSearch(query: string, options?: SearchOptions) {
 
   findPrevious() {
     findPrevious(view);
+  },
+
+  openSearch() {
+    openSearchPanel(view);
+  },
+
+  selectAll() {
+    selectAll(view);
+  },
+
+  undo() {
+    undo(view);
+  },
+
+  redo() {
+    redo(view);
   },
 
   scrollToBottom() {

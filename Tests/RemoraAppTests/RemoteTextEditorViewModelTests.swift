@@ -17,11 +17,12 @@ struct RemoteTextEditorViewModelTests {
         )
 
         await viewModel.load()
-        #expect(viewModel.text.contains("Remora"))
+        #expect(viewModel.persistedTextSnapshot.contains("Remora"))
 
-        let updated = viewModel.text + "\nupdated"
-        await viewModel.save(text: updated)
-        #expect(viewModel.text.contains("updated"))
+        let updated = viewModel.persistedTextSnapshot + "\nupdated"
+        await viewModel.save(request: EditorSaveRequest(revision: 1, text: updated))
+        #expect(viewModel.persistedTextSnapshot.contains("updated"))
+        #expect(viewModel.contentVersion == 1)
     }
 
     @Test

@@ -1,39 +1,27 @@
 import SwiftUI
 
 struct RemoteTextEditorRepresentable: View {
-    @Binding private var text: String
-    private let language: EditorLanguage
-    private let path: String?
-    private let isEditable: Bool
-    private let autoScrollToBottom: Bool
-    private let syncMode: EditorTextSyncMode
+    private let descriptor: EditorDocumentDescriptor
+    private let initialContent: EditorInitialContent
     private let saveRequestID: Int
-    private let contentVersion: Int
+    private let savedRevision: Int?
     private let onChange: ((Int) -> Void)?
-    private let onSaveRequested: ((String) -> Void)?
+    private let onSaveRequested: ((EditorSaveRequest) -> Void)?
     private let onError: ((String) -> Void)?
 
     init(
-        text: Binding<String>,
-        language: EditorLanguage = .plain,
-        path: String? = nil,
-        isEditable: Bool,
-        autoScrollToBottom: Bool = false,
-        syncMode: EditorTextSyncMode = .continuous,
+        descriptor: EditorDocumentDescriptor,
+        initialContent: EditorInitialContent,
         saveRequestID: Int = 0,
-        contentVersion: Int = 0,
+        savedRevision: Int? = nil,
         onChange: ((Int) -> Void)? = nil,
-        onSaveRequested: ((String) -> Void)? = nil,
+        onSaveRequested: ((EditorSaveRequest) -> Void)? = nil,
         onError: ((String) -> Void)? = nil
     ) {
-        _text = text
-        self.language = language
-        self.path = path
-        self.isEditable = isEditable
-        self.autoScrollToBottom = autoScrollToBottom
-        self.syncMode = syncMode
+        self.descriptor = descriptor
+        self.initialContent = initialContent
         self.saveRequestID = saveRequestID
-        self.contentVersion = contentVersion
+        self.savedRevision = savedRevision
         self.onChange = onChange
         self.onSaveRequested = onSaveRequested
         self.onError = onError
@@ -41,22 +29,16 @@ struct RemoteTextEditorRepresentable: View {
 
     var body: some View {
         RemoraEditorWebView(
-            document: EditorDocument(
-                path: path,
-                text: text,
-                language: language,
-                isEditable: isEditable,
-                lineWrapping: true
-            ),
+            descriptor: descriptor,
+            initialContent: initialContent,
             saveRequestID: saveRequestID,
-            contentVersion: contentVersion,
-            syncMode: syncMode,
-            autoScrollToBottom: autoScrollToBottom,
+            savedRevision: savedRevision,
+            syncMode: .onDemand,
+            autoScrollToBottom: false,
             onReady: nil,
             onChange: onChange,
-            onTextChange: { newText in
-                text = newText
-            },
+            onEvent: nil,
+            onTextChange: nil,
             onSaveRequested: onSaveRequested,
             onError: onError
         )

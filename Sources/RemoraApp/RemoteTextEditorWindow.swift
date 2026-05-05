@@ -156,20 +156,17 @@ struct RemoteTextEditorWindowView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             RemoteTextEditorRepresentable(
-                text: $viewModel.text,
-                language: viewModel.language,
-                path: viewModel.path,
-                isEditable: !viewModel.isLoading,
-                syncMode: .onDemand,
+                descriptor: viewModel.documentDescriptor,
+                initialContent: viewModel.initialContent,
                 saveRequestID: viewModel.saveRequestID,
-                contentVersion: viewModel.contentVersion,
-                onChange: { _ in
-                    viewModel.markDirty()
+                savedRevision: viewModel.lastSavedRevision,
+                onChange: { revision in
+                    viewModel.markDirty(revision: revision)
                     onWindowStateChange()
                 },
-                onSaveRequested: { text in
+                onSaveRequested: { request in
                     Task {
-                        await viewModel.save(text: text)
+                        await viewModel.save(request: request)
                         onWindowStateChange()
                     }
                 },

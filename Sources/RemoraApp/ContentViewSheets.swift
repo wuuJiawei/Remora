@@ -1211,8 +1211,9 @@ struct HostQuickCommandEditorSheet: View {
                 TextField(tr("Name"), text: $nameDraft)
                     .textFieldStyle(.roundedBorder)
 
-                RemoteTextEditorRepresentable(
+                RemoraEditorView(
                     text: $commandDraft,
+                    documentID: "host-command-draft",
                     language: .shell,
                     isEditable: true
                 )

@@ -112,16 +112,17 @@ struct RemoteLogViewerSheet: View {
             }
 
             ZStack(alignment: .topLeading) {
-                RemoteTextEditorRepresentable(
+                RemoraEditorView(
                     text: Binding(
                         get: { viewModel.text },
                         set: { _ in }
                     ),
+                    documentID: "remote-log:\(viewModel.path)",
                     language: .plain,
                     path: viewModel.path,
                     isEditable: false,
-                    autoScrollToBottom: viewModel.isFollowing,
-                    syncMode: .continuous
+                    syncMode: .continuous,
+                    autoScrollToBottom: viewModel.isFollowing
                 )
                 if viewModel.isLoading {
                     ProgressView("Loading...")
