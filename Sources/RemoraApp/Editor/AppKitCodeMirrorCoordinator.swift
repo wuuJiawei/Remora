@@ -109,6 +109,8 @@ final class AppKitCodeMirrorCoordinator: NSObject, WKScriptMessageHandler, WKNav
         case .ready:
             isReady = true
             updateIfNeeded()
+            call("window.RemoraEditor.focusPreservingScroll")
+            call("window.RemoraEditor.debugFocus")
             onReady?()
             onEvent?(.ready)
 
@@ -169,15 +171,18 @@ final class AppKitCodeMirrorCoordinator: NSObject, WKScriptMessageHandler, WKNav
             "setDocument id=\(descriptor.id) contentVersion=\(initialContent.contentVersion) chars=\(initialContent.text.count)"
         )
 
+        lastAppliedDescriptor = descriptor
+        lastAppliedDocumentID = descriptor.id
+        lastAppliedContentVersion = initialContent.contentVersion
+        lastMarkedSavedRevision = nil
+
         call("window.RemoraEditor.setDocument", argument: payload) { [weak self] in
             guard let self else { return }
-            self.lastAppliedDescriptor = descriptor
-            self.lastAppliedDocumentID = descriptor.id
-            self.lastAppliedContentVersion = initialContent.contentVersion
-            self.lastMarkedSavedRevision = nil
             if self.parentAutoScrollToBottom {
                 self.call("window.RemoraEditor.scrollToBottom")
             }
+            self.call("window.RemoraEditor.focusPreservingScroll")
+            self.call("window.RemoraEditor.debugFocus")
         }
     }
 

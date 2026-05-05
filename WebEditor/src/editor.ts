@@ -310,6 +310,7 @@ function focusPreservingScroll() {
   requestAnimationFrame(() => {
     view.scrollDOM.scrollTop = previousTop;
     view.scrollDOM.scrollLeft = previousLeft;
+    debugFocus();
   });
 }
 
@@ -320,9 +321,28 @@ function focusAfterMouseEvent() {
 }
 
 function debugFocus() {
-  const activeTag = document.activeElement?.tagName ?? "none";
+  const active = document.activeElement as HTMLElement | null;
+  const cursor = document.querySelector(".cm-cursor") as HTMLElement | null;
+  const editor = document.querySelector(".cm-editor") as HTMLElement | null;
+  const content = document.querySelector(".cm-content") as HTMLElement | null;
+  const cursorStyle = cursor ? getComputedStyle(cursor) : null;
+  const rect = cursor ? cursor.getBoundingClientRect() : null;
+
   debugToNative(
-    `focus active=${activeTag} hasFocus=${view.hasFocus} scrollTop=${view.scrollDOM.scrollTop} anchor=${view.state.selection.main.anchor}`
+    [
+      `focus active=${active?.tagName ?? "none"}`,
+      `activeClass=${active?.className ?? "none"}`,
+      `viewHasFocus=${view.hasFocus}`,
+      `editorClass=${editor?.className ?? "none"}`,
+      `contentClass=${content?.className ?? "none"}`,
+      `cursorExists=${cursor ? "true" : "false"}`,
+      `cursorDisplay=${cursorStyle?.display ?? "n/a"}`,
+      `cursorVisibility=${cursorStyle?.visibility ?? "n/a"}`,
+      `cursorOpacity=${cursorStyle?.opacity ?? "n/a"}`,
+      `cursorBorder=${cursorStyle?.borderLeft ?? "n/a"}`,
+      `cursorRect=${rect ? `${rect.x},${rect.y},${rect.width},${rect.height}` : "n/a"}`,
+      `anchor=${view.state.selection.main.anchor}`
+    ].join(" ")
   );
 }
 
