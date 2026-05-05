@@ -112,7 +112,7 @@ struct RemoteLogViewerSheet: View {
             }
 
             ZStack(alignment: .topLeading) {
-                RemoraEditorView(
+                MirroredRemoraEditorView(
                     text: Binding(
                         get: { viewModel.text },
                         set: { _ in }
@@ -121,7 +121,6 @@ struct RemoteLogViewerSheet: View {
                     language: .plain,
                     path: viewModel.path,
                     isEditable: false,
-                    syncMode: .continuous,
                     autoScrollToBottom: viewModel.isFollowing
                 )
                 if viewModel.isLoading {

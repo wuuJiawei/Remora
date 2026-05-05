@@ -27,16 +27,6 @@ final class FocusableWKWebView: WKWebView {
         case "f":
             invokeEditorAction("openSearch")
             return true
-        case "a":
-            invokeEditorAction("selectAll")
-            return true
-        case "z":
-            if event.modifierFlags.contains(.shift) {
-                invokeEditorAction("redo")
-            } else {
-                invokeEditorAction("undo")
-            }
-            return true
         default:
             return super.performKeyEquivalent(with: event)
         }

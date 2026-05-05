@@ -7,7 +7,6 @@ struct RemoraEditorWebView: NSViewRepresentable {
     var initialContent: EditorInitialContent
     var saveRequestID: Int = 0
     var savedRevision: Int? = nil
-    var syncMode: EditorTextSyncMode = .onDemand
     var autoScrollToBottom: Bool = false
     var onReady: (() -> Void)? = nil
     var onChange: ((Int) -> Void)? = nil

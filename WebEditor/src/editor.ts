@@ -55,6 +55,7 @@ type DocumentPayload = {
   language?: RemoraLanguage;
   isEditable?: boolean;
   lineWrapping?: boolean;
+  resetViewState?: boolean;
 };
 
 let view: EditorView;
@@ -209,10 +210,6 @@ function createEditor() {
     parent
   });
 
-  view.scrollDOM.addEventListener("scroll", () => {
-    debugToNative(`scroll scrollTop=${view.scrollDOM.scrollTop}`);
-  });
-
   postToNative({ type: "ready" });
 }
 
@@ -228,10 +225,12 @@ function setDocument(payload: DocumentPayload) {
   reconfigureDocumentState(payload);
   revision = 0;
   cleanRevision = 0;
-  view.dispatch({
-    selection: { anchor: 0 },
-    scrollIntoView: true
-  });
+  if (payload.resetViewState ?? true) {
+    view.dispatch({
+      selection: { anchor: 0 },
+      scrollIntoView: true
+    });
+  }
 }
 
 function requestSave() {
@@ -366,18 +365,6 @@ function runSearch(query: string, options?: SearchOptions) {
 
   openSearch() {
     openSearchPanel(view);
-  },
-
-  selectAll() {
-    selectAll(view);
-  },
-
-  undo() {
-    undo(view);
-  },
-
-  redo() {
-    redo(view);
   },
 
   scrollToBottom() {

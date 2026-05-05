@@ -14,11 +14,6 @@ struct EditorBridgeMessage: Decodable {
     let message: String?
 }
 
-enum EditorTextSyncMode {
-    case onDemand
-    case continuous
-}
-
 enum EditorDebugLog {
     static func log(_ message: @autoclosure () -> String) {
         print("[RemoraEditor] \(message())")

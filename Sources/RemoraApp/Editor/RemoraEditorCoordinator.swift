@@ -94,8 +94,9 @@ final class RemoraEditorCoordinator: NSObject, WKScriptMessageHandler, WKNavigat
             let revision = message.revision ?? 0
             parent.onChange?(revision)
             parent.onEvent?(.changed(revision: revision))
-            guard parent.syncMode == .continuous else { return }
-            requestText(reason: .change)
+            if parent.onTextChange != nil {
+                requestText(reason: .change)
+            }
 
         case .saveRequested:
             let revision = message.revision ?? 0

@@ -1211,7 +1211,7 @@ struct HostQuickCommandEditorSheet: View {
                 TextField(tr("Name"), text: $nameDraft)
                     .textFieldStyle(.roundedBorder)
 
-                RemoraEditorView(
+                MirroredRemoraEditorView(
                     text: $commandDraft,
                     documentID: "host-command-draft",
                     language: .shell,

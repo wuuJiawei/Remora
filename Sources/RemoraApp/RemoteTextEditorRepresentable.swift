@@ -28,17 +28,14 @@ struct RemoteTextEditorRepresentable: View {
     }
 
     var body: some View {
-        RemoraEditorWebView(
+        RemoraEditorView(
             descriptor: descriptor,
             initialContent: initialContent,
+            autoScrollToBottom: false,
             saveRequestID: saveRequestID,
             savedRevision: savedRevision,
-            syncMode: .onDemand,
-            autoScrollToBottom: false,
             onReady: nil,
             onChange: onChange,
-            onEvent: nil,
-            onTextChange: nil,
             onSaveRequested: onSaveRequested,
             onError: onError
         )
