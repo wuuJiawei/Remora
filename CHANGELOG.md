@@ -27,6 +27,7 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 - Fixed repeated remote-editor document application, clipboard shortcuts, and focus routing issues that previously caused unreliable editing commands or missing caret state.
 - Fixed the live log viewer window workflow so repeated opens reuse the same window and the window layout is hosted independently from SwiftUI sheet state.
 - Fixed remote file double-click behavior so regular files open directly in the editor instead of falling back to download-only prompts below the new preview threshold.
+- Fixed the macOS packaging/release project so archive builds use the same forked SwiftTerm revision as local development, avoiding CI release build failures from mismatched terminal dependencies.
 
 #### Documentation
 
@@ -51,6 +52,7 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 - 修复了远程编辑器重复 `setDocument`、剪贴板快捷键和焦点路由问题，解决了编辑命令不稳定或光标状态异常的问题。
 - 修复了实时日志查看器窗口流程，现在重复打开同一路径会复用已有窗口，并且窗口内容不再依赖 SwiftUI sheet 状态。
 - 修复了远程文件双击行为，普通文件在新的预览阈值内会直接进入编辑器，而不是错误地提示只能下载。
+- 修复了 macOS 打包 / 发布工程依赖配置，使归档构建与本地开发统一使用同一个 SwiftTerm fork revision，避免 CI release 构建因终端依赖不一致而失败。
 
 #### 文档
 

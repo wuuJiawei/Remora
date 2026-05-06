@@ -1040,10 +1040,10 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		4270DD8468CCA29B0B2380D3 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			repositoryURL = "https://github.com/wuuJiawei/SwiftTerm";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.13.0;
+				kind = revision;
+				revision = 4f632d1c60be15ad70152b006cb8679fc81c764f;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
