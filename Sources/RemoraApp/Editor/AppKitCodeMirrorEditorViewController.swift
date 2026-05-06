@@ -158,7 +158,7 @@ final class AppKitCodeMirrorEditorViewController: NSViewController {
     }
 
     private static func inlineEditorHTML() throws -> String {
-        let bundle = Bundle.module
+        let bundle = editorResourceBundle()
 
         func loadResource(named name: String, extension ext: String) throws -> String {
             let directURL = bundle.url(forResource: name, withExtension: ext, subdirectory: "WebEditor")
@@ -189,5 +189,13 @@ final class AppKitCodeMirrorEditorViewController: NSViewController {
         </body>
         </html>
         """
+    }
+
+    private static func editorResourceBundle() -> Bundle {
+#if SWIFT_PACKAGE
+        return Bundle.module
+#else
+        return Bundle.main
+#endif
     }
 }
