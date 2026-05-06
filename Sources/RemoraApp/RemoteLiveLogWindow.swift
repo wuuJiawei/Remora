@@ -119,6 +119,8 @@ final class RemoteLiveLogWindowController: NSWindowController, NSWindowDelegate 
             defer: false
         )
         window.contentViewController = viewController
+        viewController.preferredContentSize = Self.defaultContentSize
+        window.contentMinSize = Self.minimumContentSize
         window.minSize = Self.minimumContentSize
         window.isReleasedWhenClosed = false
         window.tabbingMode = .preferred
@@ -233,7 +235,6 @@ final class AppKitCodeMirrorLogViewerViewController: NSViewController {
     private let loadingIndicator = NSProgressIndicator()
     private let errorLabel = NSTextField(labelWithString: "")
     private let maxLogChars = 2 * 1024 * 1024
-    private let rootStack = NSStackView()
     private let headerStack = NSStackView()
     private let controlsStack = NSStackView()
     private let closeRow = NSStackView()
@@ -293,30 +294,43 @@ final class AppKitCodeMirrorLogViewerViewController: NSViewController {
         let editorView = editorViewController.view
         editorView.translatesAutoresizingMaskIntoConstraints = false
         editorView.setContentHuggingPriority(.defaultLow, for: .vertical)
-        editorView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        editorView.setContentCompressionResistancePriority(.required, for: .vertical)
 
         let spacer = NSView()
         closeRow.setViews([spacer, closeButton], in: .leading)
         closeRow.orientation = .horizontal
         closeRow.alignment = .centerY
+        closeRow.translatesAutoresizingMaskIntoConstraints = false
 
-        rootStack.orientation = .vertical
-        rootStack.spacing = 10
-        rootStack.translatesAutoresizingMaskIntoConstraints = false
-        rootStack.addArrangedSubview(headerStack)
-        rootStack.addArrangedSubview(controlsStack)
-        rootStack.addArrangedSubview(editorView)
-        rootStack.addArrangedSubview(errorLabel)
-        rootStack.addArrangedSubview(closeRow)
-
-        view.addSubview(rootStack)
+        view.addSubview(headerStack)
+        view.addSubview(controlsStack)
+        view.addSubview(editorView)
+        view.addSubview(errorLabel)
+        view.addSubview(closeRow)
         view.addSubview(loadingIndicator)
 
         NSLayoutConstraint.activate([
-            rootStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            rootStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            rootStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
-            rootStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+
+            controlsStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            controlsStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            controlsStack.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 10),
+
+            closeRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            closeRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            closeRow.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16),
+            closeRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 28),
+
+            errorLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            errorLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            errorLabel.bottomAnchor.constraint(equalTo: closeRow.topAnchor, constant: -8),
+
+            editorView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            editorView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            editorView.topAnchor.constraint(equalTo: controlsStack.bottomAnchor, constant: 10),
+            editorView.bottomAnchor.constraint(equalTo: errorLabel.topAnchor, constant: -8),
             editorView.heightAnchor.constraint(greaterThanOrEqualToConstant: 360),
 
             loadingIndicator.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
@@ -330,7 +344,7 @@ final class AppKitCodeMirrorLogViewerViewController: NSViewController {
         super.viewDidLayout()
         let editorView = editorViewController.view
         EditorDebugLog.log(
-            "liveLog.viewDidLayout view=\(view.frame.debugDescription) rootStack=\(rootStack.frame.debugDescription) header=\(headerStack.frame.debugDescription) controls=\(controlsStack.frame.debugDescription) editor=\(editorView.frame.debugDescription) error=\(errorLabel.frame.debugDescription) closeRow=\(closeRow.frame.debugDescription)"
+            "liveLog.viewDidLayout view=\(view.frame.debugDescription) header=\(headerStack.frame.debugDescription) controls=\(controlsStack.frame.debugDescription) editor=\(editorView.frame.debugDescription) error=\(errorLabel.frame.debugDescription) closeRow=\(closeRow.frame.debugDescription)"
         )
     }
 
