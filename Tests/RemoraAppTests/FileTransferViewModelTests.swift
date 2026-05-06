@@ -711,7 +711,6 @@ struct FileTransferViewModelTests {
         let loaded = try await vm.loadTextDocument(path: "/README.txt")
         #expect(loaded.text.contains("Remora"))
         #expect(loaded.encoding == "UTF-8")
-        #expect(!loaded.isReadOnly)
 
         let modified = loaded.text + "\nupdated"
         let savedModifiedAt = try await vm.saveTextDocument(

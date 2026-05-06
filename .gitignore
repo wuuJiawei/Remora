@@ -5,6 +5,7 @@
 .build/
 .swiftpm/
 dist/
+WebEditor/node_modules/
 
 # Xcode
 DerivedData/

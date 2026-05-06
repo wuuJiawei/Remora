@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import SwiftUI
 import Testing
+import WebKit
 import RemoraCore
 @testable import RemoraApp
 
@@ -80,11 +81,11 @@ struct QuickCommandExecutionTests {
 
     @Test
     func quickCommandEditorUsesMultilineEditorInLightAndDarkAppearances() {
-        assertQuickCommandEditorUsesTextView(for: .aqua)
-        assertQuickCommandEditorUsesTextView(for: .darkAqua)
+        assertQuickCommandEditorUsesMultilineEditor(for: .aqua)
+        assertQuickCommandEditorUsesMultilineEditor(for: .darkAqua)
     }
 
-    private func assertQuickCommandEditorUsesTextView(for appearanceName: NSAppearance.Name) {
+    private func assertQuickCommandEditorUsesMultilineEditor(for appearanceName: NSAppearance.Name) {
         let host = Host(
             name: "prod-api",
             address: "127.0.0.1",
@@ -114,10 +115,10 @@ struct QuickCommandExecutionTests {
         hostingView.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
 
-        let textViews = recursiveSubviews(in: hostingView).compactMap { $0 as? NSTextView }
+        let webViews = recursiveSubviews(in: hostingView).compactMap { $0 as? WKWebView }
         #expect(
-            textViews.contains(where: { $0.isEditable && $0.string.contains("./deploy.sh") }),
-            "Quick command editor should render an editable multiline text view in \(appearanceName.rawValue)."
+            webViews.contains(where: { !$0.frame.isEmpty }),
+            "Quick command editor should render a multiline web editor in \(appearanceName.rawValue)."
         )
     }
 

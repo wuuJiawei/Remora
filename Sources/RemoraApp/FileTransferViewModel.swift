@@ -71,7 +71,6 @@ struct RemoteTextDocument: Sendable {
     var text: String
     var encoding: String
     var modifiedAt: Date?
-    var isReadOnly: Bool
 }
 
 struct RemoteTextDocumentLoadOptions: Sendable {
@@ -2247,8 +2246,7 @@ final class FileTransferViewModel: ObservableObject {
                     path: path,
                     text: utf8,
                     encoding: "UTF-8",
-                    modifiedAt: modifiedAt,
-                    isReadOnly: false
+                    modifiedAt: modifiedAt
                 )
             }
 
@@ -2257,8 +2255,7 @@ final class FileTransferViewModel: ObservableObject {
                     path: path,
                     text: latin1,
                     encoding: "ISO-8859-1",
-                    modifiedAt: modifiedAt,
-                    isReadOnly: false
+                    modifiedAt: modifiedAt
                 )
             }
 

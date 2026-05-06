@@ -112,11 +112,14 @@ struct RemoteLogViewerSheet: View {
             }
 
             ZStack(alignment: .topLeading) {
-                RemoteTextEditorRepresentable(
+                MirroredRemoraEditorView(
                     text: Binding(
                         get: { viewModel.text },
                         set: { _ in }
                     ),
+                    documentID: "remote-log:\(viewModel.path)",
+                    language: .plain,
+                    path: viewModel.path,
                     isEditable: false,
                     autoScrollToBottom: viewModel.isFollowing
                 )

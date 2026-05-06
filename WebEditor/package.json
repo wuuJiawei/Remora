@@ -1,0 +1,38 @@
+{
+  "name": "remora-web-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "latest",
+    "@codemirror/commands": "latest",
+    "@codemirror/lang-cpp": "latest",
+    "@codemirror/lang-css": "latest",
+    "@codemirror/lang-go": "latest",
+    "@codemirror/lang-html": "latest",
+    "@codemirror/lang-java": "latest",
+    "@codemirror/lang-javascript": "latest",
+    "@codemirror/lang-json": "latest",
+    "@codemirror/lang-markdown": "latest",
+    "@codemirror/lang-python": "latest",
+    "@codemirror/lang-rust": "latest",
+    "@codemirror/lang-sql": "latest",
+    "@codemirror/lang-xml": "latest",
+    "@codemirror/lang-yaml": "latest",
+    "@codemirror/language": "latest",
+    "@codemirror/legacy-modes": "latest",
+    "@codemirror/lint": "latest",
+    "@codemirror/search": "latest",
+    "@codemirror/state": "latest",
+    "@codemirror/view": "latest",
+    "codemirror": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "vite": "latest"
+  }
+}

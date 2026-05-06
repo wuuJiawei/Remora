@@ -1,0 +1,63 @@
+:root {
+  color-scheme: light dark;
+
+  --remora-bg: #ffffff;
+  --remora-fg: #1f2328;
+  --remora-caret: #111111;
+  --remora-gutter-bg: #f7f7f8;
+  --remora-gutter-fg: #6b7280;
+  --remora-border: rgba(0, 0, 0, 0.08);
+  --remora-search-bg: rgba(255, 210, 0, 0.28);
+  --remora-search-selected-bg: rgba(255, 160, 0, 0.45);
+  --remora-search-border: rgba(255, 160, 0, 0.8);
+}
+
+:root[data-theme="dark"] {
+  --remora-bg: #111111;
+  --remora-fg: #eeeeee;
+  --remora-caret: #ffffff;
+  --remora-gutter-bg: #171717;
+  --remora-gutter-fg: #8d95a1;
+  --remora-border: rgba(255, 255, 255, 0.1);
+  --remora-search-bg: rgba(255, 220, 80, 0.25);
+  --remora-search-selected-bg: rgba(255, 170, 50, 0.45);
+  --remora-search-border: rgba(255, 190, 80, 0.85);
+}
+
+html,
+body,
+#editor {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--remora-bg);
+  color: var(--remora-fg);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.cm-editor {
+  height: 100%;
+  background: var(--remora-bg);
+  color: var(--remora-fg);
+}
+
+.cm-editor.cm-focused .cm-cursor {
+  border-left: 2px solid var(--remora-caret) !important;
+}
+
+.cm-cursor {
+  border-left: 2px solid var(--remora-caret) !important;
+}
+
+.cm-cursorLayer {
+  z-index: 20;
+}
+
+.cm-scroller {
+  overflow: auto;
+}

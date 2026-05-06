@@ -16,12 +16,6 @@ struct FileManagerPanelView: View {
         var message: String
     }
 
-    private struct RemoteEditorTarget: Equatable {
-        var path: String
-        var size: Int64
-        var modifiedAt: Date
-    }
-
     private enum RemoteCreateKind {
         case file
         case directory
@@ -185,6 +179,8 @@ struct FileManagerPanelView: View {
     var onAddCurrentQuickPath: (String) -> Void = { _ in }
     var onRefreshRemote: () -> Void = {}
     var onEditDownloadPath: (() -> Void)?
+    @StateObject private var remoteEditorWindowManager: RemoteTextEditorWindowManager
+    @StateObject private var remoteLiveLogWindowManager: RemoteLiveLogWindowManager
 
     @State private var selectedRemotePaths: Set<String> = []
     @State private var hoveredRemotePath: String?
@@ -199,8 +195,6 @@ struct FileManagerPanelView: View {
     @State private var isRenameSheetPresented = false
     @State private var renameTargetPath: String?
     @State private var renameDraft = ""
-    @State private var editorTarget: RemoteEditorTarget?
-    @State private var logViewerTargetPath: String?
     @State private var propertiesTargetPath: String?
     @State private var permissionsEditorTargetPath: String?
     @State private var compressSourcePaths: [String] = []
@@ -228,6 +222,30 @@ struct FileManagerPanelView: View {
     @State private var remoteSearchDebounceTask: Task<Void, Never>?
     @State private var remoteListPresentation = RemoteListPresentationCache.empty
     @FocusState private var isRemoteSearchFieldFocused: Bool
+
+    init(
+        viewModel: FileTransferViewModel,
+        quickPaths: [HostQuickPath] = [],
+        onRunQuickPath: @escaping (HostQuickPath) -> Void = { _ in },
+        onManageQuickPaths: @escaping () -> Void = {},
+        onAddCurrentQuickPath: @escaping (String) -> Void = { _ in },
+        onRefreshRemote: @escaping () -> Void = {},
+        onEditDownloadPath: (() -> Void)? = nil
+    ) {
+        self.viewModel = viewModel
+        self.quickPaths = quickPaths
+        self.onRunQuickPath = onRunQuickPath
+        self.onManageQuickPaths = onManageQuickPaths
+        self.onAddCurrentQuickPath = onAddCurrentQuickPath
+        self.onRefreshRemote = onRefreshRemote
+        self.onEditDownloadPath = onEditDownloadPath
+        _remoteEditorWindowManager = StateObject(
+            wrappedValue: RemoteTextEditorWindowManager(fileTransfer: viewModel)
+        )
+        _remoteLiveLogWindowManager = StateObject(
+            wrappedValue: RemoteLiveLogWindowManager(fileTransfer: viewModel)
+        )
+    }
 
     private var selectedRemoteEntries: [RemoteFileEntry] {
         selectedRemotePaths.compactMap { remoteListPresentation.itemsByPath[$0]?.sourceEntry }
@@ -419,41 +437,6 @@ struct FileManagerPanelView: View {
         }
         .sheet(isPresented: $isCreateRemoteSheetPresented) {
             createRemoteSheet
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { editorTarget != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        editorTarget = nil
-                    }
-                }
-            )
-        ) {
-            if let editorTarget {
-                RemoteTextEditorSheet(
-                    path: editorTarget.path,
-                    loadOptions: RemoteTextDocumentLoadOptions(
-                        knownSize: editorTarget.size,
-                        knownModifiedAt: editorTarget.modifiedAt
-                    ),
-                    fileTransfer: viewModel
-                )
-            }
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { logViewerTargetPath != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        logViewerTargetPath = nil
-                    }
-                }
-            )
-        ) {
-            if let logViewerTargetPath {
-                RemoteLogViewerSheet(path: logViewerTargetPath, fileTransfer: viewModel)
-            }
         }
         .sheet(
             isPresented: Binding(
@@ -1713,7 +1696,7 @@ struct FileManagerPanelView: View {
            lastTappedRemotePath == item.path,
            now.timeIntervalSince(lastRemoteTapAt) < 0.32
         {
-            showOperationToast(tr("To edit this file, right-click it and choose Edit."))
+            beginEdit(item)
             lastTappedRemotePath = nil
             lastRemoteTapAt = .distantPast
             return
@@ -1751,38 +1734,18 @@ struct FileManagerPanelView: View {
     private func beginEdit(_ item: RemoteListRowItem) {
         guard !item.isDirectory else { return }
         let entry = remoteFileEntry(for: item)
-        if entry.size > Int64(FileTransferViewModel.maxInlineEditableTextDocumentBytes) {
-            presentLargeFileEditPrompt(for: entry)
-            return
-        }
-        editorTarget = RemoteEditorTarget(
+        remoteEditorWindowManager.present(
             path: entry.path,
-            size: entry.size,
-            modifiedAt: entry.modifiedAt
+            loadOptions: RemoteTextDocumentLoadOptions(
+                knownSize: entry.size,
+                knownModifiedAt: entry.modifiedAt
+            )
         )
     }
 
     private func beginViewLog(_ item: RemoteListRowItem) {
         guard !item.isDirectory else { return }
-        logViewerTargetPath = item.path
-    }
-
-    private func presentLargeFileEditPrompt(for entry: RemoteFileEntry) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = tr("Large file detected")
-        alert.informativeText = String(
-            format: tr("This file is too large for in-app editing (%@ > %@). Download it and open locally to avoid high memory usage."),
-            ByteSizeFormatter.format(entry.size),
-            ByteSizeFormatter.format(Int64(FileTransferViewModel.maxInlineEditableTextDocumentBytes))
-        )
-        alert.addButton(withTitle: tr("Download"))
-        alert.addButton(withTitle: tr("Cancel"))
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            viewModel.performContextAction(.download(paths: [entry.path]))
-            transferQueueOverlayState.expand()
-        }
+        remoteLiveLogWindowManager.present(path: item.path)
     }
 
     private func commitRename() {
