@@ -7,6 +7,56 @@ description: Remora 版本更新历史
 
 ## [Unreleased]
 
+## [v0.17.0] - 2026-05-06
+
+### English
+
+#### Added
+
+- Added a native CodeMirror-based remote text editor window with AppKit hosting, search support, save integration, and large-file mode handling.
+- Added direct file-opening from the remote file manager via double click and context-menu edit actions for regular files.
+- Added a dedicated AppKit live log viewer window with follow mode, incremental log appends, line-count controls, copy-only keyboard behavior, and independent window reuse per remote path.
+
+#### Changed
+
+- Switched remote file editing from the previous text-editor implementation to a WKWebView + CodeMirror bridge that keeps live editor state inside CodeMirror while Swift owns metadata and persistence.
+- Reworked large remote text-file handling into tiered modes: standard editing for smaller files, degraded plain-text editing for medium files, read-only preview for larger files, and explicit refusal beyond the preview threshold.
+- Refined remote editor and live-log window behavior around focus, clipboard routing, loading/saving feedback, and localized window-title/status text.
+
+#### Fixed
+
+- Fixed repeated remote-editor document application, clipboard shortcuts, and focus routing issues that previously caused unreliable editing commands or missing caret state.
+- Fixed the live log viewer window workflow so repeated opens reuse the same window and the window layout is hosted independently from SwiftUI sheet state.
+- Fixed remote file double-click behavior so regular files open directly in the editor instead of falling back to download-only prompts below the new preview threshold.
+
+#### Documentation
+
+- Updated release-facing docs and changelog content to reflect the new remote editor, live log viewer, and large-file behavior.
+
+### 中文
+
+#### 新增
+
+- 新增基于 CodeMirror 的原生远程文本编辑器窗口，使用 AppKit 承载，支持搜索、保存集成以及大文件模式处理。
+- 新增远程文件管理器中的直接打开能力：普通文件支持双击打开编辑器，也可通过右键菜单选择“编辑”。
+- 新增独立的 AppKit 实时日志查看窗口，支持 Follow 模式、增量日志追加、行数控制、仅复制的键盘行为，以及按远程路径复用窗口。
+
+#### 变更
+
+- 将远程文件编辑从旧文本编辑实现切换为 WKWebView + CodeMirror 桥接架构，实时编辑状态由 CodeMirror 持有，Swift 仅负责元数据与持久化。
+- 将远程文本大文件处理重构为分层模式：小文件标准编辑，中等文件降级为 plain text 可编辑，更大文件只读预览，超过预览上限则明确拒绝打开。
+- 优化了远程编辑器和实时日志窗口的焦点、剪贴板路由、加载/保存反馈，以及窗口标题/状态文案的本地化表现。
+
+#### 修复
+
+- 修复了远程编辑器重复 `setDocument`、剪贴板快捷键和焦点路由问题，解决了编辑命令不稳定或光标状态异常的问题。
+- 修复了实时日志查看器窗口流程，现在重复打开同一路径会复用已有窗口，并且窗口内容不再依赖 SwiftUI sheet 状态。
+- 修复了远程文件双击行为，普通文件在新的预览阈值内会直接进入编辑器，而不是错误地提示只能下载。
+
+#### 文档
+
+- 更新了面向发布的文档与更新日志内容，使其与新的远程编辑器、实时日志窗口和大文件策略保持一致。
+
 ## [v0.16.0] - 2026-04-29
 
 ### English
