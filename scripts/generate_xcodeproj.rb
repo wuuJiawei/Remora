@@ -160,8 +160,16 @@ localizable_group.new_file('en.lproj/Localizable.strings')
 localizable_group.new_file('zh-Hans.lproj/Localizable.strings')
 app_target.resources_build_phase.add_file_reference(localizable_group, true)
 
+update_checker_group = app_resources_group.new_variant_group('UpdateChecker.strings')
+update_checker_group.new_file('en.lproj/UpdateChecker.strings')
+update_checker_group.new_file('zh-Hans.lproj/UpdateChecker.strings')
+app_target.resources_build_phase.add_file_reference(update_checker_group, true)
+
 asset_catalog_ref = resources_group.new_file('Assets.xcassets')
 app_target.resources_build_phase.add_file_reference(asset_catalog_ref, true)
+
+web_editor_ref = app_resources_group.new_file('WebEditor')
+app_target.resources_build_phase.add_file_reference(web_editor_ref, true)
 
 scheme = Xcodeproj::XCScheme.new
 scheme.configure_with_targets(app_target, nil, launch_target: true)
