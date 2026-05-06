@@ -112,21 +112,36 @@ final class RemoteLiveLogWindowController: NSWindowController, NSWindowDelegate 
         self.viewController = AppKitCodeMirrorLogViewerViewController()
         self.onClose = onClose
 
+        let contentView = NSView(frame: NSRect(origin: .zero, size: Self.defaultContentSize))
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.defaultContentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.contentViewController = viewController
-        viewController.preferredContentSize = Self.defaultContentSize
+        window.contentView = contentView
         window.contentMinSize = Self.minimumContentSize
-        window.minSize = Self.minimumContentSize
+        window.minSize = NSSize(
+            width: Self.minimumContentSize.width,
+            height: Self.minimumContentSize.height + 32
+        )
         window.isReleasedWhenClosed = false
         window.tabbingMode = .preferred
         window.title = tr("Live View")
 
         super.init(window: window)
+        let childView = viewController.view
+        childView.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(childView)
+        NSLayoutConstraint.activate([
+            childView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            childView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            childView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            childView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+
+            contentView.widthAnchor.constraint(greaterThanOrEqualToConstant: Self.minimumContentSize.width),
+            contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: Self.minimumContentSize.height),
+        ])
         window.setContentSize(Self.defaultContentSize)
         window.delegate = self
         logWindowGeometry(context: "init")
@@ -274,21 +289,28 @@ final class AppKitCodeMirrorLogViewerViewController: NSViewController {
         loadingIndicator.style = .spinning
         loadingIndicator.controlSize = .small
         loadingIndicator.isDisplayedWhenStopped = false
+        loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
 
         errorLabel.textColor = .systemRed
         errorLabel.isHidden = true
         errorLabel.lineBreakMode = .byWordWrapping
         errorLabel.maximumNumberOfLines = 0
+        errorLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        pathLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        pathLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         headerStack.setViews([titleLabel, pathLabel, downloadButton, copyPathButton, readOnlyLabel], in: .leading)
         headerStack.orientation = .horizontal
         headerStack.alignment = .centerY
         headerStack.spacing = 8
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
 
         controlsStack.setViews([followToggle, linesLabel, lineCountField, applyButton, refreshButton], in: .leading)
         controlsStack.orientation = .horizontal
         controlsStack.alignment = .centerY
         controlsStack.spacing = 8
+        controlsStack.translatesAutoresizingMaskIntoConstraints = false
 
         addChild(editorViewController)
         let editorView = editorViewController.view
