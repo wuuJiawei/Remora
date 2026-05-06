@@ -262,16 +262,23 @@ final class AppKitCodeMirrorLogViewerViewController: NSViewController {
         addChild(editorViewController)
         let editorView = editorViewController.view
         editorView.translatesAutoresizingMaskIntoConstraints = false
+        editorView.setContentHuggingPriority(.defaultLow, for: .vertical)
+        editorView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
 
         let spacer = NSView()
         let closeRow = NSStackView(views: [spacer, closeButton])
         closeRow.orientation = .horizontal
         closeRow.alignment = .centerY
 
-        let rootStack = NSStackView(views: [headerStack, controlsStack, editorView, errorLabel, closeRow])
+        let rootStack = NSStackView()
         rootStack.orientation = .vertical
         rootStack.spacing = 10
         rootStack.translatesAutoresizingMaskIntoConstraints = false
+        rootStack.addArrangedSubview(headerStack)
+        rootStack.addArrangedSubview(controlsStack)
+        rootStack.addArrangedSubview(editorView)
+        rootStack.addArrangedSubview(errorLabel)
+        rootStack.addArrangedSubview(closeRow)
 
         view.addSubview(rootStack)
         view.addSubview(loadingIndicator)
