@@ -1164,6 +1164,9 @@ struct FileManagerPanelView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("file-manager-transfer-collapsed")
+        .background(
+            ViewScreenAnchorBridge(key: ViewScreenAnchorRegistry.transferQueueTarget)
+        )
     }
 
     private var transferQueueExpandedPanel: some View {
@@ -1230,6 +1233,9 @@ struct FileManagerPanelView: View {
             ProgressView(value: transferQueueSummary.progress)
                 .progressViewStyle(.linear)
                 .controlSize(.small)
+                .background(
+                    ViewScreenAnchorBridge(key: ViewScreenAnchorRegistry.transferQueueTarget)
+                )
 
             if viewModel.transferQueue.isEmpty {
                 Text(tr("No transfer tasks"))

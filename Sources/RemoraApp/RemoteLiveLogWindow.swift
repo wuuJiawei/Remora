@@ -221,6 +221,7 @@ final class RemoteLiveLogWindowController: NSWindowController, NSWindowDelegate 
 @MainActor
 final class AppKitCodeMirrorLogViewerViewController: NSViewController {
     private static let preferredViewerSize = NSSize(width: 1000, height: 720)
+    private static let downloadFallbackMargin: CGFloat = 32
     private let editorViewController = AppKitCodeMirrorEditorViewController(
         interactionMode: .logViewer,
         descriptor: EditorDocumentDescriptor(
@@ -244,6 +245,7 @@ final class AppKitCodeMirrorLogViewerViewController: NSViewController {
     var onCopyPath: (() -> Void)?
     var onClose: (() -> Void)?
 
+    private let downloadButton = NSButton(title: tr("Download File"), target: nil, action: nil)
     private let pathLabel = NSTextField(labelWithString: "")
     private let followToggle = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let lineCountField = NSTextField(string: "")
@@ -268,7 +270,8 @@ final class AppKitCodeMirrorLogViewerViewController: NSViewController {
         pathLabel.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
         pathLabel.textColor = .secondaryLabelColor
 
-        let downloadButton = NSButton(title: tr("Download File"), target: self, action: #selector(handleDownload))
+        downloadButton.target = self
+        downloadButton.action = #selector(handleDownload)
         let copyPathButton = NSButton(title: tr("Copy Path"), target: self, action: #selector(handleCopyPath))
         let readOnlyLabel = NSTextField(labelWithString: tr("Read-only"))
         readOnlyLabel.textColor = .secondaryLabelColor
@@ -419,9 +422,38 @@ final class AppKitCodeMirrorLogViewerViewController: NSViewController {
     @objc private func handleRefresh() { onRefresh?() }
     @objc private func handleApply() { onApplyLineCount?(Int(lineCountField.stringValue) ?? FileTransferViewModel.defaultRemoteLogTailLineCount) }
     @objc private func handleToggleFollow() { onToggleFollow?(followToggle.state == .on) }
-    @objc private func handleDownload() { onDownload?() }
+    @objc private func handleDownload() {
+        let targetView = ViewScreenAnchorRegistry.view(for: ViewScreenAnchorRegistry.transferQueueTarget)
+        let fallbackPoint = fallbackTransferTargetScreenPoint()
+        let image = NSImage(
+            systemSymbolName: "arrow.down.circle.fill",
+            accessibilityDescription: tr("Download File")
+        ) ?? NSImage()
+
+        CrossWindowFlyAnimator.animate(
+            image: image,
+            from: downloadButton,
+            to: targetView,
+            fallbackTargetScreenPoint: fallbackPoint
+        )
+        onDownload?()
+    }
     @objc private func handleCopyPath() { onCopyPath?() }
     @objc private func handleClose() { onClose?() }
+
+    private func fallbackTransferTargetScreenPoint() -> CGPoint? {
+        let anchorWindow = ViewScreenAnchorRegistry.view(for: ViewScreenAnchorRegistry.transferQueueTarget)?.window
+            ?? NSApp.mainWindow
+            ?? NSApp.keyWindow
+            ?? NSApp.windows.first(where: { $0.isVisible })
+        guard let anchorWindow else { return nil }
+
+        let frame = anchorWindow.frame
+        return CGPoint(
+            x: frame.maxX - Self.downloadFallbackMargin,
+            y: frame.minY + Self.downloadFallbackMargin
+        )
+    }
 }
 
 @MainActor
