@@ -192,4 +192,22 @@ struct AppSettingsTests {
         #expect(UpdateChecker.normalizedReleaseNotes("   \n\t  ") == nil)
         #expect(UpdateChecker.normalizedReleaseNotes(nil) == nil)
     }
+
+    @Test
+    func updateDownloadActionOpensDiskImages() {
+        let diskImage = GitHubReleaseAsset(
+            name: "Remora-1.0.0-macos-arm64.dmg",
+            downloadURL: URL(string: "https://example.com/remora.dmg")!
+        )
+        let archive = GitHubReleaseAsset(
+            name: "Remora-1.0.0-macos-arm64.zip",
+            downloadURL: URL(string: "https://example.com/remora.zip")!
+        )
+
+        #expect(!UpdateChecker.primaryActionTitle(for: diskImage).isEmpty)
+        #expect(!UpdateChecker.primaryActionTitle(for: archive).isEmpty)
+        #expect(UpdateChecker.primaryActionTitle(for: diskImage) != UpdateChecker.primaryActionTitle(for: archive))
+        #expect(UpdateChecker.downloadAssetMessage(for: diskImage).contains(diskImage.name))
+        #expect(UpdateChecker.downloadAssetMessage(for: archive).contains(archive.name))
+    }
 }

@@ -95,9 +95,8 @@ final class UpdateChecker: ObservableObject {
             alert.informativeText = updateAvailableMessage(for: release, currentVersion: currentVersion)
             alert.accessoryView = makeReleaseNotesView(for: release)
 
-            if release.downloadAsset != nil {
-                alert.addButton(withTitle: tr("Download Update"))
-                alert.addButton(withTitle: tr("View Release"))
+            if let asset = release.downloadAsset {
+                alert.addButton(withTitle: Self.primaryActionTitle(for: asset))
                 alert.addButton(withTitle: tr("Later"))
             } else {
                 alert.addButton(withTitle: tr("View Release"))
@@ -109,8 +108,6 @@ final class UpdateChecker: ObservableObject {
                 switch response {
                 case .alertFirstButtonReturn:
                     Task { await downloadReleaseAsset(asset, release: release) }
-                case .alertSecondButtonReturn:
-                    openURL(release.releaseURL)
                 default:
                     break
                 }
@@ -147,17 +144,14 @@ final class UpdateChecker: ObservableObject {
 
     private func updateAvailableMessage(for release: GitHubRelease, currentVersion: String) -> String {
         var message = String(
-            format: tr("Remora %@ is available on GitHub Releases. You are currently using %@."),
+            format: tr("Remora %@ is available. You are currently using %@."),
             release.version,
             currentVersion
         )
 
         if let asset = release.downloadAsset {
             message += "\n\n"
-            message += String(
-                format: tr("Remora can download %@ directly to your download directory."),
-                asset.name
-            )
+            message += Self.downloadAssetMessage(for: asset)
         } else {
             message += "\n\n"
             message += tr("No compatible macOS download asset was found for this Mac. You can still view the release manually.")
@@ -171,24 +165,41 @@ final class UpdateChecker: ObservableObject {
         isDownloading = true
         defer { isDownloading = false }
 
+        let progressWindow = UpdateDownloadProgressWindowController(asset: asset, release: release)
+        progressWindow.showWindow(nil)
+        progressWindow.window?.makeKeyAndOrderFront(nil)
+
         do {
-            let destinationURL = try await download(asset: asset)
-            presentDownloadCompleteAlert(destinationURL: destinationURL, release: release)
+            let destinationURL = try await download(asset: asset) { progress in
+                progressWindow.update(progress)
+            }
+            progressWindow.close()
+            let didOpen = openDownloadedUpdate(destinationURL)
+            presentDownloadCompleteAlert(destinationURL: destinationURL, release: release, didOpen: didOpen)
         } catch {
+            progressWindow.close()
             presentDownloadFailedAlert(error: error, release: release)
         }
     }
 
-    private func download(asset: GitHubReleaseAsset) async throws -> URL {
+    private func download(
+        asset: GitHubReleaseAsset,
+        progressHandler: @escaping @MainActor (UpdateDownloadProgress) -> Void
+    ) async throws -> URL {
         var request = URLRequest(url: asset.downloadURL)
         request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
         request.setValue("Remora/\(Self.currentVersion(from: bundle))", forHTTPHeaderField: "User-Agent")
 
-        let (temporaryURL, response) = try await session.download(for: request)
+        progressHandler(.initial)
+
+        let operation = UpdateDownloadOperation(request: request, progressHandler: progressHandler)
+        let (temporaryURL, response) = try await operation.start()
         guard let httpResponse = response as? HTTPURLResponse else {
+            try? FileManager.default.removeItem(at: temporaryURL)
             throw UpdateCheckError.invalidResponse
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
+            try? FileManager.default.removeItem(at: temporaryURL)
             throw UpdateCheckError.httpStatus(httpResponse.statusCode)
         }
 
@@ -208,21 +219,40 @@ final class UpdateChecker: ObservableObject {
         return destinationURL
     }
 
-    private func presentDownloadCompleteAlert(destinationURL: URL, release: GitHubRelease) {
+    private func presentDownloadCompleteAlert(destinationURL: URL, release: GitHubRelease, didOpen: Bool) {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = tr("Update downloaded")
-        alert.informativeText = String(
-            format: tr("Remora %@ was downloaded to:\n%@"),
-            release.version,
-            destinationURL.path
-        )
+        if didOpen {
+            alert.informativeText = String(
+                format: tr("Remora %@ was downloaded and opened. Follow the system prompts to finish updating.\n\n%@"),
+                release.version,
+                destinationURL.path
+            )
+        } else {
+            alert.informativeText = String(
+                format: tr("Remora %@ was downloaded, but macOS could not open it automatically.\n\n%@"),
+                release.version,
+                destinationURL.path
+            )
+        }
         alert.addButton(withTitle: tr("Reveal in Finder"))
         alert.addButton(withTitle: tr("OK"))
 
-        if alert.runModal() == .alertFirstButtonReturn {
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
             NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
         }
+    }
+
+    @discardableResult
+    private func openDownloadedUpdate(_ destinationURL: URL) -> Bool {
+        if NSWorkspace.shared.open(destinationURL) {
+            return true
+        }
+
+        NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
+        return false
     }
 
     private func presentDownloadFailedAlert(error: Error, release: GitHubRelease) {
@@ -347,6 +377,37 @@ final class UpdateChecker: ObservableObject {
         return candidates.first
     }
 
+    nonisolated static func primaryActionTitle(for asset: GitHubReleaseAsset) -> String {
+        if asset.name.lowercased().hasSuffix(".dmg") {
+            return L10n.tr("Download and Open", fallback: "Download and Open", table: "UpdateChecker")
+        }
+
+        return L10n.tr("Download Update", fallback: "Download Update", table: "UpdateChecker")
+    }
+
+    nonisolated static func downloadAssetMessage(for asset: GitHubReleaseAsset) -> String {
+        let lowercasedName = asset.name.lowercased()
+        if lowercasedName.hasSuffix(".dmg") {
+            return String(
+                format: L10n.tr(
+                    "Remora will download %@ and open the disk image when it finishes.",
+                    fallback: "Remora will download %@ and open the disk image when it finishes.",
+                    table: "UpdateChecker"
+                ),
+                asset.name
+            )
+        }
+
+        return String(
+            format: L10n.tr(
+                "Remora will download %@ to your download directory and open it when it finishes.",
+                fallback: "Remora will download %@ to your download directory and open it when it finishes.",
+                table: "UpdateChecker"
+            ),
+            asset.name
+        )
+    }
+
     nonisolated static func availableDestinationURL(
         forFileNamed fileName: String,
         in directoryURL: URL,
@@ -405,6 +466,206 @@ struct GitHubRelease: Equatable {
 struct GitHubReleaseAsset: Equatable {
     let name: String
     let downloadURL: URL
+}
+
+struct UpdateDownloadProgress: Equatable {
+    let bytesWritten: Int64
+    let totalBytesExpected: Int64?
+
+    static let initial = UpdateDownloadProgress(bytesWritten: 0, totalBytesExpected: nil)
+
+    var fractionCompleted: Double? {
+        guard let totalBytesExpected, totalBytesExpected > 0 else { return nil }
+        return min(max(Double(bytesWritten) / Double(totalBytesExpected), 0), 1)
+    }
+}
+
+private final class UpdateDownloadOperation: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let request: URLRequest
+    private let progressHandler: @MainActor (UpdateDownloadProgress) -> Void
+    private var continuation: CheckedContinuation<(URL, URLResponse), Error>?
+    private var task: URLSessionDownloadTask?
+    private var session: URLSession?
+
+    init(
+        request: URLRequest,
+        progressHandler: @escaping @MainActor (UpdateDownloadProgress) -> Void
+    ) {
+        self.request = request
+        self.progressHandler = progressHandler
+    }
+
+    func start() async throws -> (URL, URLResponse) {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                let configuration = URLSessionConfiguration.default
+                let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+                self.session = session
+                let task = session.downloadTask(with: request)
+                self.task = task
+                task.resume()
+            }
+        } onCancel: {
+            task?.cancel()
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        let total = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : nil
+        let progress = UpdateDownloadProgress(bytesWritten: totalBytesWritten, totalBytesExpected: total)
+        Task { @MainActor [progressHandler] in
+            progressHandler(progress)
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        guard let response = downloadTask.response else {
+            finish(.failure(UpdateCheckError.invalidResponse))
+            return
+        }
+
+        do {
+            let temporaryURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("remora-update-\(UUID().uuidString)", isDirectory: false)
+            try FileManager.default.moveItem(at: location, to: temporaryURL)
+            finish(.success((temporaryURL, response)))
+        } catch {
+            finish(.failure(error))
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        if let error {
+            finish(.failure(error))
+        }
+    }
+
+    private func finish(_ result: Result<(URL, URLResponse), Error>) {
+        guard let continuation else { return }
+        self.continuation = nil
+        task = nil
+        session?.finishTasksAndInvalidate()
+        session = nil
+
+        switch result {
+        case let .success(value):
+            continuation.resume(returning: value)
+        case let .failure(error):
+            continuation.resume(throwing: error)
+        }
+    }
+}
+
+@MainActor
+private final class UpdateDownloadProgressWindowController: NSWindowController {
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let detailLabel = NSTextField(labelWithString: "")
+    private let progressIndicator = NSProgressIndicator()
+
+    init(asset: GitHubReleaseAsset, release: GitHubRelease) {
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 116))
+        let window = NSWindow(
+            contentRect: contentView.frame,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = L10n.tr("Downloading Update", fallback: "Downloading Update", table: "UpdateChecker")
+        window.contentView = contentView
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+
+        super.init(window: window)
+
+        titleLabel.stringValue = String(
+            format: L10n.tr("Downloading Remora %@", fallback: "Downloading Remora %@", table: "UpdateChecker"),
+            release.version
+        )
+        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        detailLabel.stringValue = asset.name
+        detailLabel.font = .systemFont(ofSize: 12)
+        detailLabel.textColor = .secondaryLabelColor
+        detailLabel.lineBreakMode = .byTruncatingMiddle
+        detailLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        progressIndicator.isIndeterminate = true
+        progressIndicator.style = .bar
+        progressIndicator.minValue = 0
+        progressIndicator.maxValue = 1
+        progressIndicator.usesThreadedAnimation = true
+        progressIndicator.translatesAutoresizingMaskIntoConstraints = false
+        progressIndicator.startAnimation(nil)
+
+        contentView.addSubview(titleLabel)
+        contentView.addSubview(detailLabel)
+        contentView.addSubview(progressIndicator)
+
+        NSLayoutConstraint.activate([
+            titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
+
+            detailLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            detailLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+            detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+
+            progressIndicator.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            progressIndicator.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+            progressIndicator.topAnchor.constraint(equalTo: detailLabel.bottomAnchor, constant: 14),
+            progressIndicator.heightAnchor.constraint(equalToConstant: 14),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(_ progress: UpdateDownloadProgress) {
+        if let fraction = progress.fractionCompleted {
+            progressIndicator.stopAnimation(nil)
+            progressIndicator.isIndeterminate = false
+            progressIndicator.doubleValue = fraction
+            detailLabel.stringValue = String(
+                format: L10n.tr(
+                    "%@ of %@ downloaded",
+                    fallback: "%@ of %@ downloaded",
+                    table: "UpdateChecker"
+                ),
+                ByteCountFormatter.string(fromByteCount: progress.bytesWritten, countStyle: .file),
+                ByteCountFormatter.string(fromByteCount: progress.totalBytesExpected ?? progress.bytesWritten, countStyle: .file)
+            )
+        } else {
+            progressIndicator.isIndeterminate = true
+            progressIndicator.startAnimation(nil)
+            detailLabel.stringValue = String(
+                format: L10n.tr(
+                    "%@ downloaded",
+                    fallback: "%@ downloaded",
+                    table: "UpdateChecker"
+                ),
+                ByteCountFormatter.string(fromByteCount: progress.bytesWritten, countStyle: .file)
+            )
+        }
+    }
 }
 
 private struct GitHubLatestReleasePayload: Decodable {
