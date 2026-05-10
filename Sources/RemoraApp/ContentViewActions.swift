@@ -730,6 +730,10 @@ extension ContentView {
         hostCatalog.markConnected(hostID: host.id)
     }
 
+    func runExtensionScript(_ script: ExtensionScript, host: RemoraCore.Host?) {
+        extensionScriptRunner.prepare(script: script, host: host)
+    }
+
     func disconnectSession(_ tabID: UUID) {
         workspace.selectTab(tabID)
         workspace.disconnectActivePane()
@@ -793,6 +797,13 @@ extension ContentView {
         openWindow(id: "settings")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             NotificationCenter.default.post(name: .remoraOpenDownloadDirectorySetting, object: nil)
+        }
+    }
+
+    func openSettingsAndFocusExtensionScripts() {
+        openWindow(id: "settings")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            NotificationCenter.default.post(name: .remoraOpenExtensionScriptSettings, object: nil)
         }
     }
 

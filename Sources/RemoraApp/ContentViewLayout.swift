@@ -161,6 +161,19 @@ extension ContentView {
                 importProgressSheet
                     .interactiveDismissDisabled(isImportingHosts)
             }
+            .sheet(
+                isPresented: Binding(
+                    get: { extensionScriptRunner.isPresented },
+                    set: { isPresented in
+                        if !isPresented {
+                            extensionScriptRunner.dismiss()
+                        }
+                    }
+                )
+            ) {
+                ExtensionScriptRunSheet(viewModel: extensionScriptRunner)
+                    .interactiveDismissDisabled(extensionScriptRunner.isRunning)
+            }
     }
 
     var sidebarContent: some View {
@@ -301,6 +314,13 @@ extension ContentView {
                         onManageQuickCommands: {
                             beginManageQuickCommands(for: host.id)
                         },
+                        extensionScripts: extensionScriptStore.scripts(for: host.id),
+                        onRunExtensionScript: { script in
+                            runExtensionScript(script, host: host)
+                        },
+                        onManageExtensionScripts: {
+                            openSettingsAndFocusExtensionScripts()
+                        },
                         onDelete: {
                             requestHostDeletion(host.id)
                         }
@@ -425,6 +445,15 @@ extension ContentView {
             },
             onManageQuickCommands: { hostID in
                 beginManageQuickCommands(for: hostID)
+            },
+            extensionScriptsForHost: { hostID in
+                extensionScriptStore.scripts(for: hostID)
+            },
+            onRunExtensionScript: { script, host in
+                runExtensionScript(script, host: host)
+            },
+            onManageExtensionScripts: {
+                openSettingsAndFocusExtensionScripts()
             },
             onDeleteThread: { hostID in
                 requestHostDeletion(hostID)

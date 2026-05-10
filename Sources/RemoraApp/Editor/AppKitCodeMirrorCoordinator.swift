@@ -11,6 +11,7 @@ final class AppKitCodeMirrorCoordinator: NSObject, WKScriptMessageHandler, WKNav
     var parentInitialContent: EditorInitialContent
     var parentSaveRequestID: Int
     var parentSavedRevision: Int?
+    var parentTextInsertion: EditorTextInsertion?
     var parentAutoScrollToBottom: Bool
 
     var onReady: (() -> Void)?
@@ -28,6 +29,7 @@ final class AppKitCodeMirrorCoordinator: NSObject, WKScriptMessageHandler, WKNav
     private var lastAppliedContentVersion: Int?
     private var lastAppliedTheme: EditorTheme?
     private var lastProcessedSaveRequestID = 0
+    private var lastProcessedTextInsertionID = 0
     private var lastMarkedSavedRevision: Int?
     private var isFetchingText = false
     private var pendingChangeFetch = false
@@ -38,12 +40,14 @@ final class AppKitCodeMirrorCoordinator: NSObject, WKScriptMessageHandler, WKNav
         initialContent: EditorInitialContent,
         saveRequestID: Int,
         savedRevision: Int?,
+        textInsertion: EditorTextInsertion?,
         autoScrollToBottom: Bool
     ) {
         self.parentDescriptor = descriptor
         self.parentInitialContent = initialContent
         self.parentSaveRequestID = saveRequestID
         self.parentSavedRevision = savedRevision
+        self.parentTextInsertion = textInsertion
         self.parentAutoScrollToBottom = autoScrollToBottom
     }
 
@@ -100,6 +104,7 @@ final class AppKitCodeMirrorCoordinator: NSObject, WKScriptMessageHandler, WKNav
         }
 
         applyThemeIfNeeded()
+        processTextInsertionIfNeeded(parentTextInsertion)
         processSaveRequestIfNeeded(parentSaveRequestID)
         applySavedRevisionIfNeeded(parentSavedRevision)
     }
@@ -202,6 +207,13 @@ final class AppKitCodeMirrorCoordinator: NSObject, WKScriptMessageHandler, WKNav
         guard saveRequestID != lastProcessedSaveRequestID else { return }
         lastProcessedSaveRequestID = saveRequestID
         call("window.RemoraEditor.requestSave")
+    }
+
+    private func processTextInsertionIfNeeded(_ insertion: EditorTextInsertion?) {
+        guard let insertion else { return }
+        guard insertion.id != lastProcessedTextInsertionID else { return }
+        lastProcessedTextInsertionID = insertion.id
+        call("window.RemoraEditor.insertText", argument: insertion.text)
     }
 
     private func applySavedRevisionIfNeeded(_ savedRevision: Int?) {

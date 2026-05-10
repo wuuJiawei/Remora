@@ -33,6 +33,13 @@ final class AppKitCodeMirrorEditorViewController: NSViewController {
         }
     }
 
+    var textInsertion: EditorTextInsertion? {
+        didSet {
+            coordinator.parentTextInsertion = textInsertion
+            applyStateIfReady()
+        }
+    }
+
     var autoScrollToBottom = false {
         didSet {
             coordinator.parentAutoScrollToBottom = autoScrollToBottom
@@ -51,6 +58,7 @@ final class AppKitCodeMirrorEditorViewController: NSViewController {
         initialContent: initialContent,
         saveRequestID: saveRequestID,
         savedRevision: savedRevision,
+        textInsertion: nil,
         autoScrollToBottom: autoScrollToBottom
     )
 

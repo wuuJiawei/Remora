@@ -576,7 +576,6 @@
 "SSH Password" = "SSH 密码";
 "Enter password" = "请输入密码";
 
-<<<<<<< HEAD
 /* ZMODEM */
 "ZMODEM Download" = "ZMODEM 下载";
 "Save" = "保存";
@@ -594,3 +593,56 @@
 
 /* Clone Session */
 "Clone Session" = "克隆会话";
+
+/* Extension Scripts */
+"Extension Scripts" = "拓展脚本";
+"New Script" = "新建脚本";
+"No scripts yet" = "还没有脚本";
+"Create a script to run local automation from Remora." = "创建脚本后，可从 Remora 运行本地自动化。";
+"Untitled Script" = "未命名脚本";
+"Script name" = "脚本名称";
+"Enabled" = "启用";
+"Language" = "语言";
+"Scope" = "作用域";
+"Global" = "全局";
+"Host" = "主机";
+"Timeout" = "超时";
+"%d sec" = "%d 秒";
+"Confirm before running" = "运行前确认";
+"Built-in Variables" = "内置变量";
+"Variables are injected as environment variables when a script runs from a host context. Passwords, tokens, and private key contents are not injected." = "从主机上下文运行脚本时，Remora 会以环境变量注入这些值。密码、token 和私钥内容不会被注入。";
+"Insert" = "插入";
+"Stable host identifier." = "稳定的主机标识。";
+"Host display name in Remora." = "Remora 中的主机显示名称。";
+"SSH host name or IP address." = "SSH 主机名或 IP 地址。";
+"SSH port, usually 22." = "SSH 端口，通常为 22。";
+"SSH username." = "SSH 用户名。";
+"Authentication method, such as password, key, or agent." = "认证方式，例如 password、key 或 agent。";
+"Private key file path when key authentication is configured." = "配置密钥认证时的私钥文件路径。";
+"Local download directory configured in Remora." = "Remora 中配置的本地下载目录。";
+"Path to a temporary JSON file with the full safe run context." = "临时 JSON 文件路径，包含完整的安全运行上下文。";
+"Example" = "示例";
+"Script name and body are required." = "脚本名称和内容不能为空。";
+"Duplicate" = "复制";
+"Run" = "运行";
+"Shell" = "Shell";
+"%@ Copy" = "%@ 副本";
+"Run Extension Script" = "运行拓展脚本";
+"Add Extension Script…" = "新增拓展脚本…";
+"No scripts configured" = "未配置脚本";
+"Manage Extension Scripts…" = "管理拓展脚本…";
+"Extension Script" = "拓展脚本";
+"This script runs locally on your Mac and can access files and network resources available to your user account. Only run scripts you trust." = "该脚本会在你的 Mac 本地运行，并可访问当前用户可用的文件和网络资源。请只运行你信任的脚本。";
+"Host: %@" = "主机：%@";
+"Global or local context" = "全局或本地上下文";
+"Exit Code" = "退出码";
+"N/A" = "无";
+"Duration: %.2fs" = "耗时：%.2f 秒";
+"stdout" = "标准输出";
+"stderr" = "标准错误";
+"No output" = "无输出";
+"Success" = "成功";
+"Failed" = "失败";
+"Timed Out" = "已超时";
+"Cancelled" = "已取消";
+"Interpreter Missing" = "缺少解释器";

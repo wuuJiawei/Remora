@@ -16,6 +16,7 @@ final class RemoraEditorCoordinator: NSObject, WKScriptMessageHandler, WKNavigat
     private var lastAppliedContentVersion: Int?
     private var lastAppliedTheme: EditorTheme?
     private var lastProcessedSaveRequestID = 0
+    private var lastProcessedTextInsertionID = 0
     private var lastMarkedSavedRevision: Int?
     private var isFetchingText = false
     private var pendingChangeFetch = false
@@ -78,6 +79,7 @@ final class RemoraEditorCoordinator: NSObject, WKScriptMessageHandler, WKNavigat
         }
 
         applyThemeIfNeeded()
+        processTextInsertionIfNeeded(parent.textInsertion)
         processSaveRequestIfNeeded(parent.saveRequestID)
         applySavedRevisionIfNeeded(parent.savedRevision)
     }
@@ -181,6 +183,14 @@ final class RemoraEditorCoordinator: NSObject, WKScriptMessageHandler, WKNavigat
         lastProcessedSaveRequestID = saveRequestID
         EditorDebugLog.log("requestSave saveRequestID=\(saveRequestID)")
         call("window.RemoraEditor.requestSave")
+    }
+
+    private func processTextInsertionIfNeeded(_ insertion: EditorTextInsertion?) {
+        guard let insertion else { return }
+        guard insertion.id != lastProcessedTextInsertionID else { return }
+        lastProcessedTextInsertionID = insertion.id
+        EditorDebugLog.log("insertText insertionID=\(insertion.id) chars=\(insertion.text.count)")
+        call("window.RemoraEditor.insertText", argument: insertion.text)
     }
 
     private func applySavedRevisionIfNeeded(_ savedRevision: Int?) {

@@ -3,6 +3,7 @@ import SwiftUI
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
     case general
+    case extensionScripts
     case ai
     case shortcuts
     case advanced
@@ -13,6 +14,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return "General"
+        case .extensionScripts:
+            return "Extension Scripts"
         case .ai:
             return "AI"
         case .shortcuts:
@@ -26,6 +29,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return "gearshape"
+        case .extensionScripts:
+            return "scroll"
         case .ai:
             return "sparkles"
         case .shortcuts:
@@ -57,7 +62,10 @@ struct RemoraSettingsSheet: View {
     @State private var hasLoadedAIAPIKey = false
     @FocusState private var focusedField: SettingsFocusField?
     @EnvironmentObject private var keyboardShortcutStore: AppKeyboardShortcutStore
+    @EnvironmentObject private var extensionScriptStore: ExtensionScriptAppStore
     @Environment(\.openURL) private var openURL
+    @StateObject private var settingsHostCatalog = HostCatalogStore()
+    @StateObject private var extensionScriptRunner = ExtensionScriptRunnerViewModel()
     private let aiSettingsStore = AISettingsStore()
     @StateObject private var updateChecker = UpdateChecker.shared
 
@@ -99,6 +107,11 @@ struct RemoraSettingsSheet: View {
         .onReceive(NotificationCenter.default.publisher(for: .remoraOpenDownloadDirectorySetting)) { _ in
             focusDownloadDirectorySetting()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .remoraOpenExtensionScriptSettings)) { _ in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                selectedPane = .extensionScripts
+            }
+        }
         .onDisappear {
             stopShortcutCapture(clearSelection: true)
         }
@@ -124,6 +137,19 @@ struct RemoraSettingsSheet: View {
             guard hasLoadedAIAPIKey else { return }
             Task { await aiSettingsStore.setAPIKey(aiAPIKey) }
         }
+        .sheet(
+            isPresented: Binding(
+                get: { extensionScriptRunner.isPresented },
+                set: { isPresented in
+                    if !isPresented {
+                        extensionScriptRunner.dismiss()
+                    }
+                }
+            )
+        ) {
+            ExtensionScriptRunSheet(viewModel: extensionScriptRunner)
+                .interactiveDismissDisabled(extensionScriptRunner.isRunning)
+        }
     }
 
     private var header: some View {
@@ -143,6 +169,8 @@ struct RemoraSettingsSheet: View {
             switch selectedPane {
             case .general:
                 generalPane
+            case .extensionScripts:
+                extensionScriptsPane
             case .ai:
                 aiPane
             case .shortcuts:
@@ -496,6 +524,18 @@ struct RemoraSettingsSheet: View {
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier("settings-section-ai")
+    }
+
+    private var extensionScriptsPane: some View {
+        ExtensionScriptManagementView(
+            store: extensionScriptStore,
+            hosts: settingsHostCatalog.hosts,
+            selectedHost: nil,
+            onRun: { script, host in
+                extensionScriptRunner.prepare(script: script, host: host)
+            }
+        )
+        .accessibilityIdentifier("settings-section-extension-scripts")
     }
 
     private var advancedPane: some View {

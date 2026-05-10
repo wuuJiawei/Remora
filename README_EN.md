@@ -42,6 +42,7 @@ Remora focuses on a practical split:
 - Fantastic: Local-first SSH + SFTP workspace, ANSI/VT support for modern TUIs, xterm-style selection, quick commands/quick paths, drag-and-drop transfers.
 - Beautiful: Native macOS UI with clean split layout, light/dark/system themes, and distraction-free terminal focus.
 - AI-assisted: Built-in Terminal AI with provider → model configuration, custom endpoints, OpenAI / Claude compatible APIs, queued prompts, context compression, and command explanation/suggestion flows.
+- Extensible: Save local extension scripts in Shell, Python, JavaScript, or Swift, then run global or host-scoped automation from an SSH host context.
 - Fast: Swift 6 native architecture with a SwiftTerm-backed terminal stack and native macOS UI, tuned for practical TUI and scroll-heavy workflows.
 - Secure: Local-first credential strategy with config and saved passwords stored in local JSON files under `~/.config/remora`, SSH host key verification via `StrictHostKeyChecking=ask`, and explicit opt-in before any plaintext password export or copy.
 - Simple: Lightweight app with a 99% Swift-native stack, keyboard-driven workflows, and practical defaults that work out of the box.
@@ -54,8 +55,15 @@ Remora focuses on a practical split:
 - Drag files onto directories or current path with visual upload target hints.
 - Get immediate operation feedback via toasts and retry failed transfer tasks.
 - Sync terminal directory with file manager navigation when needed.
+- Save extension scripts in Settings, or run global/host scripts from a host context menu.
 - Use Terminal AI from the side drawer to explain output, suggest the next command, repair common errors, and compress long conversations automatically.
 - Configure language, appearance, shortcuts, and metrics in settings.
+
+### Extension Scripts
+
+Extension scripts run locally on your Mac and are stored in `~/.config/remora/extension-scripts.json`. Remora supports Shell, Python, JavaScript, and Swift scripts, using your local `/bin/zsh` or `/bin/bash`, `python3`, `node`, and `swift` interpreters.
+
+When a script runs from an SSH host context, Remora injects `REMORA_HOST_ID`, `REMORA_HOST_NAME`, `REMORA_HOST`, `REMORA_PORT`, `REMORA_USER`, `REMORA_AUTH_METHOD`, `REMORA_KEY_PATH`, `REMORA_LOCAL_DOWNLOAD_DIR`, and `REMORA_CONTEXT_JSON`. `REMORA_CONTEXT_JSON` points to a temporary JSON file with fuller host context. For security, Remora does not inject passwords, tokens, or private key contents by default; only run scripts from sources you trust.
 
 ## Screenshots
 

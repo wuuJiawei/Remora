@@ -22,6 +22,7 @@ struct RemoraAppMain: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var keyboardShortcutStore = AppKeyboardShortcutStore.shared
     @StateObject private var appPreferences = AppPreferences.shared
+    @StateObject private var extensionScriptStore = ExtensionScriptAppStore.shared
 
     private var preferredScheme: ColorScheme? {
         AppAppearanceMode.resolved(from: appPreferences.value(for: \.appearanceModeRawValue)).colorScheme
@@ -37,6 +38,7 @@ struct RemoraAppMain: App {
                 .preferredColorScheme(preferredScheme)
                 .environment(\.locale, preferredLocale)
                 .environmentObject(keyboardShortcutStore)
+                .environmentObject(extensionScriptStore)
         }
         .windowResizability(.contentSize)
 
@@ -48,6 +50,7 @@ struct RemoraAppMain: App {
                 .preferredColorScheme(preferredScheme)
                 .environment(\.locale, preferredLocale)
                 .environmentObject(keyboardShortcutStore)
+                .environmentObject(extensionScriptStore)
         }
         .defaultSize(width: 660, height: 410)
         .windowResizability(.contentSize)

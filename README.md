@@ -43,6 +43,7 @@ Remora 聚焦在一个实用组合：
 - Fantastic：本地优先的 SSH + SFTP 工作区，支持现代 TUI 所需 ANSI/VT、xterm 风格选择、快捷命令/快捷路径、拖拽传输。
 - Beautiful：原生 macOS 视觉与交互，布局简洁，支持浅色/深色/跟随系统，终端专注无干扰。
 - AI-assisted：内置 Terminal AI，支持 provider → model 配置、自定义 endpoint、OpenAI / Claude 兼容接口、上下文压缩、排队提问、命令建议与解释。
+- Extensible：支持本地拓展脚本，可用 Shell / Python / JavaScript / Swift 编写全局或主机级自动化，并从 SSH 主机上下文一键运行。
 - Fast：Swift 6 原生实现 + SwiftTerm 终端栈 + 原生 macOS UI，面向高频 TUI 与滚动场景优化。
 - Secure：采用本地优先的凭据策略，配置与已保存密码写入 `~/.config/remora` 本地 JSON 文件，SSH 主机指纹通过 `StrictHostKeyChecking=ask` 显式确认，任何明文密码导出或复制都需要用户主动确认。
 - Simple：轻量设计，99% Swift-native 技术栈，默认配置即可开箱使用，并支持键盘快捷工作流。
@@ -55,8 +56,15 @@ Remora 聚焦在一个实用组合：
 - 拖拽上传到目录或当前路径，带目标高亮与提示。
 - 获取即时操作反馈（toast）并重试失败传输。
 - 需要时开启终端目录与文件管理目录同步。
+- 在设置中保存拓展脚本，或从主机右键菜单运行全局/主机脚本。
 - 在终端侧边面板里使用 Terminal AI 解释输出、建议下一条命令、修复常见错误，并在长对话中自动压缩上下文。
 - 在设置中配置语言、外观、快捷键和指标采样。
+
+### 拓展脚本
+
+拓展脚本在你的 Mac 本地执行，脚本文件保存到 `~/.config/remora/extension-scripts.json`。Remora 支持 Shell、Python、JavaScript 和 Swift，分别依赖本机可用的 `/bin/zsh` 或 `/bin/bash`、`python3`、`node`、`swift`。
+
+从 SSH 主机上下文运行时，Remora 会注入 `REMORA_HOST_ID`、`REMORA_HOST_NAME`、`REMORA_HOST`、`REMORA_PORT`、`REMORA_USER`、`REMORA_AUTH_METHOD`、`REMORA_KEY_PATH`、`REMORA_LOCAL_DOWNLOAD_DIR` 和 `REMORA_CONTEXT_JSON`。`REMORA_CONTEXT_JSON` 指向一个临时 JSON 文件，包含更完整的主机上下文。出于安全考虑，Remora 默认不会把密码、token 或私钥内容注入脚本；请只运行来源可信的脚本。
 
 ## 截图
 

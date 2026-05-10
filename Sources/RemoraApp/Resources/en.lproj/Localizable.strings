@@ -579,7 +579,6 @@
 "SSH Password" = "SSH Password";
 "Enter password" = "Enter password";
 
-<<<<<<< HEAD
 /* ZMODEM */
 "ZMODEM Download" = "ZMODEM Download";
 "Save" = "Save";
@@ -597,3 +596,57 @@
 
 /* Clone Session */
 "Clone Session" = "Clone Session";
+
+/* Extension Scripts */
+"Extension Scripts" = "Extension Scripts";
+"New Script" = "New Script";
+"No scripts yet" = "No scripts yet";
+"Create a script to run local automation from Remora." = "Create a script to run local automation from Remora.";
+"Untitled Script" = "Untitled Script";
+"Script name" = "Script name";
+"Enabled" = "Enabled";
+"Language" = "Language";
+"Scope" = "Scope";
+"Global" = "Global";
+"Host" = "Host";
+"Timeout" = "Timeout";
+"%d sec" = "%d sec";
+"Confirm before running" = "Confirm before running";
+"Built-in Variables" = "Built-in Variables";
+"Variables are injected as environment variables when a script runs from a host context. Passwords, tokens, and private key contents are not injected." = "Variables are injected as environment variables when a script runs from a host context. Passwords, tokens, and private key contents are not injected.";
+"Insert" = "Insert";
+"Stable host identifier." = "Stable host identifier.";
+"Host display name in Remora." = "Host display name in Remora.";
+"SSH host name or IP address." = "SSH host name or IP address.";
+"SSH port, usually 22." = "SSH port, usually 22.";
+"SSH username." = "SSH username.";
+"Authentication method, such as password, key, or agent." = "Authentication method, such as password, key, or agent.";
+"Private key file path when key authentication is configured." = "Private key file path when key authentication is configured.";
+"Local download directory configured in Remora." = "Local download directory configured in Remora.";
+"Path to a temporary JSON file with the full safe run context." = "Path to a temporary JSON file with the full safe run context.";
+"Example" = "Example";
+"Script name and body are required." = "Script name and body are required.";
+"Duplicate" = "Duplicate";
+"Run" = "Run";
+"Shell" = "Shell";
+"%@ Copy" = "%@ Copy";
+"Run Extension Script" = "Run Extension Script";
+"Add Extension Script…" = "Add Extension Script…";
+"No scripts configured" = "No scripts configured";
+"Manage Extension Scripts…" = "Manage Extension Scripts…";
+"Extension Script" = "Extension Script";
+"This script runs locally on your Mac and can access files and network resources available to your user account. Only run scripts you trust." = "This script runs locally on your Mac and can access files and network resources available to your user account. Only run scripts you trust.";
+"Host: %@" = "Host: %@";
+"Global or local context" = "Global or local context";
+"Exit Code" = "Exit Code";
+"N/A" = "N/A";
+"Duration: %.2fs" = "Duration: %.2fs";
+"stdout" = "stdout";
+"stderr" = "stderr";
+"No output" = "No output";
+"Success" = "Success";
+"Failed" = "Failed";
+"Timed Out" = "Timed Out";
+"Cancelled" = "Cancelled";
+"Interpreter Missing" = "Interpreter Missing";
+"Application" = "Application";

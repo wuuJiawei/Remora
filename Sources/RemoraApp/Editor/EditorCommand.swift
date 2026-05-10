@@ -15,6 +15,11 @@ struct EditorDocumentPayload: Encodable {
     let lineWrapping: Bool
 }
 
+struct EditorTextInsertion: Equatable {
+    let id: Int
+    let text: String
+}
+
 enum EditorTheme: String {
     case light
     case dark

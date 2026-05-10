@@ -205,6 +205,9 @@ struct SidebarGroupSectionView: View {
     let onCopyAddress: (RemoraCore.Host) -> Void
     let onCopySSHCommand: (RemoraCore.Host) -> Void
     let onManageQuickCommands: (UUID) -> Void
+    let extensionScriptsForHost: (UUID) -> [ExtensionScript]
+    let onRunExtensionScript: (ExtensionScript, RemoraCore.Host) -> Void
+    let onManageExtensionScripts: () -> Void
     let onDeleteThread: (UUID) -> Void
 
     private var canManageGroup: Bool {
@@ -308,6 +311,13 @@ struct SidebarGroupSectionView: View {
                             onManageQuickCommands: {
                                 onManageQuickCommands(host.id)
                             },
+                            extensionScripts: extensionScriptsForHost(host.id),
+                            onRunExtensionScript: { script in
+                                onRunExtensionScript(script, host)
+                            },
+                            onManageExtensionScripts: {
+                                onManageExtensionScripts()
+                            },
                             onDelete: {
                                 onDeleteThread(host.id)
                             }
@@ -334,6 +344,9 @@ struct SidebarHostRow: View {
     let onCopyAddress: () -> Void
     let onCopySSHCommand: () -> Void
     let onManageQuickCommands: () -> Void
+    let extensionScripts: [ExtensionScript]
+    let onRunExtensionScript: (ExtensionScript) -> Void
+    let onManageExtensionScripts: () -> Void
     let onDelete: () -> Void
     @State private var isHovering = false
 
@@ -373,6 +386,29 @@ struct SidebarHostRow: View {
             }
             contextMenuButton(tr("Manage quick commands"), systemImage: ContextMenuIconCatalog.manageQuickCommands) {
                 onManageQuickCommands()
+            }
+            Menu {
+                if extensionScripts.isEmpty {
+                    Button(tr("Add Extension Script…")) {
+                        onManageExtensionScripts()
+                    }
+                    Label(tr("No scripts configured"), systemImage: "info.circle")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(extensionScripts) { script in
+                        Button {
+                            onRunExtensionScript(script)
+                        } label: {
+                            Label(script.name, systemImage: ContextMenuIconCatalog.runScript)
+                        }
+                    }
+                    Divider()
+                    Button(tr("Manage Extension Scripts…")) {
+                        onManageExtensionScripts()
+                    }
+                }
+            } label: {
+                Label(tr("Run Extension Script"), systemImage: ContextMenuIconCatalog.extensionScripts)
             }
             Divider()
             contextMenuButton(tr("Delete connection"), systemImage: ContextMenuIconCatalog.delete, role: .destructive) {

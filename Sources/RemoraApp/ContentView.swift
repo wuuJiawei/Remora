@@ -19,6 +19,8 @@ struct ContentView: View {
     @StateObject var directorySyncBridge = TerminalDirectorySyncBridge()
     @StateObject var serverMetricsCenter = ServerMetricsCenter()
     @StateObject var serverStatusWindowManager = ServerStatusWindowManager()
+    @EnvironmentObject var extensionScriptStore: ExtensionScriptAppStore
+    @StateObject var extensionScriptRunner = ExtensionScriptRunnerViewModel()
 
     @State var hostSearchQuery = ""
     @FocusState var sidebarFocusedField: SidebarFocusedField?

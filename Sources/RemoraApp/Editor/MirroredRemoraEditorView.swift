@@ -11,6 +11,7 @@ struct MirroredRemoraEditorView: View {
     private let isEditable: Bool
     private let lineWrapping: Bool
     private let autoScrollToBottom: Bool
+    private let insertion: EditorTextInsertion?
     private let onReady: (() -> Void)?
     private let onChange: ((Int) -> Void)?
     private let onError: ((String) -> Void)?
@@ -26,6 +27,7 @@ struct MirroredRemoraEditorView: View {
         isEditable: Bool,
         lineWrapping: Bool = true,
         autoScrollToBottom: Bool = false,
+        insertion: EditorTextInsertion? = nil,
         onReady: (() -> Void)? = nil,
         onChange: ((Int) -> Void)? = nil,
         onError: ((String) -> Void)? = nil
@@ -37,6 +39,7 @@ struct MirroredRemoraEditorView: View {
         self.isEditable = isEditable
         self.lineWrapping = lineWrapping
         self.autoScrollToBottom = autoScrollToBottom
+        self.insertion = insertion
         self.onReady = onReady
         self.onChange = onChange
         self.onError = onError
@@ -58,6 +61,7 @@ struct MirroredRemoraEditorView: View {
                 text: text,
                 contentVersion: contentVersion
             ),
+            textInsertion: insertion,
             autoScrollToBottom: autoScrollToBottom,
             onReady: onReady,
             onChange: onChange,

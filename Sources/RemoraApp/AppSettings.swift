@@ -115,6 +115,7 @@ extension Notification.Name {
     static let remoraDownloadDirectoryDidChange = Notification.Name("remora.downloadDirectoryDidChange")
     static let remoraOpenDownloadDirectorySetting = Notification.Name("remora.openDownloadDirectorySetting")
     static let remoraOpenSettingsCommand = Notification.Name("remora.command.openSettings")
+    static let remoraOpenExtensionScriptSettings = Notification.Name("remora.settings.openExtensionScripts")
     static let remoraToggleSidebarCommand = Notification.Name("remora.command.toggleSidebar")
     static let remoraNewSSHConnectionCommand = Notification.Name("remora.command.newSSHConnection")
     static let remoraImportConnectionsCommand = Notification.Name("remora.command.importConnections")
