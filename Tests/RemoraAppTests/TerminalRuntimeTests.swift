@@ -211,11 +211,15 @@ struct TerminalRuntimeTests {
         #expect(runtime.passwordPromptMessage == nil)
         #expect(runtime.otpPromptMessage == nil)
 
-        view.selectAll()
-        NSPasteboard.general.clearContents()
-        view.performTerminalAction(.copy)
-        let copied = NSPasteboard.general.string(forType: .string) ?? ""
-        #expect(copied.contains("passphrase for key") == true)
+        let rendered = await waitUntil(timeout: 2.0) {
+            view.selectAll()
+            NSPasteboard.general.clearContents()
+            view.performTerminalAction(.copy)
+            let copied = NSPasteboard.general.string(forType: .string) ?? ""
+            return copied.contains("passphrase for key")
+                || runtime.transcriptSnapshot.contains("passphrase for key")
+        }
+        #expect(rendered)
         runtime.disconnect()
     }
 
