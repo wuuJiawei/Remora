@@ -89,6 +89,8 @@ final class TerminalRuntime: ObservableObject {
     private(set) var zmodemCoordinator = ZmodemTransferCoordinator()
 
     private var isReconnecting = false
+    private var terminalInputReconnectEnabled = false
+    private var intentionallyStoppedSessionIDs: Set<UUID> = []
     init(
         localSessionManager: SessionManager = SessionManager(sshClientFactory: { LocalShellClient() }),
         sshSessionManager: SessionManager = SessionManager(sshClientFactory: { OpenSSHProcessClient() }),
@@ -106,7 +108,7 @@ final class TerminalRuntime: ObservableObject {
             terminalView = view
             view.onInput = { [weak self] data in
                 DispatchQueue.main.async {
-                    self?.enqueueInput(data)
+                    self?.handleTerminalInput(data)
                 }
             }
         }
@@ -169,6 +171,7 @@ final class TerminalRuntime: ObservableObject {
     func reconnectSSHSession() {
         guard !isReconnecting, let host = reconnectableSSHHost else { return }
         isReconnecting = true
+        terminalInputReconnectEnabled = false
         connectSSH(host: host)
     }
 
@@ -179,6 +182,7 @@ final class TerminalRuntime: ObservableObject {
                 connectionMode = config.mode
                 connectionState = "Connecting"
                 connectedSSHHost = nil
+                terminalInputReconnectEnabled = false
                 clearTranscript()
                 clearInputQueue()
                 workingDirectory = config.mode == .local ? FileManager.default.currentDirectoryPath : "/"
@@ -254,6 +258,7 @@ final class TerminalRuntime: ObservableObject {
                 self.workingDirectory = nil
                 self.connectedSSHHost = nil
                 self.isReconnecting = false
+                self.terminalInputReconnectEnabled = false
             }
         }
     }
@@ -562,6 +567,12 @@ final class TerminalRuntime: ObservableObject {
     private func bindSessionState(for id: UUID, manager: SessionManager) {
         stateTask?.cancel()
         stateTask = Task {
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.intentionallyStoppedSessionIDs.remove(id)
+                }
+            }
+
             let stream = await manager.sessionStateStream(sessionID: id)
             for await state in stream {
                 await MainActor.run {
@@ -573,15 +584,23 @@ final class TerminalRuntime: ObservableObject {
                             connectionState = "Connected (\(connectionMode.rawValue))"
                         }
                     case .stopped:
+                        let wasIntentionallyStopped = intentionallyStoppedSessionIDs.remove(id) != nil
                         connectionState = "Disconnected"
                         connectedSSHHost = nil
+                        terminalInputReconnectEnabled = !wasIntentionallyStopped
+                            && connectionMode == .ssh
+                            && reconnectableSSHHost != nil
                         hostKeyPromptMessage = nil
                         otpPromptMessage = nil
                         passwordPromptMessage = nil
                         activeSSHAuthStage = nil
                     case .failed(let reason):
+                        let wasIntentionallyStopped = intentionallyStoppedSessionIDs.remove(id) != nil
                         connectionState = "Failed: \(reason)"
                         connectedSSHHost = nil
+                        terminalInputReconnectEnabled = !wasIntentionallyStopped
+                            && connectionMode == .ssh
+                            && reconnectableSSHHost != nil
                         hostKeyPromptMessage = nil
                         otpPromptMessage = nil
                         passwordPromptMessage = nil
@@ -590,6 +609,24 @@ final class TerminalRuntime: ObservableObject {
                 }
             }
         }
+    }
+
+    private func handleTerminalInput(_ data: Data) {
+        guard !data.isEmpty else { return }
+        if shouldReconnectFromTerminalInput {
+            clearInputQueue()
+            reconnectSSHSession()
+            return
+        }
+        enqueueInput(data)
+    }
+
+    private var shouldReconnectFromTerminalInput: Bool {
+        connectionMode == .ssh
+            && terminalInputReconnectEnabled
+            && reconnectableSSHHost != nil
+            && !isReconnecting
+            && !zmodemCoordinator.isActive
     }
 
     private func enqueueInput(_ data: Data) {
@@ -711,6 +748,8 @@ final class TerminalRuntime: ObservableObject {
                 try await manager.write(queuedInput.data, to: sessionID)
             } catch {
                 connectionState = "Write failed: \(error.localizedDescription)"
+                connectedSSHHost = nil
+                terminalInputReconnectEnabled = connectionMode == .ssh && reconnectableSSHHost != nil
                 return
             }
         }
@@ -734,6 +773,7 @@ final class TerminalRuntime: ObservableObject {
     private func stopActiveSessionIfNeeded() async {
         guard let currentSessionID = sessionID, let manager = activeSessionManager else { return }
 
+        intentionallyStoppedSessionIDs.insert(currentSessionID)
         await manager.stopSession(id: currentSessionID)
         sessionID = nil
         activeSessionManager = nil

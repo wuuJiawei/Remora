@@ -375,6 +375,95 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func terminalInputReconnectsSSHAfterRemoteStop() async {
+        let factory = AutoStoppingSSHClientFactory(state: .stopped, delay: .milliseconds(80))
+        let manager = SessionManager(sshClientFactory: { factory.makeClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let view = TerminalView(rows: 4, columns: 80)
+        runtime.attach(view: view)
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let disconnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState == "Disconnected"
+                && runtime.connectedSSHHost == nil
+                && runtime.reconnectableSSHHost?.address == "127.0.0.1"
+        }
+        #expect(disconnected)
+        guard disconnected else { return }
+
+        view.send(source: view, data: ArraySlice(Data("\r".utf8)))
+
+        let reconnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+                && runtime.connectedSSHHost?.address == "127.0.0.1"
+                && factory.clientCount >= 2
+        }
+        #expect(reconnected, "Pressing Enter in a remotely disconnected terminal should reconnect the SSH session.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func terminalInputReconnectsSSHAfterRemoteFailure() async {
+        let factory = AutoStoppingSSHClientFactory(state: .failed("timed out"), delay: .milliseconds(80))
+        let manager = SessionManager(sshClientFactory: { factory.makeClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let view = TerminalView(rows: 4, columns: 80)
+        runtime.attach(view: view)
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let failed = await waitUntil(timeout: 2.0) {
+            runtime.connectionState == "Failed: timed out"
+                && runtime.connectedSSHHost == nil
+                && runtime.reconnectableSSHHost?.address == "127.0.0.1"
+        }
+        #expect(failed)
+        guard failed else { return }
+
+        view.send(source: view, data: ArraySlice(Data("x".utf8)))
+
+        let reconnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+                && runtime.connectedSSHHost?.address == "127.0.0.1"
+                && factory.clientCount >= 2
+        }
+        #expect(reconnected, "Any terminal key after a failed SSH session should reconnect the last host.")
+        runtime.disconnect()
+    }
+
+    @Test
+    func terminalInputDoesNotReconnectAfterManualDisconnect() async {
+        let factory = AutoStoppingSSHClientFactory(state: .stopped, delay: nil)
+        let manager = SessionManager(sshClientFactory: { factory.makeClient() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let view = TerminalView(rows: 4, columns: 80)
+        runtime.attach(view: view)
+
+        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
+
+        let connected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+                && runtime.connectedSSHHost?.address == "127.0.0.1"
+        }
+        #expect(connected)
+        guard connected else { return }
+
+        runtime.disconnect()
+        let disconnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState == "Disconnected" && runtime.connectedSSHHost == nil
+        }
+        #expect(disconnected)
+        guard disconnected else { return }
+
+        view.send(source: view, data: ArraySlice(Data("\r".utf8)))
+        try? await Task.sleep(for: .milliseconds(200))
+
+        #expect(factory.clientCount == 1, "Manual disconnect should remain explicit; terminal input must not reconnect it.")
+        #expect(runtime.connectionState == "Disconnected")
+    }
+
+    @Test
     func connectDisconnectAndReconnectLifecycle() async {
         let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
         let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() }), remoteShellIntegrationInstaller: { _ in })
@@ -985,6 +1074,102 @@ private final class AuthPromptShellSession: SSHTransportSessionProtocol, @unchec
     func resize(_ size: PTYSize) async throws {}
 
     func stop() async {
+        onStateChange?(.stopped)
+    }
+}
+
+private final class AutoStoppingSSHClientFactory: @unchecked Sendable {
+    private let state: ShellSessionState
+    private let delay: Duration?
+    private let lock = NSLock()
+    private var storedClientCount = 0
+
+    var clientCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedClientCount
+    }
+
+    init(state: ShellSessionState, delay: Duration?) {
+        self.state = state
+        self.delay = delay
+    }
+
+    func makeClient() -> SSHTransportClientProtocol {
+        lock.lock()
+        storedClientCount += 1
+        lock.unlock()
+        return AutoStoppingSSHClient(state: state, delay: delay)
+    }
+}
+
+private actor AutoStoppingSSHClient: SSHTransportClientProtocol {
+    private let state: ShellSessionState
+    private let delay: Duration?
+    private var connectedHost: RemoraCore.Host?
+
+    init(state: ShellSessionState, delay: Duration?) {
+        self.state = state
+        self.delay = delay
+    }
+
+    func connect(to host: RemoraCore.Host) async throws {
+        connectedHost = host
+    }
+
+    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
+        guard let host = connectedHost else {
+            throw SSHError.notConnected
+        }
+        return AutoStoppingShellSession(host: host, state: state, delay: delay)
+    }
+
+    func disconnect() async {
+        connectedHost = nil
+    }
+}
+
+private final class AutoStoppingShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+    var onOutput: (@Sendable (Data) -> Void)?
+    var onStateChange: (@Sendable (ShellSessionState) -> Void)?
+
+    private let host: RemoraCore.Host
+    private let state: ShellSessionState
+    private let delay: Duration?
+    private var isRunning = false
+    private var stopTask: Task<Void, Never>?
+
+    init(host: RemoraCore.Host, state: ShellSessionState, delay: Duration?) {
+        self.host = host
+        self.state = state
+        self.delay = delay
+    }
+
+    func start() async throws {
+        isRunning = true
+        onStateChange?(.running)
+        onOutput?(Data("Connected to \(host.username)@\(host.address):\(host.port)\r\n".utf8))
+        guard let delay else { return }
+        stopTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard let self, !Task.isCancelled else { return }
+            self.isRunning = false
+            self.onStateChange?(self.state)
+        }
+    }
+
+    func write(_ data: Data) async throws {
+        guard isRunning else {
+            throw SSHError.notConnected
+        }
+    }
+
+    func resize(_ size: PTYSize) async throws {}
+
+    func stop() async {
+        stopTask?.cancel()
+        stopTask = nil
+        isRunning = false
         onStateChange?(.stopped)
     }
 }
