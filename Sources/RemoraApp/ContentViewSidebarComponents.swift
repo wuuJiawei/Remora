@@ -205,6 +205,7 @@ struct SidebarGroupSectionView: View {
     let onCopyAddress: (RemoraCore.Host) -> Void
     let onCopySSHCommand: (RemoraCore.Host) -> Void
     let onManageQuickCommands: (UUID) -> Void
+    let onManagePortForwards: (UUID) -> Void
     let extensionScriptsForHost: (UUID) -> [ExtensionScript]
     let onRunExtensionScript: (ExtensionScript, RemoraCore.Host) -> Void
     let onManageExtensionScripts: () -> Void
@@ -311,6 +312,9 @@ struct SidebarGroupSectionView: View {
                             onManageQuickCommands: {
                                 onManageQuickCommands(host.id)
                             },
+                            onManagePortForwards: {
+                                onManagePortForwards(host.id)
+                            },
                             extensionScripts: extensionScriptsForHost(host.id),
                             onRunExtensionScript: { script in
                                 onRunExtensionScript(script, host)
@@ -344,6 +348,7 @@ struct SidebarHostRow: View {
     let onCopyAddress: () -> Void
     let onCopySSHCommand: () -> Void
     let onManageQuickCommands: () -> Void
+    let onManagePortForwards: () -> Void
     let extensionScripts: [ExtensionScript]
     let onRunExtensionScript: (ExtensionScript) -> Void
     let onManageExtensionScripts: () -> Void
@@ -386,6 +391,9 @@ struct SidebarHostRow: View {
             }
             contextMenuButton(tr("Manage quick commands"), systemImage: ContextMenuIconCatalog.manageQuickCommands) {
                 onManageQuickCommands()
+            }
+            contextMenuButton(tr("Manage port forwards"), systemImage: ContextMenuIconCatalog.managePortForwards) {
+                onManagePortForwards()
             }
             Menu {
                 if extensionScripts.isEmpty {

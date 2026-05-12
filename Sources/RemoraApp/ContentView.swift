@@ -19,6 +19,7 @@ struct ContentView: View {
     @StateObject var directorySyncBridge = TerminalDirectorySyncBridge()
     @StateObject var serverMetricsCenter = ServerMetricsCenter()
     @StateObject var serverStatusWindowManager = ServerStatusWindowManager()
+    @StateObject var portForwardCenter = PortForwardCenter()
     @EnvironmentObject var extensionScriptStore: ExtensionScriptAppStore
     @StateObject var extensionScriptRunner = ExtensionScriptRunnerViewModel()
 
@@ -73,6 +74,14 @@ struct ContentView: View {
     @State var quickPathNameDraft = ""
     @State var quickPathValueDraft = ""
     @State var quickPathValidationMessage: String?
+    @State var portForwardEditorHostID: UUID?
+    @State var portForwardEditingID: UUID?
+    @State var portForwardNameDraft = ""
+    @State var portForwardLocalAddressDraft = "127.0.0.1"
+    @State var portForwardLocalPortDraft = "8080"
+    @State var portForwardRemoteAddressDraft = "127.0.0.1"
+    @State var portForwardRemotePortDraft = "80"
+    @State var portForwardValidationMessage: String?
     @State var fileManagerSFTPBindingKey = "disconnected"
     @State var fileManagerSFTPBootstrapTask: Task<Void, Never>?
     @State var hoveredSessionMetricsTooltip: HoveredSessionMetricsTooltip?
@@ -106,6 +115,10 @@ struct ContentView: View {
         hostCatalog.host(id: quickPathEditorHostID)
     }
 
+    var portForwardEditorHost: RemoraCore.Host? {
+        hostCatalog.host(id: portForwardEditorHostID)
+    }
+
     var quickCommandEditorBinding: Binding<Bool> {
         Binding(
             get: { quickCommandEditorHostID != nil },
@@ -123,6 +136,17 @@ struct ContentView: View {
             set: { isPresented in
                 if !isPresented {
                     dismissQuickPathEditor()
+                }
+            }
+        )
+    }
+
+    var portForwardEditorBinding: Binding<Bool> {
+        Binding(
+            get: { portForwardEditorHostID != nil },
+            set: { isPresented in
+                if !isPresented {
+                    dismissPortForwardEditor()
                 }
             }
         )

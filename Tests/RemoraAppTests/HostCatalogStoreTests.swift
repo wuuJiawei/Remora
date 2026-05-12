@@ -499,6 +499,117 @@ struct HostCatalogStoreTests {
         #expect(store.hosts.contains(where: { $0.name == "new-imported-host" }))
         #expect(store.groups.contains("Imported"))
     }
+
+    @Test
+    func supportsPortForwardPresetCrud() {
+        let store = HostCatalogStore()
+        let host = store.addHost(
+            Host(
+                name: "ops",
+                address: "10.0.0.21",
+                username: "root",
+                group: "Ops",
+                auth: HostAuth(method: .agent)
+            )
+        )
+
+        let first = store.addPortForwardPreset(
+            hostID: host.id,
+            name: "Postgres",
+            localAddress: "127.0.0.1",
+            localPort: 5432,
+            remoteAddress: "10.0.0.5",
+            remotePort: 5432
+        )
+        #expect(first?.name == "Postgres")
+
+        let second = store.addPortForwardPreset(
+            hostID: host.id,
+            name: "Postgres",
+            localAddress: "",
+            localPort: 15432,
+            remoteAddress: "db.internal",
+            remotePort: 5432
+        )
+        #expect(second?.name == "Postgres 2")
+        #expect(second?.localAddress == "127.0.0.1")
+
+        let updated = store.updatePortForwardPreset(
+            hostID: host.id,
+            preset: HostPortForwardPreset(
+                id: first?.id ?? UUID(),
+                name: "Postgres 2",
+                localAddress: "127.0.0.1",
+                localPort: 6432,
+                remoteAddress: "db.internal",
+                remotePort: 5432
+            )
+        )
+        #expect(updated?.name == "Postgres 2 2")
+        #expect(updated?.localPort == 6432)
+
+        let rejected = store.updatePortForwardPreset(
+            hostID: host.id,
+            preset: HostPortForwardPreset(
+                id: first?.id ?? UUID(),
+                name: "Invalid",
+                localAddress: "127.0.0.1",
+                localPort: 0,
+                remoteAddress: "db.internal",
+                remotePort: 5432
+            )
+        )
+        #expect(rejected == nil)
+
+        if let second {
+            store.deletePortForwardPreset(hostID: host.id, presetID: second.id)
+        }
+        #expect(store.portForwardPresets(for: host.id).count == 1)
+    }
+
+    @Test
+    func normalizesPortForwardPresetsDuringHostSave() {
+        let store = HostCatalogStore()
+        let host = store.addHost(
+            Host(
+                name: "qa",
+                address: "10.0.0.31",
+                username: "qa",
+                group: "QA",
+                auth: HostAuth(method: .agent),
+                portForwardPresets: [
+                    HostPortForwardPreset(
+                        name: " ",
+                        localAddress: " ",
+                        localPort: 8080,
+                        remoteAddress: " 10.0.0.8 ",
+                        remotePort: 80
+                    ),
+                    HostPortForwardPreset(
+                        name: "Web",
+                        localAddress: "127.0.0.1",
+                        localPort: 8081,
+                        remoteAddress: "10.0.0.9",
+                        remotePort: 80
+                    ),
+                    HostPortForwardPreset(
+                        name: "Web",
+                        localAddress: "127.0.0.1",
+                        localPort: 8082,
+                        remoteAddress: "10.0.0.10",
+                        remotePort: 80
+                    ),
+                ]
+            )
+        )
+
+        let names = host.portForwardPresets.map(\.name)
+        let localAddresses = host.portForwardPresets.map(\.localAddress)
+        let remoteAddresses = host.portForwardPresets.map(\.remoteAddress)
+        #expect(names == ["Port Forward", "Web", "Web 2"])
+        #expect(localAddresses.first == "127.0.0.1")
+        #expect(remoteAddresses.first == "10.0.0.8")
+    }
 }
 
 @MainActor

@@ -22,7 +22,16 @@ struct HostCatalogPersistenceStoreTests {
             username: "deploy",
             group: "Production",
             tags: ["api"],
-            auth: HostAuth(method: .agent)
+            auth: HostAuth(method: .agent),
+            portForwardPresets: [
+                HostPortForwardPreset(
+                    name: "postgres",
+                    localAddress: "127.0.0.1",
+                    localPort: 5432,
+                    remoteAddress: "10.0.0.5",
+                    remotePort: 5432
+                )
+            ]
         )
 
         let snapshot = PersistedHostCatalog(
@@ -38,6 +47,7 @@ struct HostCatalogPersistenceStoreTests {
         let loaded = try await store.load()
 
         #expect(loaded == snapshot)
+        #expect(loaded?.hosts.first?.portForwardPresets.count == 1)
     }
 
     @Test

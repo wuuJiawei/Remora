@@ -1375,3 +1375,187 @@ struct HostQuickPathEditorSheet: View {
         .frame(width: 560)
     }
 }
+
+struct HostPortForwardEditorSheet: View {
+    let host: RemoraCore.Host
+    let presets: [HostPortForwardPreset]
+    let activeForwards: [UUID: ActivePortForward]
+    let editingPresetID: UUID?
+    @Binding var nameDraft: String
+    @Binding var localAddressDraft: String
+    @Binding var localPortDraft: String
+    @Binding var remoteAddressDraft: String
+    @Binding var remotePortDraft: String
+    let validationMessage: String?
+    let onClose: () -> Void
+    let onSave: () -> Void
+    let onStartEdit: (HostPortForwardPreset) -> Void
+    let onDelete: (UUID) -> Void
+    let onToggle: (HostPortForwardPreset) -> Void
+    let onCancelEdit: () -> Void
+
+    private var isEditing: Bool {
+        editingPresetID != nil
+    }
+
+    private var canSaveDraft: Bool {
+        !localPortDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !remotePortDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !remoteAddressDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("\(tr("Port forwards")) · \(host.name)")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(VisualStyle.textPrimary)
+
+            Group {
+                if presets.isEmpty {
+                    Text(tr("No port forwards yet."))
+                        .font(.system(size: 12))
+                        .foregroundStyle(VisualStyle.textTertiary)
+                        .frame(maxWidth: .infinity, minHeight: 96, alignment: .center)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(VisualStyle.mutedSurfaceBackground)
+                        )
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(presets) { preset in
+                                let active = activeForwards[preset.id]
+                                HStack(spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(preset.name)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(VisualStyle.textPrimary)
+                                            .lineLimit(1)
+                                        Text("\(preset.localAddress):\(preset.localPort) → \(preset.remoteAddress):\(preset.remotePort)")
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .foregroundStyle(VisualStyle.textSecondary)
+                                            .lineLimit(1)
+                                        Text(portForwardStateLabel(active?.state))
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundStyle(portForwardStateColor(active?.state))
+                                            .lineLimit(1)
+                                    }
+
+                                    Spacer(minLength: 8)
+
+                                    Button(activeButtonTitle(active?.state)) {
+                                        onToggle(preset)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+
+                                    Button(tr("Edit")) {
+                                        onStartEdit(preset)
+                                    }
+                                    .buttonStyle(.borderless)
+
+                                    Button(tr("Delete"), role: .destructive) {
+                                        onDelete(preset.id)
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(VisualStyle.elevatedSurfaceBackground)
+                                )
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .frame(minHeight: 96, maxHeight: 240)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(isEditing ? tr("Edit port forward") : tr("New port forward"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textSecondary)
+
+                TextField(tr("Name"), text: $nameDraft)
+                    .textFieldStyle(.roundedBorder)
+
+                HStack(spacing: 10) {
+                    TextField(tr("Local Address"), text: $localAddressDraft)
+                        .textFieldStyle(.roundedBorder)
+                    TextField(tr("Local Port"), text: $localPortDraft)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                HStack(spacing: 10) {
+                    TextField(tr("Remote Address"), text: $remoteAddressDraft)
+                        .textFieldStyle(.roundedBorder)
+                    TextField(tr("Remote Port"), text: $remotePortDraft)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                if let validationMessage {
+                    Text(validationMessage)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red)
+                }
+            }
+
+            HStack {
+                if isEditing {
+                    Button(tr("Cancel edit")) {
+                        onCancelEdit()
+                    }
+                }
+                Spacer()
+                Button(tr("Close")) {
+                    onClose()
+                }
+                Button(isEditing ? tr("Save") : tr("Add")) {
+                    onSave()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canSaveDraft)
+            }
+        }
+        .padding(16)
+        .frame(width: 620)
+    }
+
+    private func activeButtonTitle(_ state: PortForwardState?) -> String {
+        switch state {
+        case .running, .starting:
+            return tr("Stop")
+        default:
+            return tr("Start")
+        }
+    }
+
+    private func portForwardStateLabel(_ state: PortForwardState?) -> String {
+        switch state {
+        case .starting:
+            return tr("Starting")
+        case .running:
+            return tr("Running")
+        case .stopped:
+            return tr("Stopped")
+        case .failed(let reason):
+            return "\(tr("Failed")): \(reason)"
+        case .idle, .none:
+            return tr("Idle")
+        }
+    }
+
+    private func portForwardStateColor(_ state: PortForwardState?) -> Color {
+        switch state {
+        case .running:
+            return .green
+        case .failed:
+            return .red
+        case .starting:
+            return .orange
+        default:
+            return VisualStyle.textTertiary
+        }
+    }
+}

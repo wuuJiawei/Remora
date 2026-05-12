@@ -154,6 +154,9 @@ extension ContentView {
             .sheet(isPresented: quickPathEditorBinding) {
                 quickPathManagerSheet
             }
+            .sheet(isPresented: portForwardEditorBinding) {
+                portForwardManagerSheet
+            }
             .sheet(isPresented: $isImportSourceSheetPresented) {
                 importSourceSheet
             }
@@ -314,6 +317,9 @@ extension ContentView {
                         onManageQuickCommands: {
                             beginManageQuickCommands(for: host.id)
                         },
+                        onManagePortForwards: {
+                            beginManagePortForwards(for: host.id)
+                        },
                         extensionScripts: extensionScriptStore.scripts(for: host.id),
                         onRunExtensionScript: { script in
                             runExtensionScript(script, host: host)
@@ -445,6 +451,9 @@ extension ContentView {
             },
             onManageQuickCommands: { hostID in
                 beginManageQuickCommands(for: hostID)
+            },
+            onManagePortForwards: { hostID in
+                beginManagePortForwards(for: hostID)
             },
             extensionScriptsForHost: { hostID in
                 extensionScriptStore.scripts(for: hostID)
@@ -1142,6 +1151,54 @@ extension ContentView {
                     .foregroundStyle(VisualStyle.textSecondary)
                 Button(tr("Close")) {
                     dismissQuickPathEditor()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(20)
+            .frame(width: 460, height: 220)
+        }
+    }
+
+    @ViewBuilder
+    var portForwardManagerSheet: some View {
+        if let host = portForwardEditorHost {
+            HostPortForwardEditorSheet(
+                host: host,
+                presets: hostCatalog.portForwardPresets(for: host.id),
+                activeForwards: portForwardCenter.activeForwards,
+                editingPresetID: portForwardEditingID,
+                nameDraft: $portForwardNameDraft,
+                localAddressDraft: $portForwardLocalAddressDraft,
+                localPortDraft: $portForwardLocalPortDraft,
+                remoteAddressDraft: $portForwardRemoteAddressDraft,
+                remotePortDraft: $portForwardRemotePortDraft,
+                validationMessage: portForwardValidationMessage,
+                onClose: {
+                    dismissPortForwardEditor()
+                },
+                onSave: {
+                    commitPortForwardDraft()
+                },
+                onStartEdit: { preset in
+                    beginEditPortForward(preset)
+                },
+                onDelete: { presetID in
+                    deletePortForwardPreset(presetID, hostID: host.id)
+                },
+                onToggle: { preset in
+                    togglePortForward(preset, host: host)
+                },
+                onCancelEdit: {
+                    resetPortForwardDraft()
+                }
+            )
+        } else {
+            VStack(spacing: 12) {
+                Text(tr("No SSH host selected."))
+                    .font(.system(size: 13))
+                    .foregroundStyle(VisualStyle.textSecondary)
+                Button(tr("Close")) {
+                    dismissPortForwardEditor()
                 }
                 .buttonStyle(.borderedProminent)
             }

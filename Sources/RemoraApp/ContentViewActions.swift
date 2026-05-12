@@ -419,6 +419,10 @@ extension ContentView {
     }
 
     func confirmGroupDeletion(_ pending: PendingGroupDeletion) {
+        if pending.deleteHosts {
+            let hostIDs = Set(hostCatalog.hosts.filter { $0.group == pending.id }.map(\.id))
+            portForwardCenter.stopAll(forHostIDs: hostIDs)
+        }
         hostCatalog.deleteGroup(named: pending.id, deleteHosts: pending.deleteHosts)
         pendingGroupDeletion = nil
         collapsedGroupNames.remove(pending.id)
@@ -429,6 +433,7 @@ extension ContentView {
     }
 
     func deleteHost(_ hostID: UUID) {
+        portForwardCenter.stopAll(for: hostID)
         hostCatalog.deleteHost(id: hostID)
         if selectedHostID == hostID {
             selectedHostID = nil
@@ -609,6 +614,94 @@ extension ContentView {
         hostCatalog.deleteQuickPath(hostID: hostID, quickPathID: quickPathID)
         if quickPathEditingID == quickPathID {
             resetQuickPathDraft()
+        }
+    }
+
+    func beginManagePortForwards(for hostID: UUID) {
+        portForwardEditorHostID = hostID
+        resetPortForwardDraft()
+    }
+
+    func dismissPortForwardEditor() {
+        portForwardEditorHostID = nil
+        resetPortForwardDraft()
+    }
+
+    func resetPortForwardDraft() {
+        portForwardEditingID = nil
+        portForwardNameDraft = ""
+        portForwardLocalAddressDraft = "127.0.0.1"
+        portForwardLocalPortDraft = "8080"
+        portForwardRemoteAddressDraft = "127.0.0.1"
+        portForwardRemotePortDraft = "80"
+        portForwardValidationMessage = nil
+    }
+
+    func beginEditPortForward(_ preset: HostPortForwardPreset) {
+        portForwardEditingID = preset.id
+        portForwardNameDraft = preset.name
+        portForwardLocalAddressDraft = preset.localAddress
+        portForwardLocalPortDraft = "\(preset.localPort)"
+        portForwardRemoteAddressDraft = preset.remoteAddress
+        portForwardRemotePortDraft = "\(preset.remotePort)"
+        portForwardValidationMessage = nil
+    }
+
+    func commitPortForwardDraft() {
+        guard let hostID = portForwardEditorHostID else { return }
+        guard let localPort = Int(portForwardLocalPortDraft.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let remotePort = Int(portForwardRemotePortDraft.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            portForwardValidationMessage = tr("Port must be between 1 and 65535.")
+            return
+        }
+
+        if let editingID = portForwardEditingID {
+            let updated = hostCatalog.updatePortForwardPreset(
+                hostID: hostID,
+                preset: HostPortForwardPreset(
+                    id: editingID,
+                    name: portForwardNameDraft,
+                    localAddress: portForwardLocalAddressDraft,
+                    localPort: localPort,
+                    remoteAddress: portForwardRemoteAddressDraft,
+                    remotePort: remotePort
+                )
+            )
+            guard updated != nil else {
+                portForwardValidationMessage = tr("Port forward configuration is invalid.")
+                return
+            }
+        } else {
+            let added = hostCatalog.addPortForwardPreset(
+                hostID: hostID,
+                name: portForwardNameDraft,
+                localAddress: portForwardLocalAddressDraft,
+                localPort: localPort,
+                remoteAddress: portForwardRemoteAddressDraft,
+                remotePort: remotePort
+            )
+            guard added != nil else {
+                portForwardValidationMessage = tr("Port forward configuration is invalid.")
+                return
+            }
+        }
+
+        resetPortForwardDraft()
+    }
+
+    func deletePortForwardPreset(_ presetID: UUID, hostID: UUID) {
+        portForwardCenter.stop(presetID: presetID)
+        hostCatalog.deletePortForwardPreset(hostID: hostID, presetID: presetID)
+        if portForwardEditingID == presetID {
+            resetPortForwardDraft()
+        }
+    }
+
+    func togglePortForward(_ preset: HostPortForwardPreset, host: RemoraCore.Host) {
+        if portForwardCenter.isRunning(presetID: preset.id) {
+            portForwardCenter.stop(presetID: preset.id)
+        } else {
+            portForwardCenter.startForward(host: host, preset: preset)
         }
     }
 

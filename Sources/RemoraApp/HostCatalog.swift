@@ -110,6 +110,11 @@ final class HostCatalogStore: ObservableObject {
         return host.quickPaths
     }
 
+    func portForwardPresets(for hostID: UUID?) -> [HostPortForwardPreset] {
+        guard let hostID, let host = host(id: hostID) else { return [] }
+        return host.portForwardPresets
+    }
+
     @discardableResult
     func addQuickCommand(
         hostID: UUID,
@@ -211,6 +216,58 @@ final class HostCatalogStore: ObservableObject {
     func deleteQuickPath(hostID: UUID, quickPathID: UUID) {
         guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return }
         hosts[hostIndex].quickPaths.removeAll { $0.id == quickPathID }
+    }
+
+    @discardableResult
+    func addPortForwardPreset(
+        hostID: UUID,
+        name: String,
+        localAddress: String,
+        localPort: Int,
+        remoteAddress: String,
+        remotePort: Int
+    ) -> HostPortForwardPreset? {
+        guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return nil }
+        guard let normalized = normalizedPortForwardPreset(
+            HostPortForwardPreset(
+                name: name,
+                localAddress: localAddress,
+                localPort: localPort,
+                remoteAddress: remoteAddress,
+                remotePort: remotePort
+            ),
+            in: hosts[hostIndex].portForwardPresets,
+            excludingID: nil
+        ) else {
+            return nil
+        }
+        hosts[hostIndex].portForwardPresets.append(normalized)
+        return normalized
+    }
+
+    @discardableResult
+    func updatePortForwardPreset(
+        hostID: UUID,
+        preset: HostPortForwardPreset
+    ) -> HostPortForwardPreset? {
+        guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return nil }
+        guard let presetIndex = hosts[hostIndex].portForwardPresets.firstIndex(where: { $0.id == preset.id }) else {
+            return nil
+        }
+        guard let normalized = normalizedPortForwardPreset(
+            preset,
+            in: hosts[hostIndex].portForwardPresets,
+            excludingID: preset.id
+        ) else {
+            return nil
+        }
+        hosts[hostIndex].portForwardPresets[presetIndex] = normalized
+        return normalized
+    }
+
+    func deletePortForwardPreset(hostID: UUID, presetID: UUID) {
+        guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return }
+        hosts[hostIndex].portForwardPresets.removeAll { $0.id == presetID }
     }
 
     func markConnected(hostID: UUID) {
@@ -720,6 +777,19 @@ final class HostCatalogStore: ObservableObject {
             )
         }
 
+        let existingPortForwardPresets = normalized.portForwardPresets
+        normalized.portForwardPresets = []
+        for preset in existingPortForwardPresets {
+            guard let normalizedPreset = normalizedPortForwardPreset(
+                preset,
+                in: normalized.portForwardPresets,
+                excludingID: nil
+            ) else {
+                continue
+            }
+            normalized.portForwardPresets.append(normalizedPreset)
+        }
+
         return normalized
     }
 
@@ -831,5 +901,67 @@ final class HostCatalogStore: ObservableObject {
             index += 1
         }
         return "\(base) \(index)"
+    }
+
+    private func normalizePortForwardName(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Port Forward" : trimmed
+    }
+
+    private func normalizePortForwardAddress(_ value: String, defaultValue: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? defaultValue : trimmed
+    }
+
+    private func uniquePortForwardName(
+        base: String,
+        in presets: [HostPortForwardPreset],
+        excludingID: UUID?
+    ) -> String {
+        let existing = Set(
+            presets
+                .filter { preset in
+                    guard let excludingID else { return true }
+                    return preset.id != excludingID
+                }
+                .map { $0.name.lowercased() }
+        )
+        if !existing.contains(base.lowercased()) {
+            return base
+        }
+
+        var index = 2
+        while existing.contains("\(base) \(index)".lowercased()) {
+            index += 1
+        }
+        return "\(base) \(index)"
+    }
+
+    private func normalizedPortForwardPreset(
+        _ preset: HostPortForwardPreset,
+        in presets: [HostPortForwardPreset],
+        excludingID: UUID?
+    ) -> HostPortForwardPreset? {
+        guard preset.kind == .local else { return nil }
+        guard PortForwardValidation.isValidPort(preset.localPort) else { return nil }
+        guard PortForwardValidation.isValidPort(preset.remotePort) else { return nil }
+
+        let localAddress = normalizePortForwardAddress(preset.localAddress, defaultValue: "127.0.0.1")
+        let remoteAddress = normalizePortForwardAddress(preset.remoteAddress, defaultValue: "127.0.0.1")
+        guard !localAddress.isEmpty, !remoteAddress.isEmpty else { return nil }
+
+        return HostPortForwardPreset(
+            id: preset.id,
+            name: uniquePortForwardName(
+                base: normalizePortForwardName(preset.name),
+                in: presets,
+                excludingID: excludingID
+            ),
+            kind: .local,
+            localAddress: localAddress,
+            localPort: preset.localPort,
+            remoteAddress: remoteAddress,
+            remotePort: preset.remotePort
+        )
     }
 }

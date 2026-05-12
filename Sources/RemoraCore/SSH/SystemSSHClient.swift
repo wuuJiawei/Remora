@@ -25,16 +25,8 @@ public actor OpenSSHProcessClient: SSHTransportClientProtocol {
 public typealias SystemSSHClient = OpenSSHProcessClient
 
 public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
-    struct LaunchConfiguration {
-        var executablePath: String
-        var arguments: [String]
-        var environment: [String: String]
-    }
-
-    struct LaunchPlan {
-        var configuration: LaunchConfiguration
-        var interactivePasswordAutofill: String?
-    }
+    typealias LaunchConfiguration = OpenSSHLaunchConfiguration
+    typealias LaunchPlan = OpenSSHLaunchPlan
 
     public var onOutput: (@Sendable (Data) -> Void)?
     public var onStateChange: (@Sendable (ShellSessionState) -> Void)?
@@ -150,6 +142,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
         proc.terminationHandler = { [weak self] task in
             guard let self else { return }
+            self.drainRemainingOutputIfNeeded()
             let snapshot = self.terminationSnapshot()
             self.cleanupHandles()
             Task {
@@ -265,6 +258,15 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
         currentHandle?.readabilityHandler = nil
         try? currentHandle?.close()
+    }
+
+    private func drainRemainingOutputIfNeeded() {
+        guard let handle = stateQueue.sync(execute: { masterHandle }) else { return }
+        let data = handle.availableData
+        guard !data.isEmpty else { return }
+        recordFailureProbeOutput(data)
+        attemptInteractivePasswordAutofillIfNeeded(from: data)
+        onOutput?(data)
     }
 
     private struct TerminationSnapshot {
@@ -511,40 +513,13 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile(),
         skipAutoPasswordDelivery: Bool = false
     ) -> LaunchPlan {
-        let hasStoredPassword = storedPassword?.isEmpty == false
-
-        if host.auth.method == .password, let password = storedPassword, !password.isEmpty {
-            if !skipAutoPasswordDelivery, let launch = makePasswordLaunchConfiguration(
-                for: host,
-                password: password,
-                sshpassPath: sshpassPath,
-                askPassScriptPath: sshpassPath == nil ? nil : askPassScriptPath,
-                compatibilityProfile: compatibilityProfile
-            ) {
-                return LaunchPlan(configuration: launch, interactivePasswordAutofill: nil)
-            }
-
-            return LaunchPlan(
-                configuration: makeStandardLaunchConfiguration(
-                    for: host,
-                    useConnectionReuse: true,
-                    compatibilityProfile: compatibilityProfile
-                ),
-                interactivePasswordAutofill: password
-            )
-        }
-
-        let useConnectionReuse = SSHConnectionReusePolicy.shouldUseConnectionReuse(
-            authMethod: host.auth.method,
-            hasStoredPassword: hasStoredPassword
-        )
-        return LaunchPlan(
-            configuration: makeStandardLaunchConfiguration(
-                for: host,
-                useConnectionReuse: useConnectionReuse,
-                compatibilityProfile: compatibilityProfile
-            ),
-            interactivePasswordAutofill: nil
+        OpenSSHLaunchBuilder.makeShellLaunchPlan(
+            for: host,
+            storedPassword: storedPassword,
+            sshpassPath: sshpassPath,
+            askPassScriptPath: askPassScriptPath,
+            compatibilityProfile: compatibilityProfile,
+            skipAutoPasswordDelivery: skipAutoPasswordDelivery
         )
     }
 
@@ -555,42 +530,13 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         remoteCommand: String? = nil,
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile()
     ) -> [String] {
-        var args: [String] = [
-            "-p", "\(host.port)",
-            "-o", "ConnectTimeout=\(max(1, host.policies.connectTimeoutSeconds))",
-            "-o", "ServerAliveInterval=\(max(5, host.policies.keepAliveSeconds))",
-            "-o", "ServerAliveCountMax=3",
-            "-o", "StrictHostKeyChecking=ask",
-        ]
-        if allocateTTY {
-            args.insert("-tt", at: 0)
-        }
-        if useConnectionReuse {
-            args.append(contentsOf: SSHConnectionReuse.masterOptions(for: host))
-        }
-        args.append(contentsOf: compatibilityProfile.additionalSSHOptions())
-
-        switch host.auth.method {
-        case .privateKey:
-            if let keyRef = host.auth.keyReference, !keyRef.isEmpty {
-                args.append(contentsOf: ["-i", keyRef])
-            }
-            args.append(contentsOf: ["-o", "PreferredAuthentications=publickey"])
-        case .password:
-            args.append(contentsOf: ["-o", "PreferredAuthentications=keyboard-interactive,password"])
-            args.append(contentsOf: ["-o", "NumberOfPasswordPrompts=3"])
-            args.append(contentsOf: ["-o", "PubkeyAuthentication=no"])
-            args.append(contentsOf: ["-o", "GSSAPIAuthentication=no"])
-            args.append(contentsOf: ["-o", "KbdInteractiveAuthentication=yes"])
-        case .agent:
-            args.append(contentsOf: ["-o", "PreferredAuthentications=publickey"])
-        }
-
-        args.append("\(host.username)@\(host.address)")
-        if let remoteCommand, !remoteCommand.isEmpty {
-            args.append(remoteCommand)
-        }
-        return args
+        OpenSSHLaunchBuilder.makeSSHArguments(
+            for: host,
+            useConnectionReuse: useConnectionReuse,
+            allocateTTY: allocateTTY,
+            remoteCommand: remoteCommand,
+            compatibilityProfile: compatibilityProfile
+        )
     }
 
     static func makeStandardLaunchConfiguration(
@@ -598,14 +544,10 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         useConnectionReuse: Bool = true,
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile()
     ) -> LaunchConfiguration {
-        wrappedSSHLaunchConfiguration(
-            sshArguments: makeSSHArguments(
-                for: host,
-                useConnectionReuse: useConnectionReuse,
-                compatibilityProfile: compatibilityProfile
-            ),
-            environment: [:],
-            wrapInScript: true
+        OpenSSHLaunchBuilder.makeStandardLaunchConfiguration(
+            for: host,
+            useConnectionReuse: useConnectionReuse,
+            compatibilityProfile: compatibilityProfile
         )
     }
 
@@ -615,43 +557,11 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         credentialStore: CredentialStore = CredentialStore(),
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile()
     ) async -> LaunchConfiguration? {
-        let storedPassword: String? = if host.auth.method == .password,
-                                         let passwordReference = host.auth.passwordReference,
-                                         !passwordReference.isEmpty,
-                                         let password = await credentialStore.secret(for: passwordReference),
-                                         !password.isEmpty {
-            password
-        } else {
-            nil
-        }
-        let hasStoredPassword = storedPassword != nil
-        let useConnectionReuse = SSHConnectionReusePolicy.shouldUseConnectionReuse(
-            authMethod: host.auth.method,
-            hasStoredPassword: hasStoredPassword
-        )
-
-        if host.auth.method == .password,
-           let password = storedPassword,
-           let launch = makePasswordLaunchConfiguration(
-                for: host,
-                password: password,
-                remoteCommand: command,
-                allocateTTY: false,
-                compatibilityProfile: compatibilityProfile
-           ) {
-            return launch
-        }
-
-        return wrappedSSHLaunchConfiguration(
-            sshArguments: makeSSHArguments(
-                for: host,
-                useConnectionReuse: useConnectionReuse,
-                allocateTTY: false,
-                remoteCommand: command,
-                compatibilityProfile: compatibilityProfile
-            ),
-            environment: [:],
-            wrapInScript: false
+        await OpenSSHLaunchBuilder.makeRemoteCommandLaunchConfiguration(
+            for: host,
+            command: command,
+            credentialStore: credentialStore,
+            compatibilityProfile: compatibilityProfile
         )
     }
 
@@ -664,47 +574,14 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         allocateTTY: Bool = true,
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile()
     ) -> LaunchConfiguration? {
-        // When sshpass is available, enable ControlMaster for connection reuse (clone session).
-        // sshpass handles PTY internally so we skip the `script` wrapper to avoid
-        // interfering with ControlMaster socket lifecycle.
-        if let sshpassPath {
-            let sshArgs = makeSSHArguments(
-                for: host,
-                useConnectionReuse: true,
-                allocateTTY: allocateTTY,
-                remoteCommand: remoteCommand,
-                compatibilityProfile: compatibilityProfile
-            )
-            return LaunchConfiguration(
-                executablePath: sshpassPath,
-                arguments: ["-e", "/usr/bin/ssh"] + sshArgs,
-                environment: mergedTerminalEnvironment(["SSHPASS": password])
-            )
-        }
-
-        // Fallback: askpass (no ControlMaster — script wrapper interferes)
-        let wrapped = wrappedSSHLaunchConfiguration(
-            sshArguments: makeSSHArguments(
-                for: host,
-                useConnectionReuse: false,
-                allocateTTY: allocateTTY,
-                remoteCommand: remoteCommand,
-                compatibilityProfile: compatibilityProfile
-            ),
-            environment: [:],
-            wrapInScript: allocateTTY
-        )
-
-        guard let askPassScriptPath else { return nil }
-        return LaunchConfiguration(
-            executablePath: wrapped.executablePath,
-            arguments: wrapped.arguments,
-            environment: [
-                "SSH_ASKPASS": askPassScriptPath,
-                "SSH_ASKPASS_REQUIRE": "force",
-                "DISPLAY": "remora-askpass",
-                "REMORA_SSH_PASSWORD": password,
-            ]
+        OpenSSHLaunchBuilder.makePasswordLaunchConfiguration(
+            for: host,
+            password: password,
+            sshpassPath: sshpassPath,
+            askPassScriptPath: askPassScriptPath,
+            remoteCommand: remoteCommand,
+            allocateTTY: allocateTTY,
+            compatibilityProfile: compatibilityProfile
         )
     }
 
@@ -719,39 +596,19 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         environment: [String: String],
         wrapInScript: Bool
     ) -> LaunchConfiguration {
-        let sshPath = "/usr/bin/ssh"
-        let environment = mergedTerminalEnvironment(environment)
-
-        if wrapInScript, FileManager.default.isExecutableFile(atPath: "/usr/bin/script") {
-            return LaunchConfiguration(
-                executablePath: "/usr/bin/script",
-                arguments: ["-q", "/dev/null", sshPath] + sshArguments,
-                environment: environment
-            )
-        }
-
-        return LaunchConfiguration(
-            executablePath: sshPath,
-            arguments: sshArguments,
-            environment: environment
+        OpenSSHLaunchBuilder.wrappedSSHLaunchConfiguration(
+            sshArguments: sshArguments,
+            environment: environment,
+            wrapInScript: wrapInScript
         )
     }
 
     private static func mergedTerminalEnvironment(_ base: [String: String]) -> [String: String] {
-        var environment = base
-        if environment["TERM"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
-            environment["TERM"] = "xterm-256color"
-        }
-        return environment
+        OpenSSHLaunchBuilder.mergedTerminalEnvironment(base)
     }
 
     private static func defaultSSHPassPath() -> String? {
-        let candidates = [
-            "/opt/homebrew/bin/sshpass",
-            "/usr/local/bin/sshpass",
-            "/usr/bin/sshpass",
-        ]
-        return candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+        OpenSSHLaunchBuilder.defaultSSHPassPath()
     }
 
     public static func hasSSHPassInstalled() -> Bool {
@@ -759,30 +616,6 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     }
 
     private static func ensureAskPassScriptPath() -> String? {
-        let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remora-ssh-askpass.sh")
-
-        if FileManager.default.fileExists(atPath: scriptURL.path) {
-            return scriptURL.path
-        }
-
-        let script = """
-        #!/bin/sh
-        printf '%s\\n' "${REMORA_SSH_PASSWORD}"
-        """
-        guard let scriptData = script.data(using: .utf8) else {
-            return nil
-        }
-
-        do {
-            try scriptData.write(to: scriptURL, options: [.atomic])
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o700],
-                ofItemAtPath: scriptURL.path
-            )
-            return scriptURL.path
-        } catch {
-            return nil
-        }
+        OpenSSHLaunchBuilder.ensureAskPassScriptPath()
     }
 }

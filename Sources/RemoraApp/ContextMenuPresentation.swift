@@ -22,6 +22,7 @@ enum ContextMenuIconCatalog {
     static let editConnection = "square.and.pencil"
     static let copy = "doc.on.doc"
     static let manageQuickCommands = "terminal"
+    static let managePortForwards = "point.3.connected.trianglepath.dotted"
     static let extensionScripts = "scroll"
     static let runScript = "play.circle"
     static let refresh = "arrow.clockwise"

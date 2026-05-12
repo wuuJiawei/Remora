@@ -372,6 +372,43 @@ struct SystemSSHClientTests {
         let attempts = try String(contentsOf: attemptFileURL, encoding: .utf8)
         #expect(attempts == "1")
     }
+
+    @Test
+    func buildsPortForwardArgumentsForLocalTunnel() {
+        let host = Host(
+            name: "db",
+            address: "example.com",
+            port: 22,
+            username: "deploy",
+            auth: HostAuth(method: .agent)
+        )
+        let preset = HostPortForwardPreset(
+            name: "postgres",
+            localAddress: "127.0.0.1",
+            localPort: 5432,
+            remoteAddress: "10.0.0.5",
+            remotePort: 5432
+        )
+
+        let launch = OpenSSHLaunchBuilder.makePortForwardLaunchConfiguration(
+            for: host,
+            preset: preset,
+            storedPassword: nil
+        )
+
+        #expect(launch?.arguments.contains("-N") == true)
+        #expect(launch?.arguments.contains("-L") == true)
+        #expect(launch?.arguments.contains("127.0.0.1:5432:10.0.0.5:5432") == true)
+        #expect(launch?.arguments.contains("ExitOnForwardFailure=yes") == true)
+        #expect(launch?.arguments.contains("-tt") == false)
+    }
+
+    @Test
+    func validatesLocalPortAvailability() {
+        #expect(PortForwardValidation.isValidPort(22))
+        #expect(PortForwardValidation.isValidPort(0) == false)
+        #expect(PortForwardValidation.isValidPort(65_536) == false)
+    }
 }
 
 private actor OutputCollector {
