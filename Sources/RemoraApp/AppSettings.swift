@@ -109,6 +109,7 @@ enum AppLinks {
     static let issuesURL = URL(string: "https://github.com/wuuJiawei/Remora/issues")!
     static let releasesURL = URL(string: "https://github.com/wuuJiawei/Remora/releases")!
     static let latestReleaseAPIURL = URL(string: "https://api.github.com/repos/wuuJiawei/Remora/releases/latest")!
+    static let markdownRenderAPIURL = URL(string: "https://api.github.com/markdown")!
 }
 
 extension Notification.Name {

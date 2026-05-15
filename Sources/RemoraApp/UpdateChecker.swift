@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import WebKit
 
 @MainActor
 final class UpdateChecker: ObservableObject {
@@ -13,6 +14,7 @@ final class UpdateChecker: ObservableObject {
     private let bundle: Bundle
     private let openURL: @MainActor (URL) -> Void
     private var hasPerformedAutomaticCheck = false
+    private var updateWindowController: UpdateAvailableWindowController?
 
     init(
         session: URLSession = .shared,
@@ -78,42 +80,83 @@ final class UpdateChecker: ObservableObject {
             throw UpdateCheckError.invalidPayload
         }
 
+        let releaseNotes = Self.normalizedReleaseNotes(payload.body)
+        let renderedReleaseNotesHTML = try await fetchRenderedReleaseNotesHTML(
+            markdown: releaseNotes,
+            releaseURL: payload.htmlURL ?? AppLinks.releasesURL
+        )
+
         return GitHubRelease(
             version: version,
             releaseURL: payload.htmlURL ?? AppLinks.releasesURL,
-            releaseNotes: Self.normalizedReleaseNotes(payload.body),
+            releaseNotes: releaseNotes,
+            renderedReleaseNotesHTML: renderedReleaseNotesHTML,
             downloadAsset: Self.preferredDownloadAsset(from: payload.assets)
         )
+    }
+
+    private func fetchRenderedReleaseNotesHTML(markdown: String?, releaseURL: URL) async throws -> String? {
+        guard let markdown else { return nil }
+
+        struct RequestBody: Encodable {
+            let text: String
+            let mode: String
+            let context: String
+        }
+
+        var request = URLRequest(url: AppLinks.markdownRenderAPIURL)
+        request.httpMethod = "POST"
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Remora/\(Self.currentVersion(from: bundle))", forHTTPHeaderField: "User-Agent")
+        request.httpBody = try JSONEncoder().encode(
+            RequestBody(text: markdown, mode: "gfm", context: "wuuJiawei/Remora")
+        )
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw UpdateCheckError.invalidResponse
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw UpdateCheckError.httpStatus(httpResponse.statusCode)
+            }
+
+            guard let html = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !html.isEmpty else {
+                return Self.fallbackReleaseNotesHTML(markdown: markdown, releaseURL: releaseURL)
+            }
+
+            return Self.releaseNotesDocumentHTML(
+                bodyHTML: html,
+                releaseURL: releaseURL,
+                languageCode: Self.currentLanguageCode()
+            )
+        } catch {
+            return Self.fallbackReleaseNotesHTML(markdown: markdown, releaseURL: releaseURL)
+        }
     }
 
     private func presentAlertIfNeeded(for status: UpdateCheckStatus, trigger: UpdateTrigger) {
         switch (status, trigger) {
         case let (.updateAvailable(release, currentVersion), _):
-            let alert = NSAlert()
-            alert.alertStyle = .informational
-            alert.messageText = tr("Update available")
-            alert.informativeText = updateAvailableMessage(for: release, currentVersion: currentVersion)
-            alert.accessoryView = makeReleaseNotesView(for: release)
-
-            if let asset = release.downloadAsset {
-                alert.addButton(withTitle: Self.primaryActionTitle(for: asset))
-                alert.addButton(withTitle: tr("Later"))
-            } else {
-                alert.addButton(withTitle: tr("View Release"))
-                alert.addButton(withTitle: tr("Later"))
-            }
-
-            let response = alert.runModal()
-            if let asset = release.downloadAsset {
-                switch response {
-                case .alertFirstButtonReturn:
-                    Task { await downloadReleaseAsset(asset, release: release) }
-                default:
-                    break
+            let controller = UpdateAvailableWindowController(
+                release: release,
+                currentVersion: currentVersion,
+                messageText: updateAvailableMessage(for: release, currentVersion: currentVersion),
+                openURL: openURL,
+                downloadHandler: { [weak self] asset, release in
+                    guard let self else { return }
+                    Task { await self.downloadReleaseAsset(asset, release: release) }
+                },
+                tr: { [weak self] key in
+                    self?.tr(key) ?? key
                 }
-            } else if response == .alertFirstButtonReturn {
-                openURL(release.releaseURL)
-            }
+            )
+            updateWindowController = controller
+            controller.runModal()
+            updateWindowController = nil
 
         case let (.upToDate(currentVersion), .manual):
             let alert = NSAlert()
@@ -272,37 +315,6 @@ final class UpdateChecker: ObservableObject {
         }
     }
 
-    private func makeReleaseNotesView(for release: GitHubRelease) -> NSView {
-        let titleLabel = NSTextField(labelWithString: tr("Release Notes"))
-        titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = .secondaryLabelColor
-
-        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 480, height: 220))
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.drawsBackground = false
-        textView.font = .systemFont(ofSize: 12)
-        textView.textColor = .labelColor
-        textView.textContainerInset = NSSize(width: 0, height: 6)
-        textView.string = release.releaseNotes ?? tr("No release notes were provided for this release.")
-
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 480, height: 220))
-        scrollView.borderType = .bezelBorder
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
-        scrollView.drawsBackground = false
-        scrollView.documentView = textView
-
-        let stackView = NSStackView(views: [titleLabel, scrollView])
-        stackView.orientation = .vertical
-        stackView.alignment = .leading
-        stackView.spacing = 8
-        return stackView
-    }
-
     nonisolated static func currentVersion(from bundle: Bundle) -> String {
         let info = bundle.infoDictionary
         let shortVersion = (info?["CFBundleShortVersionString"] as? String)?
@@ -332,6 +344,167 @@ final class UpdateChecker: ObservableObject {
         guard let rawValue else { return nil }
         let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         return normalized.isEmpty ? nil : normalized
+    }
+
+    nonisolated static func currentLanguageCode() -> String {
+        let mode = AppLanguageMode.resolved(from: AppPreferences.shared.value(for: \.languageModeRawValue))
+        return mode.bundleLocalizationCode ?? "en"
+    }
+
+    nonisolated static func fallbackReleaseNotesHTML(markdown: String, releaseURL: URL) -> String {
+        let escapedMarkdown = escapeHTML(markdown)
+            .replacingOccurrences(of: "\n", with: "<br>")
+        let bodyHTML = """
+        <div class="fallback-notes">\(escapedMarkdown)</div>
+        <p class="release-link"><a href="\(releaseURL.absoluteString)">\(escapeHTML(releaseURL.absoluteString))</a></p>
+        """
+        return releaseNotesDocumentHTML(
+            bodyHTML: bodyHTML,
+            releaseURL: releaseURL,
+            languageCode: currentLanguageCode()
+        )
+    }
+
+    nonisolated static func releaseNotesDocumentHTML(
+        bodyHTML: String,
+        releaseURL: URL,
+        languageCode: String
+    ) -> String {
+        let escapedReleaseURL = escapeHTML(releaseURL.absoluteString)
+        return """
+        <!DOCTYPE html>
+        <html lang="\(languageCode)">
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+        :root {
+            color-scheme: light dark;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            color: #1f2328;
+            font: 13px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        }
+        body {
+            padding: 0 0 12px 0;
+        }
+        .markdown-body {
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
+        }
+        .markdown-body > :first-child {
+            margin-top: 0;
+        }
+        .markdown-body > :last-child {
+            margin-bottom: 0;
+        }
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3,
+        .markdown-body h4,
+        .markdown-body h5,
+        .markdown-body h6 {
+            line-height: 1.3;
+            margin: 1.1em 0 0.5em;
+            font-weight: 600;
+        }
+        .markdown-body p,
+        .markdown-body ul,
+        .markdown-body ol,
+        .markdown-body pre,
+        .markdown-body blockquote,
+        .markdown-body table {
+            margin: 0 0 0.9em;
+        }
+        .markdown-body ul,
+        .markdown-body ol {
+            padding-left: 1.4em;
+        }
+        .markdown-body code {
+            font: 12px/1.45 SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background: rgba(175, 184, 193, 0.2);
+            border-radius: 6px;
+            padding: 0.12em 0.32em;
+        }
+        .markdown-body pre {
+            overflow-x: auto;
+            background: rgba(175, 184, 193, 0.12);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+        .markdown-body pre code {
+            background: transparent;
+            padding: 0;
+        }
+        .markdown-body blockquote {
+            margin-left: 0;
+            padding-left: 12px;
+            border-left: 3px solid rgba(140, 149, 159, 0.5);
+            color: #59636e;
+        }
+        .markdown-body a,
+        .release-link a {
+            color: #0969da;
+            text-decoration: none;
+        }
+        .markdown-body a:hover,
+        .release-link a:hover {
+            text-decoration: underline;
+        }
+        .fallback-notes {
+            white-space: normal;
+        }
+        .release-link {
+            margin-top: 1em;
+        }
+        @media (prefers-color-scheme: dark) {
+            html, body {
+                color: #f0f6fc;
+            }
+            .markdown-body code {
+                background: rgba(110, 118, 129, 0.25);
+            }
+            .markdown-body pre {
+                background: rgba(110, 118, 129, 0.18);
+            }
+            .markdown-body blockquote {
+                color: #9ea7b3;
+                border-left-color: rgba(110, 118, 129, 0.7);
+            }
+            .markdown-body a,
+            .release-link a {
+                color: #58a6ff;
+            }
+        }
+        </style>
+        </head>
+        <body>
+        <div class="markdown-body">\(bodyHTML)</div>
+        <script>
+        document.addEventListener("click", function(event) {
+            const anchor = event.target.closest("a");
+            if (!anchor) return;
+            const href = anchor.getAttribute("href");
+            if (!href) return;
+            anchor.setAttribute("href", new URL(href, "\(escapedReleaseURL)").toString());
+        }, true);
+        </script>
+        </body>
+        </html>
+        """
+    }
+
+    nonisolated static func escapeHTML(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 
     nonisolated static func isVersion(_ candidate: String, newerThan baseline: String) -> Bool {
@@ -460,6 +633,7 @@ struct GitHubRelease: Equatable {
     let version: String
     let releaseURL: URL
     let releaseNotes: String?
+    let renderedReleaseNotesHTML: String?
     let downloadAsset: GitHubReleaseAsset?
 }
 
@@ -567,6 +741,284 @@ private final class UpdateDownloadOperation: NSObject, URLSessionDownloadDelegat
             continuation.resume(returning: value)
         case let .failure(error):
             continuation.resume(throwing: error)
+        }
+    }
+}
+
+@MainActor
+private final class UpdateAvailableWindowController: NSWindowController, NSWindowDelegate, WKNavigationDelegate {
+    private let release: GitHubRelease
+    private let openURL: @MainActor (URL) -> Void
+    private let downloadHandler: @MainActor (GitHubReleaseAsset, GitHubRelease) -> Void
+    private let tr: (String) -> String
+
+    private let appIconView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let messageLabel = NSTextField(wrappingLabelWithString: "")
+    private let notesTitleLabel = NSTextField(labelWithString: "")
+    private let webView: WKWebView
+    private let primaryButton = NSButton(title: "", target: nil, action: nil)
+    private let releaseButton = NSButton(title: "", target: nil, action: nil)
+    private let laterButton = NSButton(title: "", target: nil, action: nil)
+    private var modalResponse: NSApplication.ModalResponse = .abort
+
+    init(
+        release: GitHubRelease,
+        currentVersion: String,
+        messageText: String,
+        openURL: @escaping @MainActor (URL) -> Void,
+        downloadHandler: @escaping @MainActor (GitHubReleaseAsset, GitHubRelease) -> Void,
+        tr: @escaping (String) -> String
+    ) {
+        self.release = release
+        self.openURL = openURL
+        self.downloadHandler = downloadHandler
+        self.tr = tr
+
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        self.webView = WKWebView(frame: .zero, configuration: configuration)
+
+        let contentSize = NSSize(width: 640, height: 720)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: contentSize),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = tr("Update available")
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.setContentSize(contentSize)
+        window.minSize = NSSize(width: 600, height: 640)
+
+        super.init(window: window)
+        window.delegate = self
+
+        configureContent(
+            currentVersion: currentVersion,
+            messageText: messageText
+        )
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func runModal() {
+        guard let window else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        showWindow(nil)
+        window.center()
+        NSApp.runModal(for: window)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if NSApp.modalWindow === window {
+            NSApp.stopModal(withCode: modalResponse)
+        }
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
+    ) {
+        if navigationAction.navigationType == .linkActivated,
+           let url = navigationAction.request.url {
+            openURL(url)
+            decisionHandler(.cancel)
+            return
+        }
+
+        decisionHandler(.allow)
+    }
+
+    @objc
+    private func handlePrimaryAction() {
+        if let asset = release.downloadAsset {
+            downloadHandler(asset, release)
+        } else {
+            openURL(release.releaseURL)
+        }
+        closeWithResponse(.alertFirstButtonReturn)
+    }
+
+    @objc
+    private func handleReleaseAction() {
+        openURL(release.releaseURL)
+    }
+
+    @objc
+    private func handleLaterAction() {
+        closeWithResponse(.alertSecondButtonReturn)
+    }
+
+    private func closeWithResponse(_ response: NSApplication.ModalResponse) {
+        modalResponse = response
+        window?.close()
+    }
+
+    private func configureContent(currentVersion: String, messageText: String) {
+        guard let contentView = window?.contentView else { return }
+
+        applyAppearanceMode(to: window)
+
+        let root = NSStackView()
+        root.orientation = .vertical
+        root.alignment = .leading
+        root.spacing = 16
+        root.translatesAutoresizingMaskIntoConstraints = false
+
+        contentView.addSubview(root)
+
+        let topRow = NSStackView()
+        topRow.orientation = .horizontal
+        topRow.alignment = .top
+        topRow.spacing = 16
+        topRow.translatesAutoresizingMaskIntoConstraints = false
+
+        if let appIcon = NSApp.applicationIconImage {
+            appIconView.image = appIcon
+        }
+        appIconView.imageScaling = .scaleProportionallyUpOrDown
+        appIconView.translatesAutoresizingMaskIntoConstraints = false
+        appIconView.wantsLayer = true
+        appIconView.layer?.cornerRadius = 20
+        appIconView.layer?.masksToBounds = true
+
+        let textColumn = NSStackView()
+        textColumn.orientation = .vertical
+        textColumn.alignment = .leading
+        textColumn.spacing = 8
+        textColumn.translatesAutoresizingMaskIntoConstraints = false
+
+        titleLabel.stringValue = tr("Update available")
+        titleLabel.font = .systemFont(ofSize: 28, weight: .bold)
+        titleLabel.lineBreakMode = .byWordWrapping
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        messageLabel.stringValue = messageText
+        messageLabel.font = .systemFont(ofSize: 15)
+        messageLabel.maximumNumberOfLines = 0
+        messageLabel.lineBreakMode = .byWordWrapping
+        messageLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        textColumn.addArrangedSubview(titleLabel)
+        textColumn.addArrangedSubview(messageLabel)
+
+        topRow.addArrangedSubview(appIconView)
+        topRow.addArrangedSubview(textColumn)
+
+        notesTitleLabel.stringValue = tr("Release Notes")
+        notesTitleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        notesTitleLabel.textColor = .secondaryLabelColor
+        notesTitleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let notesContainer = NSView()
+        notesContainer.translatesAutoresizingMaskIntoConstraints = false
+        notesContainer.wantsLayer = true
+        notesContainer.layer?.cornerRadius = 12
+        notesContainer.layer?.borderWidth = 1
+        notesContainer.layer?.borderColor = NSColor.separatorColor.cgColor
+        notesContainer.addSubview(webView)
+
+        webView.navigationDelegate = self
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        webView.allowsBackForwardNavigationGestures = false
+        webView.allowsMagnification = false
+        webView.isInspectable = false
+        webView.loadHTMLString(
+            release.renderedReleaseNotesHTML
+                ?? UpdateChecker.fallbackReleaseNotesHTML(
+                    markdown: release.releaseNotes ?? tr("No release notes were provided for this release."),
+                    releaseURL: release.releaseURL
+                ),
+            baseURL: release.releaseURL
+        )
+
+        let buttonRow = NSStackView()
+        buttonRow.orientation = .horizontal
+        buttonRow.alignment = .centerY
+        buttonRow.spacing = 12
+        buttonRow.translatesAutoresizingMaskIntoConstraints = false
+
+        configureButton(
+            primaryButton,
+            title: release.downloadAsset.map(UpdateChecker.primaryActionTitle(for:)) ?? tr("View Release"),
+            bezelStyle: .rounded,
+            action: #selector(handlePrimaryAction)
+        )
+        configureButton(
+            releaseButton,
+            title: tr("View Release"),
+            bezelStyle: .rounded,
+            action: #selector(handleReleaseAction)
+        )
+        configureButton(
+            laterButton,
+            title: tr("Later"),
+            bezelStyle: .rounded,
+            action: #selector(handleLaterAction)
+        )
+
+        buttonRow.addArrangedSubview(primaryButton)
+        buttonRow.addArrangedSubview(releaseButton)
+        buttonRow.addArrangedSubview(NSView())
+        buttonRow.addArrangedSubview(laterButton)
+
+        root.addArrangedSubview(topRow)
+        root.addArrangedSubview(notesTitleLabel)
+        root.addArrangedSubview(notesContainer)
+        root.addArrangedSubview(buttonRow)
+
+        NSLayoutConstraint.activate([
+            root.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
+            root.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
+            root.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 24),
+            root.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -24),
+
+            appIconView.widthAnchor.constraint(equalToConstant: 72),
+            appIconView.heightAnchor.constraint(equalToConstant: 72),
+
+            notesContainer.widthAnchor.constraint(equalTo: root.widthAnchor),
+            notesContainer.heightAnchor.constraint(equalToConstant: 360),
+
+            webView.leadingAnchor.constraint(equalTo: notesContainer.leadingAnchor, constant: 1),
+            webView.trailingAnchor.constraint(equalTo: notesContainer.trailingAnchor, constant: -1),
+            webView.topAnchor.constraint(equalTo: notesContainer.topAnchor, constant: 1),
+            webView.bottomAnchor.constraint(equalTo: notesContainer.bottomAnchor, constant: -1),
+
+            primaryButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 140),
+            releaseButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
+            laterButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
+        ])
+    }
+
+    private func configureButton(
+        _ button: NSButton,
+        title: String,
+        bezelStyle: NSButton.BezelStyle,
+        action: Selector
+    ) {
+        button.title = title
+        button.bezelStyle = bezelStyle
+        button.setButtonType(.momentaryPushIn)
+        button.target = self
+        button.action = action
+        button.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    private func applyAppearanceMode(to window: NSWindow?) {
+        guard let window else { return }
+        let rawValue = AppPreferences.shared.value(for: \.appearanceModeRawValue)
+        let mode = AppAppearanceMode.resolved(from: rawValue)
+        if let appearanceName = mode.nsAppearanceName {
+            window.appearance = NSAppearance(named: appearanceName)
+        } else {
+            window.appearance = nil
         }
     }
 }
