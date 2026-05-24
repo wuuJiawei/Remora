@@ -188,7 +188,7 @@ final class RemoteTextEditorViewModel: ObservableObject {
     }
 
     func save(request: EditorSaveRequest) async {
-        guard !isLoading, saveStatus != .saving else { return }
+        guard !isLoading else { return }
 
         saveStatus = .saving
         EditorDebugLog.log("viewModel.save begin rev=\(request.revision) chars=\(request.text.count)")
