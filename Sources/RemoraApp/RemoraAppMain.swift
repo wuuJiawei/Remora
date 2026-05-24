@@ -75,12 +75,6 @@ struct RemoraAppMain: App {
             }
 
             CommandMenu(L10n.tr("Terminal", fallback: "Terminal")) {
-                commandButton(for: .terminalCopy)
-                commandButton(for: .terminalPaste)
-                Button(L10n.tr("Select All", fallback: "Select All")) {
-                    _ = NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
-                }
-                Divider()
                 commandButton(for: .terminalClearScreen)
             }
         }

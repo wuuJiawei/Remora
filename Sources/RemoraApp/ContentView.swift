@@ -302,12 +302,6 @@ struct ContentView: View {
                 guard !isExportingHosts, !isImportingHosts, !hostCatalog.isLoading else { return }
                 beginExportAllHosts()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .remoraTerminalCopyCommand)) { _ in
-                workspace.activePane?.terminalView.performTerminalAction(.copy)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .remoraTerminalPasteCommand)) { _ in
-                workspace.activePane?.terminalView.performTerminalAction(.paste)
-            }
             .onReceive(NotificationCenter.default.publisher(for: .remoraTerminalClearScreenCommand)) { _ in
                 workspace.activePane?.terminalView.performTerminalAction(.clearScreen)
             }

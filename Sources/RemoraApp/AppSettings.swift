@@ -121,7 +121,5 @@ extension Notification.Name {
     static let remoraNewSSHConnectionCommand = Notification.Name("remora.command.newSSHConnection")
     static let remoraImportConnectionsCommand = Notification.Name("remora.command.importConnections")
     static let remoraExportConnectionsCommand = Notification.Name("remora.command.exportConnections")
-    static let remoraTerminalCopyCommand = Notification.Name("remora.command.terminalCopy")
-    static let remoraTerminalPasteCommand = Notification.Name("remora.command.terminalPaste")
     static let remoraTerminalClearScreenCommand = Notification.Name("remora.command.terminalClearScreen")
 }
