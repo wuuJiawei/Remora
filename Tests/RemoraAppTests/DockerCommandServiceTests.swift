@@ -155,4 +155,18 @@ struct DockerCommandServiceTests {
         #expect(projects.first?.configFiles == ["/srv/demo/compose.yml"])
         #expect(projects.first?.canRunCommands == true)
     }
+
+    @Test
+    func containerLogsRedirectsStderrIntoStdout() async throws {
+        let service = DockerCommandService()
+        let target = makeTarget(
+            responses: [
+                "docker logs --tail 120 'abc123' 2>&1": .success("stderr-and-stdout\n"),
+            ]
+        )
+
+        let output = try await service.containerLogs(containerID: "abc123", tail: 120, target: target)
+
+        #expect(output == "stderr-and-stdout\n")
+    }
 }

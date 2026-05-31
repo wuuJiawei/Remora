@@ -273,7 +273,7 @@ actor DockerCommandService {
 
     func containerLogs(containerID: String, tail: Int, target: ShellTarget) async throws -> String {
         let lineCount = max(1, min(tail, 5000))
-        let command = "docker logs --tail \(lineCount) \(quoteShellArgument(containerID))"
+        let command = "docker logs --tail \(lineCount) \(quoteShellArgument(containerID)) 2>&1"
         return try await target.client.executeRemoteShellCommand(command, timeout: 20)
     }
 
@@ -283,7 +283,7 @@ actor DockerCommandService {
         target: ShellTarget
     ) async throws -> AsyncThrowingStream<String, Error> {
         let lineCount = max(1, min(tail, 5000))
-        let command = "docker logs --tail \(lineCount) -f \(quoteShellArgument(containerID))"
+        let command = "docker logs --tail \(lineCount) -f \(quoteShellArgument(containerID)) 2>&1"
         return try await target.client.streamRemoteShellCommand(command)
     }
 
@@ -632,11 +632,11 @@ actor DockerCommandService {
 
     private func composeCommand(action: String, project: DockerComposeProject) throws -> String {
         if let workingDir = project.workingDir {
-            return "cd \(quoteShellArgument(workingDir)) && docker compose \(action)"
+            return "cd \(quoteShellArgument(workingDir)) && docker compose \(action) 2>&1"
         }
 
         if let composeFile = project.configFiles.first {
-            return "docker compose -f \(quoteShellArgument(composeFile)) \(action)"
+            return "docker compose -f \(quoteShellArgument(composeFile)) \(action) 2>&1"
         }
 
         throw SSHError.connectionFailed(tr("Unable to determine the Compose working directory for this project"))
