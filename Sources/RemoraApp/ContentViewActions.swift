@@ -80,7 +80,7 @@ extension ContentView {
             return true
         case .terminal:
             return workspace.activePane != nil
-        case .fileManager:
+        case .bottomPanel:
             return shouldShowFileManager && !workspace.tabs.isEmpty
         }
     }
@@ -1009,6 +1009,53 @@ extension ContentView {
                 }
 
                 if completed {
+                    return
+                }
+            }
+        }
+    }
+
+    func openDockerWorkspace(for host: RemoraCore.Host, runtime: TerminalRuntime) {
+        dockerWorkspaceWindowManager.present(
+            host: host,
+            runtime: runtime,
+            onOpenContainerShell: { host, container in
+                Task { @MainActor in
+                    openDockerContainerShell(on: host, container: container)
+                }
+            }
+        )
+    }
+
+    func openDockerContainerShell(on host: RemoraCore.Host, container: DockerContainer) {
+        guard container.isRunning else {
+            return
+        }
+
+        workspace.createTab(title: "\(host.name) · \(container.name)", connectLocalShell: false)
+        guard let tabID = workspace.activeTabID else { return }
+        workspace.selectTab(tabID)
+        workspace.connectActivePane(host: host, template: nil)
+        bootstrapFileManagerBindingForActiveRuntime()
+        hostCatalog.markConnected(hostID: host.id)
+
+        let runtimeID = workspace.activePane.map { ObjectIdentifier($0.runtime) }
+        Task { @MainActor in
+            for _ in 0 ..< 60 {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard let runtime = workspace.activePane?.runtime,
+                      ObjectIdentifier(runtime) == runtimeID
+                else {
+                    return
+                }
+
+                if runtime.connectionMode == .ssh,
+                   runtime.connectedSSHHost != nil,
+                   runtime.connectionState.hasPrefix("Connected")
+                {
+                    runtime.runAssistantCommand(
+                        "docker exec -it \(container.id) /bin/bash || docker exec -it \(container.id) /bin/sh"
+                    )
                     return
                 }
             }

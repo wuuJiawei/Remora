@@ -395,7 +395,7 @@ extension ContentView {
             case .terminal:
                 focusedTerminalWorkspace
 
-            case .fileManager:
+            case .bottomPanel:
                 focusedFileManagerWorkspace
             }
         }
@@ -493,7 +493,7 @@ extension ContentView {
     }
 
     var isFileManagerFocusMode: Bool {
-        workspaceFocusMode == .fileManager
+        workspaceFocusMode == .bottomPanel
     }
 
     var sessionShouldFillRemainingHeight: Bool {
@@ -852,7 +852,7 @@ extension ContentView {
                     }
                 },
                 onToggleFocus: {
-                    toggleWorkspaceFocusMode(.fileManager)
+                    toggleWorkspaceFocusMode(.bottomPanel)
                 }
             )
             .padding(.horizontal, 12)
@@ -862,28 +862,7 @@ extension ContentView {
             if isFileManagerPanelVisible {
                 Divider()
                     .overlay(VisualStyle.borderSoft)
-                let fileManagerHostID = workspace.activePane?.runtime.reconnectableSSHHost?.id
-                FileManagerPanelView(
-                    viewModel: fileTransfer,
-                    quickPaths: hostCatalog.quickPaths(for: fileManagerHostID),
-                    onRunQuickPath: { quickPath in
-                        runQuickPath(quickPath)
-                    },
-                    onManageQuickPaths: {
-                        guard let fileManagerHostID else { return }
-                        beginManageQuickPaths(for: fileManagerHostID)
-                    },
-                    onAddCurrentQuickPath: { currentPath in
-                        guard let fileManagerHostID else { return }
-                        addCurrentPathToQuickPaths(currentPath, hostID: fileManagerHostID)
-                    },
-                    onRefreshRemote: {
-                        refreshOrReconnectFileManagerForActivePane()
-                    },
-                    onEditDownloadPath: {
-                        openSettingsAndFocusDownloadPath()
-                    }
-                )
+                fileManagerPanelContent
                     .frame(minHeight: 280, maxHeight: fileManagerShouldFillRemainingHeight ? .infinity : 420, alignment: .top)
                     .layoutPriority(fileManagerShouldFillRemainingHeight ? 1 : 0)
                     .padding(.horizontal, 12)
@@ -909,7 +888,7 @@ extension ContentView {
                 isFocusActive: true,
                 onToggleDisclosure: nil,
                 onToggleFocus: {
-                    toggleWorkspaceFocusMode(.fileManager)
+                    toggleWorkspaceFocusMode(.bottomPanel)
                 }
             )
             .padding(.horizontal, 12)
@@ -919,28 +898,7 @@ extension ContentView {
             Divider()
                 .overlay(VisualStyle.borderSoft)
 
-            let fileManagerHostID = workspace.activePane?.runtime.reconnectableSSHHost?.id
-            FileManagerPanelView(
-                viewModel: fileTransfer,
-                quickPaths: hostCatalog.quickPaths(for: fileManagerHostID),
-                onRunQuickPath: { quickPath in
-                    runQuickPath(quickPath)
-                },
-                onManageQuickPaths: {
-                    guard let fileManagerHostID else { return }
-                    beginManageQuickPaths(for: fileManagerHostID)
-                },
-                onAddCurrentQuickPath: { currentPath in
-                    guard let fileManagerHostID else { return }
-                    addCurrentPathToQuickPaths(currentPath, hostID: fileManagerHostID)
-                },
-                onRefreshRemote: {
-                    refreshOrReconnectFileManagerForActivePane()
-                },
-                onEditDownloadPath: {
-                    openSettingsAndFocusDownloadPath()
-                }
-            )
+            fileManagerPanelContent
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, 12)
             .padding(.top, 8)
@@ -948,6 +906,31 @@ extension ContentView {
         }
         .glassCard(fill: VisualStyle.rightPanelBackground, border: VisualStyle.borderSoft, showsShadow: false)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    var fileManagerPanelContent: some View {
+        let fileManagerHostID = workspace.activePane?.runtime.reconnectableSSHHost?.id
+        return FileManagerPanelView(
+            viewModel: fileTransfer,
+            quickPaths: hostCatalog.quickPaths(for: fileManagerHostID),
+            onRunQuickPath: { quickPath in
+                runQuickPath(quickPath)
+            },
+            onManageQuickPaths: {
+                guard let fileManagerHostID else { return }
+                beginManageQuickPaths(for: fileManagerHostID)
+            },
+            onAddCurrentQuickPath: { currentPath in
+                guard let fileManagerHostID else { return }
+                addCurrentPathToQuickPaths(currentPath, hostID: fileManagerHostID)
+            },
+            onRefreshRemote: {
+                refreshOrReconnectFileManagerForActivePane()
+            },
+            onEditDownloadPath: {
+                openSettingsAndFocusDownloadPath()
+            }
+        )
     }
 
     @ViewBuilder
@@ -1072,6 +1055,10 @@ extension ContentView {
             onManageQuickCommands: {
                 guard let hostID else { return }
                 beginManageQuickCommands(for: hostID)
+            },
+            onOpenDockerWorkspace: {
+                guard let host = pane.runtime.reconnectableSSHHost else { return }
+                openDockerWorkspace(for: host, runtime: pane.runtime)
             }
         )
         .id(pane.id)

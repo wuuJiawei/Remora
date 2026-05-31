@@ -19,6 +19,7 @@ struct ContentView: View {
     @StateObject var directorySyncBridge = TerminalDirectorySyncBridge()
     @StateObject var serverMetricsCenter = ServerMetricsCenter()
     @StateObject var serverStatusWindowManager = ServerStatusWindowManager()
+    @StateObject var dockerWorkspaceWindowManager = DockerWorkspaceWindowManager()
     @StateObject var portForwardCenter = PortForwardCenter()
     @EnvironmentObject var extensionScriptStore: ExtensionScriptAppStore
     @StateObject var extensionScriptRunner = ExtensionScriptRunnerViewModel()

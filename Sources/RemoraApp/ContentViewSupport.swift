@@ -115,7 +115,7 @@ struct BottomPanelVisibilityState: Equatable {
 enum WorkspaceFocusMode: Equatable {
     case none
     case terminal
-    case fileManager
+    case bottomPanel
 
     var isActive: Bool {
         self != .none

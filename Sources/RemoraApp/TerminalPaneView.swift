@@ -23,6 +23,7 @@ struct TerminalPaneView: View {
     var onClose: () -> Void
     var onRunQuickCommand: (HostQuickCommand) -> Void
     var onManageQuickCommands: () -> Void
+    var onOpenDockerWorkspace: () -> Void
     @RemoraStored(\.aiEnabled) private var aiEnabled: Bool
     @State private var smartAssistNotificationState = TerminalSmartAssistNotificationState()
     @State private var otpInputCode: String = ""
@@ -81,7 +82,8 @@ struct TerminalPaneView: View {
         onReconnect: @escaping () -> Void = {},
         onClose: @escaping () -> Void = {},
         onRunQuickCommand: @escaping (HostQuickCommand) -> Void = { _ in },
-        onManageQuickCommands: @escaping () -> Void = {}
+        onManageQuickCommands: @escaping () -> Void = {},
+        onOpenDockerWorkspace: @escaping () -> Void = {}
     ) {
         self.pane = pane
         self._runtime = ObservedObject(wrappedValue: pane.runtime)
@@ -98,6 +100,7 @@ struct TerminalPaneView: View {
         self.onClose = onClose
         self.onRunQuickCommand = onRunQuickCommand
         self.onManageQuickCommands = onManageQuickCommands
+        self.onOpenDockerWorkspace = onOpenDockerWorkspace
     }
 
     var body: some View {
@@ -165,6 +168,18 @@ struct TerminalPaneView: View {
                 }
 
                 if runtime.connectionMode == .ssh {
+                    Button {
+                        onSelect()
+                        onOpenDockerWorkspace()
+                    } label: {
+                        Image(systemName: "shippingbox")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(VisualStyle.textSecondary)
+                    .accessibilityLabel(tr("Open Docker Workspace"))
+                    .accessibilityIdentifier("terminal-open-docker-workspace")
+
                     Menu {
                         if quickCommands.isEmpty {
                             Text(tr("No quick commands"))

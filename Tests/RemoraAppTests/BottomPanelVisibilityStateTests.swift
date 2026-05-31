@@ -67,6 +67,7 @@ struct BottomPanelVisibilityStateTests {
         #expect(state.sessionShouldFillRemainingHeight(fileManagerAvailable: true) == true)
         #expect(state.fileManagerShouldFillRemainingHeight(fileManagerAvailable: true) == false)
     }
+
 }
 
 struct SSHRefreshActionDecisionTests {
