@@ -21,6 +21,8 @@ struct FileManagerPanelView: View {
     var onReorderQuickPaths: ([UUID]) -> Void = { _ in }
     var onRefreshRemote: () -> Void = {}
     var onEditDownloadPath: (() -> Void)?
+    var showsEmbeddedNavigationChrome = true
+    var showsEmbeddedSidebar = true
     @StateObject private var remoteEditorWindowManager: RemoteTextEditorWindowManager
     @StateObject private var remoteLiveLogWindowManager: RemoteLiveLogWindowManager
 
@@ -91,7 +93,9 @@ struct FileManagerPanelView: View {
         onDeleteQuickPath: @escaping (HostQuickPath) -> Void = { _ in },
         onReorderQuickPaths: @escaping ([UUID]) -> Void = { _ in },
         onRefreshRemote: @escaping () -> Void = {},
-        onEditDownloadPath: (() -> Void)? = nil
+        onEditDownloadPath: (() -> Void)? = nil,
+        showsEmbeddedNavigationChrome: Bool = true,
+        showsEmbeddedSidebar: Bool = true
     ) {
         self.viewModel = viewModel
         self.quickPaths = quickPaths
@@ -102,6 +106,8 @@ struct FileManagerPanelView: View {
         self.onReorderQuickPaths = onReorderQuickPaths
         self.onRefreshRemote = onRefreshRemote
         self.onEditDownloadPath = onEditDownloadPath
+        self.showsEmbeddedNavigationChrome = showsEmbeddedNavigationChrome
+        self.showsEmbeddedSidebar = showsEmbeddedSidebar
         _remoteEditorWindowManager = StateObject(
             wrappedValue: RemoteTextEditorWindowManager(fileTransfer: viewModel)
         )
@@ -225,16 +231,21 @@ struct FileManagerPanelView: View {
 
     private var rootContent: some View {
         VStack(spacing: 8) {
-            HSplitView {
-                remoteSidebar
-                    .frame(minWidth: 220, idealWidth: 250, maxWidth: 320)
-                    .padding(.trailing, 6)
+            if showsEmbeddedSidebar {
+                HSplitView {
+                    remoteSidebar
+                        .frame(minWidth: 220, idealWidth: 250, maxWidth: 320)
+                        .padding(.trailing, 6)
 
+                    remotePanel
+                        .padding(.leading, 6)
+                        .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                .frame(minHeight: 150, maxHeight: .infinity, alignment: .top)
+            } else {
                 remotePanel
-                    .padding(.leading, 6)
-                    .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .frame(minHeight: 150, maxHeight: .infinity, alignment: .top)
             }
-            .frame(minHeight: 150, maxHeight: .infinity, alignment: .top)
 
             remoteActionBar
         }
@@ -490,9 +501,11 @@ struct FileManagerPanelView: View {
 
     private var remotePanel: some View {
         VStack(alignment: .leading, spacing: 6) {
-            remoteToolbar
-            if isShowingSearchResults {
-                remoteSearchStatusStrip
+            if showsEmbeddedNavigationChrome {
+                remoteToolbar
+                if isShowingSearchResults {
+                    remoteSearchStatusStrip
+                }
             }
             remoteListHeader
 
@@ -1556,7 +1569,10 @@ struct FileManagerPanelView: View {
         let name = quickPathAddNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         let path = quickPathAddPathDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty else { return }
-        guard let quickPath = onAddQuickPath(name, path) else { return }
+        guard let quickPath = onAddQuickPath(name, path) else {
+            showOperationToast(tr("Failed to add quick path."))
+            return
+        }
         showOperationToast(String(format: tr("Added \"%@\"."), quickPath.name))
         isQuickPathAddSheetPresented = false
         quickPathAddNameDraft = ""

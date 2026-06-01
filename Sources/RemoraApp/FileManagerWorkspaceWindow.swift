@@ -53,29 +53,29 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             runtime: runtime,
             viewModel: viewModel,
             quickPathsProvider: { runtime in
-                let hostID = runtime.reconnectableSSHHost?.id
+                let hostID = runtime.reconnectableSSHHost?.id ?? host.id
                 return hostCatalog.quickPaths(for: hostID)
             },
             onRunQuickPath: { quickPath in
                 viewModel.navigateRemote(to: quickPath.path)
             },
             onAddQuickPath: { name, path, runtime in
-                guard let hostID = runtime.reconnectableSSHHost?.id else { return nil }
+                let hostID = runtime.reconnectableSSHHost?.id ?? host.id
                 return hostCatalog.addQuickPath(hostID: hostID, name: name, path: path)
             },
             onRenameQuickPath: { quickPath, name, runtime in
-                guard let hostID = runtime.reconnectableSSHHost?.id else { return nil }
+                let hostID = runtime.reconnectableSSHHost?.id ?? host.id
                 return hostCatalog.updateQuickPath(
                     hostID: hostID,
                     quickPath: HostQuickPath(id: quickPath.id, name: name, path: quickPath.path)
                 )
             },
             onDeleteQuickPath: { quickPath, runtime in
-                guard let hostID = runtime.reconnectableSSHHost?.id else { return }
+                let hostID = runtime.reconnectableSSHHost?.id ?? host.id
                 hostCatalog.deleteQuickPath(hostID: hostID, quickPathID: quickPath.id)
             },
             onReorderQuickPaths: { orderedIDs, runtime in
-                guard let hostID = runtime.reconnectableSSHHost?.id else { return }
+                let hostID = runtime.reconnectableSSHHost?.id ?? host.id
                 hostCatalog.reorderQuickPaths(hostID: hostID, orderedQuickPathIDs: orderedIDs)
             },
             onRefreshRemote: { runtime in
@@ -260,6 +260,11 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
 final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDelegate {
     private let host: RemoraCore.Host
     private let onClose: () -> Void
+    private let toolbarController = FileManagerWindowToolbar()
+    private var toolbarCancellables: Set<AnyCancellable> = []
+    private let splitController: FileManagerWindowSplitController
+    private let remoteEditorWindowManager: RemoteTextEditorWindowManager
+    private let remoteLiveLogWindowManager: RemoteLiveLogWindowManager
 
     init(
         host: RemoraCore.Host,
@@ -277,30 +282,261 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
     ) {
         self.host = host
         self.onClose = onClose
+        self.remoteEditorWindowManager = RemoteTextEditorWindowManager(fileTransfer: viewModel)
+        self.remoteLiveLogWindowManager = RemoteLiveLogWindowManager(fileTransfer: viewModel)
 
-        let rootView = FileManagerWorkspaceWindowView(
-            runtime: runtime,
-            viewModel: viewModel,
-            quickPathsProvider: quickPathsProvider,
-            onRunQuickPath: onRunQuickPath,
-            onAddQuickPath: onAddQuickPath,
-            onRenameQuickPath: onRenameQuickPath,
-            onDeleteQuickPath: onDeleteQuickPath,
-            onReorderQuickPaths: onReorderQuickPaths,
-            onRefreshRemote: onRefreshRemote,
-            onOpenDownloadSettings: onOpenDownloadSettings
+        self.splitController = FileManagerWindowSplitController(
+            selectedPath: viewModel.remoteDirectoryPath,
+            quickPathsProvider: {
+                quickPathsProvider(runtime)
+            },
+            directoriesProvider: {
+                viewModel.remoteEntries.filter(\.isDirectory)
+            },
+            onSelectRoot: {
+                viewModel.navigateRemote(to: "/")
+            },
+            onSelectQuickPath: onRunQuickPath,
+            onSelectDirectory: { path in
+                viewModel.navigateRemote(to: path)
+            },
+            onAddQuickPathForDirectory: { path in
+                _ = onAddQuickPath(path, path, runtime)
+            },
+            onRenameQuickPath: { quickPath in
+                _ = onRenameQuickPath(quickPath, quickPath.name, runtime)
+            },
+            onDeleteQuickPath: { quickPath in
+                onDeleteQuickPath(quickPath, runtime)
+            },
+            onReorderQuickPaths: { orderedIDs in
+                onReorderQuickPaths(orderedIDs, runtime)
+            },
+            onRefreshDirectory: { path in
+                if viewModel.remoteDirectoryPath == path {
+                    onRefreshRemote(runtime)
+                } else {
+                    viewModel.navigateRemote(to: path)
+                }
+            },
+            onOpenDirectory: { entry in
+                viewModel.openRemote(entry)
+            },
+            onRefreshCurrentDirectory: {
+                onRefreshRemote(runtime)
+            },
+            onAddCurrentQuickPath: { path in
+                _ = onAddQuickPath(path, path, runtime)
+            },
+            onCreateDirectory: { path in
+                let alert = NSAlert()
+                alert.messageText = tr("New Folder")
+                alert.informativeText = tr("Name")
+                let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+                field.stringValue = tr("New Folder")
+                alert.accessoryView = field
+                alert.addButton(withTitle: tr("Create"))
+                alert.addButton(withTitle: tr("Cancel"))
+                if alert.runModal() == .alertFirstButtonReturn {
+                    let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !name.isEmpty else { return }
+                    viewModel.createRemoteDirectory(named: name, in: path)
+                }
+            },
+            onCreateFile: { path in
+                let alert = NSAlert()
+                alert.messageText = tr("New File")
+                alert.informativeText = tr("Name")
+                let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+                field.stringValue = "untitled.txt"
+                alert.accessoryView = field
+                alert.addButton(withTitle: tr("Create"))
+                alert.addButton(withTitle: tr("Cancel"))
+                if alert.runModal() == .alertFirstButtonReturn {
+                    let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !name.isEmpty else { return }
+                    viewModel.createRemoteFile(named: name, in: path)
+                }
+            },
+            onRenameEntry: { entry in
+                let alert = NSAlert()
+                alert.messageText = tr("Rename")
+                let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+                field.stringValue = entry.name
+                alert.accessoryView = field
+                alert.addButton(withTitle: tr("Save"))
+                alert.addButton(withTitle: tr("Cancel"))
+                if alert.runModal() == .alertFirstButtonReturn {
+                    let newName = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !newName.isEmpty else { return }
+                    viewModel.renameRemoteEntry(path: entry.path, toName: newName)
+                }
+            },
+            onDeleteEntries: { entries in
+                viewModel.deleteRemoteEntries(paths: entries.map(\.path))
+            },
+            onCopyPath: { path in
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(path, forType: .string)
+            },
+            onUploadToDirectory: { path in
+                let panel = NSOpenPanel()
+                panel.allowsMultipleSelection = true
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = true
+                panel.canCreateDirectories = false
+                if panel.runModal() == .OK {
+                    let acceptedURLs = RemoteDropRouting.acceptedLocalDropURLs(panel.urls)
+                    guard !acceptedURLs.isEmpty else { return }
+                    viewModel.enqueueUpload(localFileURLs: acceptedURLs, toRemoteDirectory: path)
+                }
+            }
         )
-        let hostingController = NSHostingController(rootView: rootView)
-        let window = NSWindow(contentViewController: hostingController)
+
+        toolbarController.onBack = {
+            viewModel.navigateRemoteBack()
+        }
+        toolbarController.onForward = {
+            viewModel.navigateRemoteForward()
+        }
+        toolbarController.onRefresh = {
+            onRefreshRemote(runtime)
+        }
+        toolbarController.onPathSelected = { path in
+            viewModel.navigateRemote(to: path)
+        }
+
+        let window = NSWindow(contentViewController: splitController)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 1080, height: 760))
         window.minSize = NSSize(width: 760, height: 560)
         window.isReleasedWhenClosed = false
         window.tabbingMode = .preferred
         window.title = Self.windowTitle(for: host)
+        window.toolbar = toolbarController.toolbar
+        window.toolbarStyle = .unified
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
 
         super.init(window: window)
         window.delegate = self
+        toolbarController.update(
+            currentPath: viewModel.remoteDirectoryPath,
+            canGoBack: viewModel.canNavigateRemoteBack,
+            canGoForward: viewModel.canNavigateRemoteForward
+        )
+        toolbarController.onSearchChanged = { [weak self, weak viewModel] query in
+            guard let self, let viewModel else { return }
+            self.splitController.updateSearchQuery(query)
+            self.splitController.reloadDetail(
+                currentPath: viewModel.remoteDirectoryPath,
+                entries: viewModel.remoteEntries,
+                isLoading: viewModel.isRemoteLoading,
+                searchQuery: query
+            )
+        }
+        splitController.setPropertyHandlers(
+            onShowProperties: { [weak self] entry in
+                guard let self else { return }
+                let controller = NSHostingController(
+                    rootView: RemoteFilePropertiesSheet(
+                        path: entry.path,
+                        fileTransfer: viewModel,
+                        initialAttributes: RemoteFileAttributes(
+                            permissions: entry.permissions,
+                            owner: entry.owner,
+                            group: entry.group,
+                            size: entry.size,
+                            modifiedAt: entry.modifiedAt,
+                            isDirectory: entry.isDirectory
+                        )
+                    )
+                )
+                let sheet = NSWindow(contentViewController: controller)
+                sheet.styleMask = [.titled, .closable]
+                sheet.setContentSize(NSSize(width: 420, height: 320))
+                self.window?.beginSheet(sheet)
+            },
+            onEditPermissions: { [weak self] entry in
+                guard let self else { return }
+                let controller = NSHostingController(
+                    rootView: RemotePermissionsEditorSheet(
+                        path: entry.path,
+                        fileTransfer: viewModel,
+                        initialAttributes: RemoteFileAttributes(
+                            permissions: entry.permissions,
+                            owner: entry.owner,
+                            group: entry.group,
+                            size: entry.size,
+                            modifiedAt: entry.modifiedAt,
+                            isDirectory: entry.isDirectory
+                        )
+                    )
+                )
+                let sheet = NSWindow(contentViewController: controller)
+                sheet.styleMask = [.titled, .closable]
+                sheet.setContentSize(NSSize(width: 420, height: 360))
+                self.window?.beginSheet(sheet)
+            }
+        )
+        splitController.setOpenHandlers(
+            onOpenTextFile: { [weak self] entry in
+                self?.remoteEditorWindowManager.present(
+                    path: entry.path,
+                    loadOptions: RemoteTextDocumentLoadOptions(
+                        knownSize: entry.size,
+                        knownModifiedAt: entry.modifiedAt
+                    )
+                )
+            },
+            onOpenLogView: { [weak self] entry in
+                self?.remoteLiveLogWindowManager.present(path: entry.path)
+            }
+        )
+        splitController.setArchiveHandlers(
+            onCompressEntries: { [weak self, weak viewModel] entries in
+                guard let self, let viewModel else { return }
+                let paths = entries.map(\.path)
+                let baseName = entries.count == 1
+                    ? URL(fileURLWithPath: entries[0].path).lastPathComponent
+                    : tr("Archive")
+                let archiveName = ArchiveSupport.defaultArchiveName(for: baseName, format: .zip)
+                Task {
+                    do {
+                        try await viewModel.compressRemoteEntries(
+                            paths: paths,
+                            archiveName: archiveName,
+                            format: .zip,
+                            destinationDirectory: viewModel.remoteDirectoryPath
+                        )
+                    } catch {
+                        await MainActor.run {
+                            let alert = NSAlert(error: error)
+                            if let window = self.window {
+                                alert.beginSheetModal(for: window)
+                            }
+                        }
+                    }
+                }
+            },
+            onExtractEntry: { [weak self, weak viewModel] entry in
+                guard let self, let viewModel else { return }
+                Task {
+                    do {
+                        try await viewModel.extractRemoteArchive(path: entry.path, into: viewModel.remoteDirectoryPath)
+                    } catch {
+                        await MainActor.run {
+                            let alert = NSAlert(error: error)
+                            if let window = self.window {
+                                alert.beginSheetModal(for: window)
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        bindToolbar(viewModel: viewModel)
     }
 
     @available(*, unavailable)
@@ -310,6 +546,41 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
 
     func windowWillClose(_ notification: Notification) {
         onClose()
+    }
+
+    private func bindToolbar(viewModel: FileTransferViewModel) {
+        viewModel.$remoteDirectoryPath
+            .combineLatest(viewModel.$canNavigateRemoteBack, viewModel.$canNavigateRemoteForward)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] path, canGoBack, canGoForward in
+                self?.toolbarController.update(
+                    currentPath: path,
+                    canGoBack: canGoBack,
+                    canGoForward: canGoForward
+                )
+                self?.splitController.reloadSidebar(selectedPath: path)
+                self?.splitController.reloadDetail(
+                    currentPath: path,
+                    entries: viewModel.remoteEntries,
+                    isLoading: viewModel.isRemoteLoading,
+                    searchQuery: self?.splitController.currentSearchQuery ?? ""
+                )
+            }
+            .store(in: &toolbarCancellables)
+
+        viewModel.$remoteEntries
+            .combineLatest(viewModel.$isRemoteLoading)
+            .receive(on: RunLoop.main)
+            .sink { [weak self, weak viewModel] entries, isLoading in
+                guard let self, let viewModel else { return }
+                self.splitController.reloadDetail(
+                    currentPath: viewModel.remoteDirectoryPath,
+                    entries: entries,
+                    isLoading: isLoading,
+                    searchQuery: self.splitController.currentSearchQuery
+                )
+            }
+            .store(in: &toolbarCancellables)
     }
 
     private static func windowTitle(for host: RemoraCore.Host) -> String {
@@ -322,45 +593,5 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         }()
 
         return String(format: tr("%@ - File Manager"), hostLabel)
-    }
-}
-
-private struct FileManagerWorkspaceWindowView: View {
-    @ObservedObject var runtime: TerminalRuntime
-    @ObservedObject var viewModel: FileTransferViewModel
-    let quickPathsProvider: (TerminalRuntime) -> [HostQuickPath]
-    let onRunQuickPath: (HostQuickPath) -> Void
-    let onAddQuickPath: (String, String, TerminalRuntime) -> HostQuickPath?
-    let onRenameQuickPath: (HostQuickPath, String, TerminalRuntime) -> HostQuickPath?
-    let onDeleteQuickPath: (HostQuickPath, TerminalRuntime) -> Void
-    let onReorderQuickPaths: ([UUID], TerminalRuntime) -> Void
-    let onRefreshRemote: (TerminalRuntime) -> Void
-    let onOpenDownloadSettings: () -> Void
-
-    var body: some View {
-        FileManagerPanelView(
-            viewModel: viewModel,
-            quickPaths: quickPathsProvider(runtime),
-            onRunQuickPath: onRunQuickPath,
-            onAddQuickPath: { name, path in
-                onAddQuickPath(name, path, runtime)
-            },
-            onRenameQuickPath: { quickPath, name in
-                onRenameQuickPath(quickPath, name, runtime)
-            },
-            onDeleteQuickPath: { quickPath in
-                onDeleteQuickPath(quickPath, runtime)
-            },
-            onReorderQuickPaths: { orderedIDs in
-                onReorderQuickPaths(orderedIDs, runtime)
-            },
-            onRefreshRemote: {
-                onRefreshRemote(runtime)
-            },
-            onEditDownloadPath: onOpenDownloadSettings
-        )
-        .padding(12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(VisualStyle.rightPanelBackground.ignoresSafeArea())
     }
 }
