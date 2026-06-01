@@ -253,6 +253,8 @@ struct FileManagerRemoteListRowView: View {
 }
 
 struct FileManagerRemoteSidebarView: View {
+    private static let quickPathDragPrefix = "quick-path:"
+
     let remoteDirectoryPath: String
     let quickPaths: [HostQuickPath]
     let remoteTreeRoot: FileManagerRemoteTreeNode
@@ -271,6 +273,7 @@ struct FileManagerRemoteSidebarView: View {
     let onReorderQuickPaths: ([UUID]) -> Void
     let onCopyDirectoryPath: (String) -> Void
     let onRefreshDirectory: (String) -> Void
+    @State private var quickPathDropTargetID: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -385,6 +388,12 @@ struct FileManagerRemoteSidebarView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .draggable(Self.quickPathDragPayload(for: quickPath))
+                .dropDestination(for: String.self) { items, _ in
+                    reorderQuickPaths(from: items, before: quickPath)
+                } isTargeted: { isTargeted in
+                    quickPathDropTargetID = isTargeted ? quickPath.id : nil
+                }
                 .accessibilityIdentifier("file-manager-sidebar-quick-path-\(quickPath.id.uuidString)")
                 .contextMenu {
                     contextMenuButton(tr("Edit"), systemImage: ContextMenuIconCatalog.rename) {
@@ -392,6 +401,12 @@ struct FileManagerRemoteSidebarView: View {
                     }
                     contextMenuButton(tr("Delete"), systemImage: ContextMenuIconCatalog.delete, role: .destructive) {
                         onDeleteQuickPath(quickPath)
+                    }
+                }
+                .overlay {
+                    if quickPathDropTargetID == quickPath.id {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.7), lineWidth: 1.5)
                     }
                 }
             }
@@ -419,6 +434,33 @@ struct FileManagerRemoteSidebarView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
+    }
+
+    private static func quickPathDragPayload(for quickPath: HostQuickPath) -> String {
+        "\(quickPathDragPrefix)\(quickPath.id.uuidString)"
+    }
+
+    private static func quickPathID(from payload: String) -> UUID? {
+        guard payload.hasPrefix(quickPathDragPrefix) else { return nil }
+        return UUID(uuidString: String(payload.dropFirst(quickPathDragPrefix.count)))
+    }
+
+    private func reorderQuickPaths(from payloads: [String], before target: HostQuickPath) -> Bool {
+        guard let draggedID = payloads.compactMap(Self.quickPathID(from:)).first else { return false }
+        guard draggedID != target.id else { return false }
+
+        var orderedIDs = quickPaths.map(\.id)
+        guard let fromIndex = orderedIDs.firstIndex(of: draggedID),
+              let targetIndex = orderedIDs.firstIndex(of: target.id)
+        else {
+            return false
+        }
+
+        let moved = orderedIDs.remove(at: fromIndex)
+        let adjustedTargetIndex = fromIndex < targetIndex ? (targetIndex - 1) : targetIndex
+        orderedIDs.insert(moved, at: adjustedTargetIndex)
+        onReorderQuickPaths(orderedIDs)
+        return true
     }
 
     private var directoryTreeSection: some View {
