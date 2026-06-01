@@ -39,8 +39,6 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         host: RemoraCore.Host,
         runtime: TerminalRuntime,
         hostCatalog: HostCatalogStore,
-        onManageQuickPaths: @escaping (UUID) -> Void,
-        onAddCurrentQuickPath: @escaping (String, UUID) -> Void,
         onOpenDownloadSettings: @escaping () -> Void
     ) {
         let windowID = UUID()
@@ -61,13 +59,24 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             onRunQuickPath: { quickPath in
                 viewModel.navigateRemote(to: quickPath.path)
             },
-            onManageQuickPaths: { runtime in
-                guard let hostID = runtime.reconnectableSSHHost?.id else { return }
-                onManageQuickPaths(hostID)
+            onAddQuickPath: { name, path, runtime in
+                guard let hostID = runtime.reconnectableSSHHost?.id else { return nil }
+                return hostCatalog.addQuickPath(hostID: hostID, name: name, path: path)
             },
-            onAddCurrentQuickPath: { currentPath, runtime in
+            onRenameQuickPath: { quickPath, name, runtime in
+                guard let hostID = runtime.reconnectableSSHHost?.id else { return nil }
+                return hostCatalog.updateQuickPath(
+                    hostID: hostID,
+                    quickPath: HostQuickPath(id: quickPath.id, name: name, path: quickPath.path)
+                )
+            },
+            onDeleteQuickPath: { quickPath, runtime in
                 guard let hostID = runtime.reconnectableSSHHost?.id else { return }
-                onAddCurrentQuickPath(currentPath, hostID)
+                hostCatalog.deleteQuickPath(hostID: hostID, quickPathID: quickPath.id)
+            },
+            onReorderQuickPaths: { orderedIDs, runtime in
+                guard let hostID = runtime.reconnectableSSHHost?.id else { return }
+                hostCatalog.reorderQuickPaths(hostID: hostID, orderedQuickPathIDs: orderedIDs)
             },
             onRefreshRemote: { runtime in
                 Self.refreshOrReconnect(viewModel: viewModel, runtime: runtime)
@@ -258,8 +267,10 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         viewModel: FileTransferViewModel,
         quickPathsProvider: @escaping (TerminalRuntime) -> [HostQuickPath],
         onRunQuickPath: @escaping (HostQuickPath) -> Void,
-        onManageQuickPaths: @escaping (TerminalRuntime) -> Void,
-        onAddCurrentQuickPath: @escaping (String, TerminalRuntime) -> Void,
+        onAddQuickPath: @escaping (String, String, TerminalRuntime) -> HostQuickPath?,
+        onRenameQuickPath: @escaping (HostQuickPath, String, TerminalRuntime) -> HostQuickPath?,
+        onDeleteQuickPath: @escaping (HostQuickPath, TerminalRuntime) -> Void,
+        onReorderQuickPaths: @escaping ([UUID], TerminalRuntime) -> Void,
         onRefreshRemote: @escaping (TerminalRuntime) -> Void,
         onOpenDownloadSettings: @escaping () -> Void,
         onClose: @escaping () -> Void
@@ -272,8 +283,10 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             viewModel: viewModel,
             quickPathsProvider: quickPathsProvider,
             onRunQuickPath: onRunQuickPath,
-            onManageQuickPaths: onManageQuickPaths,
-            onAddCurrentQuickPath: onAddCurrentQuickPath,
+            onAddQuickPath: onAddQuickPath,
+            onRenameQuickPath: onRenameQuickPath,
+            onDeleteQuickPath: onDeleteQuickPath,
+            onReorderQuickPaths: onReorderQuickPaths,
             onRefreshRemote: onRefreshRemote,
             onOpenDownloadSettings: onOpenDownloadSettings
         )
@@ -317,8 +330,10 @@ private struct FileManagerWorkspaceWindowView: View {
     @ObservedObject var viewModel: FileTransferViewModel
     let quickPathsProvider: (TerminalRuntime) -> [HostQuickPath]
     let onRunQuickPath: (HostQuickPath) -> Void
-    let onManageQuickPaths: (TerminalRuntime) -> Void
-    let onAddCurrentQuickPath: (String, TerminalRuntime) -> Void
+    let onAddQuickPath: (String, String, TerminalRuntime) -> HostQuickPath?
+    let onRenameQuickPath: (HostQuickPath, String, TerminalRuntime) -> HostQuickPath?
+    let onDeleteQuickPath: (HostQuickPath, TerminalRuntime) -> Void
+    let onReorderQuickPaths: ([UUID], TerminalRuntime) -> Void
     let onRefreshRemote: (TerminalRuntime) -> Void
     let onOpenDownloadSettings: () -> Void
 
@@ -327,11 +342,17 @@ private struct FileManagerWorkspaceWindowView: View {
             viewModel: viewModel,
             quickPaths: quickPathsProvider(runtime),
             onRunQuickPath: onRunQuickPath,
-            onManageQuickPaths: {
-                onManageQuickPaths(runtime)
+            onAddQuickPath: { name, path in
+                onAddQuickPath(name, path, runtime)
             },
-            onAddCurrentQuickPath: { path in
-                onAddCurrentQuickPath(path, runtime)
+            onRenameQuickPath: { quickPath, name in
+                onRenameQuickPath(quickPath, name, runtime)
+            },
+            onDeleteQuickPath: { quickPath in
+                onDeleteQuickPath(quickPath, runtime)
+            },
+            onReorderQuickPaths: { orderedIDs in
+                onReorderQuickPaths(orderedIDs, runtime)
             },
             onRefreshRemote: {
                 onRefreshRemote(runtime)

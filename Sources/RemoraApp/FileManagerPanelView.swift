@@ -15,8 +15,10 @@ struct FileManagerPanelView: View {
     @RemoraStored(\.languageModeRawValue) private var languageModeRawValue: String
     var quickPaths: [HostQuickPath] = []
     var onRunQuickPath: (HostQuickPath) -> Void = { _ in }
-    var onManageQuickPaths: () -> Void = {}
-    var onAddCurrentQuickPath: (String) -> Void = { _ in }
+    var onAddQuickPath: (String, String) -> HostQuickPath? = { _, _ in nil }
+    var onRenameQuickPath: (HostQuickPath, String) -> HostQuickPath? = { _, _ in nil }
+    var onDeleteQuickPath: (HostQuickPath) -> Void = { _ in }
+    var onReorderQuickPaths: ([UUID]) -> Void = { _ in }
     var onRefreshRemote: () -> Void = {}
     var onEditDownloadPath: (() -> Void)?
     @StateObject private var remoteEditorWindowManager: RemoteTextEditorWindowManager
@@ -35,6 +37,10 @@ struct FileManagerPanelView: View {
     @State private var isQuickPathRenameSheetPresented = false
     @State private var quickPathRenameTarget: HostQuickPath?
     @State private var quickPathRenameDraft = ""
+    @State private var isQuickPathAddSheetPresented = false
+    @State private var quickPathAddNameDraft = ""
+    @State private var quickPathAddPathDraft = ""
+    @State private var isQuickPathManagerSheetPresented = false
     @State private var isRenameSheetPresented = false
     @State private var renameTargetPath: String?
     @State private var renameDraft = ""
@@ -80,16 +86,20 @@ struct FileManagerPanelView: View {
         viewModel: FileTransferViewModel,
         quickPaths: [HostQuickPath] = [],
         onRunQuickPath: @escaping (HostQuickPath) -> Void = { _ in },
-        onManageQuickPaths: @escaping () -> Void = {},
-        onAddCurrentQuickPath: @escaping (String) -> Void = { _ in },
+        onAddQuickPath: @escaping (String, String) -> HostQuickPath? = { _, _ in nil },
+        onRenameQuickPath: @escaping (HostQuickPath, String) -> HostQuickPath? = { _, _ in nil },
+        onDeleteQuickPath: @escaping (HostQuickPath) -> Void = { _ in },
+        onReorderQuickPaths: @escaping ([UUID]) -> Void = { _ in },
         onRefreshRemote: @escaping () -> Void = {},
         onEditDownloadPath: (() -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.quickPaths = quickPaths
         self.onRunQuickPath = onRunQuickPath
-        self.onManageQuickPaths = onManageQuickPaths
-        self.onAddCurrentQuickPath = onAddCurrentQuickPath
+        self.onAddQuickPath = onAddQuickPath
+        self.onRenameQuickPath = onRenameQuickPath
+        self.onDeleteQuickPath = onDeleteQuickPath
+        self.onReorderQuickPaths = onReorderQuickPaths
         self.onRefreshRemote = onRefreshRemote
         self.onEditDownloadPath = onEditDownloadPath
         _remoteEditorWindowManager = StateObject(
@@ -330,19 +340,19 @@ struct FileManagerPanelView: View {
                 toggleRemoteTreeNode(path)
             },
             onManageQuickPaths: {
-                onManageQuickPaths()
+                isQuickPathManagerSheetPresented = true
             },
             onAddCurrentQuickPath: {
-                onAddCurrentQuickPath(viewModel.remoteDirectoryPath)
+                beginAddQuickPathFromCurrentDirectory()
             },
             onRenameQuickPath: { quickPath in
-                onManageQuickPaths()
-                DispatchQueue.main.async {
-                    beginRenameQuickPathFromSidebar(quickPath)
-                }
+                beginRenameQuickPathFromSidebar(quickPath)
             },
             onDeleteQuickPath: { quickPath in
                 deleteQuickPathFromSidebar(quickPath)
+            },
+            onReorderQuickPaths: { orderedIDs in
+                onReorderQuickPaths(orderedIDs)
             },
             onCopyDirectoryPath: { path in
                 copyToPasteboard(path)
@@ -364,6 +374,12 @@ struct FileManagerPanelView: View {
         }
         .sheet(isPresented: $isQuickPathRenameSheetPresented) {
             quickPathRenameSheet
+        }
+        .sheet(isPresented: $isQuickPathManagerSheetPresented) {
+            quickPathManagerSheet
+        }
+        .sheet(isPresented: $isQuickPathAddSheetPresented) {
+            quickPathAddSheet
         }
         .sheet(isPresented: $isCreateRemoteSheetPresented) {
             createRemoteSheet
@@ -677,10 +693,10 @@ struct FileManagerPanelView: View {
                 }
                 Divider()
                 Button(tr("Add current path")) {
-                    onAddCurrentQuickPath(viewModel.remoteDirectoryPath)
+                    beginAddQuickPathFromCurrentDirectory()
                 }
-                Button(tr("Manage quick paths")) {
-                    onManageQuickPaths()
+                Button(tr("Quick path editor")) {
+                    beginAddQuickPathFromCurrentDirectory()
                 }
             } label: {
                 toolbarIconChrome(
@@ -1486,10 +1502,15 @@ struct FileManagerPanelView: View {
         isQuickPathRenameSheetPresented = true
     }
 
+    private func beginAddQuickPathFromCurrentDirectory() {
+        quickPathAddNameDraft = defaultQuickPathName(for: viewModel.remoteDirectoryPath)
+        quickPathAddPathDraft = viewModel.remoteDirectoryPath
+        isQuickPathAddSheetPresented = true
+    }
+
     private func deleteQuickPathFromSidebar(_ quickPath: HostQuickPath) {
-        // The host-level editor owns persisted quick-path mutations.
-        // Sidebar delete currently routes users into that same management flow.
-        onManageQuickPaths()
+        onDeleteQuickPath(quickPath)
+        showOperationToast(String(format: tr("Deleted \"%@\"."), quickPath.name))
     }
 
     private func refreshDirectoryNode(_ path: String) {
@@ -1502,12 +1523,25 @@ struct FileManagerPanelView: View {
     }
 
     private func commitQuickPathRenameFromSidebar() {
-        guard quickPathRenameTarget != nil else { return }
+        guard let target = quickPathRenameTarget else { return }
         let trimmed = quickPathRenameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        // Persisted mutation still routes through the dedicated host editor flow for now.
-        onManageQuickPaths()
+        guard let renamed = onRenameQuickPath(target, trimmed) else { return }
+        showOperationToast(String(format: tr("Renamed to %@."), renamed.name))
         isQuickPathRenameSheetPresented = false
+        quickPathRenameTarget = nil
+        quickPathRenameDraft = ""
+    }
+
+    private func commitQuickPathAddFromSidebar() {
+        let name = quickPathAddNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let path = quickPathAddPathDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        guard let quickPath = onAddQuickPath(name, path) else { return }
+        showOperationToast(String(format: tr("Added \"%@\"."), quickPath.name))
+        isQuickPathAddSheetPresented = false
+        quickPathAddNameDraft = ""
+        quickPathAddPathDraft = ""
     }
 
     private func toggleRemoteTreeNode(_ path: String) {
@@ -2015,6 +2049,124 @@ struct FileManagerPanelView: View {
         .frame(width: 320)
     }
 
+    private var quickPathAddSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(tr("New path"))
+                .font(.headline)
+
+            TextField(tr("Name"), text: $quickPathAddNameDraft)
+                .textFieldStyle(.roundedBorder)
+
+            TextField("/path/to/dir", text: $quickPathAddPathDraft)
+                .font(.system(size: 12, design: .monospaced))
+                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Spacer()
+                Button(tr("Cancel"), role: .cancel) {
+                    isQuickPathAddSheetPresented = false
+                    quickPathAddNameDraft = ""
+                    quickPathAddPathDraft = ""
+                }
+                Button(tr("Add")) {
+                    commitQuickPathAddFromSidebar()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(quickPathAddPathDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 360)
+    }
+
+    private var quickPathManagerSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(tr("Quick paths"))
+                .font(.headline)
+
+            if quickPaths.isEmpty {
+                Text(tr("No quick paths yet."))
+                    .font(.system(size: 12))
+                    .foregroundStyle(VisualStyle.textTertiary)
+                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(VisualStyle.mutedSurfaceBackground)
+                    )
+            } else {
+                List {
+                    ForEach(quickPaths) { quickPath in
+                        HStack(spacing: 8) {
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundStyle(VisualStyle.textTertiary)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(quickPath.name)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(VisualStyle.textPrimary)
+                                    .lineLimit(1)
+                                Text(quickPath.path)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .foregroundStyle(VisualStyle.textSecondary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            Button(tr("Edit")) {
+                                quickPathRenameTarget = quickPath
+                                quickPathRenameDraft = quickPath.name
+                                isQuickPathRenameSheetPresented = true
+                            }
+                            .buttonStyle(.borderless)
+
+                            Button(tr("Delete"), role: .destructive) {
+                                deleteQuickPathFromSidebar(quickPath)
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .onMove { source, destination in
+                        var ids = quickPaths.map(\.id)
+                        ids.move(fromOffsets: source, toOffset: destination)
+                        onReorderQuickPaths(ids)
+                    }
+                }
+                .frame(minHeight: 120, maxHeight: 280)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(tr("New path"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textSecondary)
+
+                TextField(tr("Name"), text: $quickPathAddNameDraft)
+                    .textFieldStyle(.roundedBorder)
+
+                TextField("/path/to/dir", text: $quickPathAddPathDraft)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            HStack {
+                Spacer()
+                Button(tr("Close")) {
+                    isQuickPathManagerSheetPresented = false
+                }
+                Button(tr("Add")) {
+                    commitQuickPathAddFromSidebar()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(quickPathAddPathDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 620)
+    }
+
     private var moveSheet: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(tr("Move Selected Files"))
@@ -2325,5 +2477,11 @@ struct FileManagerPanelView: View {
 
     private func makePasteFeedback(destination: String) -> String {
         String(format: tr("Pasted into %@."), destination)
+    }
+
+    private func defaultQuickPathName(for path: String) -> String {
+        if path == "/" { return tr("Root") }
+        let fileName = URL(fileURLWithPath: path).lastPathComponent
+        return fileName.isEmpty ? path : fileName
     }
 }

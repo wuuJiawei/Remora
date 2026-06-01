@@ -267,6 +267,7 @@ struct FileManagerRemoteSidebarView: View {
     let onAddCurrentQuickPath: () -> Void
     let onRenameQuickPath: (HostQuickPath) -> Void
     let onDeleteQuickPath: (HostQuickPath) -> Void
+    let onReorderQuickPaths: ([UUID]) -> Void
     let onCopyDirectoryPath: (String) -> Void
     let onRefreshDirectory: (String) -> Void
 
@@ -393,6 +394,10 @@ struct FileManagerRemoteSidebarView: View {
                 }
             }
 
+            if quickPaths.count > 1 {
+                quickPathReorderStrip
+            }
+
             if quickPaths.isEmpty {
                 Text(tr("No quick paths yet."))
                     .font(.caption)
@@ -401,6 +406,17 @@ struct FileManagerRemoteSidebarView: View {
                     .padding(.vertical, 4)
             }
         }
+    }
+
+    private var quickPathReorderStrip: some View {
+        HStack(spacing: 6) {
+            Text(tr("Drag to reorder"))
+                .font(.system(size: 11))
+                .foregroundStyle(VisualStyle.textTertiary)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
     }
 
     private var directoryTreeSection: some View {

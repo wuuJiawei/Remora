@@ -902,12 +902,6 @@ extension ContentView {
             host: host,
             runtime: runtime,
             hostCatalog: hostCatalog,
-            onManageQuickPaths: { hostID in
-                beginManageQuickPaths(for: hostID)
-            },
-            onAddCurrentQuickPath: { currentPath, hostID in
-                addCurrentPathToQuickPaths(currentPath, hostID: hostID)
-            },
             onOpenDownloadSettings: {
                 openSettingsAndFocusDownloadPath()
             }
