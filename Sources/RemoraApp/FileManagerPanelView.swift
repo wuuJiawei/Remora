@@ -32,6 +32,9 @@ struct FileManagerPanelView: View {
     @State private var isMoveSheetPresented = false
     @State private var moveTargetPath = "/"
     @State private var moveSourcePaths: [String] = []
+    @State private var isQuickPathRenameSheetPresented = false
+    @State private var quickPathRenameTarget: HostQuickPath?
+    @State private var quickPathRenameDraft = ""
     @State private var isRenameSheetPresented = false
     @State private var renameTargetPath: String?
     @State private var renameDraft = ""
@@ -50,8 +53,8 @@ struct FileManagerPanelView: View {
     @State private var createRemoteTargetDirectory = "/"
     @State private var createRemoteNameDraft = ""
     @State private var transferQueueOverlayState = TransferQueueOverlayState()
-    @State private var remoteSortColumn: FileManagerRemoteSortColumn = .name
-    @State private var isRemoteSortAscending = true
+    @State var remoteSortColumn: FileManagerRemoteSortColumn = .name
+    @State var isRemoteSortAscending = true
     @State private var activeRemoteDropDirectoryPath: String?
     @State private var isRemoteListDropTargeted = false
     @State private var operationToast: FileManagerOperationToast?
@@ -60,7 +63,7 @@ struct FileManagerPanelView: View {
     @State private var remoteSearchDraft = ""
     @State private var remoteSearchScope: RemoteSearchScope = .currentDirectory
     @State private var remoteSearchDebounceTask: Task<Void, Never>?
-    @State private var remoteListPresentation = FileManagerRemoteListPresentationCache.empty
+    @State var remoteListPresentation = FileManagerRemoteListPresentationCache.empty
     @State private var remoteTreeRoot = FileManagerRemoteTreeNode(
         path: "/",
         name: tr("Root"),
@@ -101,7 +104,7 @@ struct FileManagerPanelView: View {
         selectedRemotePaths.compactMap { remoteListPresentation.itemsByPath[$0]?.sourceEntry }
     }
 
-    private var isShowingSearchResults: Bool {
+    var isShowingSearchResults: Bool {
         viewModel.remoteSearchStatus.hasActiveQuery
     }
 
@@ -193,6 +196,11 @@ struct FileManagerPanelView: View {
 
     private var visibleRemoteTreeNodes: [FileManagerRemoteTreeNode] {
         flattenVisibleRemoteTreeNodes(from: remoteTreeRoot)
+    }
+
+    private var currentBreadcrumbs: [String] {
+        let components = pathComponents(for: viewModel.remoteDirectoryPath)
+        return components.isEmpty ? [tr("Root")] : [tr("Root")] + components
     }
 
     private var rootContent: some View {
@@ -306,6 +314,7 @@ struct FileManagerPanelView: View {
             remoteTreeRoot: remoteTreeRoot,
             visibleRemoteTreeNodes: visibleRemoteTreeNodes,
             selectedItem: selectedRemoteSidebarItem,
+            currentBreadcrumbs: currentBreadcrumbs,
             onSelectRoot: {
                 selectedRemoteSidebarItem = .directory("/")
                 navigateToRoot()
@@ -319,6 +328,27 @@ struct FileManagerPanelView: View {
             },
             onToggleDirectory: { path in
                 toggleRemoteTreeNode(path)
+            },
+            onManageQuickPaths: {
+                onManageQuickPaths()
+            },
+            onAddCurrentQuickPath: {
+                onAddCurrentQuickPath(viewModel.remoteDirectoryPath)
+            },
+            onRenameQuickPath: { quickPath in
+                onManageQuickPaths()
+                DispatchQueue.main.async {
+                    beginRenameQuickPathFromSidebar(quickPath)
+                }
+            },
+            onDeleteQuickPath: { quickPath in
+                deleteQuickPathFromSidebar(quickPath)
+            },
+            onCopyDirectoryPath: { path in
+                copyToPasteboard(path)
+            },
+            onRefreshDirectory: { path in
+                refreshDirectoryNode(path)
             }
         )
     }
@@ -331,6 +361,9 @@ struct FileManagerPanelView: View {
         }
         .sheet(isPresented: $isRenameSheetPresented) {
             renameSheet
+        }
+        .sheet(isPresented: $isQuickPathRenameSheetPresented) {
+            quickPathRenameSheet
         }
         .sheet(isPresented: $isCreateRemoteSheetPresented) {
             createRemoteSheet
@@ -583,135 +616,6 @@ struct FileManagerPanelView: View {
                 }
             }
         }
-    }
-
-    private var remoteListHeader: some View {
-        HStack(spacing: 10) {
-            sortHeaderButton(
-                isShowingSearchResults ? tr("Path") : tr("Name"),
-                column: .name,
-                width: nil,
-                alignment: .leading
-            )
-            Divider()
-                .frame(height: 14)
-            sortHeaderButton(tr("Permission"), column: .permission, width: 120, alignment: .leading)
-            Divider()
-                .frame(height: 14)
-            sortHeaderButton(tr("Date"), column: .date, width: 170, alignment: .leading)
-            Divider()
-                .frame(height: 14)
-            sortHeaderButton(tr("Size"), column: .size, width: 90, alignment: .trailing)
-            Divider()
-                .frame(height: 14)
-            sortHeaderButton(tr("Kind"), column: .kind, width: 90, alignment: .leading)
-        }
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(VisualStyle.textSecondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(nsColor: .controlBackgroundColor))
-    }
-
-    private func sortHeaderButton(
-        _ title: String,
-        column: FileManagerRemoteSortColumn,
-        width: CGFloat?,
-        alignment: Alignment
-    ) -> some View {
-        Button {
-            guard !isShowingSearchResults else { return }
-            if remoteSortColumn == column {
-                isRemoteSortAscending.toggle()
-            } else {
-                remoteSortColumn = column
-                isRemoteSortAscending = true
-            }
-        } label: {
-            HStack(spacing: 3) {
-                if alignment == .trailing {
-                    Spacer(minLength: 0)
-                }
-                Text(title)
-                    .lineLimit(1)
-                if remoteSortColumn == column {
-                    Image(systemName: isRemoteSortAscending ? "chevron.up" : "chevron.down")
-                        .font(.caption2.weight(.semibold))
-                }
-                if alignment != .trailing {
-                    Spacer(minLength: 0)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: alignment)
-            .foregroundStyle(VisualStyle.textSecondary)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(isShowingSearchResults)
-        .frame(maxWidth: width == nil ? .infinity : nil)
-        .frame(width: width, alignment: alignment)
-        .contentShape(Rectangle())
-        .accessibilityIdentifier("file-manager-sort-\(column.rawValue)")
-    }
-
-    private static let remoteDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.doesRelativeDateFormatting = true
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
-
-    private func remoteDateText(for date: Date?) -> String {
-        guard let date else { return "—" }
-        let formatter = Self.remoteDateFormatter
-        formatter.locale = AppLanguageMode.preferredLocale()
-        return formatter.string(from: date)
-    }
-
-    private func permissionString(for entry: RemoteFileEntry) -> String {
-        guard let permission = entry.permissions else {
-            return entry.isDirectory ? "d---------" : "----------"
-        }
-        return permissionString(mode: permission, isDirectory: entry.isDirectory)
-    }
-
-    private func permissionString(mode: UInt16, isDirectory: Bool) -> String {
-        let prefix = isDirectory ? "d" : "-"
-        let owner = permissionTriad((mode >> 6) & 0b111)
-        let group = permissionTriad((mode >> 3) & 0b111)
-        let other = permissionTriad(mode & 0b111)
-        return "\(prefix)\(owner)\(group)\(other)"
-    }
-
-    private func permissionTriad(_ value: UInt16) -> String {
-        let readable = (value & 0b100) != 0 ? "r" : "-"
-        let writable = (value & 0b010) != 0 ? "w" : "-"
-        let executable = (value & 0b001) != 0 ? "x" : "-"
-        return "\(readable)\(writable)\(executable)"
-    }
-
-    private func remoteSizeText(for size: Int64?) -> String {
-        guard let size else { return "—" }
-        return ByteSizeFormatter.format(size)
-    }
-
-    private func kindString(for entry: RemoteFileEntry) -> String {
-        entry.isDirectory ? tr("Folder") : tr("File")
-    }
-
-    private func cachedRemoteAttributes(for path: String) -> RemoteFileAttributes? {
-        guard let entry = remoteListPresentation.itemsByPath[path]?.sourceEntry else {
-            return nil
-        }
-        return RemoteFileAttributes(
-            permissions: entry.permissions,
-            owner: entry.owner,
-            group: entry.group,
-            size: entry.size,
-            modifiedAt: entry.modifiedAt,
-            isDirectory: entry.isDirectory
-        )
     }
 
     private var remoteToolbar: some View {
@@ -982,63 +886,6 @@ struct FileManagerPanelView: View {
                 .accessibilityIdentifier("file-manager-search-clear")
             }
         }
-    }
-
-    private var remoteSearchStatusStrip: some View {
-        let searchStatus = viewModel.remoteSearchStatus
-
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(compactRemoteSearchSummary(searchStatus))
-                    .font(.caption)
-                    .foregroundStyle(VisualStyle.textSecondary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 8)
-
-                if searchStatus.isResultTruncated {
-                    Text(String(format: tr("Showing the first %d matches."), FileTransferViewModel.maxRemoteSearchResults))
-                        .font(.caption)
-                        .foregroundStyle(VisualStyle.textSecondary)
-                        .lineLimit(1)
-                }
-            }
-
-            if searchStatus.isRunning {
-                ProgressView()
-                    .progressViewStyle(.linear)
-                    .controlSize(.small)
-                    .accessibilityIdentifier("file-manager-search-progress")
-            }
-
-            if searchStatus.isRunning, !searchStatus.activity.isEmpty {
-                FileManagerRemoteSearchActivityTicker(activities: searchStatus.activity)
-                    .accessibilityIdentifier("file-manager-search-activity")
-            }
-
-            if let errorMessage = searchStatus.errorMessage,
-               !errorMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.72))
-        )
-    }
-
-    private func compactRemoteSearchSummary(_ status: RemoteSearchStatus) -> String {
-        if let statusText = status.statusText,
-           !statusText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return "\(remoteSearchScopeDescription(status))  ·  \(statusText)"
-        }
-        return remoteSearchScopeDescription(status)
     }
 
     private var transferQueueFloatingOverlay: some View {
@@ -1633,6 +1480,36 @@ struct FileManagerPanelView: View {
         viewModel.navigateRemote(to: path)
     }
 
+    private func beginRenameQuickPathFromSidebar(_ quickPath: HostQuickPath) {
+        quickPathRenameTarget = quickPath
+        quickPathRenameDraft = quickPath.name
+        isQuickPathRenameSheetPresented = true
+    }
+
+    private func deleteQuickPathFromSidebar(_ quickPath: HostQuickPath) {
+        // The host-level editor owns persisted quick-path mutations.
+        // Sidebar delete currently routes users into that same management flow.
+        onManageQuickPaths()
+    }
+
+    private func refreshDirectoryNode(_ path: String) {
+        Task {
+            await loadTreeChildren(for: path, forceRefresh: true)
+            if normalizeTreePath(path) == normalizeTreePath(viewModel.remoteDirectoryPath) {
+                onRefreshRemote()
+            }
+        }
+    }
+
+    private func commitQuickPathRenameFromSidebar() {
+        guard quickPathRenameTarget != nil else { return }
+        let trimmed = quickPathRenameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        // Persisted mutation still routes through the dedicated host editor flow for now.
+        onManageQuickPaths()
+        isQuickPathRenameSheetPresented = false
+    }
+
     private func toggleRemoteTreeNode(_ path: String) {
         guard let node = nodeForPath(path, in: remoteTreeRoot) else { return }
 
@@ -2112,6 +1989,32 @@ struct FileManagerPanelView: View {
         .frame(width: 360)
     }
 
+    private var quickPathRenameSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(tr("Rename"))
+                .font(.headline)
+
+            TextField(tr("Name"), text: $quickPathRenameDraft)
+                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Spacer()
+                Button(tr("Cancel"), role: .cancel) {
+                    isQuickPathRenameSheetPresented = false
+                    quickPathRenameTarget = nil
+                    quickPathRenameDraft = ""
+                }
+                Button(tr("Save")) {
+                    commitQuickPathRenameFromSidebar()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(quickPathRenameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 320)
+    }
+
     private var moveSheet: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(tr("Move Selected Files"))
@@ -2348,7 +2251,7 @@ struct FileManagerPanelView: View {
         isRemoteSearchFieldFocused = false
     }
 
-    private func remoteSearchScopeDescription(_ status: RemoteSearchStatus) -> String {
+    func remoteSearchScopeDescription(_ status: RemoteSearchStatus) -> String {
         switch status.scope {
         case .currentDirectory:
             return String(format: tr("Current directory: %@"), status.rootPath)

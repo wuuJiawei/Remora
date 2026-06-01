@@ -1267,6 +1267,7 @@ struct HostQuickPathEditorSheet: View {
     let onSave: () -> Void
     let onStartEdit: (HostQuickPath) -> Void
     let onDelete: (UUID) -> Void
+    let onMove: (IndexSet, Int) -> Void
     let onCancelEdit: () -> Void
 
     private var isEditing: Bool {
@@ -1294,44 +1295,41 @@ struct HostQuickPathEditorSheet: View {
                                 .fill(VisualStyle.mutedSurfaceBackground)
                         )
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(quickPaths) { quickPath in
-                                HStack(spacing: 8) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(quickPath.name)
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundStyle(VisualStyle.textPrimary)
-                                            .lineLimit(1)
-                                        Text(quickPath.path)
-                                            .font(.system(size: 12, design: .monospaced))
-                                            .foregroundStyle(VisualStyle.textSecondary)
-                                            .lineLimit(1)
-                                    }
+                    List {
+                        ForEach(quickPaths) { quickPath in
+                            HStack(spacing: 8) {
+                                Image(systemName: "line.3.horizontal")
+                                    .foregroundStyle(VisualStyle.textTertiary)
 
-                                    Spacer(minLength: 8)
-
-                                    Button(tr("Edit")) {
-                                        onStartEdit(quickPath)
-                                    }
-                                    .buttonStyle(.borderless)
-
-                                    Button(tr("Delete"), role: .destructive) {
-                                        onDelete(quickPath.id)
-                                    }
-                                    .buttonStyle(.borderless)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(quickPath.name)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(VisualStyle.textPrimary)
+                                        .lineLimit(1)
+                                    Text(quickPath.path)
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .foregroundStyle(VisualStyle.textSecondary)
+                                        .lineLimit(1)
                                 }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(VisualStyle.elevatedSurfaceBackground)
-                                )
+
+                                Spacer(minLength: 8)
+
+                                Button(tr("Edit")) {
+                                    onStartEdit(quickPath)
+                                }
+                                .buttonStyle(.borderless)
+
+                                Button(tr("Delete"), role: .destructive) {
+                                    onDelete(quickPath.id)
+                                }
+                                .buttonStyle(.borderless)
                             }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
+                        .onMove(perform: onMove)
                     }
                     .frame(minHeight: 96, maxHeight: 220)
+                    .moveDisabled(false)
                 }
             }
 

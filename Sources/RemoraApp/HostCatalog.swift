@@ -218,6 +218,28 @@ final class HostCatalogStore: ObservableObject {
         hosts[hostIndex].quickPaths.removeAll { $0.id == quickPathID }
     }
 
+    func reorderQuickPaths(hostID: UUID, orderedQuickPathIDs: [UUID]) {
+        guard let hostIndex = hosts.firstIndex(where: { $0.id == hostID }) else { return }
+
+        let existing = hosts[hostIndex].quickPaths
+        let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+        var reordered: [HostQuickPath] = []
+        reordered.reserveCapacity(existing.count)
+
+        for id in orderedQuickPathIDs {
+            if let quickPath = existingByID[id] {
+                reordered.append(quickPath)
+            }
+        }
+
+        for quickPath in existing where !orderedQuickPathIDs.contains(quickPath.id) {
+            reordered.append(quickPath)
+        }
+
+        guard reordered.count == existing.count else { return }
+        hosts[hostIndex].quickPaths = reordered
+    }
+
     @discardableResult
     func addPortForwardPreset(
         hostID: UUID,

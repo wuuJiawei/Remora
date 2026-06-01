@@ -932,6 +932,11 @@ extension ContentView {
                 onDelete: { quickPathID in
                     deleteQuickPath(quickPathID, hostID: host.id)
                 },
+                onMove: { source, destination in
+                    var ids = hostCatalog.quickPaths(for: host.id).map(\.id)
+                    ids.move(fromOffsets: source, toOffset: destination)
+                    reorderQuickPaths(hostID: host.id, orderedQuickPathIDs: ids)
+                },
                 onCancelEdit: {
                     resetQuickPathDraft()
                 }

@@ -507,6 +507,8 @@
 "Close Search" = "关闭搜索";
 "Current Directory" = "当前目录";
 "Quick Paths" = "快捷路径";
+"Manage" = "管理";
+"Drag to reorder" = "拖动可调整顺序";
 "Folders" = "目录";
 "Remote" = "远端";
 "Current directory: %@" = "当前目录：%@";

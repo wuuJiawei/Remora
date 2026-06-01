@@ -511,6 +511,8 @@
 "Close Search" = "Close Search";
 "Current Directory" = "Current Directory";
 "Quick Paths" = "Quick Paths";
+"Manage" = "Manage";
+"Drag to reorder" = "Drag to reorder";
 "Folders" = "Folders";
 "Remote" = "Remote";
 "Current directory: %@" = "Current directory: %@";

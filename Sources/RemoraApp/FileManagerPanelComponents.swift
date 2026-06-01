@@ -258,27 +258,21 @@ struct FileManagerRemoteSidebarView: View {
     let remoteTreeRoot: FileManagerRemoteTreeNode
     let visibleRemoteTreeNodes: [FileManagerRemoteTreeNode]
     let selectedItem: FileManagerRemoteSidebarItem
+    let currentBreadcrumbs: [String]
     let onSelectRoot: () -> Void
     let onSelectQuickPath: (HostQuickPath) -> Void
     let onSelectDirectory: (String) -> Void
     let onToggleDirectory: (String) -> Void
+    let onManageQuickPaths: () -> Void
+    let onAddCurrentQuickPath: () -> Void
+    let onRenameQuickPath: (HostQuickPath) -> Void
+    let onDeleteQuickPath: (HostQuickPath) -> Void
+    let onCopyDirectoryPath: (String) -> Void
+    let onRefreshDirectory: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Label(tr("Remote"), systemImage: "externaldrive.connected.to.line.below")
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(VisualStyle.textPrimary)
-
-                Spacer(minLength: 0)
-
-                Text(remoteDirectoryPath)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(VisualStyle.textSecondary)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 10)
-            .padding(.top, 10)
+            header
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -298,9 +292,64 @@ struct FileManagerRemoteSidebarView: View {
         )
     }
 
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label(tr("Remote"), systemImage: "externaldrive.connected.to.line.below")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textPrimary)
+
+                Spacer(minLength: 0)
+
+                Button(tr("Manage")) {
+                    onManageQuickPaths()
+                }
+                .buttonStyle(.borderless)
+                .font(.system(size: 11, weight: .medium))
+                .accessibilityIdentifier("file-manager-sidebar-manage-quick-paths")
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Array(currentBreadcrumbs.enumerated()), id: \.offset) { index, crumb in
+                        Text(crumb)
+                            .font(.system(size: 11, weight: index + 1 == currentBreadcrumbs.count ? .semibold : .regular, design: .monospaced))
+                            .foregroundStyle(index + 1 == currentBreadcrumbs.count ? VisualStyle.textPrimary : VisualStyle.textSecondary)
+                            .lineLimit(1)
+
+                        if index + 1 < currentBreadcrumbs.count {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(VisualStyle.textTertiary)
+                        }
+                    }
+                }
+            }
+
+            Text(remoteDirectoryPath)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(VisualStyle.textSecondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
+    }
+
     private var quickPathsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            sectionHeader(tr("Quick Paths"))
+            HStack(spacing: 8) {
+                sectionHeader(tr("Quick Paths"))
+                Spacer(minLength: 0)
+                Button {
+                    onAddCurrentQuickPath()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.borderless)
+                .help(tr("Add current path"))
+                .accessibilityIdentifier("file-manager-sidebar-add-quick-path")
+            }
 
             Button(action: onSelectRoot) {
                 FileManagerRemoteSidebarRow(
@@ -334,6 +383,14 @@ struct FileManagerRemoteSidebarView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("file-manager-sidebar-quick-path-\(quickPath.id.uuidString)")
+                .contextMenu {
+                    contextMenuButton(tr("Edit"), systemImage: ContextMenuIconCatalog.rename) {
+                        onRenameQuickPath(quickPath)
+                    }
+                    contextMenuButton(tr("Delete"), systemImage: ContextMenuIconCatalog.delete, role: .destructive) {
+                        onDeleteQuickPath(quickPath)
+                    }
+                }
             }
 
             if quickPaths.isEmpty {
@@ -380,6 +437,14 @@ struct FileManagerRemoteSidebarView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier(accessibilityID)
+                    .contextMenu {
+                        contextMenuButton(tr("Refresh"), systemImage: ContextMenuIconCatalog.refresh) {
+                            onRefreshDirectory(node.path)
+                        }
+                        contextMenuButton(tr("Copy Path"), systemImage: ContextMenuIconCatalog.copyPath) {
+                            onCopyDirectoryPath(node.path)
+                        }
+                    }
                 }
             }
         }

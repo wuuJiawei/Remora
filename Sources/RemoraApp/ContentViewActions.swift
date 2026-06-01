@@ -598,6 +598,10 @@ extension ContentView {
         }
     }
 
+    func reorderQuickPaths(hostID: UUID, orderedQuickPathIDs: [UUID]) {
+        hostCatalog.reorderQuickPaths(hostID: hostID, orderedQuickPathIDs: orderedQuickPathIDs)
+    }
+
     func beginManagePortForwards(for hostID: UUID) {
         portForwardEditorHostID = hostID
         resetPortForwardDraft()
