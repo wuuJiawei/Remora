@@ -270,9 +270,7 @@ struct FileManagerPanelView: View {
         }
         .onChange(of: viewModel.remoteEntries) {
             rebuildDisplayedRemoteItems()
-            Task {
-                await refreshVisibleTreeBranch()
-            }
+            refreshVisibleTreeBranchFromVisibleEntries()
         }
         .onChange(of: viewModel.remoteSearchResults) {
             rebuildDisplayedRemoteItems()
@@ -1666,13 +1664,41 @@ struct FileManagerPanelView: View {
         await loadTreeChildren(for: remoteTreeRoot.path)
     }
 
-    private func refreshVisibleTreeBranch() async {
+    private func refreshVisibleTreeBranchFromVisibleEntries() {
         guard let currentNode = nodeForPath(viewModel.remoteDirectoryPath, in: remoteTreeRoot),
               currentNode.childrenLoaded
         else {
             return
         }
-        await loadTreeChildren(for: currentNode.path, forceRefresh: true)
+
+        let directories = viewModel.remoteEntries
+            .filter(\.isDirectory)
+            .map { entry in
+                FileManagerRemoteTreeNode(
+                    path: entry.path,
+                    name: entry.name,
+                    depth: depthForTreePath(entry.path),
+                    isExpanded: false,
+                    isLoading: false,
+                    childrenLoaded: false,
+                    children: []
+                )
+            }
+
+        remoteTreeRoot = updateNode(in: remoteTreeRoot, path: currentNode.path) { node in
+            let existingByPath = Dictionary(uniqueKeysWithValues: node.children.map { ($0.path, $0) })
+            node.children = directories.map { candidate in
+                if let existing = existingByPath[candidate.path] {
+                    var preserved = existing
+                    preserved.name = candidate.name
+                    preserved.depth = candidate.depth
+                    return preserved
+                }
+                return candidate
+            }
+            node.childrenLoaded = true
+            node.isLoading = false
+        }
     }
 
     private func syncRemoteTreeSelection(to path: String) async {

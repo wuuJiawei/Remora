@@ -47,6 +47,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     private let shellFallbackTimeout: TimeInterval
     private var prefersSSHStreamingDownload = false
     private var prefersSSHStreamingUpload = false
+    private var prefersSSHDirectoryListing = true
 
     private static let diagnosticsQueue = DispatchQueue(label: "io.lighting-tech.remora.sftp-diagnostics")
     private static let diagnosticsLogMaxBytes: Int64 = 10 * 1024 * 1024
@@ -86,6 +87,13 @@ public actor SystemSFTPClient: SFTPClientProtocol {
 
     public func list(path: String) async throws -> [RemoteFileEntry] {
         let normalized = normalize(path)
+        if prefersSSHDirectoryListing,
+           let sshEntries = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout),
+           Self.shouldAcceptSSHListFallbackResult(sshEntries)
+        {
+            return sshEntries
+        }
+
         do {
             let output = try await runSFTPBatch(
                 commands: ["ls -lan \(Self.quoteBatchArgument(normalized))"],
@@ -96,20 +104,20 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 return parsedLongEntries
             }
 
-            // Some servers return a non-long listing even when -l is requested.
-            if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), Self.shouldAcceptSSHListFallbackResult(sshFallback) {
-                return sshFallback
-            }
-
             let parsedNameEntries = Self.parseNameOnlyListOutput(output, parentPath: normalized)
             if !parsedNameEntries.isEmpty {
                 return parsedNameEntries
             }
 
+            if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), Self.shouldAcceptSSHListFallbackResult(sshFallback) {
+                prefersSSHDirectoryListing = true
+                return sshFallback
+            }
+
             return []
         } catch {
-            // Some servers disable SFTP subsystem while SSH shell stays available.
             if let sshFallback = try? await listViaSSH(path: normalized, timeout: shellFallbackTimeout), Self.shouldAcceptSSHListFallbackResult(sshFallback) {
+                prefersSSHDirectoryListing = true
                 return sshFallback
             }
             throw error

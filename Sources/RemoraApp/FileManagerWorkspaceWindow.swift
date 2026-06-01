@@ -150,7 +150,10 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
     ) -> FileManagerRuntimeBinding {
         if runtime.connectionMode == .ssh, let host = runtime.connectedSSHHost {
             return FileManagerRuntimeBinding(
-                client: SystemSFTPClient(host: host),
+                client: SystemSFTPClient(
+                    host: host,
+                    connectionReuseMode: .requireExistingConnection
+                ),
                 bindingKey: Self.bindingKey(runtime: runtime, host: host),
                 initialRemoteDirectory: runtime.workingDirectory ?? "/"
             )
