@@ -290,8 +290,14 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             quickPathsProvider: {
                 quickPathsProvider(runtime)
             },
-            directoriesProvider: {
-                viewModel.remoteEntries.filter(\.isDirectory)
+            directoryChildrenProvider: { path in
+                do {
+                    return try await viewModel.listRemoteDirectory(path: path, preferCachedFirst: true)
+                        .filter(\.isDirectory)
+                } catch {
+                    print("[FileManager][Sidebar] failed to list path=\(path) error=\(error.localizedDescription)")
+                    return []
+                }
             },
             onSelectRoot: {
                 viewModel.navigateRemote(to: "/")
@@ -573,6 +579,10 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             .receive(on: RunLoop.main)
             .sink { [weak self, weak viewModel] entries, isLoading in
                 guard let self, let viewModel else { return }
+                self.splitController.updateSidebarDirectorySnapshot(
+                    path: viewModel.remoteDirectoryPath,
+                    entries: entries
+                )
                 self.splitController.reloadDetail(
                     currentPath: viewModel.remoteDirectoryPath,
                     entries: entries,

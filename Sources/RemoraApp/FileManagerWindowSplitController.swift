@@ -11,7 +11,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
     init(
         selectedPath: String,
         quickPathsProvider: @escaping () -> [HostQuickPath],
-        directoriesProvider: @escaping () -> [RemoteFileEntry],
+        directoryChildrenProvider: @escaping (String) async throws -> [RemoteFileEntry],
         onSelectRoot: @escaping () -> Void,
         onSelectQuickPath: @escaping (HostQuickPath) -> Void,
         onSelectDirectory: @escaping (String) -> Void,
@@ -33,7 +33,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
         self.sidebarController = FileManagerOutlineSidebarController(
             selectedPath: selectedPath,
             quickPathsProvider: quickPathsProvider,
-            directoriesProvider: directoriesProvider,
+            directoryChildrenProvider: directoryChildrenProvider,
             onSelectRoot: onSelectRoot,
             onSelectQuickPath: onSelectQuickPath,
             onSelectDirectory: onSelectDirectory,
@@ -82,6 +82,10 @@ final class FileManagerWindowSplitController: NSSplitViewController {
         print("[FileManager][Sidebar] reloadSidebar selectedPath=\(selectedPath)")
         sidebarController.selectedPath = selectedPath
         sidebarController.reload()
+    }
+
+    func updateSidebarDirectorySnapshot(path: String, entries: [RemoteFileEntry]) {
+        sidebarController.updateDirectorySnapshot(path: path, entries: entries)
     }
 
     func reloadDetail(
@@ -137,7 +141,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     var selectedPath: String
 
     private let quickPathsProvider: () -> [HostQuickPath]
-    private let directoriesProvider: () -> [RemoteFileEntry]
+    private let directoryChildrenProvider: (String) async throws -> [RemoteFileEntry]
     private let onSelectRoot: () -> Void
     private let onSelectQuickPath: (HostQuickPath) -> Void
     private let onSelectDirectory: (String) -> Void
@@ -151,16 +155,43 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     private var scrollView: NSScrollView!
     private var quickPathDropTargetID: UUID?
     private var isSelectingProgrammatically = false
+    private let rootDirectoryNode = DirectoryNode(path: "/")
+    private var directoryNodeCache: [String: DirectoryNode] = [:]
+    private var directoryLoadTasks: [String: Task<Result<[RemoteFileEntry], Error>, Never>] = [:]
+    private var selectionSyncTask: Task<Void, Never>?
+    private var expandedDirectoryPaths: Set<String> = []
 
     private enum Section: Int, CaseIterable {
         case quickPaths
         case folders
     }
 
+    private enum SidebarItemID {
+        static let root = "__root__"
+    }
+
+    private enum ChildrenState {
+        case unloaded
+        case loading
+        case loaded
+    }
+
+    private final class DirectoryNode: NSObject {
+        let path: String
+        var displayName: String
+        var children: [DirectoryNode] = []
+        var childrenState: ChildrenState = .unloaded
+
+        init(path: String, displayName: String? = nil) {
+            self.path = FileManagerOutlineSidebarController.normalizePath(path)
+            self.displayName = displayName ?? FileManagerOutlineSidebarController.defaultDisplayName(for: path)
+        }
+    }
+
     init(
         selectedPath: String,
         quickPathsProvider: @escaping () -> [HostQuickPath],
-        directoriesProvider: @escaping () -> [RemoteFileEntry],
+        directoryChildrenProvider: @escaping (String) async throws -> [RemoteFileEntry],
         onSelectRoot: @escaping () -> Void,
         onSelectQuickPath: @escaping (HostQuickPath) -> Void,
         onSelectDirectory: @escaping (String) -> Void,
@@ -172,7 +203,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     ) {
         self.selectedPath = selectedPath
         self.quickPathsProvider = quickPathsProvider
-        self.directoriesProvider = directoriesProvider
+        self.directoryChildrenProvider = directoryChildrenProvider
         self.onSelectRoot = onSelectRoot
         self.onSelectQuickPath = onSelectQuickPath
         self.onSelectDirectory = onSelectDirectory
@@ -181,6 +212,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         self.onDeleteQuickPath = onDeleteQuickPath
         self.onReorderQuickPaths = onReorderQuickPaths
         self.onRefreshDirectory = onRefreshDirectory
+        self.directoryNodeCache[rootDirectoryNode.path] = rootDirectoryNode
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -225,42 +257,68 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     }
 
     func reload() {
-        print("[FileManager][Sidebar] reload selectedPath=\(selectedPath) quickPaths=\(quickPathsProvider().count) directories=\(directoriesProvider().count)")
+        selectedPath = Self.normalizePath(selectedPath)
+        print("[FileManager][Sidebar] reload selectedPath=\(selectedPath) quickPaths=\(quickPathsProvider().count)")
+        selectionSyncTask?.cancel()
         outlineView.reloadData()
         outlineView.expandItem(Section.quickPaths.rawValue)
         outlineView.expandItem(Section.folders.rawValue)
-        selectMatchingRow()
+        restoreExpandedNodes()
+        ensureRootChildrenLoadedIfNeeded()
+        syncSelectionToSelectedPath()
+    }
+
+    func updateDirectorySnapshot(path: String, entries: [RemoteFileEntry]) {
+        applyDirectorySnapshot(path: Self.normalizePath(path), entries: entries)
     }
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         guard let item else { return Section.allCases.count }
-        guard let raw = item as? Int, let section = Section(rawValue: raw) else { return 0 }
-        switch section {
-        case .quickPaths:
-            return 1 + quickPathsProvider().count
-        case .folders:
-            return directoriesProvider().count
+        if let raw = item as? Int, let section = Section(rawValue: raw) {
+            switch section {
+            case .quickPaths:
+                return 1 + quickPathsProvider().count
+            case .folders:
+                return rootDirectoryNode.children.count
+            }
         }
+        if let directory = item as? DirectoryNode {
+            return directory.children.count
+        }
+        return 0
     }
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-        (item as? Int).flatMap(Section.init(rawValue:)) != nil
+        if (item as? Int).flatMap(Section.init(rawValue:)) != nil {
+            return true
+        }
+        guard let directory = item as? DirectoryNode else { return false }
+        return directory.childrenState != .loaded || !directory.children.isEmpty
     }
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
         guard let item else { return Section.allCases[index].rawValue }
-        guard let raw = item as? Int, let section = Section(rawValue: raw) else {
-            return "__root__"
+        if let raw = item as? Int, let section = Section(rawValue: raw) {
+            switch section {
+            case .quickPaths:
+                return index == 0 ? SidebarItemID.root : quickPathsProvider()[index - 1]
+            case .folders:
+                return rootDirectoryNode.children[index]
+            }
         }
-        switch section {
-        case .quickPaths:
-            return index == 0 ? "__root__" : quickPathsProvider()[index - 1]
-        case .folders:
-            return directoriesProvider()[index]
+        if let directory = item as? DirectoryNode {
+            return directory.children[index]
         }
+        return SidebarItemID.root
     }
 
-    func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool { true }
+    func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+        (item as? Int).flatMap(Section.init(rawValue:)) != nil
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+        (item as? Int).flatMap(Section.init(rawValue:)) == nil
+    }
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         let identifier = NSUserInterfaceItemIdentifier("finder-sidebar-cell")
@@ -286,7 +344,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
             return cell
         }
 
-        if item as? String == "__root__" {
+        if item as? String == SidebarItemID.root {
             cell.textField?.stringValue = tr("Root")
             cell.textField?.font = .systemFont(ofSize: 13, weight: .regular)
             cell.textField?.textColor = selectedPath == "/" ? .controlAccentColor : .labelColor
@@ -300,8 +358,8 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
             return cell
         }
 
-        if let directory = item as? RemoteFileEntry {
-            cell.textField?.stringValue = directory.name
+        if let directory = item as? DirectoryNode {
+            cell.textField?.stringValue = directory.displayName
             cell.textField?.font = .systemFont(ofSize: 13, weight: .regular)
             cell.textField?.textColor = selectedPath == directory.path ? .controlAccentColor : .labelColor
             return cell
@@ -319,7 +377,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         guard row >= 0 else { return }
         let item = outlineView.item(atRow: row)
         print("[FileManager][Sidebar] selectionDidChange row=\(row) item=\(String(describing: item))")
-        if item as? String == "__root__" {
+        if item as? String == SidebarItemID.root {
             if selectedPath == "/" {
                 print("[FileManager][Sidebar] selectionDidChange skip root reselect")
                 return
@@ -331,7 +389,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
                 return
             }
             onSelectQuickPath(quickPath)
-        } else if let directory = item as? RemoteFileEntry {
+        } else if let directory = item as? DirectoryNode {
             if directory.path == selectedPath {
                 print("[FileManager][Sidebar] selectionDidChange skip directory reselect path=\(directory.path)")
                 return
@@ -340,37 +398,215 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         }
     }
 
+    func outlineViewItemWillExpand(_ notification: Notification) {
+        guard let directory = notification.userInfo?["NSObject"] as? DirectoryNode else { return }
+        expandedDirectoryPaths.insert(directory.path)
+        let path = directory.path
+        Task { [weak self] in
+            _ = await self?.loadChildrenIfNeeded(forPath: path)
+        }
+    }
+
+    func outlineViewItemDidCollapse(_ notification: Notification) {
+        guard let directory = notification.userInfo?["NSObject"] as? DirectoryNode else { return }
+        expandedDirectoryPaths.remove(directory.path)
+    }
+
     @objc private func handleDoubleClick() {
         let row = outlineView.clickedRow
         guard row >= 0 else { return }
         let item = outlineView.item(atRow: row)
         print("[FileManager][Sidebar] doubleClick row=\(row) item=\(String(describing: item))")
-        if item as? String == "__root__" {
+        if item as? String == SidebarItemID.root {
             onSelectRoot()
-        } else if let directory = item as? RemoteFileEntry {
+        } else if let directory = item as? DirectoryNode {
             onSelectDirectory(directory.path)
         }
     }
 
-    private func selectMatchingRow() {
+    private func ensureRootChildrenLoadedIfNeeded() {
+        let rootPath = rootDirectoryNode.path
+        Task { [weak self] in
+            guard let self else { return }
+            _ = await self.loadChildrenIfNeeded(forPath: rootPath)
+        }
+    }
+
+    private func syncSelectionToSelectedPath() {
+        if selectVisibleQuickPathOrRoot() {
+            return
+        }
+
+        let targetPath = selectedPath
+        selectionSyncTask = Task { [weak self] in
+            guard let self else { return }
+            await self.expandAndSelectDirectory(path: targetPath)
+        }
+    }
+
+    private func selectVisibleQuickPathOrRoot() -> Bool {
         let rowCount = outlineView.numberOfRows
         isSelectingProgrammatically = true
         defer { isSelectingProgrammatically = false }
         for row in 0..<rowCount {
             let item = outlineView.item(atRow: row)
-            if item as? String == "__root__", selectedPath == "/" {
+            if item as? String == SidebarItemID.root, selectedPath == "/" {
                 outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                return
+                return true
             }
             if let quickPath = item as? HostQuickPath, quickPath.path == selectedPath {
                 outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                return
-            }
-            if let directory = item as? RemoteFileEntry, directory.path == selectedPath {
-                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                return
+                return true
             }
         }
+        return false
+    }
+
+    private func expandAndSelectDirectory(path: String) async {
+        let normalizedPath = Self.normalizePath(path)
+        guard normalizedPath != "/", !Task.isCancelled else { return }
+
+        let components = ancestorPaths(for: normalizedPath)
+        guard !components.isEmpty else { return }
+
+        var parent = rootDirectoryNode
+        for (index, componentPath) in components.enumerated() {
+            let children = await loadChildrenIfNeeded(forPath: parent.path)
+            guard !Task.isCancelled else { return }
+            guard let nextNode = children.first(where: { $0.path == componentPath }) else { return }
+
+            if index < components.count - 1 {
+                outlineView.expandItem(nextNode)
+            }
+            parent = nextNode
+        }
+
+        guard !Task.isCancelled else { return }
+        selectDirectoryNode(parent)
+    }
+
+    private func selectDirectoryNode(_ node: DirectoryNode) {
+        let row = outlineView.row(forItem: node)
+        guard row >= 0 else { return }
+        isSelectingProgrammatically = true
+        outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        outlineView.scrollRowToVisible(row)
+        isSelectingProgrammatically = false
+    }
+
+    private func loadChildrenIfNeeded(forPath path: String) async -> [DirectoryNode] {
+        let node = directoryNode(forPath: path)
+        if node.childrenState == .loaded {
+            return node.children
+        }
+
+        let normalizedPath = node.path
+        let task: Task<Result<[RemoteFileEntry], Error>, Never>
+        if let existingTask = directoryLoadTasks[normalizedPath] {
+            task = existingTask
+        } else {
+            node.childrenState = .loading
+            let provider = directoryChildrenProvider
+            task = Task {
+                do {
+                    let entries = try await provider(normalizedPath).filter(\.isDirectory)
+                    return .success(entries)
+                } catch {
+                    return .failure(error)
+                }
+            }
+            directoryLoadTasks[normalizedPath] = task
+        }
+
+        let result = await task.value
+        guard !Task.isCancelled else { return node.children }
+        if directoryLoadTasks[normalizedPath] != nil {
+            directoryLoadTasks[normalizedPath] = nil
+        }
+
+        guard case let .success(entries) = result else {
+            node.childrenState = .unloaded
+            return node.children
+        }
+        applyDirectorySnapshot(path: normalizedPath, entries: entries)
+        return node.children
+    }
+
+    private func applyDirectorySnapshot(path: String, entries: [RemoteFileEntry]) {
+        let normalizedPath = Self.normalizePath(path)
+        let node = directoryNode(forPath: normalizedPath)
+        let childDirectories = entries.filter(\.isDirectory)
+        node.children = childDirectories.map { entry in
+            let childPath = Self.normalizePath(entry.path)
+            let childNode = directoryNode(forPath: childPath, displayName: entry.name)
+            childNode.displayName = entry.name
+            return childNode
+        }
+        node.childrenState = .loaded
+
+        if normalizedPath == rootDirectoryNode.path {
+            outlineView.reloadItem(Section.folders.rawValue, reloadChildren: true)
+        } else {
+            outlineView.reloadItem(node, reloadChildren: true)
+        }
+        restoreExpandedNodes()
+    }
+
+    private func directoryNode(forPath path: String, displayName: String? = nil) -> DirectoryNode {
+        let normalizedPath = Self.normalizePath(path)
+        if let existing = directoryNodeCache[normalizedPath] {
+            if let displayName, !displayName.isEmpty {
+                existing.displayName = displayName
+            }
+            return existing
+        }
+
+        let node = DirectoryNode(path: normalizedPath, displayName: displayName)
+        directoryNodeCache[normalizedPath] = node
+        return node
+    }
+
+    private func restoreExpandedNodes() {
+        let pathsToExpand = expandedDirectoryPaths
+            .filter { $0 != "/" }
+            .sorted { lhs, rhs in
+                lhs.split(separator: "/").count < rhs.split(separator: "/").count
+            }
+
+        for path in pathsToExpand {
+            guard let node = directoryNodeCache[path] else { continue }
+            outlineView.expandItem(node)
+        }
+    }
+
+    private func ancestorPaths(for path: String) -> [String] {
+        let normalizedPath = Self.normalizePath(path)
+        guard normalizedPath != "/" else { return [] }
+        let components = normalizedPath
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map(String.init)
+        var running = ""
+        return components.map { component in
+            running += "/\(component)"
+            return running
+        }
+    }
+
+    nonisolated private static func normalizePath(_ rawPath: String) -> String {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "/" }
+        guard trimmed != "/" else { return "/" }
+        let leadingSlash = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        let collapsed = leadingSlash.replacingOccurrences(of: "//", with: "/")
+        return collapsed.hasSuffix("/") && collapsed.count > 1
+            ? String(collapsed.dropLast())
+            : collapsed
+    }
+
+    nonisolated private static func defaultDisplayName(for path: String) -> String {
+        let normalizedPath = normalizePath(path)
+        guard normalizedPath != "/" else { return "Root" }
+        return URL(fileURLWithPath: normalizedPath).lastPathComponent
     }
 }
 
