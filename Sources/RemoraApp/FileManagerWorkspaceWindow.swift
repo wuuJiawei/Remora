@@ -269,6 +269,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
     private let toolbarController = FileManagerWindowToolbar()
     private var toolbarCancellables: Set<AnyCancellable> = []
     private let splitController: FileManagerWindowSplitController
+    private var downloadsPopover: NSPopover?
     private let remoteEditorWindowManager: RemoteTextEditorWindowManager
     private let remoteLiveLogWindowManager: RemoteLiveLogWindowManager
 
@@ -438,10 +439,18 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
 
         super.init(window: window)
         window.delegate = self
+        toolbarController.onDownloadsClicked = { [weak self] in
+            self?.toggleDownloadsPopover(viewModel: viewModel)
+        }
         toolbarController.update(
             currentPath: viewModel.remoteDirectoryPath,
             canGoBack: viewModel.canNavigateRemoteBack,
             canGoForward: viewModel.canNavigateRemoteForward
+        )
+        toolbarController.updateDownloads(
+            progress: viewModel.overallTransferProgress,
+            hasHistory: !viewModel.transferQueue.isEmpty,
+            status: transferQueueStatus(for: viewModel)
         )
         toolbarController.onSearchChanged = { [weak self, weak viewModel] query in
             guard let self, let viewModel else { return }
@@ -450,7 +459,8 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                 currentPath: viewModel.remoteDirectoryPath,
                 entries: viewModel.remoteEntries,
                 isLoading: viewModel.isRemoteLoading,
-                searchQuery: query
+                searchQuery: query,
+                transferProgress: viewModel.overallTransferProgress
             )
         }
         splitController.setPropertyHandlers(
@@ -590,7 +600,8 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     currentPath: path,
                     entries: viewModel.remoteEntries,
                     isLoading: viewModel.isRemoteLoading,
-                    searchQuery: self?.splitController.currentSearchQuery ?? ""
+                    searchQuery: self?.splitController.currentSearchQuery ?? "",
+                    transferProgress: viewModel.overallTransferProgress
                 )
             }
             .store(in: &toolbarCancellables)
@@ -608,8 +619,23 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     currentPath: viewModel.remoteDirectoryPath,
                     entries: entries,
                     isLoading: isLoading,
-                    searchQuery: self.splitController.currentSearchQuery
+                    searchQuery: self.splitController.currentSearchQuery,
+                    transferProgress: viewModel.overallTransferProgress
                 )
+            }
+            .store(in: &toolbarCancellables)
+
+        viewModel.$transferQueue
+            .combineLatest(viewModel.$currentTransferBatchID)
+            .receive(on: RunLoop.main)
+            .sink { [weak self, weak viewModel] queue, _ in
+                guard let self, let viewModel else { return }
+                self.toolbarController.updateDownloads(
+                    progress: viewModel.overallTransferProgress,
+                    hasHistory: !queue.isEmpty,
+                    status: self.transferQueueStatus(for: viewModel)
+                )
+                self.refreshDownloadsPopover(viewModel: viewModel)
             }
             .store(in: &toolbarCancellables)
     }
@@ -624,5 +650,51 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         }()
 
         return String(format: tr("%@ - File Manager"), hostLabel)
+    }
+
+    private func toggleDownloadsPopover(viewModel: FileTransferViewModel) {
+        if let downloadsPopover, downloadsPopover.isShown {
+            downloadsPopover.performClose(nil)
+            return
+        }
+
+        let popover = NSPopover()
+        popover.behavior = .semitransient
+        popover.contentSize = NSSize(width: 420, height: 340)
+        popover.contentViewController = NSHostingController(
+            rootView: FileManagerDownloadsPopoverView(
+                viewModel: viewModel,
+                onOpenDownloadSettings: { [weak self] in
+                    self?.showDownloadSettings()
+                }
+            )
+        )
+        popover.show(relativeTo: toolbarController.downloadsAnchorView.bounds, of: toolbarController.downloadsAnchorView, preferredEdge: .maxY)
+        downloadsPopover = popover
+    }
+
+    private func refreshDownloadsPopover(viewModel: FileTransferViewModel) {
+        guard let downloadsPopover, downloadsPopover.isShown else { return }
+        downloadsPopover.contentViewController = NSHostingController(
+            rootView: FileManagerDownloadsPopoverView(
+                viewModel: viewModel,
+                onOpenDownloadSettings: { [weak self] in
+                    self?.showDownloadSettings()
+                }
+            )
+        )
+    }
+
+    private func transferQueueStatus(for viewModel: FileTransferViewModel) -> TransferQueueAggregateStatus {
+        TransferQueueAggregateSnapshot.resolve(
+            items: viewModel.transferQueue,
+            currentBatchID: viewModel.currentTransferBatchID,
+            runningFallbackProgress: 0.1
+        ).status
+    }
+
+    private func showDownloadSettings() {
+        NotificationCenter.default.post(name: .remoraOpenSettingsCommand, object: nil)
+        NotificationCenter.default.post(name: .remoraOpenDownloadDirectorySetting, object: nil)
     }
 }

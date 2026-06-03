@@ -965,6 +965,16 @@ final class FileTransferViewModel: ObservableObject {
         }
     }
 
+    func clearFinishedTransfers() {
+        transferQueue.removeAll { $0.status.isTerminal }
+        if let currentTransferBatchID {
+            let currentBatchItems = transferQueue.filter { $0.batchID == currentTransferBatchID }
+            if currentBatchItems.isEmpty {
+                self.currentTransferBatchID = nil
+            }
+        }
+    }
+
     func loadTextDocument(
         path: String,
         options: RemoteTextDocumentLoadOptions = RemoteTextDocumentLoadOptions(),

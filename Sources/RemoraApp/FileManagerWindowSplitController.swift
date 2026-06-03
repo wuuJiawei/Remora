@@ -99,7 +99,8 @@ final class FileManagerWindowSplitController: NSSplitViewController {
         currentPath: String,
         entries: [RemoteFileEntry],
         isLoading: Bool,
-        searchQuery: String
+        searchQuery: String,
+        transferProgress: Double? = nil
     ) {
         LogManager.debug(
             .fileManager,
@@ -109,7 +110,8 @@ final class FileManagerWindowSplitController: NSSplitViewController {
             currentPath: currentPath,
             entries: entries,
             isLoading: isLoading,
-            searchQuery: searchQuery
+            searchQuery: searchQuery,
+            transferProgress: transferProgress
         )
     }
 
@@ -839,10 +841,12 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     private var scrollView: NSScrollView!
     private let emptyLabel = NSTextField(labelWithString: "")
     private let loadingIndicator = NSProgressIndicator()
+    private let transferProgressIndicator = NSProgressIndicator()
 
     private var currentPath = "/"
     private var entries: [RemoteFileEntry] = []
     private var isLoading = false
+    private var transferProgress: Double?
     private var sortColumn: Column = .name
     private var sortAscending = true
     private let defaults = UserDefaults.standard
@@ -943,9 +947,16 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         loadingIndicator.controlSize = .small
         loadingIndicator.isDisplayedWhenStopped = false
 
+        transferProgressIndicator.translatesAutoresizingMaskIntoConstraints = false
+        transferProgressIndicator.style = .bar
+        transferProgressIndicator.minValue = 0
+        transferProgressIndicator.maxValue = 1
+        transferProgressIndicator.isHidden = true
+
         container.addSubview(scrollView)
         container.addSubview(emptyLabel)
         container.addSubview(loadingIndicator)
+        container.addSubview(transferProgressIndicator)
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -958,6 +969,10 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
 
             loadingIndicator.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             loadingIndicator.bottomAnchor.constraint(equalTo: emptyLabel.topAnchor, constant: -12),
+
+            transferProgressIndicator.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            transferProgressIndicator.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            transferProgressIndicator.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
         ])
 
         self.view = container
@@ -968,7 +983,8 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         currentPath: String,
         entries: [RemoteFileEntry],
         isLoading: Bool,
-        searchQuery: String
+        searchQuery: String,
+        transferProgress: Double? = nil
     ) {
         LogManager.debug(
             .fileManager,
@@ -978,8 +994,10 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         self.entries = entries
         self.isLoading = isLoading
         self.searchQuery = searchQuery
+        self.transferProgress = transferProgress
         tableView.reloadData()
         updateEmptyState()
+        updateTransferProgressIndicator()
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -1218,6 +1236,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         let entries = clickedOrSelectedEntries()
         guard !entries.isEmpty else { return }
         LogManager.debug(.fileManager, "detail context download count=\(entries.count)")
+        animateDownload()
         onDownloadEntries(entries)
     }
 
@@ -1322,6 +1341,52 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         }
         image.size = NSSize(width: 16, height: 16)
         return image
+    }
+
+    private func updateTransferProgressIndicator() {
+        guard let transferProgress else {
+            transferProgressIndicator.isHidden = true
+            transferProgressIndicator.doubleValue = 0
+            return
+        }
+        transferProgressIndicator.isHidden = false
+        transferProgressIndicator.doubleValue = min(max(transferProgress, 0), 1)
+    }
+
+    private func animateDownload() {
+        let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
+        guard row >= 0 else { return }
+        let columnIndex = tableView.column(withIdentifier: NSUserInterfaceItemIdentifier(Column.name.rawValue))
+        guard columnIndex >= 0 else { return }
+        guard let startRect = CrossWindowFlyAnimator.screenRect(
+            for: tableView.frameOfCell(atColumn: columnIndex, row: row),
+            in: tableView
+        ) else {
+            return
+        }
+
+        let targetView = ViewScreenAnchorRegistry.view(for: ViewScreenAnchorRegistry.transferQueueTarget)
+        let fallbackPoint = (targetView?.window ?? tableView.window).map {
+            CGPoint(x: $0.frame.maxX - 28, y: $0.frame.minY + 28)
+        }
+        let image = NSImage(
+            systemSymbolName: "arrow.down.circle.fill",
+            accessibilityDescription: tr("Download File")
+        ) ?? NSImage()
+
+        if let targetView {
+            CrossWindowFlyAnimator.animate(
+                image: image,
+                fromScreenRect: startRect,
+                toScreenRect: CrossWindowFlyAnimator.screenRect(for: targetView) ?? CGRect(origin: fallbackPoint ?? .zero, size: .zero)
+            )
+        } else if let fallbackPoint {
+            CrossWindowFlyAnimator.animate(
+                image: image,
+                fromScreenRect: startRect,
+                toScreenRect: CGRect(origin: fallbackPoint, size: .zero)
+            )
+        }
     }
 
     private func widthDefaultsKey(for column: Column) -> String {
