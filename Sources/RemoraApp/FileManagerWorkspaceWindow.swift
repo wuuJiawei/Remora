@@ -41,6 +41,7 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         hostCatalog: HostCatalogStore,
         onOpenDownloadSettings: @escaping () -> Void
     ) {
+        LogManager.info(.fileManager, "present window host=\(host.name) path=\(runtime.workingDirectory ?? "/")")
         let windowID = UUID()
         let cascadeIndex = windows.count
         let runtimeID = ObjectIdentifier(runtime)
@@ -116,6 +117,7 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             runtimeObserver: runtimeObserver
         )
 
+        LogManager.info(.fileManager, "show window id=\(windowID.uuidString)")
         controller.showWindow(nil)
         controller.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -127,6 +129,10 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         runtime: TerminalRuntime,
         fallbackHost: RemoraCore.Host
     ) {
+        LogManager.info(
+            .fileManager,
+            "bind runtimeMode=\(runtime.connectionMode.rawValue) state=\(runtime.connectionState) workingDir=\(runtime.workingDirectory ?? "/")"
+        )
         let binding = makeBinding(from: runtime, fallbackHost: fallbackHost)
         viewModel.bindSFTPClient(
             binding.client,
@@ -295,7 +301,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     return try await viewModel.listRemoteDirectory(path: path, preferCachedFirst: true)
                         .filter(\.isDirectory)
                 } catch {
-                    print("[FileManager][Sidebar] failed to list path=\(path) error=\(error.localizedDescription)")
+                    LogManager.error(.fileManager, "sidebar list failed path=\(path) error=\(error.localizedDescription)")
                     return []
                 }
             },
@@ -381,6 +387,11 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             onDeleteEntries: { entries in
                 viewModel.deleteRemoteEntries(paths: entries.map(\.path))
             },
+            onDownloadEntries: { entries in
+                for entry in entries {
+                    viewModel.enqueueDownload(remoteEntry: entry)
+                }
+            },
             onCopyPath: { path in
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
@@ -445,10 +456,15 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         splitController.setPropertyHandlers(
             onShowProperties: { [weak self] entry in
                 guard let self else { return }
+                let sheet = NSWindow()
                 let controller = NSHostingController(
                     rootView: RemoteFilePropertiesSheet(
                         path: entry.path,
                         fileTransfer: viewModel,
+                        onClose: { [weak self] in
+                            guard let self else { return }
+                            self.window?.endSheet(sheet)
+                        },
                         initialAttributes: RemoteFileAttributes(
                             permissions: entry.permissions,
                             owner: entry.owner,
@@ -459,17 +475,22 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                         )
                     )
                 )
-                let sheet = NSWindow(contentViewController: controller)
+                sheet.contentViewController = controller
                 sheet.styleMask = [.titled, .closable]
                 sheet.setContentSize(NSSize(width: 420, height: 320))
                 self.window?.beginSheet(sheet)
             },
             onEditPermissions: { [weak self] entry in
                 guard let self else { return }
+                let sheet = NSWindow()
                 let controller = NSHostingController(
                     rootView: RemotePermissionsEditorSheet(
                         path: entry.path,
                         fileTransfer: viewModel,
+                        onClose: { [weak self] in
+                            guard let self else { return }
+                            self.window?.endSheet(sheet)
+                        },
                         initialAttributes: RemoteFileAttributes(
                             permissions: entry.permissions,
                             owner: entry.owner,
@@ -480,7 +501,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                         )
                     )
                 )
-                let sheet = NSWindow(contentViewController: controller)
+                sheet.contentViewController = controller
                 sheet.styleMask = [.titled, .closable]
                 sheet.setContentSize(NSSize(width: 420, height: 360))
                 self.window?.beginSheet(sheet)
@@ -564,7 +585,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     canGoBack: canGoBack,
                     canGoForward: canGoForward
                 )
-                self?.splitController.reloadSidebar(selectedPath: path)
+                self?.splitController.updateSidebarSelection(selectedPath: path)
                 self?.splitController.reloadDetail(
                     currentPath: path,
                     entries: viewModel.remoteEntries,

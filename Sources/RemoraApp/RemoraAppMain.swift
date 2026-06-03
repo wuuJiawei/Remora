@@ -5,6 +5,7 @@ import RemoraTerminal
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        LogManager.bootstrap()
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         Task { @MainActor in

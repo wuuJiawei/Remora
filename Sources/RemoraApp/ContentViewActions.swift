@@ -897,6 +897,10 @@ extension ContentView {
     }
 
     func openFileManagerWorkspace(for host: RemoraCore.Host, runtime: TerminalRuntime) {
+        LogManager.info(
+            .fileManager,
+            "open workspace host=\(host.name) address=\(host.address) runtimeState=\(runtime.connectionState)"
+        )
         hostCatalog.markConnected(hostID: host.id)
         fileManagerWorkspaceWindowManager.present(
             host: host,

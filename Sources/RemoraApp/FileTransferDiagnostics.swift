@@ -3,15 +3,7 @@ import Foundation
 enum FileTransferDiagnostics {
     private static let queue = DispatchQueue(label: "io.lighting-tech.remora.file-transfer-diagnostics")
 
-    static let logURL: URL = {
-        let fm = FileManager.default
-        let baseDirectory = fm.urls(for: .libraryDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent("Remora", isDirectory: true)
-            ?? fm.temporaryDirectory.appendingPathComponent("Remora", isDirectory: true)
-        try? fm.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
-        return baseDirectory.appendingPathComponent("file-transfer-diagnostics.log")
-    }()
+    static let logURL: URL = LogManager.logDirectoryURL.appendingPathComponent("file-transfer-diagnostics.log")
 
     static var displayPath: String {
         NSString(string: logURL.path).abbreviatingWithTildeInPath

@@ -2,10 +2,16 @@ import SwiftUI
 import RemoraCore
 
 struct RemoteFilePropertiesSheet: View {
-    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: RemoteFilePropertiesViewModel
+    private let onClose: () -> Void
 
-    init(path: String, fileTransfer: FileTransferViewModel, initialAttributes: RemoteFileAttributes? = nil) {
+    init(
+        path: String,
+        fileTransfer: FileTransferViewModel,
+        onClose: @escaping () -> Void,
+        initialAttributes: RemoteFileAttributes? = nil
+    ) {
+        self.onClose = onClose
         _viewModel = StateObject(
             wrappedValue: RemoteFilePropertiesViewModel(
                 path: path,
@@ -58,7 +64,7 @@ struct RemoteFilePropertiesSheet: View {
 
             HStack {
                 Spacer()
-                Button(tr("Close")) { dismiss() }
+                Button(tr("Close")) { onClose() }
                     .buttonStyle(.bordered)
                 Button(tr("Save")) {
                     Task { await viewModel.save() }

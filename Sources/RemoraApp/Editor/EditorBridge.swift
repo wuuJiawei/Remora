@@ -16,6 +16,6 @@ struct EditorBridgeMessage: Decodable {
 
 enum EditorDebugLog {
     static func log(_ message: @autoclosure () -> String) {
-        print("[RemoraEditor] \(message())")
+        LogManager.debug(.editor, message())
     }
 }
