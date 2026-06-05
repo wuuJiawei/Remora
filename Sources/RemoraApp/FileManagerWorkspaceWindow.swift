@@ -409,6 +409,11 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     guard !acceptedURLs.isEmpty else { return }
                     viewModel.enqueueUpload(localFileURLs: acceptedURLs, toRemoteDirectory: path)
                 }
+            },
+            onUploadLocalFiles: { urls, path in
+                let acceptedURLs = RemoteDropRouting.acceptedLocalDropURLs(urls)
+                guard !acceptedURLs.isEmpty else { return }
+                viewModel.enqueueUpload(localFileURLs: acceptedURLs, toRemoteDirectory: path)
             }
         )
 
@@ -675,14 +680,6 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
 
     private func refreshDownloadsPopover(viewModel: FileTransferViewModel) {
         guard let downloadsPopover, downloadsPopover.isShown else { return }
-        downloadsPopover.contentViewController = NSHostingController(
-            rootView: FileManagerDownloadsPopoverView(
-                viewModel: viewModel,
-                onOpenDownloadSettings: { [weak self] in
-                    self?.showDownloadSettings()
-                }
-            )
-        )
     }
 
     private func transferQueueStatus(for viewModel: FileTransferViewModel) -> TransferQueueAggregateStatus {

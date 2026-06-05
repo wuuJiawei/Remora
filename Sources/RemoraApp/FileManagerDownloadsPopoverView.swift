@@ -8,7 +8,7 @@ struct FileManagerDownloadsPopoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(tr("Downloads"))
+                Text(tr("Transfers"))
                     .font(.headline)
                 Spacer()
                 statusBadge
@@ -23,10 +23,10 @@ struct FileManagerDownloadsPopoverView: View {
 
             if viewModel.transferQueue.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "arrow.down.circle")
+                    Image(systemName: "arrow.left.arrow.right")
                         .font(.title2)
                         .foregroundStyle(.secondary)
-                    Text(tr("No downloads yet."))
+                    Text(tr("No transfers yet."))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -89,7 +89,7 @@ struct FileManagerDownloadsPopoverView: View {
                 .font(.caption)
                 .foregroundStyle(.green)
         case .finishedWithIssues:
-            Label(tr("Needs Attention"), systemImage: "exclamationmark.circle.fill")
+            Label(tr("Finished With Issues"), systemImage: "exclamationmark.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.orange)
         }
@@ -97,11 +97,6 @@ struct FileManagerDownloadsPopoverView: View {
 
     private var actionBar: some View {
         HStack(spacing: 8) {
-            Button(tr("Retry")) {
-                viewModel.retryFailedTransfers()
-            }
-            .disabled(!viewModel.transferQueue.contains { $0.status == .failed || $0.status == .skipped || $0.status == .stopped })
-
             Button(tr("Clear Finished")) {
                 clearFinished()
             }

@@ -114,7 +114,7 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
             return item
         case .fileManagerDownloads:
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-            item.label = tr("Downloads")
+            item.label = tr("Transfers")
             item.view = downloadsButtonView
             return item
         default:
@@ -183,7 +183,7 @@ private final class FileManagerDownloadsButtonView: NSView {
         let button = NSButton()
         button.title = ""
         button.isBordered = false
-        button.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: tr("Downloads"))
+        button.image = NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: tr("Transfers"))
         button.contentTintColor = .labelColor
         button.bezelStyle = .texturedRounded
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -251,10 +251,10 @@ private final class FileManagerDownloadsButtonView: NSView {
 
         switch status {
         case .idle:
-            symbolName = "arrow.down.circle"
-            tintColor = .labelColor
+            symbolName = "arrow.left.arrow.right"
+            tintColor = hasHistory ? .secondaryLabelColor : .labelColor
         case .transferring:
-            symbolName = "arrow.down.circle.fill"
+            symbolName = "arrow.left.arrow.right"
             tintColor = .controlAccentColor
         case .completed:
             symbolName = "checkmark.circle.fill"
@@ -264,7 +264,7 @@ private final class FileManagerDownloadsButtonView: NSView {
             tintColor = .systemOrange
         }
 
-        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: tr("Downloads"))
+        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: tr("Transfers"))
         button.contentTintColor = tintColor
     }
 }

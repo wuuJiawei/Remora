@@ -30,7 +30,8 @@ final class FileManagerWindowSplitController: NSSplitViewController {
         onDeleteEntries: @escaping ([RemoteFileEntry]) -> Void,
         onDownloadEntries: @escaping ([RemoteFileEntry]) -> Void,
         onCopyPath: @escaping (String) -> Void,
-        onUploadToDirectory: @escaping (String) -> Void
+        onUploadToDirectory: @escaping (String) -> Void,
+        onUploadLocalFiles: @escaping ([URL], String) -> Void
     ) {
         self.sidebarController = FileManagerOutlineSidebarController(
             selectedPath: selectedPath,
@@ -55,7 +56,8 @@ final class FileManagerWindowSplitController: NSSplitViewController {
             onDeleteEntries: onDeleteEntries,
             onDownloadEntries: onDownloadEntries,
             onCopyPath: onCopyPath,
-            onUploadToDirectory: onUploadToDirectory
+            onUploadToDirectory: onUploadToDirectory,
+            onUploadLocalFiles: onUploadLocalFiles
         )
         super.init(nibName: nil, bundle: nil)
     }
@@ -830,6 +832,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     private let onDownloadEntries: ([RemoteFileEntry]) -> Void
     private let onCopyPath: (String) -> Void
     private let onUploadToDirectory: (String) -> Void
+    private let onUploadLocalFiles: ([URL], String) -> Void
     var onEditPermissions: ((RemoteFileEntry) -> Void)?
     var onShowProperties: ((RemoteFileEntry) -> Void)?
     var onOpenTextFile: ((RemoteFileEntry) -> Void)?
@@ -837,7 +840,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     var onCompressEntries: (([RemoteFileEntry]) -> Void)?
     var onExtractEntry: ((RemoteFileEntry) -> Void)?
 
-    private let tableView = NSTableView()
+    private let tableView = FileManagerDetailTableView()
     private var scrollView: NSScrollView!
     private let emptyLabel = NSTextField(labelWithString: "")
     private let loadingIndicator = NSProgressIndicator()
@@ -892,7 +895,8 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         onDeleteEntries: @escaping ([RemoteFileEntry]) -> Void,
         onDownloadEntries: @escaping ([RemoteFileEntry]) -> Void,
         onCopyPath: @escaping (String) -> Void,
-        onUploadToDirectory: @escaping (String) -> Void
+        onUploadToDirectory: @escaping (String) -> Void,
+        onUploadLocalFiles: @escaping ([URL], String) -> Void
     ) {
         self.onOpenDirectory = onOpenDirectory
         self.onRefresh = onRefresh
@@ -904,6 +908,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         self.onDownloadEntries = onDownloadEntries
         self.onCopyPath = onCopyPath
         self.onUploadToDirectory = onUploadToDirectory
+        self.onUploadLocalFiles = onUploadLocalFiles
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -913,7 +918,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     }
 
     override func loadView() {
-        let container = NSView()
+        let container = FileManagerDetailDropContainerView()
         LogManager.debug(.fileManager, "detail viewDidLoad")
 
         for column in Column.allCases {
@@ -930,12 +935,38 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         tableView.target = self
         tableView.doubleAction = #selector(handleDoubleClick)
         tableView.menu = buildContextMenu()
+        tableView.onFileDrop = { [weak self] urls in
+            guard let self else { return false }
+            let accepted = RemoteDropRouting.acceptedLocalDropURLs(urls)
+            guard !accepted.isEmpty else { return false }
+            LogManager.debug(.fileManager, "detail performFileDrop count=\(accepted.count) path=\(self.currentPath)")
+            self.onUploadLocalFiles(accepted, self.currentPath)
+            return true
+        }
 
-        scrollView = NSScrollView()
+        scrollView = FileManagerDetailDropScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = tableView
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
+        container.onFileDrop = { [weak self] urls in
+            guard let self else { return false }
+            let accepted = RemoteDropRouting.acceptedLocalDropURLs(urls)
+            guard !accepted.isEmpty else { return false }
+            LogManager.debug(.fileManager, "detail container performFileDrop count=\(accepted.count) path=\(self.currentPath)")
+            self.onUploadLocalFiles(accepted, self.currentPath)
+            return true
+        }
+        if let dropScrollView = scrollView as? FileManagerDetailDropScrollView {
+            dropScrollView.onFileDrop = { [weak self] urls in
+                guard let self else { return false }
+                let accepted = RemoteDropRouting.acceptedLocalDropURLs(urls)
+                guard !accepted.isEmpty else { return false }
+                LogManager.debug(.fileManager, "detail scrollView performFileDrop count=\(accepted.count) path=\(self.currentPath)")
+                self.onUploadLocalFiles(accepted, self.currentPath)
+                return true
+            }
+        }
 
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         emptyLabel.alignment = .center
@@ -1410,4 +1441,129 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         }
         sortAscending = defaults.object(forKey: "remora.file-manager.sort-ascending") as? Bool ?? true
     }
+}
+
+@MainActor
+private final class FileManagerDetailDropContainerView: NSView {
+    var onFileDrop: (([URL]) -> Bool)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail container draggingEntered count=\(urls.count)")
+        return urls.isEmpty ? [] : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail container prepareForDragOperation count=\(urls.count)")
+        return !urls.isEmpty
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail container performDragOperation count=\(urls.count)")
+        guard !urls.isEmpty else { return false }
+        return onFileDrop?(urls) ?? false
+    }
+}
+
+@MainActor
+private final class FileManagerDetailDropScrollView: NSScrollView {
+    var onFileDrop: (([URL]) -> Bool)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail scrollView draggingEntered count=\(urls.count)")
+        return urls.isEmpty ? [] : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail scrollView prepareForDragOperation count=\(urls.count)")
+        return !urls.isEmpty
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail scrollView performDragOperation count=\(urls.count)")
+        guard !urls.isEmpty else { return false }
+        return onFileDrop?(urls) ?? false
+    }
+}
+
+@MainActor
+private final class FileManagerDetailTableView: NSTableView {
+    var onFileDrop: (([URL]) -> Bool)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail tableView draggingEntered count=\(urls.count)")
+        return urls.isEmpty ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail tableView draggingUpdated count=\(urls.count)")
+        return urls.isEmpty ? [] : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail tableView prepareForDragOperation count=\(urls.count)")
+        return !urls.isEmpty
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = draggedFileURLs(from: sender)
+        LogManager.debug(.fileManager, "detail tableView performDragOperation count=\(urls.count)")
+        guard !urls.isEmpty else { return false }
+        return onFileDrop?(urls) ?? false
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        LogManager.debug(.fileManager, "detail tableView concludeDragOperation")
+        super.concludeDragOperation(sender)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        LogManager.debug(.fileManager, "detail tableView draggingExited")
+        super.draggingExited(sender)
+    }
+}
+
+@MainActor
+private func draggedFileURLs(from draggingInfo: NSDraggingInfo) -> [URL] {
+    let pasteboard = draggingInfo.draggingPasteboard
+    let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
+    return RemoteDropRouting.acceptedLocalDropURLs(urls)
 }
