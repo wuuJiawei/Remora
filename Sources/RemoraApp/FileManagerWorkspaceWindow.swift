@@ -324,6 +324,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             },
             onDeleteQuickPath: { quickPath in
                 onDeleteQuickPath(quickPath, runtime)
+                refreshQuickPaths?()
             },
             onReorderQuickPaths: { orderedIDs in
                 onReorderQuickPaths(orderedIDs, runtime)

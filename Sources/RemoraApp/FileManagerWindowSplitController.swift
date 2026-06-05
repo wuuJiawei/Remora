@@ -155,7 +155,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
 }
 
 @MainActor
-private final class FileManagerOutlineSidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
+private final class FileManagerOutlineSidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate {
     var selectedPath: String
 
     private let quickPathsProvider: () -> [HostQuickPath]
@@ -844,7 +844,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
 
     private func buildContextMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(withTitle: tr("Add current path"), action: #selector(handleAddQuickPathFromSidebar), keyEquivalent: "")
+        menu.delegate = self
         return menu
     }
 
@@ -855,9 +855,22 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         if item as? String == SidebarItemID.root {
             onAddQuickPathForDirectory("/")
         } else if let quickPath = item as? HostQuickPath {
-            onAddQuickPathForDirectory(quickPath.path)
+            onDeleteQuickPath(quickPath)
         } else if let directory = item as? DirectoryNode {
             onAddQuickPathForDirectory(directory.path)
+        }
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let row = outlineView.clickedRow >= 0 ? outlineView.clickedRow : outlineView.selectedRow
+        guard row >= 0 else { return }
+        let item = outlineView.item(atRow: row)
+
+        if item is HostQuickPath {
+            menu.addItem(withTitle: tr("Remove quick path"), action: #selector(handleAddQuickPathFromSidebar), keyEquivalent: "")
+        } else if item as? String == SidebarItemID.root || item is DirectoryNode {
+            menu.addItem(withTitle: tr("Add current path"), action: #selector(handleAddQuickPathFromSidebar), keyEquivalent: "")
         }
     }
 }
