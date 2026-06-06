@@ -6,6 +6,30 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.17.4] - 2026-06-06
+
+### English
+
+#### Changed
+
+- Refined the terminal-pane toolbar so icon sizing, spacing, hover feedback, pressed feedback, and active-state treatment now follow a more consistent native macOS-style pattern.
+
+#### Fixed
+
+- Fixed multiple file-manager interaction regressions around quick-path refresh, sidebar selection syncing, and drag-upload targeting inside the native file manager window.
+- Replaced the Docker workspace toolbar entry with a Docker-specific brand icon resource so the terminal header better matches the actual workspace behavior.
+
+### 中文
+
+#### 变更
+
+- 统一优化了终端面板工具栏图标的尺寸、间距、悬停反馈、按压反馈和激活态表现，使其更接近原生 macOS 工具栏风格。
+
+#### 修复
+
+- 修复了原生文件管理窗口中的多项交互回归问题，包括快捷路径刷新、左侧树选中同步，以及右侧文件列表区域的拖拽上传命中链路。
+- 将终端头部的 Docker 工作区入口替换为 Docker 专属品牌图标资源，使入口语义与实际功能更加一致。
+
 ## [v0.17.3] - 2026-06-01
 
 ### English
