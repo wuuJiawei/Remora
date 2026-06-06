@@ -29,6 +29,7 @@ struct TerminalPaneView: View {
     @State private var smartAssistNotificationState = TerminalSmartAssistNotificationState()
     @State private var otpInputCode: String = ""
     @State private var passwordInput: String = ""
+    @State private var hoveredToolbarItem: String?
 
     private var hostKeyPromptBinding: Binding<Bool> {
         Binding(
@@ -170,111 +171,7 @@ struct TerminalPaneView: View {
                     }
                 }
 
-                if runtime.connectionMode == .ssh {
-                    Button {
-                        onSelect()
-                        onOpenFileManagerWorkspace()
-                    } label: {
-                        Image(systemName: "folder")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(VisualStyle.textSecondary)
-                    .accessibilityLabel(tr("Open File Manager Workspace"))
-                    .accessibilityIdentifier("terminal-open-file-manager-workspace")
-
-                    Button {
-                        onSelect()
-                        onOpenDockerWorkspace()
-                    } label: {
-                        Image(systemName: "shippingbox")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(VisualStyle.textSecondary)
-                    .accessibilityLabel(tr("Open Docker Workspace"))
-                    .accessibilityIdentifier("terminal-open-docker-workspace")
-
-                    Menu {
-                        if quickCommands.isEmpty {
-                            Text(tr("No quick commands"))
-                        } else {
-                            ForEach(quickCommands) { quickCommand in
-                                Button(quickCommand.name) {
-                                    onRunQuickCommand(quickCommand)
-                                }
-                            }
-                        }
-                        Divider()
-                        Button(tr("Manage quick commands")) {
-                            onManageQuickCommands()
-                        }
-                    } label: {
-                        Image(systemName: "bolt.circle")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    .foregroundStyle(VisualStyle.textSecondary)
-                    .accessibilityLabel(tr("Run SSH quick command"))
-                    .accessibilityIdentifier("terminal-quick-commands")
-
-                    Button {
-                        onSelect()
-                        onToggleFocusMode()
-                    } label: {
-                        Image(systemName: isInFocusMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(VisualStyle.textSecondary)
-                    .accessibilityLabel(isInFocusMode ? tr("Exit Terminal Focus") : tr("Focus Terminal"))
-                    .accessibilityIdentifier("terminal-focus-toggle")
-
-                    Button {
-                        onSelect()
-                        onReconnect()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(canReconnect ? VisualStyle.textSecondary : VisualStyle.textTertiary)
-                    .disabled(!canReconnect)
-                    .accessibilityLabel(tr("Reconnect SSH"))
-                    .accessibilityIdentifier("terminal-reconnect")
-                }
-
-                if aiEnabled {
-                    Button {
-                        pane.isAIAssistantVisible.toggle()
-                        aiAssistant.refreshSmartAssist()
-                    } label: {
-                        Image(systemName: pane.isAIAssistantVisible ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(pane.isAIAssistantVisible ? Color.accentColor : VisualStyle.textSecondary)
-                    .accessibilityLabel(tr("Toggle Terminal AI"))
-                    .accessibilityIdentifier("terminal-ai-toggle")
-                }
-
-                if canClose {
-                    Button {
-                        onClose()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(VisualStyle.textSecondary)
-                    .accessibilityLabel(tr("Close Pane"))
-                    .accessibilityIdentifier("terminal-close-pane")
-                }
-
-                Image(systemName: isFocused ? "cursorarrow.motionlines" : "cursorarrow")
-                    .font(.caption)
-                    .foregroundStyle(VisualStyle.textSecondary)
+                terminalToolbarItems
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -450,6 +347,29 @@ struct TerminalPaneView: View {
         )
     }
 
+    @ViewBuilder
+    private var dockerToolbarIcon: some View {
+        if let url = Bundle.module.url(forResource: "docker-mark-ocean-blue", withExtension: "png", subdirectory: "ToolbarIcons"),
+           let image = renderedDockerToolbarImage(from: url) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .antialiased(true)
+                .frame(width: 16, height: 16)
+        } else {
+            Image(systemName: "cube")
+                .terminalToolbarIcon()
+        }
+    }
+
+    private func renderedDockerToolbarImage(from url: URL) -> NSImage? {
+        LogManager.debug(.app, "docker toolbar icon url=\(url.path)")
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        let rendered = image.copy() as? NSImage ?? image
+        rendered.isTemplate = false
+        return rendered
+    }
+
     private func smartAssistNotification(_ smartAssist: TerminalAISmartAssist) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
@@ -518,5 +438,194 @@ struct TerminalPaneView: View {
         case .missingPath:
             return tr("Missing file or path")
         }
+    }
+
+    @ViewBuilder
+    private var terminalToolbarItems: some View {
+        HStack(spacing: 6) {
+            if runtime.connectionMode == .ssh {
+                Button {
+                    onSelect()
+                    onOpenFileManagerWorkspace()
+                } label: {
+                    Image(systemName: "folder")
+                        .terminalToolbarIcon()
+                }
+                .buttonStyle(TerminalToolbarIconButtonStyle(isHovering: hoveredToolbarItem == "files"))
+                .onHover { hoveredToolbarItem = $0 ? "files" : (hoveredToolbarItem == "files" ? nil : hoveredToolbarItem) }
+                .accessibilityLabel(tr("Open File Manager Workspace"))
+                .accessibilityIdentifier("terminal-open-file-manager-workspace")
+
+                Button {
+                    onSelect()
+                    onOpenDockerWorkspace()
+                } label: {
+                    dockerToolbarIcon
+                }
+                .buttonStyle(TerminalToolbarIconButtonStyle(isHovering: hoveredToolbarItem == "docker"))
+                .onHover { hoveredToolbarItem = $0 ? "docker" : (hoveredToolbarItem == "docker" ? nil : hoveredToolbarItem) }
+                .accessibilityLabel(tr("Open Docker Workspace"))
+                .accessibilityIdentifier("terminal-open-docker-workspace")
+
+                Menu {
+                    if quickCommands.isEmpty {
+                        Text(tr("No quick commands"))
+                    } else {
+                        ForEach(quickCommands) { quickCommand in
+                            Button(quickCommand.name) {
+                                onRunQuickCommand(quickCommand)
+                            }
+                        }
+                    }
+                    Divider()
+                    Button(tr("Manage quick commands")) {
+                        onManageQuickCommands()
+                    }
+                } label: {
+                    Image(systemName: "bolt")
+                        .terminalToolbarIcon()
+                }
+                .menuStyle(.borderlessButton)
+                .modifier(TerminalToolbarMenuChrome(isHovering: hoveredToolbarItem == "quick", isActive: false))
+                .onHover { hoveredToolbarItem = $0 ? "quick" : (hoveredToolbarItem == "quick" ? nil : hoveredToolbarItem) }
+                .accessibilityLabel(tr("Run SSH quick command"))
+                .accessibilityIdentifier("terminal-quick-commands")
+
+                Button {
+                    onSelect()
+                    onToggleFocusMode()
+                } label: {
+                    Image(systemName: isInFocusMode ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .terminalToolbarIcon()
+                }
+                .buttonStyle(TerminalToolbarIconButtonStyle(isActive: isInFocusMode, isHovering: hoveredToolbarItem == "focus"))
+                .onHover { hoveredToolbarItem = $0 ? "focus" : (hoveredToolbarItem == "focus" ? nil : hoveredToolbarItem) }
+                .accessibilityLabel(isInFocusMode ? tr("Exit Terminal Focus") : tr("Focus Terminal"))
+                .accessibilityIdentifier("terminal-focus-toggle")
+
+                Button {
+                    onSelect()
+                    onReconnect()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .terminalToolbarIcon()
+                }
+                .buttonStyle(TerminalToolbarIconButtonStyle(isDisabled: !canReconnect, isHovering: hoveredToolbarItem == "reconnect"))
+                .onHover { hoveredToolbarItem = $0 ? "reconnect" : (hoveredToolbarItem == "reconnect" ? nil : hoveredToolbarItem) }
+                .disabled(!canReconnect)
+                .accessibilityLabel(tr("Reconnect SSH"))
+                .accessibilityIdentifier("terminal-reconnect")
+            }
+
+            if aiEnabled {
+                Button {
+                    pane.isAIAssistantVisible.toggle()
+                    aiAssistant.refreshSmartAssist()
+                } label: {
+                    Image(systemName: "sparkles")
+                        .terminalToolbarIcon()
+                }
+                .buttonStyle(TerminalToolbarIconButtonStyle(isActive: pane.isAIAssistantVisible, isHovering: hoveredToolbarItem == "ai"))
+                .onHover { hoveredToolbarItem = $0 ? "ai" : (hoveredToolbarItem == "ai" ? nil : hoveredToolbarItem) }
+                .accessibilityLabel(tr("Toggle Terminal AI"))
+                .accessibilityIdentifier("terminal-ai-toggle")
+            }
+
+            if canClose {
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark")
+                        .terminalToolbarIcon()
+                }
+                .buttonStyle(TerminalToolbarIconButtonStyle(isHovering: hoveredToolbarItem == "close"))
+                .onHover { hoveredToolbarItem = $0 ? "close" : (hoveredToolbarItem == "close" ? nil : hoveredToolbarItem) }
+                .accessibilityLabel(tr("Close Pane"))
+                .accessibilityIdentifier("terminal-close-pane")
+            }
+        }
+    }
+}
+
+private struct TerminalToolbarIconButtonStyle: ButtonStyle {
+    var isActive = false
+    var isDisabled = false
+    var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(foregroundColor(configuration: configuration))
+            .frame(width: 24, height: 24)
+            .background(background(configuration: configuration))
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    @ViewBuilder
+    private func background(configuration: Configuration) -> some View {
+        let fillColor: Color = {
+            if configuration.isPressed {
+                return VisualStyle.borderSoft.opacity(0.9)
+            }
+            if isActive {
+                return VisualStyle.borderSoft.opacity(0.75)
+            }
+            if isHovering && !isDisabled {
+                return VisualStyle.borderSoft.opacity(0.35)
+            }
+            return .clear
+        }()
+
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(fillColor)
+    }
+
+    private func foregroundColor(configuration: Configuration) -> Color {
+        if isDisabled {
+            return VisualStyle.textTertiary
+        }
+        if isActive {
+            return VisualStyle.textPrimary
+        }
+        if configuration.isPressed {
+            return VisualStyle.textPrimary
+        }
+        return VisualStyle.textSecondary
+    }
+}
+
+private struct TerminalToolbarMenuChrome: ViewModifier {
+    var isHovering: Bool
+    var isActive: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(isActive ? VisualStyle.textPrimary : VisualStyle.textSecondary)
+            .frame(width: 24, height: 24)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(backgroundFill)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+
+    private var backgroundFill: Color {
+        if isActive {
+            return VisualStyle.borderSoft.opacity(0.75)
+        }
+        if isHovering {
+            return VisualStyle.borderSoft.opacity(0.35)
+        }
+        return .clear
+    }
+}
+
+private extension Image {
+    func terminalToolbarIcon() -> some View {
+        self
+            .font(.system(size: 15, weight: .regular))
+            .scaleEffect(0.88)
+            .symbolRenderingMode(.hierarchical)
+            .imageScale(.medium)
     }
 }
