@@ -6,6 +6,20 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.17.6] - 2026-06-06
+
+### English
+
+#### Fixed
+
+- Fixed the GitHub macOS packaging workflow by regenerating the Xcode project so all OpenSSH launcher source files are included in archive builds on both Apple Silicon and Intel runners.
+
+### 中文
+
+#### 修复
+
+- 重新生成并同步了 Xcode 工程文件，修复了 GitHub macOS 自动打包流程在 Apple Silicon 和 Intel Runner 上归档时遗漏 OpenSSH 启动器源码的问题。
+
 ## [v0.17.5] - 2026-06-06
 
 ### English
