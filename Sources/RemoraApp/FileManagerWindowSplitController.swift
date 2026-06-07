@@ -4,6 +4,22 @@ import UniformTypeIdentifiers
 
 // Primary native file manager browser implementation. New window-based file
 // manager work should be routed here instead of FileManagerPanelView.
+enum FileManagerContextCopyPathResolver {
+    static func detailTargetPath(currentPath: String, clickedEntryPath: String?) -> String {
+        let trimmedClickedPath = clickedEntryPath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedClickedPath, !trimmedClickedPath.isEmpty {
+            return trimmedClickedPath
+        }
+        return currentPath
+    }
+
+    static func sidebarTargetPath(clickedItemPath: String?) -> String? {
+        let trimmedClickedPath = clickedItemPath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmedClickedPath, !trimmedClickedPath.isEmpty else { return nil }
+        return trimmedClickedPath
+    }
+}
+
 @MainActor
 final class FileManagerWindowSplitController: NSSplitViewController {
     private let sidebarController: FileManagerOutlineSidebarController
@@ -44,7 +60,8 @@ final class FileManagerWindowSplitController: NSSplitViewController {
             onRenameQuickPath: onRenameQuickPath,
             onDeleteQuickPath: onDeleteQuickPath,
             onReorderQuickPaths: onReorderQuickPaths,
-            onRefreshDirectory: onRefreshDirectory
+            onRefreshDirectory: onRefreshDirectory,
+            onCopyPath: onCopyPath
         )
         self.detailController = FileManagerFinderDetailController(
             onOpenDirectory: onOpenDirectory,
@@ -168,6 +185,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     private let onDeleteQuickPath: (HostQuickPath) -> Void
     private let onReorderQuickPaths: ([UUID]) -> Void
     private let onRefreshDirectory: (String) -> Void
+    private let onCopyPath: (String) -> Void
 
     private let outlineView = NSOutlineView()
     private var scrollView: NSScrollView!
@@ -218,7 +236,8 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         onRenameQuickPath: @escaping (HostQuickPath) -> Void,
         onDeleteQuickPath: @escaping (HostQuickPath) -> Void,
         onReorderQuickPaths: @escaping ([UUID]) -> Void,
-        onRefreshDirectory: @escaping (String) -> Void
+        onRefreshDirectory: @escaping (String) -> Void,
+        onCopyPath: @escaping (String) -> Void
     ) {
         self.selectedPath = selectedPath
         self.quickPathsProvider = quickPathsProvider
@@ -231,6 +250,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         self.onDeleteQuickPath = onDeleteQuickPath
         self.onReorderQuickPaths = onReorderQuickPaths
         self.onRefreshDirectory = onRefreshDirectory
+        self.onCopyPath = onCopyPath
         self.directoryNodeCache[rootDirectoryNode.path] = rootDirectoryNode
         super.init(nibName: nil, bundle: nil)
     }
@@ -861,17 +881,47 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         }
     }
 
+    @objc private func handleCopyPathFromSidebar() {
+        guard let targetPath = sidebarCopyPathTarget() else { return }
+        LogManager.debug(.fileManager, "sidebar context copyPath path=\(targetPath)")
+        onCopyPath(targetPath)
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        let clickedRow = outlineView.clickedRow
+        if clickedRow >= 0 {
+            outlineView.selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
+        }
         let row = outlineView.clickedRow >= 0 ? outlineView.clickedRow : outlineView.selectedRow
         guard row >= 0 else { return }
         let item = outlineView.item(atRow: row)
 
         if item is HostQuickPath {
+            menu.addItem(withTitle: tr("Copy Path"), action: #selector(handleCopyPathFromSidebar), keyEquivalent: "")
+            menu.addItem(.separator())
             menu.addItem(withTitle: tr("Remove quick path"), action: #selector(handleAddQuickPathFromSidebar), keyEquivalent: "")
         } else if item as? String == SidebarItemID.root || item is DirectoryNode {
             menu.addItem(withTitle: tr("Add current path"), action: #selector(handleAddQuickPathFromSidebar), keyEquivalent: "")
+            menu.addItem(.separator())
+            menu.addItem(withTitle: tr("Copy Path"), action: #selector(handleCopyPathFromSidebar), keyEquivalent: "")
         }
+    }
+
+    private func sidebarCopyPathTarget() -> String? {
+        let row = outlineView.clickedRow >= 0 ? outlineView.clickedRow : outlineView.selectedRow
+        guard row >= 0 else { return nil }
+        let item = outlineView.item(atRow: row)
+        if item as? String == SidebarItemID.root {
+            return FileManagerContextCopyPathResolver.sidebarTargetPath(clickedItemPath: "/")
+        }
+        if let quickPath = item as? HostQuickPath {
+            return FileManagerContextCopyPathResolver.sidebarTargetPath(clickedItemPath: quickPath.path)
+        }
+        if let directory = item as? DirectoryNode {
+            return FileManagerContextCopyPathResolver.sidebarTargetPath(clickedItemPath: directory.path)
+        }
+        return nil
     }
 }
 
@@ -1242,6 +1292,19 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         return selectedEntries()
     }
 
+    private func clickedEntry() -> RemoteFileEntry? {
+        let clickedRow = tableView.clickedRow
+        guard clickedRow >= 0, clickedRow < filteredEntries.count else { return nil }
+        return filteredEntries[clickedRow]
+    }
+
+    private func copyPathTarget() -> String {
+        FileManagerContextCopyPathResolver.detailTargetPath(
+            currentPath: currentPath,
+            clickedEntryPath: clickedEntry()?.path
+        )
+    }
+
     private func buildContextMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
@@ -1311,9 +1374,9 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     }
 
     @objc private func handleCopyPath() {
-        guard let entry = clickedOrSelectedEntries().first else { return }
-        LogManager.debug(.fileManager, "detail context copyPath path=\(entry.path)")
-        onCopyPath(entry.path)
+        let targetPath = copyPathTarget()
+        LogManager.debug(.fileManager, "detail context copyPath path=\(targetPath)")
+        onCopyPath(targetPath)
     }
 
     @objc private func handleDownload() {
@@ -1370,7 +1433,6 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
             case #selector(handleRename),
                  #selector(handleDelete),
                  #selector(handleDownload),
-                 #selector(handleCopyPath),
                  #selector(handleCompress),
                  #selector(handleExtract),
                  #selector(handleOpenTextFile),
@@ -1378,6 +1440,8 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
                  #selector(handleShowProperties),
                  #selector(handleEditPermissions):
                 item.isEnabled = hasSelection
+            case #selector(handleCopyPath):
+                item.isEnabled = true
             default:
                 item.isEnabled = true
             }

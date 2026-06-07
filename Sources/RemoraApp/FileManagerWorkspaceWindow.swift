@@ -269,6 +269,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
     private let toolbarController = FileManagerWindowToolbar()
     private var toolbarCancellables: Set<AnyCancellable> = []
     private let splitController: FileManagerWindowSplitController
+    private let toastController = FileManagerWindowToastController()
     private var downloadsPopover: NSPopover?
     private let remoteEditorWindowManager: RemoteTextEditorWindowManager
     private let remoteLiveLogWindowManager: RemoteLiveLogWindowManager
@@ -292,6 +293,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         self.remoteEditorWindowManager = RemoteTextEditorWindowManager(fileTransfer: viewModel)
         self.remoteLiveLogWindowManager = RemoteLiveLogWindowManager(fileTransfer: viewModel)
         var refreshQuickPaths: (() -> Void)?
+        var copyPathHandler: ((String) -> Void)?
 
         self.splitController = FileManagerWindowSplitController(
             selectedPath: viewModel.remoteDirectoryPath,
@@ -400,9 +402,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                 }
             },
             onCopyPath: { path in
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(path, forType: .string)
+                copyPathHandler?(path)
             },
             onUploadToDirectory: { path in
                 let panel = NSOpenPanel()
@@ -450,6 +450,10 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
 
         super.init(window: window)
         window.delegate = self
+        toastController.installIfNeeded(in: window)
+        copyPathHandler = { [weak self] path in
+            self?.copyPathToPasteboard(path)
+        }
         refreshQuickPaths = { [weak self] in
             self?.splitController.refreshSidebarQuickPaths()
         }
@@ -596,7 +600,17 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
     }
 
     func windowWillClose(_ notification: Notification) {
+        toastController.dismissImmediately()
         onClose()
+    }
+
+    private func copyPathToPasteboard(_ path: String) {
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(trimmedPath, forType: .string)
+        toastController.show(message: tr("Path copied to clipboard."))
     }
 
     private func bindToolbar(viewModel: FileTransferViewModel) {
@@ -702,5 +716,105 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
     private func showDownloadSettings() {
         NotificationCenter.default.post(name: .remoraOpenSettingsCommand, object: nil)
         NotificationCenter.default.post(name: .remoraOpenDownloadDirectorySetting, object: nil)
+    }
+}
+
+@MainActor
+private final class FileManagerWindowToastController {
+    private weak var window: NSWindow?
+    private weak var toastLabel: NSTextField?
+    private var hideTask: Task<Void, Never>?
+
+    func installIfNeeded(in window: NSWindow) {
+        self.window = window
+        if toastLabel != nil {
+            return
+        }
+        guard let contentView = window.contentView else { return }
+
+        let label = NSTextField(labelWithString: "")
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.isHidden = true
+        label.alphaValue = 0
+        label.lineBreakMode = .byWordWrapping
+        label.maximumNumberOfLines = 2
+        label.alignment = .center
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = .labelColor
+        label.wantsLayer = true
+        label.layer?.cornerRadius = 10
+        label.layer?.cornerCurve = .continuous
+        label.layer?.borderWidth = 1
+        label.layer?.masksToBounds = true
+        updateToastAppearance(for: label)
+
+        contentView.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            label.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -14),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 20),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -20),
+        ])
+        toastLabel = label
+    }
+
+    func show(message: String) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let label = toastLabel else { return }
+
+        hideTask?.cancel()
+        updateToastAppearance(for: label)
+        label.stringValue = trimmed
+        label.isHidden = false
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            label.animator().alphaValue = 1
+        }
+
+        hideTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.hideAnimated()
+        }
+    }
+
+    func dismissImmediately() {
+        hideTask?.cancel()
+        hideTask = nil
+        toastLabel?.alphaValue = 0
+        toastLabel?.isHidden = true
+    }
+
+    private func hideAnimated() {
+        guard let label = toastLabel else { return }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.18
+            label.animator().alphaValue = 0
+        })
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.18))
+            guard !Task.isCancelled else { return }
+            label.isHidden = true
+        }
+        hideTask = nil
+    }
+
+    private func updateToastAppearance(for label: NSTextField) {
+        guard let appearance = window?.effectiveAppearance else { return }
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        label.drawsBackground = true
+        label.backgroundColor = isDark
+            ? NSColor.windowBackgroundColor.withAlphaComponent(0.94)
+            : NSColor.controlBackgroundColor.withAlphaComponent(0.94)
+        label.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.22).cgColor
+        label.shadow = {
+            let shadow = NSShadow()
+            shadow.shadowBlurRadius = 8
+            shadow.shadowOffset = NSSize(width: 0, height: -2)
+            shadow.shadowColor = NSColor.black.withAlphaComponent(isDark ? 0.28 : 0.12)
+            return shadow
+        }()
     }
 }
