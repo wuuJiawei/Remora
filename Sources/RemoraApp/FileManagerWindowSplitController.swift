@@ -22,6 +22,12 @@ enum FileManagerContextCopyPathResolver {
 
 @MainActor
 final class FileManagerWindowSplitController: NSSplitViewController {
+    enum ExtractDestinationAction: String, Sendable {
+        case currentDirectory
+        case sameNameDirectory
+        case customDirectory
+    }
+
     private let sidebarController: FileManagerOutlineSidebarController
     private let detailController: FileManagerFinderDetailController
 
@@ -163,8 +169,8 @@ final class FileManagerWindowSplitController: NSSplitViewController {
     }
 
     func setArchiveHandlers(
-        onCompressEntries: @escaping ([RemoteFileEntry]) -> Void,
-        onExtractEntry: @escaping (RemoteFileEntry) -> Void
+        onCompressEntries: @escaping ([RemoteFileEntry], ArchiveFormat) -> Void,
+        onExtractEntry: @escaping (RemoteFileEntry, ExtractDestinationAction) -> Void
     ) {
         detailController.onCompressEntries = onCompressEntries
         detailController.onExtractEntry = onExtractEntry
@@ -950,8 +956,8 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     var onShowProperties: ((RemoteFileEntry) -> Void)?
     var onOpenTextFile: ((RemoteFileEntry) -> Void)?
     var onOpenLogView: ((RemoteFileEntry) -> Void)?
-    var onCompressEntries: (([RemoteFileEntry]) -> Void)?
-    var onExtractEntry: ((RemoteFileEntry) -> Void)?
+    var onCompressEntries: (([RemoteFileEntry], ArchiveFormat) -> Void)?
+    var onExtractEntry: ((RemoteFileEntry, FileManagerWindowSplitController.ExtractDestinationAction) -> Void)?
 
     private let tableView = FileManagerDetailTableView()
     private var scrollView: NSScrollView!
@@ -1320,12 +1326,39 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         menu.addItem(withTitle: tr("Delete"), action: #selector(handleDelete), keyEquivalent: "")
         menu.addItem(withTitle: tr("Download"), action: #selector(handleDownload), keyEquivalent: "")
         menu.addItem(withTitle: tr("Copy Path"), action: #selector(handleCopyPath), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Compress"), action: #selector(handleCompress), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Extract To"), action: #selector(handleExtract), keyEquivalent: "")
+        let compressItem = NSMenuItem(title: tr("Compress as..."), action: nil, keyEquivalent: "")
+        compressItem.submenu = buildCompressSubmenu()
+        menu.addItem(compressItem)
+
+        let extractItem = NSMenuItem(title: tr("Extract"), action: nil, keyEquivalent: "")
+        extractItem.submenu = buildExtractSubmenu()
+        menu.addItem(extractItem)
         menu.addItem(withTitle: tr("Edit"), action: #selector(handleOpenTextFile), keyEquivalent: "")
         menu.addItem(withTitle: tr("Live View"), action: #selector(handleOpenLogView), keyEquivalent: "")
         menu.addItem(withTitle: tr("Properties"), action: #selector(handleShowProperties), keyEquivalent: "")
         menu.addItem(withTitle: tr("Edit Permissions"), action: #selector(handleEditPermissions), keyEquivalent: "")
+        return menu
+    }
+
+    private func buildCompressSubmenu() -> NSMenu {
+        let menu = NSMenu()
+        let options: [(String, Selector)] = [
+            ("TAR.GZ", #selector(handleCompressTarGz)),
+            ("TAR", #selector(handleCompressTar)),
+            ("ZIP", #selector(handleCompressZip)),
+            ("7Z", #selector(handleCompressSevenZip)),
+        ]
+        for (title, selector) in options {
+            menu.addItem(withTitle: title, action: selector, keyEquivalent: "")
+        }
+        return menu
+    }
+
+    private func buildExtractSubmenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(withTitle: tr("Extract to current directory"), action: #selector(handleExtractToCurrentDirectory), keyEquivalent: "")
+        menu.addItem(withTitle: tr("Extract to same-name folder"), action: #selector(handleExtractToSameNameDirectory), keyEquivalent: "")
+        menu.addItem(withTitle: tr("Extract to..."), action: #selector(handleExtractToCustomDirectory), keyEquivalent: "")
         return menu
     }
 
@@ -1387,15 +1420,43 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         onDownloadEntries(entries)
     }
 
-    @objc private func handleCompress() {
-        let entries = clickedOrSelectedEntries()
-        guard !entries.isEmpty else { return }
-        onCompressEntries?(entries)
+    @objc private func handleCompressTarGz() {
+        handleCompress(format: .tarGz)
     }
 
-    @objc private func handleExtract() {
+    @objc private func handleCompressTar() {
+        handleCompress(format: .tar)
+    }
+
+    @objc private func handleCompressZip() {
+        handleCompress(format: .zip)
+    }
+
+    @objc private func handleCompressSevenZip() {
+        handleCompress(format: .sevenZip)
+    }
+
+    private func handleCompress(format: ArchiveFormat) {
+        let entries = clickedOrSelectedEntries()
+        guard !entries.isEmpty else { return }
+        onCompressEntries?(entries, format)
+    }
+
+    @objc private func handleExtractToCurrentDirectory() {
+        handleExtract(action: .currentDirectory)
+    }
+
+    @objc private func handleExtractToSameNameDirectory() {
+        handleExtract(action: .sameNameDirectory)
+    }
+
+    @objc private func handleExtractToCustomDirectory() {
+        handleExtract(action: .customDirectory)
+    }
+
+    private func handleExtract(action: FileManagerWindowSplitController.ExtractDestinationAction) {
         guard let entry = clickedOrSelectedEntries().first else { return }
-        onExtractEntry?(entry)
+        onExtractEntry?(entry, action)
     }
 
     @objc private func handleOpenTextFile() {
@@ -1427,19 +1488,36 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         if clickedRow >= 0 {
             tableView.selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
         }
-        let hasSelection = !clickedOrSelectedEntries().isEmpty
-        for item in menu.items {
+        let selectedEntries = clickedOrSelectedEntries()
+        let hasSelection = !selectedEntries.isEmpty
+        let canExtract = selectedEntries.count == 1
+            && selectedEntries[0].isDirectory == false
+            && ArchiveFormat.extractFormat(for: selectedEntries[0].path) != nil
+        updateMenuItems(menu.items, hasSelection: hasSelection, canExtract: canExtract)
+    }
+
+    private func updateMenuItems(_ items: [NSMenuItem], hasSelection: Bool, canExtract: Bool) {
+        for item in items {
+            if let submenu = item.submenu {
+                updateMenuItems(submenu.items, hasSelection: hasSelection, canExtract: canExtract)
+            }
             switch item.action {
             case #selector(handleRename),
                  #selector(handleDelete),
                  #selector(handleDownload),
-                 #selector(handleCompress),
-                 #selector(handleExtract),
+                 #selector(handleCompressTarGz),
+                 #selector(handleCompressTar),
+                 #selector(handleCompressZip),
+                 #selector(handleCompressSevenZip),
                  #selector(handleOpenTextFile),
                  #selector(handleOpenLogView),
                  #selector(handleShowProperties),
                  #selector(handleEditPermissions):
                 item.isEnabled = hasSelection
+            case #selector(handleExtractToCurrentDirectory),
+                 #selector(handleExtractToSameNameDirectory),
+                 #selector(handleExtractToCustomDirectory):
+                item.isEnabled = canExtract
             case #selector(handleCopyPath):
                 item.isEnabled = true
             default:

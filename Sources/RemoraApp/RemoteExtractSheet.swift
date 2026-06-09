@@ -4,10 +4,8 @@ struct RemoteExtractSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let archivePath: String
+    @ObservedObject var fileTransfer: FileTransferViewModel
     @Binding var destinationPath: String
-    let isBusy: Bool
-    let progress: Double?
-    let statusText: String?
     let onConfirm: () -> Void
 
     var body: some View {
@@ -30,9 +28,9 @@ struct RemoteExtractSheet: View {
                     .accessibilityIdentifier("remote-extract-destination")
             }
 
-            if let progress {
+            if let progress = fileTransfer.archiveOperationProgress {
                 VStack(alignment: .leading, spacing: 6) {
-                    if let statusText {
+                    if let statusText = fileTransfer.archiveOperationStatusText {
                         Text(statusText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -51,7 +49,7 @@ struct RemoteExtractSheet: View {
                     onConfirm()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isBusy || destinationPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(fileTransfer.archiveOperationProgress != nil || destinationPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(16)

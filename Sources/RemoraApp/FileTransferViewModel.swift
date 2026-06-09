@@ -267,6 +267,7 @@ final class FileTransferViewModel: ObservableObject {
     private var remoteDirectoryHistoryIndex: Int = 0
     private var activeRemoteBindingKey = "__default"
     private var remoteBindingStates: [String: RemoteBindingState] = [:]
+    private var remoteArchiveToolchainCache: [String: RemoteArchiveToolchain] = [:]
     // Increments on every bindSFTPClient call. Async remote-load tasks must match
     // the latest generation before mutating published state, preventing stale
     // results from old session bindings from overwriting the current UI.
@@ -360,6 +361,7 @@ final class FileTransferViewModel: ObservableObject {
         currentTransferBatchID = nil
         nextTransferBatchSeed = 0
         remoteRefreshInFlightPaths.removeAll()
+        remoteArchiveToolchainCache.removeValue(forKey: normalizedBindingKey)
         isRemoteLoading = false
 
         if let saved = remoteBindingStates[normalizedBindingKey] {
@@ -698,38 +700,32 @@ final class FileTransferViewModel: ObservableObject {
         format: ArchiveFormat,
         destinationDirectory: String? = nil
     ) async throws {
-        guard format.supportsCompression else {
-            throw ArchiveSupportError.unsupportedCompressionFormat
-        }
-
         let normalizedSources = Array(Set(paths.map(normalizeRemoteDirectoryPath).filter { $0 != "/" }))
         guard !normalizedSources.isEmpty else { return }
-
-        let workspaceURL = Self.makeArchiveWorkspaceURL()
-        let stagingURL = workspaceURL.appendingPathComponent("input", isDirectory: true)
-        try FileManager.default.createDirectory(at: stagingURL, withIntermediateDirectories: true)
         beginArchiveProgress(status: tr("Preparing files…"), progress: 0.15)
         defer {
-            try? FileManager.default.removeItem(at: workspaceURL)
             clearArchiveProgress()
         }
-
-        for source in normalizedSources {
-            let topLevelURL = stagingURL.appendingPathComponent(URL(fileURLWithPath: source).lastPathComponent)
-            try await materializeRemoteItem(at: source, to: topLevelURL)
-        }
-
-        let finalArchiveName = archiveName.hasSuffix(format.fileExtension) ? archiveName : archiveName + format.fileExtension
-        let archiveURL = workspaceURL.appendingPathComponent(finalArchiveName)
-        updateArchiveProgress(status: tr("Compressing files…"), progress: 0.5)
-        try ArchiveSupport.createArchive(from: stagingURL, destinationURL: archiveURL, format: format)
-
-        let destination = normalizeRemoteDirectoryPath(destinationDirectory ?? remoteDirectoryPath)
+        let toolchain = try await loadRemoteArchiveToolchain()
+        try RemoteArchiveCommandBuilder.ensureCompressionSupport(format: format, toolchain: toolchain)
+        let parentDirectory = try RemoteArchiveCommandBuilder.parentDirectory(for: normalizedSources)
+        let sourceNames = normalizedSources.map { URL(fileURLWithPath: $0).lastPathComponent }
+        let finalArchiveName = archiveName.hasSuffix(format.fileExtension)
+            ? archiveName
+            : archiveName + format.fileExtension
+        let destination = normalizeRemoteDirectoryPath(destinationDirectory ?? parentDirectory)
         let targetPath = normalizedRemotePath(base: destination, child: finalArchiveName)
         guard let resolvedTargetPath = await resolveRemoteConflictPath(for: targetPath) else { return }
-
-        updateArchiveProgress(status: tr("Uploading archive…"), progress: 0.8)
-        try await sftpClient.upload(fileURL: archiveURL, to: resolvedTargetPath, progress: nil)
+        updateArchiveProgress(status: tr("Compressing files…"), progress: 0.5)
+        let command = try RemoteArchiveCommandBuilder.compressionScript(
+            parentDirectory: parentDirectory,
+            sourceNames: sourceNames,
+            destinationPath: resolvedTargetPath,
+            format: format,
+            toolchain: toolchain
+        )
+        updateArchiveProgress(status: tr("Running compression on remote server…"), progress: 0.8)
+        _ = try await sftpClient.executeRemoteShellCommand(command, timeout: 60)
         invalidateRemoteDirectoryCache()
         await refreshRemoteEntries(path: destination, preferCachedFirst: false, deduplicateInFlight: false)
         updateArchiveProgress(status: tr("Finalizing…"), progress: 1.0)
@@ -737,32 +733,38 @@ final class FileTransferViewModel: ObservableObject {
 
     func extractRemoteArchive(path: String, into destinationDirectory: String? = nil) async throws {
         let normalizedArchivePath = normalizeRemoteDirectoryPath(path)
-        guard ArchiveFormat.extractFormat(for: normalizedArchivePath) != nil else {
+        guard let format = ArchiveFormat.extractFormat(for: normalizedArchivePath) else {
             throw ArchiveSupportError.unsupportedExtractionFormat
         }
-
-        let workspaceURL = Self.makeArchiveWorkspaceURL()
-        let archiveURL = workspaceURL.appendingPathComponent(URL(fileURLWithPath: normalizedArchivePath).lastPathComponent)
-        let extractedURL = workspaceURL.appendingPathComponent("extracted", isDirectory: true)
-        try FileManager.default.createDirectory(at: extractedURL, withIntermediateDirectories: true)
         beginArchiveProgress(status: tr("Preparing files…"), progress: 0.15)
         defer {
-            try? FileManager.default.removeItem(at: workspaceURL)
             clearArchiveProgress()
         }
-
-        try await sftpClient.download(path: normalizedArchivePath, to: archiveURL, progress: nil)
-        updateArchiveProgress(status: tr("Extracting archive…"), progress: 0.45)
-        try ArchiveSupport.extractArchive(at: archiveURL, to: extractedURL)
-
+        let toolchain = try await loadRemoteArchiveToolchain()
+        try RemoteArchiveCommandBuilder.ensureExtractionSupport(format: format, toolchain: toolchain)
+        updateArchiveProgress(status: tr("Checking archive entries…"), progress: 0.35)
+        let listCommand = try RemoteArchiveCommandBuilder.listArchiveEntriesScript(
+            archivePath: normalizedArchivePath,
+            format: format,
+            toolchain: toolchain
+        )
+        let listOutput = try await sftpClient.executeRemoteShellCommand(listCommand, timeout: 30)
+        let entries = RemoteArchiveCommandBuilder.parseListedEntries(
+            output: listOutput,
+            archivePath: normalizedArchivePath,
+            format: format,
+            toolchain: toolchain
+        )
+        try RemoteArchiveCommandBuilder.validateSafeArchiveEntries(entries)
         let destination = normalizeRemoteDirectoryPath(destinationDirectory ?? remoteDirectoryPath)
-        try await ensureRemoteDirectoryExists(destination)
-        let extractedItems = try FileManager.default.contentsOfDirectory(at: extractedURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
-        updateArchiveProgress(status: tr("Uploading extracted files…"), progress: 0.8)
-        for item in extractedItems {
-            try await uploadExtractedItem(item, toRemoteBasePath: destination)
-        }
-
+        updateArchiveProgress(status: tr("Extracting archive…"), progress: 0.7)
+        let extractCommand = try RemoteArchiveCommandBuilder.extractArchiveScript(
+            archivePath: normalizedArchivePath,
+            destinationDirectory: destination,
+            format: format,
+            toolchain: toolchain
+        )
+        _ = try await sftpClient.executeRemoteShellCommand(extractCommand, timeout: 90)
         invalidateRemoteDirectoryCache()
         await refreshRemoteEntries(path: destination, preferCachedFirst: false, deduplicateInFlight: false)
         updateArchiveProgress(status: tr("Finalizing…"), progress: 1.0)
@@ -1651,33 +1653,6 @@ final class FileTransferViewModel: ObservableObject {
         enqueueUploadFile(localURL: localURL, destinationPath: destination)
     }
 
-    private func materializeRemoteItem(_ entry: RemoteFileEntry, to localURL: URL) async throws {
-        try Task.checkCancellation()
-        if entry.isDirectory {
-            FileTransferDiagnostics.append(
-                "enter directory remote=\(entry.path) local=\(localURL.path)"
-            )
-            try FileManager.default.createDirectory(at: localURL, withIntermediateDirectories: true)
-            let children = try await sftpClient.list(path: entry.path)
-            FileTransferDiagnostics.append(
-                "list directory remote=\(entry.path) children=\(children.count)"
-            )
-            for child in children {
-                try Task.checkCancellation()
-                let childURL = localURL.appendingPathComponent(child.name, isDirectory: child.isDirectory)
-                try await materializeRemoteItem(child, to: childURL)
-            }
-            return
-        }
-
-        FileTransferDiagnostics.append(
-            "download file remote=\(entry.path) local=\(localURL.path)"
-        )
-        try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Task.checkCancellation()
-        try await sftpClient.download(path: entry.path, to: localURL, progress: nil)
-    }
-
     private func downloadDirectoryTransfer(
         _ entry: RemoteFileEntry,
         to localURL: URL,
@@ -1767,40 +1742,6 @@ final class FileTransferViewModel: ObservableObject {
         )
         completedBytes += node.entry.size
         updateDirectoryTransferProgress(itemID: itemID, completedBytes: completedBytes, totalBytes: totalBytes)
-    }
-
-    private func materializeRemoteItem(at remotePath: String, to localURL: URL) async throws {
-        let attributes = try await sftpClient.stat(path: remotePath)
-        let entry = RemoteFileEntry(
-            name: URL(fileURLWithPath: remotePath).lastPathComponent,
-            path: remotePath,
-            size: attributes.size,
-            permissions: attributes.permissions,
-            owner: attributes.owner,
-            group: attributes.group,
-            isDirectory: attributes.isDirectory,
-            modifiedAt: attributes.modifiedAt
-        )
-        try await materializeRemoteItem(entry, to: localURL)
-    }
-
-    private func uploadExtractedItem(_ localURL: URL, toRemoteBasePath remoteBasePath: String) async throws {
-        let values = try? localURL.resourceValues(forKeys: [.isDirectoryKey])
-        let targetPath = normalizedRemotePath(base: remoteBasePath, child: localURL.lastPathComponent)
-        guard let resolvedTargetPath = await resolveRemoteConflictPath(for: targetPath) else { return }
-
-        if values?.isDirectory == true {
-            if !(await remotePathExists(resolvedTargetPath)) {
-                try await sftpClient.mkdir(path: resolvedTargetPath)
-            }
-            let children = try FileManager.default.contentsOfDirectory(at: localURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
-            for child in children {
-                try await uploadExtractedItem(child, toRemoteBasePath: resolvedTargetPath)
-            }
-            return
-        }
-
-        try await sftpClient.upload(fileURL: localURL, to: resolvedTargetPath, progress: nil)
     }
 
     private func ensureRemoteDirectoryExists(_ path: String) async throws {
@@ -2172,6 +2113,27 @@ final class FileTransferViewModel: ObservableObject {
         updateRemoteLoadingState()
     }
 
+    private func loadRemoteArchiveToolchain(forceRefresh: Bool = false) async throws -> RemoteArchiveToolchain {
+        if !forceRefresh, let cached = remoteArchiveToolchainCache[activeRemoteBindingKey] {
+            return cached
+        }
+        let output = try await sftpClient.executeRemoteShellCommand(
+            RemoteArchiveCommandBuilder.capabilityProbeScript(),
+            timeout: 12
+        )
+        let toolchain = RemoteArchiveCommandBuilder.parseCapabilityProbeOutput(output)
+        remoteArchiveToolchainCache[activeRemoteBindingKey] = toolchain
+        return toolchain
+    }
+
+    func refreshRemoteArchiveToolchain() async throws -> RemoteArchiveToolchain {
+        try await loadRemoteArchiveToolchain(forceRefresh: true)
+    }
+
+    func executeArchiveInstallCommand(_ command: String) async throws -> String {
+        try await sftpClient.executeRemoteShellCommand(command, timeout: 120)
+    }
+
     private func setRemoteDirectory(path: String, recordHistory: Bool, resetHistory: Bool) {
         let normalized = normalizeRemoteDirectoryPath(path)
         remoteDirectoryPath = normalized
@@ -2263,11 +2225,6 @@ final class FileTransferViewModel: ObservableObject {
     private static func makeTemporaryTextDocumentURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("remora-text-doc-\(UUID().uuidString)", isDirectory: false)
-    }
-
-    private static func makeArchiveWorkspaceURL() -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("remora-archive-workspace-\(UUID().uuidString)", isDirectory: true)
     }
 
     private static func decodeTextDocument(

@@ -264,6 +264,12 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
 
 @MainActor
 final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDelegate {
+    private enum ExtractDestinationMode {
+        case currentDirectory
+        case sameNameDirectory
+        case custom
+    }
+
     private let host: RemoraCore.Host
     private let onClose: () -> Void
     private let toolbarController = FileManagerWindowToolbar()
@@ -557,45 +563,21 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             }
         )
         splitController.setArchiveHandlers(
-            onCompressEntries: { [weak self, weak viewModel] entries in
+            onCompressEntries: { [weak self, weak viewModel] entries, format in
                 guard let self, let viewModel else { return }
-                let paths = entries.map(\.path)
-                let baseName = entries.count == 1
-                    ? URL(fileURLWithPath: entries[0].path).lastPathComponent
-                    : tr("Archive")
-                let archiveName = ArchiveSupport.defaultArchiveName(for: baseName, format: .zip)
-                Task {
-                    do {
-                        try await viewModel.compressRemoteEntries(
-                            paths: paths,
-                            archiveName: archiveName,
-                            format: .zip,
-                            destinationDirectory: viewModel.remoteDirectoryPath
-                        )
-                    } catch {
-                        await MainActor.run {
-                            let alert = NSAlert(error: error)
-                            if let window = self.window {
-                                alert.beginSheetModal(for: window)
-                            }
-                        }
-                    }
-                }
+                self.presentRemoteCompressSheet(entries: entries, initialFormat: format, viewModel: viewModel)
             },
-            onExtractEntry: { [weak self, weak viewModel] entry in
+            onExtractEntry: { [weak self, weak viewModel] entry, action in
                 guard let self, let viewModel else { return }
-                Task {
-                    do {
-                        try await viewModel.extractRemoteArchive(path: entry.path, into: viewModel.remoteDirectoryPath)
-                    } catch {
-                        await MainActor.run {
-                            let alert = NSAlert(error: error)
-                            if let window = self.window {
-                                alert.beginSheetModal(for: window)
-                            }
-                        }
-                    }
+                let mode: ExtractDestinationMode = switch action {
+                case .currentDirectory:
+                    .currentDirectory
+                case .sameNameDirectory:
+                    .sameNameDirectory
+                case .customDirectory:
+                    .custom
                 }
+                self.presentRemoteExtractSheet(entry: entry, mode: mode, viewModel: viewModel)
             }
         )
         bindToolbar(viewModel: viewModel)
@@ -723,6 +705,196 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
     private func showDownloadSettings() {
         NotificationCenter.default.post(name: .remoraOpenSettingsCommand, object: nil)
         NotificationCenter.default.post(name: .remoraOpenDownloadDirectorySetting, object: nil)
+    }
+
+    private func presentRemoteCompressSheet(
+        entries: [RemoteFileEntry],
+        initialFormat: ArchiveFormat,
+        viewModel: FileTransferViewModel
+    ) {
+        let paths = entries.map(\.path)
+        let archiveName = RemoteArchiveCommandBuilder.defaultArchiveName(
+            for: paths,
+            currentDirectory: viewModel.remoteDirectoryPath,
+            format: initialFormat
+        )
+        let archiveNameBox = ObservableBox(archiveName)
+        let formatBox = ObservableBox(initialFormat)
+        let sheet = NSWindow()
+        let controller = NSHostingController(
+            rootView: RemoteCompressSheet(
+                sourcePaths: paths,
+                fileTransfer: viewModel,
+                archiveName: archiveNameBox.binding,
+                format: formatBox.binding,
+                onConfirm: { [weak self] in
+                    guard let self else { return }
+                    let chosenName = archiveNameBox.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !chosenName.isEmpty else { return }
+                    let chosenFormat = formatBox.value
+                    Task {
+                        do {
+                            try await viewModel.compressRemoteEntries(
+                                paths: paths,
+                                archiveName: chosenName,
+                                format: chosenFormat,
+                                destinationDirectory: viewModel.remoteDirectoryPath
+                            )
+                            await MainActor.run {
+                                self.window?.endSheet(sheet)
+                                self.toastController.show(message: tr("Archive created."))
+                            }
+                        } catch {
+                            await MainActor.run {
+                                self.presentArchiveError(error, viewModel: viewModel)
+                            }
+                        }
+                    }
+                }
+            )
+        )
+        sheet.contentViewController = controller
+        sheet.styleMask = [.titled, .closable]
+        sheet.setContentSize(NSSize(width: 420, height: 250))
+        window?.beginSheet(sheet)
+    }
+
+    private func presentRemoteExtractSheet(
+        entry: RemoteFileEntry,
+        mode: ExtractDestinationMode,
+        viewModel: FileTransferViewModel
+    ) {
+        guard let format = ArchiveFormat.extractFormat(for: entry.path) else {
+            presentArchiveError(ArchiveSupportError.unsupportedExtractionFormat, viewModel: viewModel)
+            return
+        }
+        let destinationPath: String = switch mode {
+        case .currentDirectory:
+            viewModel.remoteDirectoryPath
+        case .sameNameDirectory:
+            RemoteArchiveCommandBuilder.sameNameDirectory(for: entry.path, format: format)
+        case .custom:
+            viewModel.remoteDirectoryPath
+        }
+        let destinationBox = ObservableBox(destinationPath)
+        let sheet = NSWindow()
+        let controller = NSHostingController(
+            rootView: RemoteExtractSheet(
+                archivePath: entry.path,
+                fileTransfer: viewModel,
+                destinationPath: destinationBox.binding,
+                onConfirm: { [weak self] in
+                    guard let self else { return }
+                    let targetPath = destinationBox.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !targetPath.isEmpty else { return }
+                    Task {
+                        do {
+                            try await viewModel.extractRemoteArchive(path: entry.path, into: targetPath)
+                            await MainActor.run {
+                                self.window?.endSheet(sheet)
+                                self.toastController.show(message: tr("Archive extracted."))
+                            }
+                        } catch {
+                            await MainActor.run {
+                                self.presentArchiveError(error, viewModel: viewModel)
+                            }
+                        }
+                    }
+                }
+            )
+        )
+        sheet.contentViewController = controller
+        sheet.styleMask = [.titled, .closable]
+        sheet.setContentSize(NSSize(width: 460, height: 220))
+        window?.beginSheet(sheet)
+    }
+
+    private func presentArchiveError(_ error: Error, viewModel: FileTransferViewModel) {
+        if let archiveError = error as? ArchiveSupportError,
+           case let .missingRemoteTool(context) = archiveError {
+            presentMissingArchiveToolAlert(context: context, viewModel: viewModel)
+            return
+        }
+        let alert = NSAlert(error: error)
+        if let window {
+            alert.beginSheetModal(for: window)
+        }
+    }
+
+    private func presentMissingArchiveToolAlert(
+        context: RemoteArchiveMissingToolContext,
+        viewModel: FileTransferViewModel
+    ) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(
+            format: tr("Current server is missing %@"),
+            context.tool
+        )
+        alert.informativeText = String(
+            format: tr("%@\n\nInstall hint:\n%@"),
+            context.actionDescription,
+            context.installHint
+        )
+        alert.addButton(withTitle: tr("Copy Install Command"))
+        alert.addButton(withTitle: tr("Install Now"))
+        alert.addButton(withTitle: tr("Cancel"))
+
+        guard let window else {
+            let response = alert.runModal()
+            handleMissingArchiveToolAlertResponse(response, context: context, viewModel: viewModel)
+            return
+        }
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            self?.handleMissingArchiveToolAlertResponse(response, context: context, viewModel: viewModel)
+        }
+    }
+
+    private func handleMissingArchiveToolAlertResponse(
+        _ response: NSApplication.ModalResponse,
+        context: RemoteArchiveMissingToolContext,
+        viewModel: FileTransferViewModel
+    ) {
+        switch response {
+        case .alertFirstButtonReturn:
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(context.installCommand, forType: .string)
+            toastController.show(message: tr("Install command copied to clipboard."))
+        case .alertSecondButtonReturn:
+            Task { [weak self] in
+                do {
+                    _ = try await viewModel.executeArchiveInstallCommand(context.installCommand)
+                    _ = try await viewModel.refreshRemoteArchiveToolchain()
+                    await MainActor.run {
+                        self?.toastController.show(message: tr("Remote archive tools refreshed."))
+                    }
+                } catch {
+                    await MainActor.run {
+                        self?.presentArchiveError(error, viewModel: viewModel)
+                    }
+                }
+            }
+        default:
+            break
+        }
+    }
+}
+
+@MainActor
+private final class ObservableBox<Value> {
+    var value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+
+    var binding: Binding<Value> {
+        Binding(
+            get: { self.value },
+            set: { self.value = $0 }
+        )
     }
 }
 

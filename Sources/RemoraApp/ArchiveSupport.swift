@@ -5,6 +5,12 @@ enum ArchiveFormat: String, CaseIterable, Equatable, Sendable {
     case tar
     case tarGz = "tar.gz"
     case tgz
+    case tarBz2 = "tar.bz2"
+    case tbz2
+    case tarXz = "tar.xz"
+    case txz
+    case sevenZip = "7z"
+    case rar
     case gz
 
     var fileExtension: String {
@@ -13,14 +19,22 @@ enum ArchiveFormat: String, CaseIterable, Equatable, Sendable {
         case .tar: return ".tar"
         case .tarGz: return ".tar.gz"
         case .tgz: return ".tgz"
+        case .tarBz2: return ".tar.bz2"
+        case .tbz2: return ".tbz2"
+        case .tarXz: return ".tar.xz"
+        case .txz: return ".txz"
+        case .sevenZip: return ".7z"
+        case .rar: return ".rar"
         case .gz: return ".gz"
         }
     }
 
     var supportsCompression: Bool {
         switch self {
-        case .zip, .tar, .tarGz, .tgz: return true
-        case .gz: return false
+        case .zip, .tar, .tarGz, .tgz, .sevenZip:
+            return true
+        case .tarBz2, .tbz2, .tarXz, .txz, .rar, .gz:
+            return false
         }
     }
 
@@ -28,8 +42,14 @@ enum ArchiveFormat: String, CaseIterable, Equatable, Sendable {
         let lowercased = fileName.lowercased()
         if lowercased.hasSuffix(".tar.gz") { return .tarGz }
         if lowercased.hasSuffix(".tgz") { return .tgz }
+        if lowercased.hasSuffix(".tar.bz2") { return .tarBz2 }
+        if lowercased.hasSuffix(".tbz2") { return .tbz2 }
+        if lowercased.hasSuffix(".tar.xz") { return .tarXz }
+        if lowercased.hasSuffix(".txz") { return .txz }
         if lowercased.hasSuffix(".tar") { return .tar }
         if lowercased.hasSuffix(".zip") { return .zip }
+        if lowercased.hasSuffix(".7z") { return .sevenZip }
+        if lowercased.hasSuffix(".rar") { return .rar }
         if lowercased.hasSuffix(".gz") { return .gz }
         return nil
     }
@@ -38,6 +58,9 @@ enum ArchiveFormat: String, CaseIterable, Equatable, Sendable {
 enum ArchiveSupportError: LocalizedError, Equatable {
     case unsupportedCompressionFormat
     case unsupportedExtractionFormat
+    case selectedItemsMustShareDirectory
+    case unsafeArchiveEntries
+    case missingRemoteTool(RemoteArchiveMissingToolContext)
     case commandFailed(String)
 
     var errorDescription: String? {
@@ -46,6 +69,17 @@ enum ArchiveSupportError: LocalizedError, Equatable {
             return tr("This archive format is not supported for compression yet.")
         case .unsupportedExtractionFormat:
             return tr("This archive format is not supported for extraction yet.")
+        case .selectedItemsMustShareDirectory:
+            return tr("Selected items must be in the same directory before compressing.")
+        case .unsafeArchiveEntries:
+            return tr("Archive contains unsafe paths, extraction was blocked.")
+        case .missingRemoteTool(let context):
+            return String(
+                format: tr("Current server is missing %@, so %@ is unavailable.\n\nInstall hint:\n%@"),
+                context.tool,
+                context.actionDescription,
+                context.installHint
+            )
         case .commandFailed(let message):
             return message
         }
@@ -71,7 +105,7 @@ enum ArchiveSupport {
                 executable: "/usr/bin/tar",
                 arguments: ["-czf", destinationURL.path, "-C", stagingDirectoryURL.path, "."]
             )
-        case .gz:
+        case .tarBz2, .tbz2, .tarXz, .txz, .sevenZip, .rar, .gz:
             throw ArchiveSupportError.unsupportedCompressionFormat
         }
     }
@@ -98,6 +132,8 @@ enum ArchiveSupport {
             let outputName = archiveURL.deletingPathExtension().lastPathComponent
             let outputURL = destinationDirectoryURL.appendingPathComponent(outputName)
             try gunzipFile(at: archiveURL, outputURL: outputURL)
+        case .tarBz2, .tbz2, .tarXz, .txz, .sevenZip, .rar:
+            throw ArchiveSupportError.unsupportedExtractionFormat
         }
     }
 

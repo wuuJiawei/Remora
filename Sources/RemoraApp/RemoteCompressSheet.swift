@@ -4,11 +4,9 @@ struct RemoteCompressSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let sourcePaths: [String]
+    @ObservedObject var fileTransfer: FileTransferViewModel
     @Binding var archiveName: String
     @Binding var format: ArchiveFormat
-    let isBusy: Bool
-    let progress: Double?
-    let statusText: String?
     let onConfirm: () -> Void
 
     var body: some View {
@@ -37,15 +35,15 @@ struct RemoteCompressSheet: View {
                     Text("ZIP").tag(ArchiveFormat.zip)
                     Text("TAR").tag(ArchiveFormat.tar)
                     Text("TAR.GZ").tag(ArchiveFormat.tarGz)
-                    Text("TGZ").tag(ArchiveFormat.tgz)
+                    Text("7Z").tag(ArchiveFormat.sevenZip)
                 }
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("remote-compress-format")
             }
 
-            if let progress {
+            if let progress = fileTransfer.archiveOperationProgress {
                 VStack(alignment: .leading, spacing: 6) {
-                    if let statusText {
+                    if let statusText = fileTransfer.archiveOperationStatusText {
                         Text(statusText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -64,7 +62,7 @@ struct RemoteCompressSheet: View {
                     onConfirm()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isBusy || archiveName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(fileTransfer.archiveOperationProgress != nil || archiveName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(16)

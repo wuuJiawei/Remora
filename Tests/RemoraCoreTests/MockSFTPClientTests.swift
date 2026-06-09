@@ -114,4 +114,5 @@ struct MockSFTPClientTests {
         let rootEntries = try await client.list(path: "/")
         #expect(rootEntries.first(where: { $0.name == "logs-copy" }) == nil)
     }
+
 }

@@ -150,6 +150,9 @@ public actor MockSFTPClient: SFTPClientProtocol {
 
     public func executeRemoteShellCommand(_ command: String, timeout: TimeInterval?) async throws -> String {
         _ = timeout
+        if let archiveOutput = try executeArchiveShellCommandIfNeeded(command) {
+            return archiveOutput
+        }
         let parsed = try parseTailCommand(command)
         return try renderTailOutput(path: parsed.path, lineCount: parsed.lineCount)
     }
@@ -502,6 +505,237 @@ public actor MockSFTPClient: SFTPClientProtocol {
         let rawPath = String(trimmed[pathMarkerRange.upperBound...])
         let normalizedPath = normalize(unquoteShellArgument(rawPath))
         return (lineCount, follow, normalizedPath)
+    }
+
+    private func executeArchiveShellCommandIfNeeded(_ command: String) throws -> String? {
+        guard let markerRange = command.range(of: "# remora-archive ") else {
+            return nil
+        }
+        let firstLine = command[markerRange.lowerBound...].split(separator: "\n", maxSplits: 1).first.map(String.init) ?? ""
+        let payloadText = firstLine.replacingOccurrences(of: "# remora-archive ", with: "")
+        guard let payloadData = payloadText.data(using: .utf8),
+              let payload = try JSONSerialization.jsonObject(with: payloadData) as? [String: Any],
+              let op = payload["op"] as? String
+        else {
+            throw SFTPClientError.unsupportedOperation("remote-archive-command")
+        }
+
+        switch op {
+        case "probe":
+            return """
+            tar=OK
+            zip=OK
+            unzip=OK
+            sevenZip=7z
+            unrar=OK
+            gzip=OK
+            """
+        case "compress":
+            guard let destination = payload["destination"] as? String,
+                  let sources = payload["sources"] as? [String],
+                  let parent = payload["parent"] as? String
+            else {
+                throw SFTPClientError.unsupportedOperation("remote-archive-command")
+            }
+            try createMockArchive(destinationPath: normalize(destination), sourceNames: sources, parentDirectory: normalize(parent))
+            return ""
+        case "list":
+            guard let archivePath = payload["archive"] as? String,
+                  let format = payload["format"] as? String
+            else {
+                throw SFTPClientError.unsupportedOperation("remote-archive-command")
+            }
+            return try listMockArchiveEntries(archivePath: normalize(archivePath), format: format)
+        case "extract":
+            guard let archivePath = payload["archive"] as? String,
+                  let destination = payload["destination"] as? String
+            else {
+                throw SFTPClientError.unsupportedOperation("remote-archive-command")
+            }
+            try extractMockArchive(archivePath: normalize(archivePath), destinationDirectory: normalize(destination))
+            return ""
+        default:
+            throw SFTPClientError.unsupportedOperation("remote-archive-command")
+        }
+    }
+
+    private func createMockArchive(destinationPath: String, sourceNames: [String], parentDirectory: String) throws {
+        ensureParentDirectories(for: destinationPath)
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "parent": parentDirectory,
+            "sources": sourceNames,
+        ], options: [.sortedKeys])
+        files[destinationPath] = StoredFile(
+            data: payload,
+            attributes: RemoteFileAttributes(
+                permissions: 0o644,
+                owner: "mock",
+                group: "mock",
+                size: Int64(payload.count),
+                modifiedAt: Date(),
+                isDirectory: false
+            )
+        )
+        updateParentModifiedTimes(for: destinationPath)
+    }
+
+    private func listMockArchiveEntries(archivePath: String, format: String) throws -> String {
+        guard let archive = files[archivePath] else {
+            throw SFTPClientError.notFound(archivePath)
+        }
+        guard let object = try JSONSerialization.jsonObject(with: archive.data) as? [String: Any],
+              let parent = object["parent"] as? String,
+              let sources = object["sources"] as? [String]
+        else {
+            throw SFTPClientError.unsupportedOperation("remote-archive-command")
+        }
+        let listed = try sourcePaths(parentDirectory: parent, sourceNames: sources).flatMap { try archiveEntries(for: $0, prefix: nil) }
+        if format == "7z" || format == "rar" {
+            return listed.map { "Path = \($0)" }.joined(separator: "\n")
+        }
+        return listed.joined(separator: "\n")
+    }
+
+    private func extractMockArchive(archivePath: String, destinationDirectory: String) throws {
+        guard let archive = files[archivePath] else {
+            throw SFTPClientError.notFound(archivePath)
+        }
+        guard let object = try JSONSerialization.jsonObject(with: archive.data) as? [String: Any],
+              let parent = object["parent"] as? String,
+              let sources = object["sources"] as? [String]
+        else {
+            throw SFTPClientError.unsupportedOperation("remote-archive-command")
+        }
+        createDirectorySync(path: destinationDirectory)
+        for sourcePath in try sourcePaths(parentDirectory: parent, sourceNames: sources) {
+            let baseName = URL(fileURLWithPath: sourcePath).lastPathComponent
+            let targetPath = destinationDirectory == "/" ? "/\(baseName)" : "\(destinationDirectory)/\(baseName)"
+            if files[sourcePath] != nil {
+                try copySync(from: sourcePath, to: targetPath)
+            } else if directories[sourcePath] != nil {
+                try copySync(from: sourcePath, to: targetPath)
+            } else {
+                throw SFTPClientError.notFound(sourcePath)
+            }
+        }
+    }
+
+    private func sourcePaths(parentDirectory: String, sourceNames: [String]) throws -> [String] {
+        try sourceNames.map { name in
+            let path = parentDirectory == "/" ? "/\(name)" : "\(parentDirectory)/\(name)"
+            let normalizedPath = normalize(path)
+            guard files[normalizedPath] != nil || directories[normalizedPath] != nil else {
+                throw SFTPClientError.notFound(normalizedPath)
+            }
+            return normalizedPath
+        }
+    }
+
+    private func archiveEntries(for sourcePath: String, prefix: String?) throws -> [String] {
+        let baseName = prefix ?? URL(fileURLWithPath: sourcePath).lastPathComponent
+        if files[sourcePath] != nil {
+            return [baseName]
+        }
+        guard directories[sourcePath] != nil else {
+            throw SFTPClientError.notFound(sourcePath)
+        }
+        let directoryPrefix = sourcePath == "/" ? "/" : sourcePath + "/"
+        var collected: [String] = [baseName + "/"]
+
+        let childDirectories = directories.keys
+            .filter { $0.hasPrefix(directoryPrefix) && $0 != sourcePath }
+            .sorted()
+        for path in childDirectories {
+            let suffix = String(path.dropFirst(directoryPrefix.count))
+            guard !suffix.isEmpty else { continue }
+            collected.append(baseName + "/" + suffix + "/")
+        }
+
+        let childFiles = files.keys
+            .filter { $0.hasPrefix(directoryPrefix) }
+            .sorted()
+        for path in childFiles {
+            let suffix = String(path.dropFirst(directoryPrefix.count))
+            guard !suffix.isEmpty else { continue }
+            collected.append(baseName + "/" + suffix)
+        }
+        return collected
+    }
+
+    private func copySync(from source: String, to destination: String) throws {
+        if let file = files[source] {
+            ensureParentDirectories(for: destination)
+            files[destination] = StoredFile(
+                data: file.data,
+                attributes: RemoteFileAttributes(
+                    permissions: file.attributes.permissions,
+                    owner: file.attributes.owner,
+                    group: file.attributes.group,
+                    size: Int64(file.data.count),
+                    modifiedAt: Date(),
+                    isDirectory: false
+                )
+            )
+            updateParentModifiedTimes(for: destination)
+            return
+        }
+
+        guard let sourceDirectory = directories[source] else {
+            throw SFTPClientError.notFound(source)
+        }
+        ensureParentDirectories(for: destination)
+        directories[destination] = RemoteFileAttributes(
+            permissions: sourceDirectory.permissions,
+            owner: sourceDirectory.owner,
+            group: sourceDirectory.group,
+            size: 0,
+            modifiedAt: Date(),
+            isDirectory: true
+        )
+        let sourcePrefix = source + "/"
+        let destinationPrefix = destination + "/"
+        for (path, attributes) in directories where path.hasPrefix(sourcePrefix) {
+            let suffix = String(path.dropFirst(sourcePrefix.count))
+            directories[destinationPrefix + suffix] = RemoteFileAttributes(
+                permissions: attributes.permissions,
+                owner: attributes.owner,
+                group: attributes.group,
+                size: 0,
+                modifiedAt: Date(),
+                isDirectory: true
+            )
+        }
+        for (path, file) in files where path.hasPrefix(sourcePrefix) {
+            let suffix = String(path.dropFirst(sourcePrefix.count))
+            files[destinationPrefix + suffix] = StoredFile(
+                data: file.data,
+                attributes: RemoteFileAttributes(
+                    permissions: file.attributes.permissions,
+                    owner: file.attributes.owner,
+                    group: file.attributes.group,
+                    size: Int64(file.data.count),
+                    modifiedAt: Date(),
+                    isDirectory: false
+                )
+            )
+        }
+        updateParentModifiedTimes(for: destination)
+    }
+
+    private func createDirectorySync(path: String) {
+        let directory = normalize(path)
+        ensureParentDirectories(for: directory)
+        if directories[directory] == nil {
+            directories[directory] = RemoteFileAttributes(
+                permissions: 0o755,
+                owner: "mock",
+                group: "mock",
+                size: 0,
+                modifiedAt: Date(),
+                isDirectory: true
+            )
+        }
+        updateParentModifiedTimes(for: directory)
     }
 
     private func unquoteShellArgument(_ value: String) -> String {
