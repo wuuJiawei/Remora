@@ -7,7 +7,7 @@
 <p align="center"><strong>轻量、纯原生、AI 加持的 macOS Shell 工作台。</strong></p>
 
 <p align="center">
-  一个使用 SwiftUI 构建的原生 macOS SSH + SFTP + AI 工作台，聚焦轻量、纯原生和高频终端体验。
+一个使用 SwiftUI 构建的原生 macOS SSH + SFTP + AI 工作台，聚焦轻量、纯原生、高频终端体验，以及原生文件管理与 Docker 工作流。
 </p>
 
 > [!WARNING]
@@ -40,7 +40,7 @@ Remora 聚焦在一个实用组合：
 
 ## 功能特性
 
-- Fantastic：本地优先的 SSH + SFTP 工作区，支持现代 TUI 所需 ANSI/VT、xterm 风格选择、快捷命令/快捷路径、拖拽传输。
+- Fantastic：本地优先的 SSH + SFTP 工作区，支持现代 TUI 所需 ANSI/VT、xterm 风格选择、快捷命令/快捷路径、拖拽传输，以及独立文件管理窗口。
 - Beautiful：原生 macOS 视觉与交互，布局简洁，支持浅色/深色/跟随系统，终端专注无干扰。
 - AI-assisted：内置 Terminal AI，支持 provider → model 配置、自定义 endpoint、OpenAI / Claude 兼容接口、上下文压缩、排队提问、命令建议与解释。
 - Extensible：支持本地拓展脚本，可用 Shell / Python / JavaScript / Swift 编写全局或主机级自动化，并从 SSH 主机上下文一键运行。
@@ -52,10 +52,11 @@ Remora 聚焦在一个实用组合：
 
 - 在同一工作区里运行本地 Shell 与 SSH 会话（多标签/分栏）。
 - 管理主机分组、搜索、收藏，并使用快速连接。
-- 通过 SFTP 文件管理器执行新建、重命名、移动、删除、复制/粘贴、上传/下载。
+- 通过独立的 SFTP 文件管理窗口执行新建、重命名、移动、删除、复制/粘贴、上传/下载，并查看传输进度。
 - 拖拽上传到目录或当前路径，带目标高亮与提示。
 - 获取即时操作反馈（toast）并重试失败传输。
 - 需要时开启终端目录与文件管理目录同步。
+- 打开原生 Docker 工作区，查看容器 / 镜像 / Compose，执行 Shell、查看日志、停止或重启容器。
 - 在设置中保存拓展脚本，或从主机右键菜单运行全局/主机脚本。
 - 在终端侧边面板里使用 Terminal AI 解释输出、建议下一条命令、修复常见错误，并在长对话中自动压缩上下文。
 - 在设置中配置语言、外观、快捷键和指标采样。
@@ -81,8 +82,8 @@ Remora 聚焦在一个实用组合：
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>文件管理 + 传输流程</strong><br />
-      <img src="./docs/screenshots/PixPin_2026-03-04_22-45-44.png" alt="Remora file manager" />
+      <strong>独立文件管理窗口 + 传输进度</strong><br />
+      <img src="./docs/screenshots/remora-file-manager-window-transfers-2026-06-10.png" alt="Remora standalone file manager window with transfers" />
     </td>
     <td width="50%" valign="top">
       <strong>Terminal AI 对话</strong><br />
@@ -91,11 +92,12 @@ Remora 聚焦在一个实用组合：
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>Terminal AI 设置</strong><br />
-      <img src="./docs/screenshots/PixPin_2026-03-20_11-28-21.png" alt="Remora Terminal AI drawer" />
+      <strong>Docker 原生工作区</strong><br />
+      <img src="./docs/screenshots/remora-docker-workspace-2026-06-10.png" alt="Remora native Docker workspace" />
     </td>
     <td width="50%" valign="top">
-      &nbsp;
+      <strong>Terminal AI 设置</strong><br />
+      <img src="./docs/screenshots/PixPin_2026-03-20_11-28-21.png" alt="Remora Terminal AI drawer" />
     </td>
   </tr>
 </table>

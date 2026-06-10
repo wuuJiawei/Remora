@@ -7,7 +7,7 @@
 <p align="center"><strong>A lightweight, native macOS shell workspace with AI built in.</strong></p>
 
 <p align="center">
-  A native macOS SSH + SFTP + Terminal AI workspace built with SwiftUI, focused on lightweight workflows, native UX, and practical AI assistance inside the terminal.
+A native macOS SSH + SFTP + Terminal AI workspace built with SwiftUI, focused on lightweight workflows, native UX, practical AI assistance inside the terminal, and native file/Docker workflows.
 </p>
 
 > [!WARNING]
@@ -39,7 +39,7 @@ Remora focuses on a practical split:
 
 ## Features
 
-- Fantastic: Local-first SSH + SFTP workspace, ANSI/VT support for modern TUIs, xterm-style selection, quick commands/quick paths, drag-and-drop transfers.
+- Fantastic: Local-first SSH + SFTP workspace, ANSI/VT support for modern TUIs, xterm-style selection, quick commands/quick paths, drag-and-drop transfers, and a standalone file manager window.
 - Beautiful: Native macOS UI with clean split layout, light/dark/system themes, and distraction-free terminal focus.
 - AI-assisted: Built-in Terminal AI with provider → model configuration, custom endpoints, OpenAI / Claude compatible APIs, queued prompts, context compression, and command explanation/suggestion flows.
 - Extensible: Save local extension scripts in Shell, Python, JavaScript, or Swift, then run global or host-scoped automation from an SSH host context.
@@ -51,10 +51,11 @@ Remora focuses on a practical split:
 
 - Run local shell and SSH sessions with multi-tab/pane workspace.
 - Manage hosts with groups, search, favorites, and quick connect.
-- Use SFTP file manager for create/rename/move/delete/copy/paste/upload/download.
+- Use the standalone SFTP file manager window for create/rename/move/delete/copy/paste/upload/download and transfer progress.
 - Drag files onto directories or current path with visual upload target hints.
 - Get immediate operation feedback via toasts and retry failed transfer tasks.
 - Sync terminal directory with file manager navigation when needed.
+- Open the native Docker workspace to inspect containers/images/Compose stacks, launch a shell, read logs, stop containers, or restart them.
 - Save extension scripts in Settings, or run global/host scripts from a host context menu.
 - Use Terminal AI from the side drawer to explain output, suggest the next command, repair common errors, and compress long conversations automatically.
 - Configure language, appearance, shortcuts, and metrics in settings.
@@ -80,21 +81,22 @@ When a script runs from an SSH host context, Remora injects `REMORA_HOST_ID`, `R
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>File Manager + Transfer Workflow</strong><br />
-      <img src="./docs/screenshots/PixPin_2026-03-04_22-45-44.png" alt="Remora file manager" />
+      <strong>Standalone File Manager + Transfer Progress</strong><br />
+      <img src="./docs/screenshots/remora-file-manager-window-transfers-2026-06-10.png" alt="Remora standalone file manager window with transfers" />
     </td>
     <td width="50%" valign="top">
-      <strong>Terminal AI Settings</strong><br />
+      <strong>Terminal AI Conversation</strong><br />
       <img src="./docs/screenshots/PixPin_2026-03-20_11-27-18.png" alt="Remora Terminal AI settings" />
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>Terminal AI Conversation</strong><br />
-      <img src="./docs/screenshots/PixPin_2026-03-20_11-28-21.png" alt="Remora Terminal AI drawer" />
+      <strong>Native Docker Workspace</strong><br />
+      <img src="./docs/screenshots/remora-docker-workspace-2026-06-10.png" alt="Remora native Docker workspace" />
     </td>
     <td width="50%" valign="top">
-      &nbsp;
+      <strong>Terminal AI Settings</strong><br />
+      <img src="./docs/screenshots/PixPin_2026-03-20_11-28-21.png" alt="Remora Terminal AI drawer" />
     </td>
   </tr>
 </table>

@@ -12,6 +12,10 @@ description: Remora 应用截图展示
 
 ![Remora terminal TUI](/PixPin_2026-03-04_22-45-57.png)
 
-## 文件管理 + 传输流程
+## 独立文件管理窗口 + 传输进度
 
-![Remora file manager](/PixPin_2026-03-04_22-45-44.png)
+![Remora standalone file manager window with transfers](/remora-file-manager-window-transfers-2026-06-10.png)
+
+## Docker 原生工作区
+
+![Remora native Docker workspace](/remora-docker-workspace-2026-06-10.png)
