@@ -889,6 +889,9 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             rootView: RemoteDirectoryChooserSheet(
                 initialPath: viewModel.remoteDirectoryPath,
                 fileTransfer: viewModel,
+                onCancel: { [weak self] in
+                    self?.window?.endSheet(sheet)
+                },
                 onConfirm: { [weak self] destination in
                     guard let self else { return }
                     Task { @MainActor [weak self] in

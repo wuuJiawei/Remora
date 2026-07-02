@@ -219,6 +219,8 @@
 "Download Current" = "下载当前项";
 "Move Selected Files" = "移动所选文件";
 "Destination Directory" = "目标目录";
+"Select Destination Directory" = "选择目标目录";
+"Up" = "上一级";
 "Conflict" = "冲突策略";
 "Overwrite" = "覆盖";
 "Skip" = "跳过";

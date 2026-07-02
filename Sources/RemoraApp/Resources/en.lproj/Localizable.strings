@@ -221,6 +221,8 @@
 "Download Current" = "Download Current";
 "Move Selected Files" = "Move Selected Files";
 "Destination Directory" = "Destination Directory";
+"Select Destination Directory" = "Select Destination Directory";
+"Up" = "Up";
 "Conflict" = "Conflict";
 "Overwrite" = "Overwrite";
 "Skip" = "Skip";

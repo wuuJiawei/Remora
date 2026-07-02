@@ -50,14 +50,14 @@ final class RemoteDirectoryChooserViewModel: ObservableObject {
 }
 
 struct RemoteDirectoryChooserSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
     @StateObject private var viewModel: RemoteDirectoryChooserViewModel
+    let onCancel: () -> Void
     let onConfirm: (String) -> Void
 
     init(
         initialPath: String,
         fileTransfer: FileTransferViewModel,
+        onCancel: @escaping () -> Void,
         onConfirm: @escaping (String) -> Void
     ) {
         _viewModel = StateObject(
@@ -66,6 +66,7 @@ struct RemoteDirectoryChooserSheet: View {
                 fileTransfer: fileTransfer
             )
         )
+        self.onCancel = onCancel
         self.onConfirm = onConfirm
     }
 
@@ -75,11 +76,16 @@ struct RemoteDirectoryChooserSheet: View {
                 .font(.headline)
 
             HStack(spacing: 8) {
-                Button(tr("Up")) {
+                Button {
                     Task { await viewModel.goToParent() }
+                } label: {
+                    Image(systemName: "chevron.up")
+                        .frame(width: 16, height: 16)
                 }
                 .buttonStyle(.bordered)
                 .disabled(viewModel.currentPath == "/" || viewModel.isLoading)
+                .help(tr("Up"))
+                .accessibilityLabel(tr("Up"))
 
                 Text(viewModel.currentPath)
                     .font(.body.monospaced())
@@ -116,13 +122,15 @@ struct RemoteDirectoryChooserSheet: View {
 
             HStack {
                 Spacer()
-                Button(tr("Cancel")) { dismiss() }
+                Button(tr("Cancel"), action: onCancel)
                     .buttonStyle(.bordered)
+                    .keyboardShortcut(.cancelAction)
                 Button(tr("Move To")) {
                     onConfirm(viewModel.currentPath)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.isLoading)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)
