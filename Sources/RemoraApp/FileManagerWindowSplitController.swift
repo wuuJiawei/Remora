@@ -29,6 +29,25 @@ enum FileManagerPasteTargetResolver {
     }
 }
 
+private enum FileManagerContextMenuItemFactory {
+    static func item(_ title: String, systemImage: String, action: Selector? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.image = image(systemName: systemImage)
+        return item
+    }
+
+    static func submenu(_ title: String, systemImage: String, menu: NSMenu) -> NSMenuItem {
+        let menuItem = item(title, systemImage: systemImage)
+        menuItem.submenu = menu
+        return menuItem
+    }
+
+    private static func image(systemName: String) -> NSImage? {
+        NSImage(systemSymbolName: systemName, accessibilityDescription: nil)
+            ?? NSImage(systemSymbolName: "questionmark.circle", accessibilityDescription: nil)
+    }
+}
+
 @MainActor
 final class FileManagerWindowSplitController: NSSplitViewController {
     enum ExtractDestinationAction: String, Sendable {
@@ -925,13 +944,37 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         let item = outlineView.item(atRow: row)
 
         if item is HostQuickPath {
-            menu.addItem(withTitle: tr("Copy Path"), action: #selector(handleCopyPathFromSidebar), keyEquivalent: "")
+            menu.addItem(
+                FileManagerContextMenuItemFactory.item(
+                    tr("Copy Path"),
+                    systemImage: ContextMenuIconCatalog.copyPath,
+                    action: #selector(handleCopyPathFromSidebar)
+                )
+            )
             menu.addItem(.separator())
-            menu.addItem(withTitle: tr("Remove quick path"), action: #selector(handleAddQuickPathFromSidebar), keyEquivalent: "")
+            menu.addItem(
+                FileManagerContextMenuItemFactory.item(
+                    tr("Remove quick path"),
+                    systemImage: ContextMenuIconCatalog.delete,
+                    action: #selector(handleAddQuickPathFromSidebar)
+                )
+            )
         } else if item as? String == SidebarItemID.root || item is DirectoryNode {
-            menu.addItem(withTitle: tr("Add current path"), action: #selector(handleAddQuickPathFromSidebar), keyEquivalent: "")
+            menu.addItem(
+                FileManagerContextMenuItemFactory.item(
+                    tr("Add current path"),
+                    systemImage: ContextMenuIconCatalog.quickPath,
+                    action: #selector(handleAddQuickPathFromSidebar)
+                )
+            )
             menu.addItem(.separator())
-            menu.addItem(withTitle: tr("Copy Path"), action: #selector(handleCopyPathFromSidebar), keyEquivalent: "")
+            menu.addItem(
+                FileManagerContextMenuItemFactory.item(
+                    tr("Copy Path"),
+                    systemImage: ContextMenuIconCatalog.copyPath,
+                    action: #selector(handleCopyPathFromSidebar)
+                )
+            )
         }
     }
 
@@ -1360,34 +1403,79 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     private func buildContextMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(withTitle: tr("Refresh"), action: #selector(handleRefresh), keyEquivalent: "")
+        menu.addItem(menuItem(tr("Refresh"), icon: ContextMenuIconCatalog.refresh, action: #selector(handleRefresh)))
         menu.addItem(.separator())
-        menu.addItem(withTitle: tr("New Folder"), action: #selector(handleCreateDirectory), keyEquivalent: "")
-        menu.addItem(withTitle: tr("New File"), action: #selector(handleCreateFile), keyEquivalent: "")
-        menu.addItem(.separator())
-        menu.addItem(withTitle: tr("Add current path"), action: #selector(handleAddCurrentQuickPath), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Upload To Current Directory"), action: #selector(handleUpload), keyEquivalent: "")
-        menu.addItem(.separator())
-        menu.addItem(withTitle: tr("Rename"), action: #selector(handleRename), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Delete"), action: #selector(handleDelete), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Download"), action: #selector(handleDownload), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Copy"), action: #selector(handleCopyEntries), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Cut"), action: #selector(handleCutEntries), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Paste"), action: #selector(handlePasteEntries), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Clone"), action: #selector(handleCloneEntry), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Move To"), action: #selector(handleMoveEntries), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Copy Path"), action: #selector(handleCopyPath), keyEquivalent: "")
-        let compressItem = NSMenuItem(title: tr("Compress as..."), action: nil, keyEquivalent: "")
-        compressItem.submenu = buildCompressSubmenu()
-        menu.addItem(compressItem)
 
-        let extractItem = NSMenuItem(title: tr("Extract"), action: nil, keyEquivalent: "")
-        extractItem.submenu = buildExtractSubmenu()
-        menu.addItem(extractItem)
-        menu.addItem(withTitle: tr("Edit"), action: #selector(handleOpenTextFile), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Live View"), action: #selector(handleOpenLogView), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Properties"), action: #selector(handleShowProperties), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Edit Permissions"), action: #selector(handleEditPermissions), keyEquivalent: "")
+        menu.addItem(
+            submenuItem(tr("New"), icon: ContextMenuIconCatalog.newItems, menu: buildNewSubmenu())
+        )
+        menu.addItem(
+            submenuItem(tr("Transfer"), icon: ContextMenuIconCatalog.transfer, menu: buildTransferSubmenu())
+        )
+        menu.addItem(.separator())
+
+        menu.addItem(menuItem(tr("Rename"), icon: ContextMenuIconCatalog.rename, action: #selector(handleRename)))
+        menu.addItem(menuItem(tr("Delete"), icon: ContextMenuIconCatalog.delete, action: #selector(handleDelete)))
+        menu.addItem(.separator())
+
+        menu.addItem(menuItem(tr("Add current path"), icon: ContextMenuIconCatalog.quickPath, action: #selector(handleAddCurrentQuickPath)))
+        menu.addItem(
+            submenuItem(tr("Clipboard"), icon: ContextMenuIconCatalog.clipboard, menu: buildClipboardSubmenu())
+        )
+        menu.addItem(
+            submenuItem(tr("Archive"), icon: ContextMenuIconCatalog.compress, menu: buildArchiveSubmenu())
+        )
+        menu.addItem(
+            submenuItem(tr("Open With"), icon: ContextMenuIconCatalog.openWith, menu: buildOpenWithSubmenu())
+        )
+        menu.addItem(
+            submenuItem(tr("Info"), icon: ContextMenuIconCatalog.info, menu: buildInfoSubmenu())
+        )
+        return menu
+    }
+
+    private func menuItem(_ title: String, icon: String, action: Selector) -> NSMenuItem {
+        FileManagerContextMenuItemFactory.item(title, systemImage: icon, action: action)
+    }
+
+    private func submenuItem(_ title: String, icon: String, menu: NSMenu) -> NSMenuItem {
+        FileManagerContextMenuItemFactory.submenu(title, systemImage: icon, menu: menu)
+    }
+
+    private func buildNewSubmenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(menuItem(tr("New Folder"), icon: ContextMenuIconCatalog.newFolder, action: #selector(handleCreateDirectory)))
+        menu.addItem(menuItem(tr("New File"), icon: ContextMenuIconCatalog.newFile, action: #selector(handleCreateFile)))
+        return menu
+    }
+
+    private func buildTransferSubmenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(menuItem(tr("Upload To Current Directory"), icon: ContextMenuIconCatalog.upload, action: #selector(handleUpload)))
+        menu.addItem(menuItem(tr("Download"), icon: ContextMenuIconCatalog.download, action: #selector(handleDownload)))
+        menu.addItem(menuItem(tr("Move To"), icon: ContextMenuIconCatalog.moveTo, action: #selector(handleMoveEntries)))
+        return menu
+    }
+
+    private func buildClipboardSubmenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(menuItem(tr("Copy"), icon: ContextMenuIconCatalog.copy, action: #selector(handleCopyEntries)))
+        menu.addItem(menuItem(tr("Cut"), icon: ContextMenuIconCatalog.cut, action: #selector(handleCutEntries)))
+        menu.addItem(menuItem(tr("Paste"), icon: ContextMenuIconCatalog.paste, action: #selector(handlePasteEntries)))
+        menu.addItem(menuItem(tr("Clone"), icon: ContextMenuIconCatalog.cloneSession, action: #selector(handleCloneEntry)))
+        menu.addItem(.separator())
+        menu.addItem(menuItem(tr("Copy Path"), icon: ContextMenuIconCatalog.copyPath, action: #selector(handleCopyPath)))
+        return menu
+    }
+
+    private func buildArchiveSubmenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(
+            submenuItem(tr("Compress as..."), icon: ContextMenuIconCatalog.compress, menu: buildCompressSubmenu())
+        )
+        menu.addItem(
+            submenuItem(tr("Extract"), icon: ContextMenuIconCatalog.extract, menu: buildExtractSubmenu())
+        )
         return menu
     }
 
@@ -1400,16 +1488,30 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
             ("7Z", #selector(handleCompressSevenZip)),
         ]
         for (title, selector) in options {
-            menu.addItem(withTitle: title, action: selector, keyEquivalent: "")
+            menu.addItem(menuItem(title, icon: ContextMenuIconCatalog.compress, action: selector))
         }
         return menu
     }
 
     private func buildExtractSubmenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(withTitle: tr("Extract to current directory"), action: #selector(handleExtractToCurrentDirectory), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Extract to same-name folder"), action: #selector(handleExtractToSameNameDirectory), keyEquivalent: "")
-        menu.addItem(withTitle: tr("Extract to..."), action: #selector(handleExtractToCustomDirectory), keyEquivalent: "")
+        menu.addItem(menuItem(tr("Extract to current directory"), icon: ContextMenuIconCatalog.extract, action: #selector(handleExtractToCurrentDirectory)))
+        menu.addItem(menuItem(tr("Extract to same-name folder"), icon: ContextMenuIconCatalog.newFolder, action: #selector(handleExtractToSameNameDirectory)))
+        menu.addItem(menuItem(tr("Extract to..."), icon: ContextMenuIconCatalog.moveTo, action: #selector(handleExtractToCustomDirectory)))
+        return menu
+    }
+
+    private func buildOpenWithSubmenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(menuItem(tr("Edit"), icon: ContextMenuIconCatalog.edit, action: #selector(handleOpenTextFile)))
+        menu.addItem(menuItem(tr("Live View"), icon: ContextMenuIconCatalog.liveView, action: #selector(handleOpenLogView)))
+        return menu
+    }
+
+    private func buildInfoSubmenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(menuItem(tr("Properties"), icon: ContextMenuIconCatalog.properties, action: #selector(handleShowProperties)))
+        menu.addItem(menuItem(tr("Edit Permissions"), icon: ContextMenuIconCatalog.permissions, action: #selector(handleEditPermissions)))
         return menu
     }
 

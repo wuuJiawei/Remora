@@ -188,6 +188,12 @@
 "Select All" = "全选";
 "Clear Screen" = "清屏";
 "Refresh" = "刷新";
+"New" = "新建";
+"Transfer" = "传输";
+"Clipboard" = "剪贴板";
+"Open With" = "打开方式";
+"Info" = "信息";
+"Remove quick path" = "移除快捷路径";
 "New File" = "新建文件";
 "New Folder" = "新建文件夹";
 "Upload To Current Directory" = "上传到当前目录";

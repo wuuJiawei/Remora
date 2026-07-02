@@ -190,6 +190,12 @@
 "Select All" = "Select All";
 "Clear Screen" = "Clear Screen";
 "Refresh" = "Refresh";
+"New" = "New";
+"Transfer" = "Transfer";
+"Clipboard" = "Clipboard";
+"Open With" = "Open With";
+"Info" = "Info";
+"Remove quick path" = "Remove quick path";
 "New File" = "New File";
 "New Folder" = "New Folder";
 "Upload To Current Directory" = "Upload To Current Directory";
