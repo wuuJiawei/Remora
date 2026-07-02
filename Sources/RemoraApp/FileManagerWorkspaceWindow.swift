@@ -768,9 +768,13 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         viewModel: FileTransferViewModel
     ) {
         let paths = entries.map(\.path)
+        let destinationDirectory = paths.first
+            .map { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
+            .map { $0.isEmpty ? "/" : $0 }
+            ?? viewModel.remoteDirectoryPath
         let archiveName = RemoteArchiveCommandBuilder.defaultArchiveName(
             for: paths,
-            currentDirectory: viewModel.remoteDirectoryPath,
+            currentDirectory: destinationDirectory,
             format: initialFormat
         )
         let archiveNameBox = ObservableBox(archiveName)
@@ -793,7 +797,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                                 paths: paths,
                                 archiveName: chosenName,
                                 format: chosenFormat,
-                                destinationDirectory: viewModel.remoteDirectoryPath
+                                destinationDirectory: destinationDirectory
                             )
                             await MainActor.run {
                                 self.window?.endSheet(sheet)
