@@ -78,6 +78,43 @@ private enum FileManagerContextMenuSelectors {
 }
 
 private enum FileManagerContextMenuBuilder {
+    struct Visibility {
+        var refresh = true
+        var new = true
+        var transfer = true
+        var upload = true
+        var download = true
+        var move = true
+        var rename = true
+        var delete = true
+        var addCurrentPath = true
+        var removeQuickPath = false
+        var clipboard = true
+        var copy = true
+        var cut = true
+        var paste = true
+        var clone = true
+        var copyPath = true
+        var archive = true
+        var compress = true
+        var extract = true
+        var openWith = true
+        var info = true
+
+        static let detail = Visibility()
+        static let sidebar = Visibility(
+            move: false,
+            rename: false,
+            delete: false,
+            removeQuickPath: true,
+            copy: false,
+            cut: false,
+            clone: false,
+            extract: false,
+            openWith: false
+        )
+    }
+
     struct Capabilities {
         var canModifySelection = false
         var canUseSelection = false
@@ -87,45 +124,69 @@ private enum FileManagerContextMenuBuilder {
         var canOpenFile = false
         var canShowInfo = false
         var canRemoveQuickPath = false
+        var hideUnavailable = false
     }
 
-    static func menu(includeRemoveQuickPath: Bool = false) -> NSMenu {
+    static func menu(visibility: Visibility = .detail) -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(item(tr("Refresh"), icon: ContextMenuIconCatalog.refresh, action: FileManagerContextMenuSelectors.handleRefresh))
-        menu.addItem(.separator())
+        if visibility.refresh {
+            menu.addItem(item(tr("Refresh"), icon: ContextMenuIconCatalog.refresh, action: FileManagerContextMenuSelectors.handleRefresh))
+            menu.addItem(.separator())
+        }
 
-        menu.addItem(
-            submenu(tr("New"), icon: ContextMenuIconCatalog.newItems, menu: newSubmenu())
-        )
-        menu.addItem(
-            submenu(tr("Transfer"), icon: ContextMenuIconCatalog.transfer, menu: transferSubmenu())
-        )
-        menu.addItem(.separator())
+        if visibility.new {
+            menu.addItem(
+                submenu(tr("New"), icon: ContextMenuIconCatalog.newItems, menu: newSubmenu())
+            )
+        }
+        if visibility.transfer, let transferMenu = transferSubmenu(visibility: visibility) {
+            menu.addItem(
+                submenu(tr("Transfer"), icon: ContextMenuIconCatalog.transfer, menu: transferMenu)
+            )
+        }
 
-        menu.addItem(item(tr("Rename"), icon: ContextMenuIconCatalog.rename, action: FileManagerContextMenuSelectors.handleRename))
-        menu.addItem(item(tr("Delete"), icon: ContextMenuIconCatalog.delete, action: FileManagerContextMenuSelectors.handleDelete))
-        menu.addItem(.separator())
+        if visibility.rename || visibility.delete {
+            menu.addItem(.separator())
+            if visibility.rename {
+                menu.addItem(item(tr("Rename"), icon: ContextMenuIconCatalog.rename, action: FileManagerContextMenuSelectors.handleRename))
+            }
+            if visibility.delete {
+                menu.addItem(item(tr("Delete"), icon: ContextMenuIconCatalog.delete, action: FileManagerContextMenuSelectors.handleDelete))
+            }
+        }
 
-        menu.addItem(item(tr("Add current path"), icon: ContextMenuIconCatalog.quickPath, action: FileManagerContextMenuSelectors.handleAddCurrentQuickPath))
-        if includeRemoveQuickPath {
+        menu.addItem(.separator())
+        if visibility.addCurrentPath {
+            menu.addItem(item(tr("Add current path"), icon: ContextMenuIconCatalog.quickPath, action: FileManagerContextMenuSelectors.handleAddCurrentQuickPath))
+        }
+        if visibility.removeQuickPath {
             menu.addItem(item(tr("Remove quick path"), icon: ContextMenuIconCatalog.delete, action: FileManagerContextMenuSelectors.handleRemoveQuickPath))
         }
-        menu.addItem(
-            submenu(tr("Clipboard"), icon: ContextMenuIconCatalog.clipboard, menu: clipboardSubmenu())
-        )
-        menu.addItem(
-            submenu(tr("Archive"), icon: ContextMenuIconCatalog.compress, menu: archiveSubmenu())
-        )
-        menu.addItem(
-            submenu(tr("Open With"), icon: ContextMenuIconCatalog.openWith, menu: openWithSubmenu())
-        )
-        menu.addItem(
-            submenu(tr("Info"), icon: ContextMenuIconCatalog.info, menu: infoSubmenu())
-        )
+        if visibility.clipboard, let clipboardMenu = clipboardSubmenu(visibility: visibility) {
+            menu.addItem(
+                submenu(tr("Clipboard"), icon: ContextMenuIconCatalog.clipboard, menu: clipboardMenu)
+            )
+        }
+        if visibility.archive, let archiveMenu = archiveSubmenu(visibility: visibility) {
+            menu.addItem(
+                submenu(tr("Archive"), icon: ContextMenuIconCatalog.compress, menu: archiveMenu)
+            )
+        }
+        if visibility.openWith {
+            menu.addItem(
+                submenu(tr("Open With"), icon: ContextMenuIconCatalog.openWith, menu: openWithSubmenu())
+            )
+        }
+        if visibility.info {
+            menu.addItem(
+                submenu(tr("Info"), icon: ContextMenuIconCatalog.info, menu: infoSubmenu())
+            )
+        }
         return menu
     }
 
-    static func update(_ menu: NSMenu, capabilities: Capabilities) {
+    @discardableResult
+    static func update(_ menu: NSMenu, capabilities: Capabilities) -> Bool {
         update(menu.items, capabilities: capabilities)
     }
 
@@ -144,34 +205,56 @@ private enum FileManagerContextMenuBuilder {
         return menu
     }
 
-    private static func transferSubmenu() -> NSMenu {
+    private static func transferSubmenu(visibility: Visibility) -> NSMenu? {
         let menu = NSMenu()
-        menu.addItem(item(tr("Upload To Current Directory"), icon: ContextMenuIconCatalog.upload, action: FileManagerContextMenuSelectors.handleUpload))
-        menu.addItem(item(tr("Download"), icon: ContextMenuIconCatalog.download, action: FileManagerContextMenuSelectors.handleDownload))
-        menu.addItem(item(tr("Move To"), icon: ContextMenuIconCatalog.moveTo, action: FileManagerContextMenuSelectors.handleMoveEntries))
-        return menu
+        if visibility.upload {
+            menu.addItem(item(tr("Upload To Current Directory"), icon: ContextMenuIconCatalog.upload, action: FileManagerContextMenuSelectors.handleUpload))
+        }
+        if visibility.download {
+            menu.addItem(item(tr("Download"), icon: ContextMenuIconCatalog.download, action: FileManagerContextMenuSelectors.handleDownload))
+        }
+        if visibility.move {
+            menu.addItem(item(tr("Move To"), icon: ContextMenuIconCatalog.moveTo, action: FileManagerContextMenuSelectors.handleMoveEntries))
+        }
+        return menu.items.isEmpty ? nil : menu
     }
 
-    private static func clipboardSubmenu() -> NSMenu {
+    private static func clipboardSubmenu(visibility: Visibility) -> NSMenu? {
         let menu = NSMenu()
-        menu.addItem(item(tr("Copy"), icon: ContextMenuIconCatalog.copy, action: FileManagerContextMenuSelectors.handleCopyEntries))
-        menu.addItem(item(tr("Cut"), icon: ContextMenuIconCatalog.cut, action: FileManagerContextMenuSelectors.handleCutEntries))
-        menu.addItem(item(tr("Paste"), icon: ContextMenuIconCatalog.paste, action: FileManagerContextMenuSelectors.handlePasteEntries))
-        menu.addItem(item(tr("Clone"), icon: ContextMenuIconCatalog.cloneSession, action: FileManagerContextMenuSelectors.handleCloneEntry))
-        menu.addItem(.separator())
-        menu.addItem(item(tr("Copy Path"), icon: ContextMenuIconCatalog.copyPath, action: FileManagerContextMenuSelectors.handleCopyPath))
-        return menu
+        if visibility.copy {
+            menu.addItem(item(tr("Copy"), icon: ContextMenuIconCatalog.copy, action: FileManagerContextMenuSelectors.handleCopyEntries))
+        }
+        if visibility.cut {
+            menu.addItem(item(tr("Cut"), icon: ContextMenuIconCatalog.cut, action: FileManagerContextMenuSelectors.handleCutEntries))
+        }
+        if visibility.paste {
+            menu.addItem(item(tr("Paste"), icon: ContextMenuIconCatalog.paste, action: FileManagerContextMenuSelectors.handlePasteEntries))
+        }
+        if visibility.clone {
+            menu.addItem(item(tr("Clone"), icon: ContextMenuIconCatalog.cloneSession, action: FileManagerContextMenuSelectors.handleCloneEntry))
+        }
+        if visibility.copyPath {
+            if !menu.items.isEmpty {
+                menu.addItem(.separator())
+            }
+            menu.addItem(item(tr("Copy Path"), icon: ContextMenuIconCatalog.copyPath, action: FileManagerContextMenuSelectors.handleCopyPath))
+        }
+        return menu.items.isEmpty ? nil : menu
     }
 
-    private static func archiveSubmenu() -> NSMenu {
+    private static func archiveSubmenu(visibility: Visibility) -> NSMenu? {
         let menu = NSMenu()
-        menu.addItem(
-            submenu(tr("Compress as..."), icon: ContextMenuIconCatalog.compress, menu: compressSubmenu())
-        )
-        menu.addItem(
-            submenu(tr("Extract"), icon: ContextMenuIconCatalog.extract, menu: extractSubmenu())
-        )
-        return menu
+        if visibility.compress {
+            menu.addItem(
+                submenu(tr("Compress as..."), icon: ContextMenuIconCatalog.compress, menu: compressSubmenu())
+            )
+        }
+        if visibility.extract {
+            menu.addItem(
+                submenu(tr("Extract"), icon: ContextMenuIconCatalog.extract, menu: extractSubmenu())
+            )
+        }
+        return menu.items.isEmpty ? nil : menu
     }
 
     private static func compressSubmenu() -> NSMenu {
@@ -210,10 +293,15 @@ private enum FileManagerContextMenuBuilder {
         return menu
     }
 
-    private static func update(_ items: [NSMenuItem], capabilities: Capabilities) {
+    @discardableResult
+    private static func update(_ items: [NSMenuItem], capabilities: Capabilities) -> Bool {
+        var hasVisibleItem = false
         for item in items {
             if let submenu = item.submenu {
-                update(submenu.items, capabilities: capabilities)
+                let hasVisibleChild = update(submenu.items, capabilities: capabilities)
+                item.isHidden = capabilities.hideUnavailable && !hasVisibleChild
+                hasVisibleItem = hasVisibleItem || !item.isHidden
+                continue
             }
             switch item.action {
             case FileManagerContextMenuSelectors.handleRename,
@@ -247,6 +335,39 @@ private enum FileManagerContextMenuBuilder {
             default:
                 item.isEnabled = true
             }
+            if item.isSeparatorItem {
+                item.isHidden = false
+            } else if capabilities.hideUnavailable {
+                item.isHidden = !item.isEnabled
+            } else {
+                item.isHidden = false
+            }
+            hasVisibleItem = hasVisibleItem || (!item.isHidden && !item.isSeparatorItem)
+        }
+        hideRedundantSeparators(items)
+        return hasVisibleItem
+    }
+
+    private static func hideRedundantSeparators(_ items: [NSMenuItem]) {
+        var hasVisibleContentBeforeSeparator = false
+        var pendingSeparators: [NSMenuItem] = []
+        for item in items {
+            if item.isHidden {
+                continue
+            }
+            if item.isSeparatorItem {
+                pendingSeparators.append(item)
+                item.isHidden = true
+                continue
+            }
+            if hasVisibleContentBeforeSeparator {
+                pendingSeparators.last?.isHidden = false
+            }
+            pendingSeparators.removeAll()
+            hasVisibleContentBeforeSeparator = true
+        }
+        for separator in pendingSeparators {
+            separator.isHidden = true
         }
     }
 }
@@ -1172,7 +1293,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     }
 
     private func buildContextMenu() -> NSMenu {
-        let menu = FileManagerContextMenuBuilder.menu(includeRemoveQuickPath: true)
+        let menu = FileManagerContextMenuBuilder.menu(visibility: .sidebar)
         menu.delegate = self
         return menu
     }
@@ -1378,7 +1499,8 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
                 canExtract: false,
                 canOpenFile: false,
                 canShowInfo: true,
-                canRemoveQuickPath: isQuickPath
+                canRemoveQuickPath: isQuickPath,
+                hideUnavailable: true
             )
         )
     }
