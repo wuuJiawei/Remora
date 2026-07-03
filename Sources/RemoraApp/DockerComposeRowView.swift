@@ -66,7 +66,7 @@ final class DockerComposeRowView: NSTableCellView {
         NSLayoutConstraint.activate([
             rowContentView.leadingAnchor.constraint(
                 equalTo: leadingAnchor,
-                constant: DockerListMetrics.contentHorizontalPadding + DockerListMetrics.composeIndent
+                constant: DockerListMetrics.primaryIconLeading + DockerListMetrics.composeIndent
             ),
             rowContentView.trailingAnchor.constraint(
                 equalTo: trailingAnchor,

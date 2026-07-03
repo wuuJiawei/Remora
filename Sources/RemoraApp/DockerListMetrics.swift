@@ -9,8 +9,10 @@ enum DockerListMetrics {
     static let composeRowHeight: CGFloat = 46
     static let sectionHeaderHeight: CGFloat = 28
 
+    static let primaryIconLeading: CGFloat = contentHorizontalPadding
     static let composeIndent: CGFloat = 0
     static let containerIndent: CGFloat = 10
+    static let disclosureIconSpacing: CGFloat = 10
 
     static let iconSize: CGFloat = 22
     static let composeIconSize: CGFloat = 24

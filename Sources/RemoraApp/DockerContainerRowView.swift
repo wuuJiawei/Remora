@@ -45,7 +45,7 @@ final class DockerContainerRowView: NSTableCellView {
         statusDot.layer?.borderColor = NSColor.windowBackgroundColor.cgColor
         linkButton.isHidden = !isRunning
         primaryButton.symbolName = isRunning ? "stop.fill" : "play.fill"
-        leadingConstraint?.constant = DockerListMetrics.contentHorizontalPadding
+        leadingConstraint?.constant = DockerListMetrics.primaryIconLeading
             + (isChild ? DockerListMetrics.containerIndent : 0)
         updateColors()
     }

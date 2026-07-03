@@ -5,7 +5,7 @@ final class DockerContainerOutlineView: NSViewController, NSOutlineViewDataSourc
     var onSelectionChanged: ((DockerResourceSelection?) -> Void)?
 
     private let listViewModel: DockerContainerListViewModel
-    private let outlineView = NSOutlineView()
+    private let outlineView = DockerContainerListOutlineView()
     private let emptyLabel = NSTextField(labelWithString: "")
     private let loadingIndicator = NSProgressIndicator()
     private var scrollView: NSScrollView!
@@ -378,6 +378,25 @@ private final class DockerClosureMenuItem: NSMenuItem {
 
     @objc private func performAction() {
         actionHandler()
+    }
+}
+
+private final class DockerContainerListOutlineView: NSOutlineView {
+    override func frameOfOutlineCell(atRow row: Int) -> NSRect {
+        var frame = super.frameOfOutlineCell(atRow: row)
+        guard row >= 0,
+              let node = item(atRow: row) as? DockerContainerNode,
+              node.kind == .compose
+        else {
+            return frame
+        }
+
+        let cellFrame = super.frameOfCell(atColumn: 0, row: row)
+        guard cellFrame.width > 0, frame.width > 0 else { return frame }
+
+        let iconX = cellFrame.minX + DockerListMetrics.primaryIconLeading
+        frame.origin.x = max(0, iconX - DockerListMetrics.disclosureIconSpacing - frame.width)
+        return frame
     }
 }
 
