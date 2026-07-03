@@ -8,8 +8,14 @@ enum DockerConnectionExecutionMode: Equatable, Sendable {
 
 enum DockerPanelSelection: String, CaseIterable, Identifiable, Sendable {
     case containers = "containers"
+    case volumes = "volumes"
     case images = "images"
-    case compose = "compose"
+    case networks = "networks"
+    case kubernetesPods = "kubernetesPods"
+    case kubernetesServices = "kubernetesServices"
+    case machines = "machines"
+    case activityMonitor = "activityMonitor"
+    case commands = "commands"
 
     var id: String { rawValue }
 }
@@ -127,6 +133,16 @@ struct DockerContainerDetails: Equatable, Sendable {
     let labels: [String: String]
 }
 
+struct DockerVolume: Identifiable, Equatable, Sendable {
+    let name: String
+    let driver: String?
+    let scope: String?
+    let mountpoint: String?
+    let labels: [String: String]
+
+    var id: String { name }
+}
+
 struct DockerImage: Identifiable, Equatable, Sendable {
     let repository: String
     let tag: String
@@ -158,6 +174,20 @@ struct DockerImage: Identifiable, Equatable, Sendable {
     var id: String { identity }
 }
 
+struct DockerNetwork: Identifiable, Equatable, Sendable {
+    let id: String
+    let name: String
+    let driver: String?
+    let scope: String?
+    let subnet: String?
+    let gateway: String?
+    let labels: [String: String]
+
+    var shortID: String {
+        String(id.prefix(12))
+    }
+}
+
 struct DockerComposeProject: Identifiable, Equatable, Sendable {
     let name: String
     let status: String?
@@ -172,6 +202,35 @@ struct DockerComposeProject: Identifiable, Equatable, Sendable {
             return true
         }
         return !configFiles.isEmpty
+    }
+}
+
+struct DockerContainerStats: Identifiable, Equatable, Sendable {
+    let containerID: String
+    let name: String
+    let cpuPercent: Double
+    let memoryUsage: String
+    let memoryPercent: Double?
+    let networkIO: String
+    let blockIO: String
+    let pids: String?
+
+    var id: String { containerID }
+}
+
+struct DockerActivitySnapshot: Equatable, Sendable {
+    let stats: [DockerContainerStats]
+    let fetchedAt: Date
+
+    static let empty = DockerActivitySnapshot(stats: [], fetchedAt: .distantPast)
+
+    var totalCPUPercent: Double {
+        stats.reduce(0) { $0 + $1.cpuPercent }
+    }
+
+    var totalMemoryUsage: String {
+        let values = stats.map(\.memoryUsage).filter { !$0.isEmpty && $0 != "0B" }
+        return values.isEmpty ? "0 B" : values.joined(separator: " + ")
     }
 }
 
@@ -195,9 +254,17 @@ enum DockerPanelAction: Equatable, Sendable {
     case startContainer(DockerContainer)
     case stopContainer(DockerContainer)
     case restartContainer(DockerContainer)
+    case pauseContainer(DockerContainer)
+    case killContainer(DockerContainer)
+    case deleteContainer(DockerContainer)
     case composeUp(DockerComposeProject)
     case composeDown(DockerComposeProject)
     case composeRestart(DockerComposeProject)
+    case composePause(DockerComposeProject)
+    case composeKill(DockerComposeProject)
+    case deleteVolume(DockerVolume)
+    case deleteImage(DockerImage)
+    case deleteNetwork(DockerNetwork)
 
     var confirmationTitle: String? {
         switch self {
@@ -205,10 +272,26 @@ enum DockerPanelAction: Equatable, Sendable {
             return String(format: tr("Stop container \"%@\"?"), container.name)
         case .restartContainer(let container):
             return String(format: tr("Restart container \"%@\"?"), container.name)
+        case .pauseContainer(let container):
+            return String(format: tr("Pause container \"%@\"?"), container.name)
+        case .killContainer(let container):
+            return String(format: tr("Kill container \"%@\"?"), container.name)
+        case .deleteContainer(let container):
+            return String(format: tr("Delete container \"%@\"?"), container.name)
         case .composeDown(let project):
             return String(format: tr("Run Compose down for \"%@\"?"), project.name)
         case .composeRestart(let project):
             return String(format: tr("Restart Compose project \"%@\"?"), project.name)
+        case .composePause(let project):
+            return String(format: tr("Pause Compose project \"%@\"?"), project.name)
+        case .composeKill(let project):
+            return String(format: tr("Kill Compose project \"%@\"?"), project.name)
+        case .deleteVolume(let volume):
+            return String(format: tr("Delete volume \"%@\"?"), volume.name)
+        case .deleteImage(let image):
+            return String(format: tr("Delete image \"%@\"?"), image.displayName)
+        case .deleteNetwork(let network):
+            return String(format: tr("Delete network \"%@\"?"), network.name)
         case .startContainer, .composeUp:
             return nil
         }
@@ -222,12 +305,28 @@ enum DockerPanelAction: Equatable, Sendable {
             return String(format: tr("Stopping container \"%@\"..."), container.name)
         case .restartContainer(let container):
             return String(format: tr("Restarting container \"%@\"..."), container.name)
+        case .pauseContainer(let container):
+            return String(format: tr("Pausing container \"%@\"..."), container.name)
+        case .killContainer(let container):
+            return String(format: tr("Killing container \"%@\"..."), container.name)
+        case .deleteContainer(let container):
+            return String(format: tr("Deleting container \"%@\"..."), container.name)
         case .composeUp(let project):
             return String(format: tr("Running Compose up for \"%@\"..."), project.name)
         case .composeDown(let project):
             return String(format: tr("Running Compose down for \"%@\"..."), project.name)
         case .composeRestart(let project):
             return String(format: tr("Restarting Compose project \"%@\"..."), project.name)
+        case .composePause(let project):
+            return String(format: tr("Pausing Compose project \"%@\"..."), project.name)
+        case .composeKill(let project):
+            return String(format: tr("Killing Compose project \"%@\"..."), project.name)
+        case .deleteVolume(let volume):
+            return String(format: tr("Deleting volume \"%@\"..."), volume.name)
+        case .deleteImage(let image):
+            return String(format: tr("Deleting image \"%@\"..."), image.displayName)
+        case .deleteNetwork(let network):
+            return String(format: tr("Deleting network \"%@\"..."), network.name)
         }
     }
 }

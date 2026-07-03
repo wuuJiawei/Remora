@@ -71,6 +71,80 @@ actor DockerCommandService {
         }
     }
 
+    private struct DockerVolumeLine: Decodable {
+        let name: String?
+        let driver: String?
+        let scope: String?
+        let mountpoint: String?
+        let labels: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case name = "Name"
+            case driver = "Driver"
+            case scope = "Scope"
+            case mountpoint = "Mountpoint"
+            case labels = "Labels"
+        }
+    }
+
+    private struct DockerNetworkInspect: Decodable {
+        let id: String?
+        let name: String?
+        let driver: String?
+        let scope: String?
+        let labels: [String: String]?
+        let ipam: DockerNetworkIPAM?
+
+        private enum CodingKeys: String, CodingKey {
+            case id = "Id"
+            case name = "Name"
+            case driver = "Driver"
+            case scope = "Scope"
+            case labels = "Labels"
+            case ipam = "IPAM"
+        }
+    }
+
+    private struct DockerNetworkIPAM: Decodable {
+        let config: [DockerNetworkIPAMConfig]?
+
+        private enum CodingKeys: String, CodingKey {
+            case config = "Config"
+        }
+    }
+
+    private struct DockerNetworkIPAMConfig: Decodable {
+        let subnet: String?
+        let gateway: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case subnet = "Subnet"
+            case gateway = "Gateway"
+        }
+    }
+
+    private struct DockerStatsLine: Decodable {
+        let container: String?
+        let name: String?
+        let cpuPercent: String?
+        let memoryUsage: String?
+        let memoryPercent: String?
+        let networkIO: String?
+        let blockIO: String?
+        let pids: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case container = "Container"
+            case name = "Name"
+            case cpuPercent = "CPUPerc"
+            case memoryUsage = "MemUsage"
+            case memoryPercent = "MemPerc"
+            case networkIO = "NetIO"
+            case blockIO = "BlockIO"
+            case pids = "PIDs"
+        }
+    }
+
     private struct DockerInspectContainer: Decodable {
         let id: String?
         let name: String?
@@ -302,6 +376,21 @@ actor DockerCommandService {
         _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
     }
 
+    func pauseContainer(id: String, target: ShellTarget) async throws {
+        let command = "docker pause \(quoteShellArgument(id))"
+        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+    }
+
+    func killContainer(id: String, target: ShellTarget) async throws {
+        let command = "docker kill \(quoteShellArgument(id))"
+        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+    }
+
+    func deleteContainer(id: String, target: ShellTarget) async throws {
+        let command = "docker rm \(quoteShellArgument(id))"
+        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+    }
+
     func listComposeProjects(target: ShellTarget) async throws -> [DockerComposeProject] {
         let primary = await runCommand("docker compose ls --format json", on: target, timeout: 12)
         switch primary {
@@ -324,6 +413,24 @@ actor DockerCommandService {
         let command = "docker images --digests --format '{{json .}}'"
         let output = try await target.client.executeRemoteShellCommand(command, timeout: 12)
         return parseImages(output)
+    }
+
+    func listVolumes(target: ShellTarget) async throws -> [DockerVolume] {
+        let command = "docker volume ls --format '{{json .}}'"
+        let output = try await target.client.executeRemoteShellCommand(command, timeout: 12)
+        return parseVolumes(output)
+    }
+
+    func listNetworks(target: ShellTarget) async throws -> [DockerNetwork] {
+        let command = "ids=$(docker network ls -q); if [ -n \"$ids\" ]; then docker network inspect $ids; fi"
+        let output = try await target.client.executeRemoteShellCommand(command, timeout: 15)
+        return parseNetworks(output)
+    }
+
+    func containerStats(target: ShellTarget) async throws -> [DockerContainerStats] {
+        let command = "docker stats --no-stream --format '{{json .}}'"
+        let output = try await target.client.executeRemoteShellCommand(command, timeout: 12)
+        return parseStats(output)
     }
 
     func composeLogs(project: DockerComposeProject, tail: Int, target: ShellTarget) async throws -> String {
@@ -361,6 +468,31 @@ actor DockerCommandService {
     func composeRestart(project: DockerComposeProject, target: ShellTarget) async throws {
         let command = try composeCommand(action: "restart", project: project)
         _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+    }
+
+    func composePause(project: DockerComposeProject, target: ShellTarget) async throws {
+        let command = try composeCommand(action: "pause", project: project)
+        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+    }
+
+    func composeKill(project: DockerComposeProject, target: ShellTarget) async throws {
+        let command = try composeCommand(action: "kill", project: project)
+        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+    }
+
+    func deleteVolume(_ volume: DockerVolume, target: ShellTarget) async throws {
+        let command = "docker volume rm \(quoteShellArgument(volume.name))"
+        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+    }
+
+    func deleteImage(_ image: DockerImage, target: ShellTarget) async throws {
+        let command = "docker image rm \(quoteShellArgument(image.imageID))"
+        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+    }
+
+    func deleteNetwork(_ network: DockerNetwork, target: ShellTarget) async throws {
+        let command = "docker network rm \(quoteShellArgument(network.id))"
+        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
     }
 
     private func runCommand(
@@ -462,6 +594,128 @@ actor DockerCommandService {
                     size: decoded.size?.trimmingCharacters(in: .whitespacesAndNewlines)
                 )
             }
+    }
+
+    private func parseVolumes(_ output: String) -> [DockerVolume] {
+        output
+            .split(separator: "\n")
+            .compactMap { line in
+                let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty,
+                      let data = text.data(using: .utf8),
+                      let decoded = try? JSONDecoder().decode(DockerVolumeLine.self, from: data),
+                      let name = decoded.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !name.isEmpty
+                else {
+                    return nil
+                }
+
+                return DockerVolume(
+                    name: name,
+                    driver: decoded.driver?.trimmingCharacters(in: .whitespacesAndNewlines),
+                    scope: decoded.scope?.trimmingCharacters(in: .whitespacesAndNewlines),
+                    mountpoint: decoded.mountpoint?.trimmingCharacters(in: .whitespacesAndNewlines),
+                    labels: parseDockerLabels(decoded.labels)
+                )
+            }
+    }
+
+    private func parseNetworks(_ output: String) -> [DockerNetwork] {
+        guard let data = output.data(using: .utf8),
+              !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return []
+        }
+
+        if let decoded = try? JSONDecoder().decode([DockerNetworkInspect].self, from: data) {
+            return decoded.compactMap(makeNetwork)
+        }
+
+        return output
+            .split(separator: "\n")
+            .compactMap { line -> DockerNetwork? in
+                let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty,
+                      let data = text.data(using: .utf8),
+                      let decoded = try? JSONDecoder().decode(DockerNetworkInspect.self, from: data)
+                else {
+                    return nil
+                }
+                return makeNetwork(decoded)
+            }
+    }
+
+    private func makeNetwork(_ decoded: DockerNetworkInspect) -> DockerNetwork? {
+        guard let id = decoded.id?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !id.isEmpty,
+              let name = decoded.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty
+        else {
+            return nil
+        }
+
+        let firstConfig = decoded.ipam?.config?.first
+        return DockerNetwork(
+            id: id,
+            name: name,
+            driver: decoded.driver?.trimmingCharacters(in: .whitespacesAndNewlines),
+            scope: decoded.scope?.trimmingCharacters(in: .whitespacesAndNewlines),
+            subnet: firstConfig?.subnet?.trimmingCharacters(in: .whitespacesAndNewlines),
+            gateway: firstConfig?.gateway?.trimmingCharacters(in: .whitespacesAndNewlines),
+            labels: decoded.labels ?? [:]
+        )
+    }
+
+    private func parseStats(_ output: String) -> [DockerContainerStats] {
+        output
+            .split(separator: "\n")
+            .compactMap { line in
+                let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty,
+                      let data = text.data(using: .utf8),
+                      let decoded = try? JSONDecoder().decode(DockerStatsLine.self, from: data),
+                      let id = decoded.container?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !id.isEmpty
+                else {
+                    return nil
+                }
+
+                return DockerContainerStats(
+                    containerID: id,
+                    name: decoded.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? id,
+                    cpuPercent: parsePercent(decoded.cpuPercent),
+                    memoryUsage: parseMemoryUsage(decoded.memoryUsage),
+                    memoryPercent: parseOptionalPercent(decoded.memoryPercent),
+                    networkIO: decoded.networkIO?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0 B / 0 B",
+                    blockIO: decoded.blockIO?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0 B / 0 B",
+                    pids: decoded.pids?.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            }
+    }
+
+    private func parseOptionalPercent(_ value: String?) -> Double? {
+        guard let value else { return nil }
+        return parsePercent(value)
+    }
+
+    private func parsePercent(_ value: String?) -> Double {
+        guard let value else { return 0 }
+        let normalized = value
+            .replacingOccurrences(of: "%", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return Double(normalized) ?? 0
+    }
+
+    private func parseMemoryUsage(_ value: String?) -> String {
+        guard let value else { return "0 B" }
+        let firstValue = value
+            .components(separatedBy: "/")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let firstValue, !firstValue.isEmpty {
+            return firstValue
+        }
+        return "0 B"
     }
 
     private func parseContainerDetails(_ output: String, fallbackID: String) throws -> DockerContainerDetails {

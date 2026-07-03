@@ -157,6 +157,62 @@ struct DockerCommandServiceTests {
     }
 
     @Test
+    func listVolumesParsesJsonLines() async throws {
+        let service = DockerCommandService()
+        let output = #"{"Name":"redis_data","Driver":"local","Scope":"local","Mountpoint":"/var/lib/docker/volumes/redis_data/_data","Labels":"com.docker.compose.project=redis"}"#
+        let target = makeTarget(
+            responses: [
+                "docker volume ls --format '{{json .}}'": .success(output),
+            ]
+        )
+
+        let volumes = try await service.listVolumes(target: target)
+
+        #expect(volumes.count == 1)
+        #expect(volumes.first?.name == "redis_data")
+        #expect(volumes.first?.driver == "local")
+        #expect(volumes.first?.labels["com.docker.compose.project"] == "redis")
+    }
+
+    @Test
+    func listNetworksParsesInspectOutput() async throws {
+        let service = DockerCommandService()
+        let command = "ids=$(docker network ls -q); if [ -n \"$ids\" ]; then docker network inspect $ids; fi"
+        let output = #"[{"Id":"abcdef1234567890","Name":"bridge","Driver":"bridge","Scope":"local","Labels":{"kind":"default"},"IPAM":{"Config":[{"Subnet":"172.17.0.0/16","Gateway":"172.17.0.1"}]}}]"#
+        let target = makeTarget(
+            responses: [
+                command: .success(output),
+            ]
+        )
+
+        let networks = try await service.listNetworks(target: target)
+
+        #expect(networks.count == 1)
+        #expect(networks.first?.name == "bridge")
+        #expect(networks.first?.subnet == "172.17.0.0/16")
+        #expect(networks.first?.gateway == "172.17.0.1")
+    }
+
+    @Test
+    func containerStatsParsesJsonLines() async throws {
+        let service = DockerCommandService()
+        let output = #"{"Container":"abc123","Name":"redis","CPUPerc":"0.42%","MemUsage":"4.8MiB / 1.9GiB","MemPerc":"0.25%","NetIO":"1.2kB / 3.4kB","BlockIO":"0B / 31kB","PIDs":"6"}"#
+        let target = makeTarget(
+            responses: [
+                "docker stats --no-stream --format '{{json .}}'": .success(output),
+            ]
+        )
+
+        let stats = try await service.containerStats(target: target)
+
+        #expect(stats.count == 1)
+        #expect(stats.first?.name == "redis")
+        #expect(stats.first?.cpuPercent == 0.42)
+        #expect(stats.first?.memoryUsage == "4.8MiB")
+        #expect(stats.first?.memoryPercent == 0.25)
+    }
+
+    @Test
     func containerLogsRedirectsStderrIntoStdout() async throws {
         let service = DockerCommandService()
         let target = makeTarget(

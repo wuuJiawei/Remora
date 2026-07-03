@@ -7,12 +7,18 @@ final class DockerPanelViewModel: ObservableObject {
     @Published var selectedTab: DockerPanelSelection = .containers
     @Published private(set) var environment = DockerEnvironmentStatus.disconnected
     @Published private(set) var containers: [DockerContainer] = []
+    @Published private(set) var volumes: [DockerVolume] = []
     @Published private(set) var images: [DockerImage] = []
+    @Published private(set) var networks: [DockerNetwork] = []
     @Published private(set) var composeProjects: [DockerComposeProject] = []
+    @Published private(set) var activitySnapshot = DockerActivitySnapshot.empty
     @Published private(set) var containerDetails: [String: DockerContainerDetails] = [:]
     @Published private(set) var isLoadingEnvironment = false
     @Published private(set) var isLoadingContainers = false
+    @Published private(set) var isLoadingVolumes = false
     @Published private(set) var isLoadingImages = false
+    @Published private(set) var isLoadingNetworks = false
+    @Published private(set) var isLoadingActivity = false
     @Published private(set) var isLoadingCompose = false
     @Published private(set) var isPerformingAction = false
     @Published private(set) var activeLog: DockerLogSnapshot?
@@ -23,7 +29,9 @@ final class DockerPanelViewModel: ObservableObject {
     @Published var selectedContainerID: String?
     @Published var selectedComposeProjectName: String?
     @Published var containerFilterText = ""
+    @Published var volumeFilterText = ""
     @Published var imageFilterText = ""
+    @Published var networkFilterText = ""
     @Published var composeFilterText = ""
     @Published var liveLogSession: DockerLiveLogSession?
 
@@ -52,13 +60,19 @@ final class DockerPanelViewModel: ObservableObject {
             target = nil
             environment = .disconnected
             containers = []
+            volumes = []
             images = []
+            networks = []
             composeProjects = []
+            activitySnapshot = .empty
             containerDetails = [:]
             activeLog = nil
             isLoadingEnvironment = false
             isLoadingContainers = false
+            isLoadingVolumes = false
             isLoadingImages = false
+            isLoadingNetworks = false
+            isLoadingActivity = false
             isLoadingCompose = false
             isLoadingLogs = false
             return
@@ -84,8 +98,11 @@ final class DockerPanelViewModel: ObservableObject {
         guard let target else {
             environment = .disconnected
             containers = []
+            volumes = []
             images = []
+            networks = []
             composeProjects = []
+            activitySnapshot = .empty
             containerDetails = [:]
             return
         }
@@ -240,6 +257,40 @@ final class DockerPanelViewModel: ObservableObject {
         }
     }
 
+    var filteredVolumes: [DockerVolume] {
+        let query = normalizedFilter(volumeFilterText)
+        guard !query.isEmpty else { return volumes }
+        return volumes.filter { volume in
+            let searchable: [String?] = [
+                volume.name,
+                volume.driver,
+                volume.scope,
+                volume.mountpoint,
+            ] + volume.labels.flatMap { [$0.key, $0.value] }
+            return searchable
+                .compactMap { $0?.lowercased() }
+                .contains(where: { $0.contains(query) })
+        }
+    }
+
+    var filteredNetworks: [DockerNetwork] {
+        let query = normalizedFilter(networkFilterText)
+        guard !query.isEmpty else { return networks }
+        return networks.filter { network in
+            let searchable: [String?] = [
+                network.id,
+                network.name,
+                network.driver,
+                network.scope,
+                network.subnet,
+                network.gateway,
+            ] + network.labels.flatMap { [$0.key, $0.value] }
+            return searchable
+                .compactMap { $0?.lowercased() }
+                .contains(where: { $0.contains(query) })
+        }
+    }
+
     var filteredComposeProjects: [DockerComposeProject] {
         let query = normalizedFilter(composeFilterText)
         guard !query.isEmpty else { return composeProjects }
@@ -272,12 +323,28 @@ final class DockerPanelViewModel: ObservableObject {
                     try await service.stopContainer(id: container.id, target: target)
                 case .restartContainer(let container):
                     try await service.restartContainer(id: container.id, target: target)
+                case .pauseContainer(let container):
+                    try await service.pauseContainer(id: container.id, target: target)
+                case .killContainer(let container):
+                    try await service.killContainer(id: container.id, target: target)
+                case .deleteContainer(let container):
+                    try await service.deleteContainer(id: container.id, target: target)
                 case .composeUp(let project):
                     try await service.composeUp(project: project, target: target)
                 case .composeDown(let project):
                     try await service.composeDown(project: project, target: target)
                 case .composeRestart(let project):
                     try await service.composeRestart(project: project, target: target)
+                case .composePause(let project):
+                    try await service.composePause(project: project, target: target)
+                case .composeKill(let project):
+                    try await service.composeKill(project: project, target: target)
+                case .deleteVolume(let volume):
+                    try await service.deleteVolume(volume, target: target)
+                case .deleteImage(let image):
+                    try await service.deleteImage(image, target: target)
+                case .deleteNetwork(let network):
+                    try await service.deleteNetwork(network, target: target)
                 }
 
                 await reloadAll(target: target)
@@ -290,7 +357,10 @@ final class DockerPanelViewModel: ObservableObject {
     private func reloadAll(target: DockerCommandService.ShellTarget) async {
         isLoadingEnvironment = true
         isLoadingContainers = true
+        isLoadingVolumes = true
         isLoadingImages = true
+        isLoadingNetworks = true
+        isLoadingActivity = true
         isLoadingCompose = true
 
         do {
@@ -317,17 +387,42 @@ final class DockerPanelViewModel: ObservableObject {
                 showToast(error.localizedDescription)
             }
             do {
+                volumes = try await service.listVolumes(target: target)
+            } catch {
+                volumes = []
+                showToast(error.localizedDescription)
+            }
+            do {
                 images = try await service.listImages(target: target)
             } catch {
                 images = []
                 showToast(error.localizedDescription)
             }
+            do {
+                networks = try await service.listNetworks(target: target)
+            } catch {
+                networks = []
+                showToast(error.localizedDescription)
+            }
+            do {
+                let stats = try await service.containerStats(target: target)
+                activitySnapshot = DockerActivitySnapshot(stats: stats, fetchedAt: Date())
+            } catch {
+                activitySnapshot = .empty
+                showToast(error.localizedDescription)
+            }
         } else {
             containers = []
+            volumes = []
             images = []
+            networks = []
+            activitySnapshot = .empty
         }
         isLoadingContainers = false
+        isLoadingVolumes = false
         isLoadingImages = false
+        isLoadingNetworks = false
+        isLoadingActivity = false
 
         if environment.composeAvailable {
             do {
