@@ -57,8 +57,8 @@ project.root_object.known_regions = ['en', 'zh-Hans']
 
 project.build_configurations.each do |config|
   config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = DEPLOYMENT_TARGET
-  config.build_settings['MARKETING_VERSION'] = '0.17.7'
-  config.build_settings['CURRENT_PROJECT_VERSION'] = '14'
+  config.build_settings['MARKETING_VERSION'] = '0.18.0'
+  config.build_settings['CURRENT_PROJECT_VERSION'] = '15'
   config.build_settings['SWIFT_VERSION'] = '6.0'
   config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
   config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'

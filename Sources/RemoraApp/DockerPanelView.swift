@@ -912,7 +912,7 @@ struct DockerPanelView: View {
                         tint: .primary
                     )
 
-                    ForEach(viewModel.activitySnapshot.stats) { stat in
+                    ForEach(viewModel.sortedActivityStats) { stat in
                         activityRow(
                             name: stat.name,
                             icon: "cube.box.fill",

@@ -219,10 +219,14 @@ struct DockerContainerStats: Identifiable, Equatable, Sendable {
     let name: String
     let cpuPercent: Double
     let memoryUsage: String
+    let memoryUsageBytes: Int64
     let memoryPercent: Double?
     let networkIO: String
+    let networkIOBytes: Int64
     let blockIO: String
+    let blockIOBytes: Int64
     let pids: String?
+    let pidsValue: Int?
 
     var id: String { containerID }
 }

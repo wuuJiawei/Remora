@@ -695,15 +695,24 @@ actor DockerCommandService {
                     return nil
                 }
 
+                let memoryUsage = parseMemoryUsage(decoded.memoryUsage)
+                let networkIO = decoded.networkIO?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0 B / 0 B"
+                let blockIO = decoded.blockIO?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0 B / 0 B"
+                let pids = decoded.pids?.trimmingCharacters(in: .whitespacesAndNewlines)
+
                 return DockerContainerStats(
                     containerID: id,
                     name: decoded.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? id,
                     cpuPercent: parsePercent(decoded.cpuPercent),
-                    memoryUsage: parseMemoryUsage(decoded.memoryUsage),
+                    memoryUsage: memoryUsage,
+                    memoryUsageBytes: ActivityMonitorMetricsParser.parseUsageBytes(decoded.memoryUsage),
                     memoryPercent: parseOptionalPercent(decoded.memoryPercent),
-                    networkIO: decoded.networkIO?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0 B / 0 B",
-                    blockIO: decoded.blockIO?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0 B / 0 B",
-                    pids: decoded.pids?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    networkIO: networkIO,
+                    networkIOBytes: ActivityMonitorMetricsParser.parseTotalIOBytes(networkIO),
+                    blockIO: blockIO,
+                    blockIOBytes: ActivityMonitorMetricsParser.parseTotalIOBytes(blockIO),
+                    pids: pids,
+                    pidsValue: ActivityMonitorMetricsParser.parsePIDs(pids)
                 )
             }
     }

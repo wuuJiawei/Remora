@@ -209,7 +209,11 @@ struct DockerCommandServiceTests {
         #expect(stats.first?.name == "redis")
         #expect(stats.first?.cpuPercent == 0.42)
         #expect(stats.first?.memoryUsage == "4.8MiB")
+        #expect(stats.first?.memoryUsageBytes == 5_033_165)
         #expect(stats.first?.memoryPercent == 0.25)
+        #expect(stats.first?.networkIOBytes == 4_600)
+        #expect(stats.first?.blockIOBytes == 31_000)
+        #expect(stats.first?.pidsValue == 6)
     }
 
     @Test

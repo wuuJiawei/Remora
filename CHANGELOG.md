@@ -6,6 +6,52 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.18.0] - 2026-07-03
+
+### English
+
+#### Added
+
+- Added native Docker container management for connected SSH sessions, including container start, stop, delete, logs, shell entry, and detail inspection workflows.
+- Added Docker Compose project management with two-level container grouping, expand/collapse support, and running/stopped sections for clearer container state scanning.
+- Added a Docker activity monitor with live container resource refresh and sortable columns for name, CPU, memory, network, disk, and PIDs.
+- Added Docker and file-manager shortcuts to the SSH session panel header so users can quickly open container management and the standalone file manager from an active connection.
+
+#### Changed
+
+- Refactored the Docker container list into a native macOS-style split workspace with a clearer sidebar, compact container rows, aligned icons, and detail panes that stay in sync with selection changes.
+- Refactored the file manager into a standalone native window and improved the window-opening experience from active SSH sessions.
+- Updated Kubernetes entries to show a coming-soon state while those features are still under development.
+
+#### Fixed
+
+- Fixed Docker workspace search-field focus styling so the focused border renders cleanly without being clipped.
+- Fixed Docker log popover closing behavior and improved container detail copy actions for common fields.
+- Fixed SSH connection reuse edge cases around shell sessions, SFTP, remote commands, and stale ControlPath cleanup.
+- Fixed Docker activity monitor refresh behavior so periodic updates preserve sorting, selection, scroll position, and the current detail row.
+
+### 中文
+
+#### 新增
+
+- 新增原生 Docker 容器管理能力，已连接的 SSH 会话现在支持容器启动、停止、删除、查看日志、进入 Shell 和查看详情。
+- 新增 Docker Compose 项目管理能力，支持 compose 两级树结构、展开/收起，并按 running / stopped 分区展示容器状态。
+- 新增 Docker 活动监视器，支持容器资源实时刷新，并可按名称、CPU、内存、网络、磁盘和 PIDs 点击表头排序。
+- 在 SSH 连接面板右上角新增 Docker 容器管理和文件管理器入口，用户可以从当前 SSH 会话快速打开容器管理和独立文件管理器窗口。
+
+#### 变更
+
+- 系统性重构 Docker 容器列表为更接近原生 macOS 的分栏工作区，优化侧边栏、紧凑容器行、图标对齐和右侧详情同步。
+- 将文件管理器重构为独立原生窗体，并优化从 SSH 会话打开文件管理器的窗口体验。
+- Kubernetes 相关入口暂未开放时统一显示“敬请期待”，避免展示空表格或无意义详情。
+
+#### 修复
+
+- 修复 Docker 工作区搜索框 focus 样式，聚焦边框不再被裁剪。
+- 修复 Docker 日志弹窗无法关闭的问题，并补充容器详情中常用字段的复制能力。
+- 修复 SSH 连接复用在交互式 Shell、SFTP、远程命令和 stale ControlPath 清理上的边界问题。
+- 修复 Docker 活动监视器刷新行为，周期更新会保留排序、选中行、滚动位置，并同步右侧详情。
+
 ## [v0.17.8] - 2026-06-10
 
 ### English

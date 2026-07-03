@@ -4,7 +4,11 @@ import RemoraCore
 @MainActor
 final class DockerPanelViewModel: ObservableObject {
     @Published private(set) var runtimeBinding = DockerRuntimeBinding.disconnected
-    @Published var selectedTab: DockerPanelSelection = .containers
+    @Published var selectedTab: DockerPanelSelection = .containers {
+        didSet {
+            updateActivityMonitorRefreshState()
+        }
+    }
     @Published private(set) var environment = DockerEnvironmentStatus.disconnected
     @Published private(set) var containers: [DockerContainer] = []
     @Published private(set) var volumes: [DockerVolume] = []
@@ -12,6 +16,7 @@ final class DockerPanelViewModel: ObservableObject {
     @Published private(set) var networks: [DockerNetwork] = []
     @Published private(set) var composeProjects: [DockerComposeProject] = []
     @Published private(set) var activitySnapshot = DockerActivitySnapshot.empty
+    @Published private(set) var activitySortDescriptor = ActivityMonitorSortDescriptor.default
     @Published private(set) var containerDetails: [String: DockerContainerDetails] = [:]
     @Published private(set) var isLoadingEnvironment = false
     @Published private(set) var isLoadingContainers = false
@@ -38,10 +43,18 @@ final class DockerPanelViewModel: ObservableObject {
     private let service: DockerCommandService
     private var target: DockerCommandService.ShellTarget?
     private var refreshTask: Task<Void, Never>?
+    private var activityRefreshTask: Task<Void, Never>?
     private var toastHideTask: Task<Void, Never>?
+    private let activityRefreshInterval: Duration = .seconds(3)
 
     init(service: DockerCommandService = DockerCommandService()) {
         self.service = service
+    }
+
+    deinit {
+        refreshTask?.cancel()
+        activityRefreshTask?.cancel()
+        toastHideTask?.cancel()
     }
 
     func updateRuntimeBinding(_ binding: DockerRuntimeBinding) {
@@ -80,6 +93,7 @@ final class DockerPanelViewModel: ObservableObject {
             isLoadingActivity = false
             isLoadingCompose = false
             isLoadingLogs = false
+            stopActivityMonitorRefresh()
             return
         }
 
@@ -92,6 +106,7 @@ final class DockerPanelViewModel: ObservableObject {
             client = SystemSFTPClient(host: host)
         }
         target = .init(host: host, client: client)
+        updateActivityMonitorRefreshState()
         refresh()
     }
 
@@ -310,6 +325,15 @@ final class DockerPanelViewModel: ObservableObject {
         }
     }
 
+    var sortedActivityStats: [DockerContainerStats] {
+        activitySortDescriptor.sorted(activitySnapshot.stats)
+    }
+
+    func toggleActivitySort(columnID: String) {
+        guard let field = ActivityMonitorSortField(columnID: columnID) else { return }
+        activitySortDescriptor = activitySortDescriptor.toggled(to: field)
+    }
+
     private func performAction(_ action: DockerPanelAction) {
         guard let target else { return }
         isPerformingAction = true
@@ -418,15 +442,7 @@ final class DockerPanelViewModel: ObservableObject {
                 LogManager.error(.docker, "reloadAll networks failed error=\(error.localizedDescription)")
                 showToast(error.localizedDescription)
             }
-            do {
-                let stats = try await service.containerStats(target: target)
-                activitySnapshot = DockerActivitySnapshot(stats: stats, fetchedAt: Date())
-                LogManager.info(.docker, "reloadAll stats loaded count=\(stats.count)")
-            } catch {
-                activitySnapshot = .empty
-                LogManager.error(.docker, "reloadAll stats failed error=\(error.localizedDescription)")
-                showToast(error.localizedDescription)
-            }
+            await reloadActivitySnapshot(target: target, showLoading: false, showErrors: true)
         } else {
             LogManager.info(.docker, "reloadAll docker unavailable clearing resources issue=\(environment.dockerIssue?.userMessage ?? "-")")
             containers = []
@@ -455,7 +471,73 @@ final class DockerPanelViewModel: ObservableObject {
             LogManager.info(.docker, "reloadAll compose unavailable")
         }
         isLoadingCompose = false
+        updateActivityMonitorRefreshState()
         LogManager.info(.docker, "reloadAll finished containers=\(containers.count) compose=\(composeProjects.count)")
+    }
+
+    private func reloadActivitySnapshot(
+        target: DockerCommandService.ShellTarget,
+        showLoading: Bool,
+        showErrors: Bool
+    ) async {
+        if showLoading {
+            isLoadingActivity = true
+        }
+        defer {
+            if showLoading {
+                isLoadingActivity = false
+            }
+        }
+
+        do {
+            let stats = try await service.containerStats(target: target)
+            guard !Task.isCancelled else { return }
+            activitySnapshot = DockerActivitySnapshot(stats: stats, fetchedAt: Date())
+            LogManager.info(.docker, "activity stats loaded count=\(stats.count)")
+        } catch {
+            guard !Task.isCancelled else { return }
+            LogManager.error(.docker, "activity stats failed error=\(error.localizedDescription)")
+            if showErrors {
+                activitySnapshot = .empty
+                showToast(error.localizedDescription)
+            }
+        }
+    }
+
+    private func updateActivityMonitorRefreshState() {
+        guard selectedTab == .activityMonitor,
+              environment.dockerAvailable,
+              target != nil
+        else {
+            stopActivityMonitorRefresh()
+            return
+        }
+        startActivityMonitorRefresh()
+    }
+
+    private func startActivityMonitorRefresh() {
+        guard activityRefreshTask == nil else { return }
+        activityRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                guard selectedTab == .activityMonitor,
+                      environment.dockerAvailable,
+                      let target
+                else {
+                    await MainActor.run { [weak self] in
+                        self?.stopActivityMonitorRefresh()
+                    }
+                    break
+                }
+                await reloadActivitySnapshot(target: target, showLoading: false, showErrors: false)
+                try? await Task.sleep(for: activityRefreshInterval)
+            }
+        }
+    }
+
+    private func stopActivityMonitorRefresh() {
+        activityRefreshTask?.cancel()
+        activityRefreshTask = nil
     }
 
     private func normalizedFilter(_ value: String) -> String {

@@ -85,6 +85,7 @@ final class DockerWindowSplitController: NSSplitViewController {
             viewModel.$networks.map { _ in () }.eraseToAnyPublisher(),
             viewModel.$composeProjects.map { _ in () }.eraseToAnyPublisher(),
             viewModel.$activitySnapshot.map { _ in () }.eraseToAnyPublisher(),
+            viewModel.$activitySortDescriptor.map { _ in () }.eraseToAnyPublisher(),
             viewModel.$containerDetails.map { _ in () }.eraseToAnyPublisher(),
             viewModel.$isLoadingContainers.map { _ in () }.eraseToAnyPublisher(),
             viewModel.$isLoadingVolumes.map { _ in () }.eraseToAnyPublisher(),
@@ -430,6 +431,7 @@ private final class DockerResourceTableController: NSViewController, NSTableView
     private var scrollView: NSScrollView!
     private var rows: [DockerResourceRow] = []
     private var selectedID: String?
+    private var isApplyingSortDescriptors = false
 
     init(
         viewModel: DockerPanelViewModel,
@@ -494,8 +496,10 @@ private final class DockerResourceTableController: NSViewController, NSTableView
         selectedID = selectedRow?.id ?? selectedID
         rows = makeRows()
         rebuildColumns()
+        updateSortDescriptors()
         tableView.reloadData()
         restoreSelection()
+        synchronizeSelection()
         updateEmptyState()
     }
 
@@ -540,16 +544,16 @@ private final class DockerResourceTableController: NSViewController, NSTableView
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
-        guard let row = selectedRow else {
-            selectedID = nil
-            onSelectionChanged?(nil)
-            return
-        }
-        selectedID = row.id
-        if case .container(let container) = row.selection {
-            viewModel.ensureContainerDetails(container)
-        }
-        onSelectionChanged?(row.selection)
+        synchronizeSelection()
+    }
+
+    func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+        guard !isApplyingSortDescriptors,
+              viewModel.selectedTab == .activityMonitor,
+              let descriptor = tableView.sortDescriptors.first,
+              let columnID = descriptor.key
+        else { return }
+        viewModel.toggleActivitySort(columnID: columnID)
     }
 
     @objc private func handleDoubleClick() {
@@ -575,8 +579,29 @@ private final class DockerResourceTableController: NSViewController, NSTableView
             tableColumn.width = column.width
             tableColumn.minWidth = column.minWidth
             tableColumn.resizingMask = .userResizingMask
+            if viewModel.selectedTab == .activityMonitor,
+               ActivityMonitorSortField(columnID: column.id) != nil {
+                tableColumn.sortDescriptorPrototype = NSSortDescriptor(key: column.id, ascending: true)
+            }
             tableView.addTableColumn(tableColumn)
         }
+    }
+
+    private func updateSortDescriptors() {
+        guard viewModel.selectedTab == .activityMonitor else {
+            guard !tableView.sortDescriptors.isEmpty else { return }
+            isApplyingSortDescriptors = true
+            tableView.sortDescriptors = []
+            isApplyingSortDescriptors = false
+            return
+        }
+
+        let descriptor = viewModel.activitySortDescriptor
+        isApplyingSortDescriptors = true
+        tableView.sortDescriptors = [
+            NSSortDescriptor(key: descriptor.field.rawValue, ascending: descriptor.ascending)
+        ]
+        isApplyingSortDescriptors = false
     }
 
     private func configure(cell: NSTableCellView, row: DockerResourceRow, columnID: String) {
@@ -660,7 +685,7 @@ private final class DockerResourceTableController: NSViewController, NSTableView
         case .networks:
             return viewModel.filteredNetworks.map { .network($0) }
         case .activityMonitor:
-            return viewModel.activitySnapshot.stats.map { .activity($0) }
+            return viewModel.sortedActivityStats.map { .activity($0) }
         case .kubernetesPods:
             return [.placeholder(title: tr("Pods"), subtitle: tr("Unavailable"))]
         case .kubernetesServices:
@@ -771,6 +796,19 @@ private final class DockerResourceTableController: NSViewController, NSTableView
             return
         }
         tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+    }
+
+    private func synchronizeSelection() {
+        guard let row = selectedRow else {
+            selectedID = nil
+            onSelectionChanged?(nil)
+            return
+        }
+        selectedID = row.id
+        if case .container(let container) = row.selection {
+            viewModel.ensureContainerDetails(container)
+        }
+        onSelectionChanged?(row.selection)
     }
 
     private func updateEmptyState() {
