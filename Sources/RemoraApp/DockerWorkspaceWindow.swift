@@ -158,6 +158,9 @@ final class DockerWorkspaceWindowController: NSWindowController, NSWindowDelegat
     private let toastController = DockerWindowToastController()
     private var cancellables: Set<AnyCancellable> = []
     private var presentedLogSessionID: UUID?
+    private var liveLogSheetWindow: NSWindow?
+    private var liveLogSheetDelegate: DockerLiveLogSheetDelegate?
+    private var isClosingLiveLogSheet = false
     private var isPresentingConfirmation = false
 
     init(
@@ -233,6 +236,7 @@ final class DockerWorkspaceWindowController: NSWindowController, NSWindowDelegat
                     self.presentLiveLogsIfNeeded(session)
                 } else {
                     self.presentedLogSessionID = nil
+                    self.closeLiveLogsSheet()
                 }
             }
             .store(in: &cancellables)
@@ -266,16 +270,34 @@ final class DockerWorkspaceWindowController: NSWindowController, NSWindowDelegat
     private func presentLiveLogsIfNeeded(_ session: DockerLiveLogSession) {
         guard presentedLogSessionID != session.id, let window else { return }
         presentedLogSessionID = session.id
-        let controller = NSHostingController(rootView: DockerLiveLogSheet(session: session))
-        window.beginSheet(controller.view.window ?? {
-            let sheet = NSWindow(contentViewController: controller)
-            sheet.styleMask = [.titled, .closable, .resizable]
-            sheet.setContentSize(NSSize(width: 820, height: 560))
-            sheet.title = session.title
-            return sheet
-        }()) { [weak self] _ in
-            self?.viewModel.dismissLiveLogSession()
+        let controller = NSHostingController(rootView: DockerLiveLogSheet(session: session) { [weak self] in
+            self?.closeLiveLogsSheet()
+        })
+        let sheet = NSWindow(contentViewController: controller)
+        sheet.styleMask = [.titled, .closable, .resizable]
+        sheet.setContentSize(NSSize(width: 820, height: 560))
+        sheet.title = session.title
+        let delegate = DockerLiveLogSheetDelegate { [weak self] in
+            self?.closeLiveLogsSheet()
         }
+        sheet.delegate = delegate
+        liveLogSheetDelegate = delegate
+        liveLogSheetWindow = sheet
+        isClosingLiveLogSheet = false
+        window.beginSheet(sheet) { [weak self] _ in
+            self?.viewModel.dismissLiveLogSession()
+            self?.presentedLogSessionID = nil
+            self?.liveLogSheetWindow = nil
+            self?.liveLogSheetDelegate = nil
+            self?.isClosingLiveLogSheet = false
+        }
+    }
+
+    private func closeLiveLogsSheet() {
+        guard let window, let sheet = liveLogSheetWindow else { return }
+        guard !isClosingLiveLogSheet else { return }
+        isClosingLiveLogSheet = true
+        window.endSheet(sheet)
     }
 
     private static func windowTitle(for host: RemoraCore.Host) -> String {
@@ -288,6 +310,20 @@ final class DockerWorkspaceWindowController: NSWindowController, NSWindowDelegat
         }()
 
         return String(format: tr("%@ - Docker"), hostLabel)
+    }
+}
+
+@MainActor
+private final class DockerLiveLogSheetDelegate: NSObject, NSWindowDelegate {
+    private let onClose: () -> Void
+
+    init(onClose: @escaping () -> Void) {
+        self.onClose = onClose
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        onClose()
+        return false
     }
 }
 
@@ -351,6 +387,7 @@ private final class DockerWindowToastController {
 private final class DockerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDelegate {
     let toolbar = NSToolbar(identifier: "docker-window-toolbar")
     private let searchField = NSSearchField(frame: NSRect(x: 0, y: 0, width: 220, height: 0))
+    private let searchContainer = DockerToolbarSearchContainer()
 
     var onRefresh: (() -> Void)?
     var onSearchChanged: ((String) -> Void)?
@@ -362,11 +399,13 @@ private final class DockerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchFi
         toolbar.allowsUserCustomization = false
         searchField.placeholderString = tr("Search")
         searchField.sendsSearchStringImmediately = true
+        searchField.focusRingType = .none
         searchField.delegate = self
         searchField.translatesAutoresizingMaskIntoConstraints = false
+        searchContainer.addSearchField(searchField)
         NSLayoutConstraint.activate([
-            searchField.widthAnchor.constraint(equalToConstant: 220),
-            searchField.heightAnchor.constraint(equalToConstant: 28),
+            searchContainer.widthAnchor.constraint(equalToConstant: 220),
+            searchContainer.heightAnchor.constraint(equalToConstant: 28),
         ])
     }
 
@@ -394,19 +433,92 @@ private final class DockerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchFi
         case .dockerSearch:
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
             item.label = tr("Search")
-            item.view = searchField
+            item.view = searchContainer
             return item
         default:
             return nil
         }
     }
 
+    func controlTextDidBeginEditing(_ obj: Notification) {
+        searchContainer.isFocused = true
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        searchContainer.isFocused = false
+    }
+
     func controlTextDidChange(_ obj: Notification) {
+        LogManager.debug(.docker, "toolbar search changed query=\(searchField.stringValue.isEmpty ? "-" : searchField.stringValue)")
         onSearchChanged?(searchField.stringValue)
     }
 
     @objc private func handleRefresh() {
         onRefresh?()
+    }
+}
+
+@MainActor
+private final class DockerToolbarSearchContainer: NSView {
+    var isFocused = false {
+        didSet { focusRingView.isFocused = isFocused }
+    }
+
+    private let focusRingView = DockerToolbarSearchFocusRingView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        translatesAutoresizingMaskIntoConstraints = false
+        wantsLayer = true
+        layer?.masksToBounds = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func addSearchField(_ searchField: NSSearchField) {
+        addSubview(searchField)
+        addSubview(focusRingView)
+        focusRingView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            searchField.leadingAnchor.constraint(equalTo: leadingAnchor),
+            searchField.trailingAnchor.constraint(equalTo: trailingAnchor),
+            searchField.topAnchor.constraint(equalTo: topAnchor),
+            searchField.bottomAnchor.constraint(equalTo: bottomAnchor),
+            focusRingView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            focusRingView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            focusRingView.topAnchor.constraint(equalTo: topAnchor),
+            focusRingView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+}
+
+@MainActor
+private final class DockerToolbarSearchFocusRingView: NSView {
+    var isFocused = false {
+        didSet {
+            layer?.borderColor = isFocused ? NSColor.controlAccentColor.withAlphaComponent(0.65).cgColor : NSColor.clear.cgColor
+        }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 7
+        layer?.borderWidth = 1
+        layer?.borderColor = NSColor.clear.cgColor
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }
 

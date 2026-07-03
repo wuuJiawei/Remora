@@ -47,6 +47,10 @@ final class DockerPanelViewModel: ObservableObject {
     func updateRuntimeBinding(_ binding: DockerRuntimeBinding) {
         let previous = self.runtimeBinding
         self.runtimeBinding = binding
+        LogManager.info(
+            .docker,
+            "updateRuntimeBinding runtimeChanged=\(previous.runtimeID != binding.runtimeID) mode=\(binding.connectionMode?.rawValue ?? "-") state=\(binding.connectionState) host=\(binding.host?.address ?? "-") executionMode=\(binding.executionMode)"
+        )
 
         if previous.runtimeID == binding.runtimeID,
            previous.connectionState == binding.connectionState,
@@ -57,6 +61,7 @@ final class DockerPanelViewModel: ObservableObject {
         }
 
         if binding.connectionMode != .ssh || binding.host == nil || binding.connectionState.hasPrefix("Connected") == false {
+            LogManager.info(.docker, "updateRuntimeBinding disconnectedOrUnavailable clearing docker state")
             target = nil
             environment = .disconnected
             containers = []
@@ -84,10 +89,7 @@ final class DockerPanelViewModel: ObservableObject {
         case .directHost:
             client = SystemSFTPClient(host: host)
         case .requireExistingSSHConnection:
-            client = SystemSFTPClient(
-                host: host,
-                connectionReuseMode: .requireExistingConnection
-            )
+            client = SystemSFTPClient(host: host)
         }
         target = .init(host: host, client: client)
         refresh()
@@ -96,6 +98,7 @@ final class DockerPanelViewModel: ObservableObject {
     func refresh() {
         refreshTask?.cancel()
         guard let target else {
+            LogManager.info(.docker, "refresh skipped target=nil")
             environment = .disconnected
             containers = []
             volumes = []
@@ -109,6 +112,7 @@ final class DockerPanelViewModel: ObservableObject {
 
         refreshTask = Task { [weak self] in
             guard let self else { return }
+            LogManager.info(.docker, "refresh start host=\(target.host.address)")
             await self.reloadAll(target: target)
         }
     }
@@ -355,6 +359,7 @@ final class DockerPanelViewModel: ObservableObject {
     }
 
     private func reloadAll(target: DockerCommandService.ShellTarget) async {
+        LogManager.info(.docker, "reloadAll start host=\(target.host.address)")
         isLoadingEnvironment = true
         isLoadingContainers = true
         isLoadingVolumes = true
@@ -368,6 +373,7 @@ final class DockerPanelViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             self.environment = environment
         } catch {
+            LogManager.error(.docker, "checkEnvironment failed error=\(error.localizedDescription)")
             self.environment = DockerEnvironmentStatus(
                 dockerAvailable: false,
                 composeAvailable: false,
@@ -382,36 +388,47 @@ final class DockerPanelViewModel: ObservableObject {
         if environment.dockerAvailable {
             do {
                 containers = try await service.listContainers(target: target)
+                LogManager.info(.docker, "reloadAll containers loaded count=\(containers.count) names=\(containers.prefix(5).map(\.name).joined(separator: ","))")
             } catch {
                 containers = []
+                LogManager.error(.docker, "reloadAll containers failed error=\(error.localizedDescription)")
                 showToast(error.localizedDescription)
             }
             do {
                 volumes = try await service.listVolumes(target: target)
+                LogManager.info(.docker, "reloadAll volumes loaded count=\(volumes.count)")
             } catch {
                 volumes = []
+                LogManager.error(.docker, "reloadAll volumes failed error=\(error.localizedDescription)")
                 showToast(error.localizedDescription)
             }
             do {
                 images = try await service.listImages(target: target)
+                LogManager.info(.docker, "reloadAll images loaded count=\(images.count)")
             } catch {
                 images = []
+                LogManager.error(.docker, "reloadAll images failed error=\(error.localizedDescription)")
                 showToast(error.localizedDescription)
             }
             do {
                 networks = try await service.listNetworks(target: target)
+                LogManager.info(.docker, "reloadAll networks loaded count=\(networks.count)")
             } catch {
                 networks = []
+                LogManager.error(.docker, "reloadAll networks failed error=\(error.localizedDescription)")
                 showToast(error.localizedDescription)
             }
             do {
                 let stats = try await service.containerStats(target: target)
                 activitySnapshot = DockerActivitySnapshot(stats: stats, fetchedAt: Date())
+                LogManager.info(.docker, "reloadAll stats loaded count=\(stats.count)")
             } catch {
                 activitySnapshot = .empty
+                LogManager.error(.docker, "reloadAll stats failed error=\(error.localizedDescription)")
                 showToast(error.localizedDescription)
             }
         } else {
+            LogManager.info(.docker, "reloadAll docker unavailable clearing resources issue=\(environment.dockerIssue?.userMessage ?? "-")")
             containers = []
             volumes = []
             images = []
@@ -427,14 +444,18 @@ final class DockerPanelViewModel: ObservableObject {
         if environment.composeAvailable {
             do {
                 composeProjects = try await service.listComposeProjects(target: target)
+                LogManager.info(.docker, "reloadAll compose loaded count=\(composeProjects.count)")
             } catch {
                 composeProjects = []
+                LogManager.error(.docker, "reloadAll compose failed error=\(error.localizedDescription)")
                 showToast(error.localizedDescription)
             }
         } else {
             composeProjects = []
+            LogManager.info(.docker, "reloadAll compose unavailable")
         }
         isLoadingCompose = false
+        LogManager.info(.docker, "reloadAll finished containers=\(containers.count) compose=\(composeProjects.count)")
     }
 
     private func normalizedFilter(_ value: String) -> String {

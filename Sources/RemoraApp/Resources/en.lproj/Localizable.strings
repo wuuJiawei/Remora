@@ -458,6 +458,8 @@
 "Choose a source from the list, then import a file in that format." = "Choose a source from the list, then import a file in that format.";
 "Supported Now" = "Supported Now";
 "Coming Soon" = "Coming Soon";
+"Stay Tuned" = "Stay Tuned";
+"Kubernetes features are in development" = "Kubernetes features are in development";
 "Ready to import" = "Ready to import";
 "Choose File" = "Choose File";
 "Supported Formats" = "Supported Formats";

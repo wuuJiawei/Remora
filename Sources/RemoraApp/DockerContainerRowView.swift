@@ -18,6 +18,13 @@ final class DockerContainerRowView: NSTableCellView {
     private let primaryButton = DockerIconButton(symbolName: "stop.fill")
     private let deleteButton = DockerIconButton(symbolName: "trash")
     private var leadingConstraint: NSLayoutConstraint?
+    private var isRunning = false
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            updateColors()
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -30,21 +37,17 @@ final class DockerContainerRowView: NSTableCellView {
     }
 
     func configure(container: DockerContainer, isChild: Bool) {
-        let isRunning = container.isRunning
+        isRunning = container.isRunning
         titleField.stringValue = container.name
         subtitleField.stringValue = container.image
         iconView.image = NSImage(systemSymbolName: "cube.box.fill", accessibilityDescription: container.name)
-        iconView.contentTintColor = isRunning ? .systemTeal : .tertiaryLabelColor
         statusDot.layer?.backgroundColor = (isRunning ? NSColor.systemGreen : NSColor.clear).cgColor
         statusDot.layer?.borderColor = NSColor.windowBackgroundColor.cgColor
-        titleField.textColor = isRunning ? .labelColor : .tertiaryLabelColor
-        subtitleField.textColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
         linkButton.isHidden = !isRunning
         primaryButton.symbolName = isRunning ? "stop.fill" : "play.fill"
-        primaryButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
-        deleteButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
         leadingConstraint?.constant = DockerListMetrics.contentHorizontalPadding
             + (isChild ? DockerListMetrics.containerIndent : 0)
+        updateColors()
     }
 
     private func setup() {
@@ -148,5 +151,24 @@ final class DockerContainerRowView: NSTableCellView {
 
     @objc private func handleDelete() {
         onDelete?()
+    }
+
+    private func updateColors() {
+        let isSelected = backgroundStyle == .emphasized
+        if isSelected {
+            iconView.contentTintColor = .white
+            titleField.textColor = .white
+            subtitleField.textColor = NSColor.white.withAlphaComponent(0.78)
+            primaryButton.contentTintColor = .white
+            deleteButton.contentTintColor = .white
+            linkButton.contentTintColor = .white
+        } else {
+            iconView.contentTintColor = isRunning ? .systemTeal : .tertiaryLabelColor
+            titleField.textColor = isRunning ? .labelColor : .tertiaryLabelColor
+            subtitleField.textColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
+            primaryButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
+            deleteButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
+            linkButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
+        }
     }
 }

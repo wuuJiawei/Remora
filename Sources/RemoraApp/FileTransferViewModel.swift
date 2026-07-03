@@ -371,9 +371,10 @@ final class FileTransferViewModel: ObservableObject {
 
         sftpClient = client
         activeRemoteBindingKey = normalizedBindingKey
-        currentRemoteConnectionID = normalizedBindingKey
+        currentRemoteConnectionID = normalizedBindingKey == "__default"
+            ? "\(normalizedBindingKey)#\(bindingGeneration)"
+            : normalizedBindingKey
         clearRemoteSearch()
-        remoteClipboard = nil
         cancelTrackedTransfers(clearQueue: true)
         currentTransferBatchID = nil
         nextTransferBatchSeed = 0

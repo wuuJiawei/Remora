@@ -398,7 +398,7 @@ private final class DockerContainerListRowView: NSTableRowView {
             xRadius: DockerListMetrics.rowCornerRadius,
             yRadius: DockerListMetrics.rowCornerRadius
         )
-        NSColor.controlAccentColor.withAlphaComponent(0.18).setFill()
+        NSColor.controlAccentColor.setFill()
         path.fill()
     }
 }

@@ -9,6 +9,7 @@ enum LogLevel: String {
 
 enum LogCategory: String {
     case app = "APP"
+    case docker = "Docker"
     case fileManager = "FileManager"
     case editor = "Editor"
     case ssh = "SSH"

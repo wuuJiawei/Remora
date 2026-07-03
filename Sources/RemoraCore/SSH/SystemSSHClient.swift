@@ -55,6 +55,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     private var hasSubmittedInteractivePassword = false
     private var authPromptProbeTail = ""
     private var interactivePasswordAutofillDeadline: Date?
+    private var hasRetriedWithoutConnectionReuse = false
 
     public init(host: Host, pty: PTYSize) {
         self.host = host
@@ -97,10 +98,13 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
     private func startProcess(using compatibilityProfile: SSHCompatibilityProfile) async throws {
         compatibilityPersistenceTask?.cancel()
+        let shouldDisableConnectionReuse = stateQueue.sync { hasRetriedWithoutConnectionReuse }
 
         let proc = Process()
         let launchPlan = await makeLaunchPlan(compatibilityProfile: compatibilityProfile)
-        let launch = launchPlan.configuration
+        let launch = shouldDisableConnectionReuse
+            ? Self.launchConfigurationWithoutConnectionReuse(launchPlan.configuration)
+            : launchPlan.configuration
         proc.executableURL = URL(fileURLWithPath: launch.executablePath)
         proc.arguments = launch.arguments
         if !launch.environment.isEmpty {
@@ -354,6 +358,25 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
         let elapsed = Date().timeIntervalSince(attemptStartedAt)
         if elapsed <= compatibilityRetryWindow,
+           !stateQueue.sync(execute: { hasRetriedWithoutConnectionReuse }),
+           Self.isControlMasterFailure(output)
+        {
+            SSHConnectionReuse.removeControlPath(for: host, purpose: .shell)
+            stateQueue.sync {
+                hasRetriedWithoutConnectionReuse = true
+            }
+            do {
+                try await startProcess(using: compatibilityProfile)
+                return
+            } catch {
+                let message = error.localizedDescription
+                onOutput?(Data((message + "\r\n").utf8))
+                onStateChange?(.failed(message))
+                return
+            }
+        }
+
+        if elapsed <= compatibilityRetryWindow,
            let nextProfile = SSHCompatibilityPlanner.nextProfile(
                 afterFailureOutput: output,
                 currentProfile: compatibilityProfile,
@@ -429,6 +452,16 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         }
 
         return false
+    }
+
+    static func isControlMasterFailure(_ output: String) -> Bool {
+        let lower = output.lowercased()
+        return lower.contains("mux_client_request_session")
+            || lower.contains("session open refused")
+            || lower.contains("control socket")
+            || lower.contains("mux_client")
+            || lower.contains("muxserver")
+            || lower.contains("broken pipe")
     }
 
     private func scheduleCompatibilityProfilePersistence(
@@ -525,7 +558,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
     static func makeSSHArguments(
         for host: Host,
-        useConnectionReuse: Bool = true,
+        useConnectionReuse: Bool = false,
         allocateTTY: Bool = true,
         remoteCommand: String? = nil,
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile()
@@ -601,6 +634,40 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             environment: environment,
             wrapInScript: wrapInScript
         )
+    }
+
+    private static func launchConfigurationWithoutConnectionReuse(
+        _ configuration: OpenSSHLaunchConfiguration
+    ) -> OpenSSHLaunchConfiguration {
+        var arguments: [String] = []
+        var index = 0
+        while index < configuration.arguments.count {
+            let argument = configuration.arguments[index]
+            if argument == "-o",
+               configuration.arguments.indices.contains(index + 1)
+            {
+                let option = configuration.arguments[index + 1]
+                if !Self.isConnectionReuseOption(option) {
+                    arguments.append(argument)
+                    arguments.append(option)
+                }
+                index += 2
+                continue
+            }
+            arguments.append(argument)
+            index += 1
+        }
+        return OpenSSHLaunchConfiguration(
+            executablePath: configuration.executablePath,
+            arguments: arguments,
+            environment: configuration.environment
+        )
+    }
+
+    private static func isConnectionReuseOption(_ argument: String) -> Bool {
+        argument.hasPrefix("ControlMaster=")
+            || argument.hasPrefix("ControlPath=")
+            || argument.hasPrefix("ControlPersist=")
     }
 
     private static func mergedTerminalEnvironment(_ base: [String: String]) -> [String: String] {

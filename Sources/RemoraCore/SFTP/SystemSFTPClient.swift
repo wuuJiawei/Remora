@@ -467,8 +467,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         }
         if useConnectionReuse {
             args.append(contentsOf: requireExistingConnection
-                ? SSHConnectionReuse.reuseOnlyOptions(for: host)
-                : SSHConnectionReuse.masterOptions(for: host))
+                ? SSHConnectionReuse.reuseOnlyOptions(for: host, purpose: .sftp)
+                : SSHConnectionReuse.masterOptions(for: host, purpose: .sftp))
         }
         args.append(contentsOf: compatibilityProfile.additionalSSHOptions())
 
@@ -494,6 +494,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         batchMode: Bool = true,
         useConnectionReuse: Bool = true,
         requireExistingConnection: Bool = false,
+        connectionReusePurpose: SSHConnectionReuse.Purpose = .remoteCommand,
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile()
     ) -> [String] {
         var args: [String] = [
@@ -508,8 +509,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         }
         if useConnectionReuse {
             args.append(contentsOf: requireExistingConnection
-                ? SSHConnectionReuse.reuseOnlyOptions(for: host)
-                : SSHConnectionReuse.masterOptions(for: host))
+                ? SSHConnectionReuse.reuseOnlyOptions(for: host, purpose: connectionReusePurpose)
+                : SSHConnectionReuse.masterOptions(for: host, purpose: connectionReusePurpose))
         }
         args.append(contentsOf: compatibilityProfile.additionalSSHOptions())
 
@@ -1127,14 +1128,10 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         guard primary.usesConnectionReuse, shouldRetryWithoutConnectionReuse(result: result) else {
             return result
         }
-        guard connectionReuseMode != .requireExistingConnection else {
-            return result
-        }
+        SSHConnectionReuse.removeControlPath(for: host, purpose: .sftp)
 
-        let retry = makeSFTPLaunchConfiguration(
+        let retry = await makeSFTPLaunchConfigurationWithoutConnectionReuse(
             batchMode: true,
-            useConnectionReuse: false,
-            requireExistingConnection: false,
             compatibilityProfile: compatibilityProfile
         )
         result = try await runProcess(
@@ -1185,15 +1182,11 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         guard primary.usesConnectionReuse, shouldRetryWithoutConnectionReuse(result: result) else {
             return result
         }
-        guard connectionReuseMode != .requireExistingConnection else {
-            return result
-        }
+        SSHConnectionReuse.removeControlPath(for: host, purpose: .remoteCommand)
 
-        let retry = makeSSHLaunchConfiguration(
+        let retry = await makeSSHLaunchConfigurationWithoutConnectionReuse(
             command: command,
             batchMode: true,
-            useConnectionReuse: false,
-            requireExistingConnection: false,
             compatibilityProfile: compatibilityProfile
         )
         result = try await runProcess(
@@ -1899,6 +1892,33 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         )
     }
 
+    private func makeSFTPLaunchConfigurationWithoutConnectionReuse(
+        batchMode: Bool,
+        compatibilityProfile: SSHCompatibilityProfile
+    ) async -> BatchLaunchConfiguration {
+        if host.auth.method == .password,
+           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
+               baseExecutable: "/usr/bin/sftp",
+               baseArguments: Self.makeSFTPArguments(
+                   for: host,
+                   batchMode: false,
+                   useConnectionReuse: false,
+                   compatibilityProfile: compatibilityProfile
+               ),
+               usesConnectionReuse: false
+           )
+        {
+            return passwordLaunch
+        }
+
+        return makeSFTPLaunchConfiguration(
+            batchMode: batchMode,
+            useConnectionReuse: false,
+            requireExistingConnection: false,
+            compatibilityProfile: compatibilityProfile
+        )
+    }
+
     private func makeSSHLaunchConfiguration(
         command: String,
         batchMode: Bool,
@@ -1917,6 +1937,35 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             ) + [command],
             environment: [:],
             usesConnectionReuse: useConnectionReuse
+        )
+    }
+
+    private func makeSSHLaunchConfigurationWithoutConnectionReuse(
+        command: String,
+        batchMode: Bool,
+        compatibilityProfile: SSHCompatibilityProfile
+    ) async -> BatchLaunchConfiguration {
+        if host.auth.method == .password,
+           let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
+               baseExecutable: "/usr/bin/ssh",
+               baseArguments: Self.makeSSHArguments(
+                   for: host,
+                   batchMode: false,
+                   useConnectionReuse: false,
+                   compatibilityProfile: compatibilityProfile
+               ) + [command],
+               usesConnectionReuse: false
+           )
+        {
+            return passwordLaunch
+        }
+
+        return makeSSHLaunchConfiguration(
+            command: command,
+            batchMode: batchMode,
+            useConnectionReuse: false,
+            requireExistingConnection: false,
+            compatibilityProfile: compatibilityProfile
         )
     }
 

@@ -449,6 +449,8 @@
 "Choose a source from the list, then import a file in that format." = "先从列表中选择来源，再导入对应格式的文件。";
 "Supported Now" = "当前已支持";
 "Coming Soon" = "即将支持";
+"Stay Tuned" = "敬请期待";
+"Kubernetes features are in development" = "Kubernetes 功能正在开发中";
 "Ready to import" = "可立即导入";
 "Choose File" = "选择文件";
 "Supported Formats" = "支持格式";

@@ -53,6 +53,10 @@ final class DockerContainerListView: NSViewController {
             containers: containers,
             composeProjects: composeProjects
         )
+        LogManager.debug(
+            .docker,
+            "containerTree built inputContainers=\(containers.count) inputCompose=\(composeProjects.count) rootNodes=\(nodes.count) isLoading=\(isLoading)"
+        )
         outlineController.reload(
             nodes: nodes,
             isLoading: isLoading,

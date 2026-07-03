@@ -982,7 +982,8 @@ struct FileTransferViewModelTests {
 
         #expect(vm.remoteEntries.contains(where: { $0.path == "/next.txt" }))
         #expect(!vm.remoteEntries.contains(where: { $0.path == "/README.txt" }))
-        #expect(vm.remoteClipboard == nil)
+        #expect(vm.remoteClipboard != nil)
+        #expect(await vm.pasteRemoteEntriesResult(into: "/") == .blockedCrossConnection)
         #expect(vm.transferQueue.isEmpty)
     }
 

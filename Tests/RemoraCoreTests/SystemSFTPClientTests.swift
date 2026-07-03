@@ -180,7 +180,30 @@ struct SystemSFTPClientTests {
     func detectsTransientConnectionFailureMessages() {
         #expect(SystemSFTPClient.isTransientConnectionFailureMessage("Connection failed: Connection closed"))
         #expect(SystemSFTPClient.isTransientConnectionFailureMessage("mux_client_request_session: read from master failed: Broken pipe"))
+        #expect(SystemSFTPClient.isTransientConnectionFailureMessage("mux_client_request_session: session request failed: Session open refused by peer"))
         #expect(SystemSFTPClient.isTransientConnectionFailureMessage("control socket connect(/tmp/ctl): Connection refused"))
+    }
+
+    @Test
+    func sftpAndRemoteCommandUseDifferentControlPaths() {
+        let host = Host(
+            name: "prod",
+            address: "10.0.0.2",
+            port: 2202,
+            username: "deploy",
+            auth: HostAuth(method: .agent)
+        )
+
+        let sftpArgs = SystemSFTPClient.makeSFTPArguments(for: host)
+        let sshArgs = SystemSFTPClient.makeSSHArguments(for: host)
+        let sftpControlPath = sftpArgs.first(where: { $0.hasPrefix("ControlPath=") })
+        let sshControlPath = sshArgs.first(where: { $0.hasPrefix("ControlPath=") })
+
+        #expect(sftpControlPath != nil)
+        #expect(sshControlPath != nil)
+        #expect(sftpControlPath != sshControlPath)
+        #expect(sftpControlPath?.contains("-sftp-") == true)
+        #expect(sshControlPath?.contains("-remote-command-") == true)
     }
 
     @Test

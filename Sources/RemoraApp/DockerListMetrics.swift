@@ -25,5 +25,6 @@ enum DockerListMetrics {
     static let scrollerRightInset: CGFloat = 4
 
     static let rowCornerRadius: CGFloat = 6
-    static let minContainerListWidth: CGFloat = 520
+    static let minContainerListWidth: CGFloat = 480
+    static let minDetailWidth: CGFloat = 280
 }

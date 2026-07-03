@@ -18,6 +18,15 @@ enum DockerPanelSelection: String, CaseIterable, Identifiable, Sendable {
     case commands = "commands"
 
     var id: String { rawValue }
+
+    var isKubernetesPendingFeature: Bool {
+        switch self {
+        case .kubernetesPods, .kubernetesServices:
+            return true
+        case .containers, .volumes, .images, .networks, .machines, .activityMonitor, .commands:
+            return false
+        }
+    }
 }
 
 enum DockerResourceKind: Sendable {
