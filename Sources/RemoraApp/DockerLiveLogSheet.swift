@@ -133,10 +133,12 @@ struct DockerLiveLogSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: DockerLiveLogViewModel
     @State private var lineCountDraft: String
+    private let onClose: (() -> Void)?
 
-    init(session: DockerLiveLogSession) {
+    init(session: DockerLiveLogSession, onClose: (() -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: DockerLiveLogViewModel(session: session))
         _lineCountDraft = State(initialValue: "\(session.lineCount)")
+        self.onClose = onClose
     }
 
     var body: some View {
@@ -234,9 +236,10 @@ struct DockerLiveLogSheet: View {
             HStack {
                 Spacer()
                 Button(tr("Close")) {
-                    dismiss()
+                    close()
                 }
                 .buttonStyle(.bordered)
+                .keyboardShortcut(.cancelAction)
             }
         }
         .padding(16)
@@ -255,5 +258,13 @@ struct DockerLiveLogSheet: View {
         let clamped = min(max(parsed, 1), FileTransferViewModel.maxRemoteLogTailLineCount)
         lineCountDraft = "\(clamped)"
         Task { await viewModel.applyLineCount(clamped) }
+    }
+
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
     }
 }

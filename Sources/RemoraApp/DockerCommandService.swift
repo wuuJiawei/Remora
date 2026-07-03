@@ -252,6 +252,7 @@ actor DockerCommandService {
     }
 
     func checkEnvironment(target: ShellTarget) async throws -> DockerEnvironmentStatus {
+        LogManager.info(.docker, "checkEnvironment start host=\(target.host.address) user=\(target.host.username)")
         let dockerVersionResult = await runCommand(
             "docker version --format '{{json .}}'",
             on: target,
@@ -323,7 +324,7 @@ actor DockerCommandService {
             composeIssue = .composeUnavailable
         }
 
-        return DockerEnvironmentStatus(
+        let status = DockerEnvironmentStatus(
             dockerAvailable: dockerAvailable,
             composeAvailable: composeAvailable,
             dockerVersion: dockerVersion,
@@ -331,12 +332,26 @@ actor DockerCommandService {
             dockerIssue: dockerIssue,
             composeIssue: composeIssue
         )
+        LogManager.info(
+            .docker,
+            "checkEnvironment result dockerAvailable=\(status.dockerAvailable) dockerVersion=\(status.dockerVersion ?? "-") dockerIssue=\(status.dockerIssue?.userMessage ?? "-") composeAvailable=\(status.composeAvailable) composeVersion=\(status.composeVersion ?? "-") composeIssue=\(status.composeIssue?.userMessage ?? "-")"
+        )
+        return status
     }
 
     func listContainers(target: ShellTarget) async throws -> [DockerContainer] {
         let command = "docker ps -a --format '{{json .}}'"
+        LogManager.info(.docker, "listContainers command start host=\(target.host.address)")
         let output = try await target.client.executeRemoteShellCommand(command, timeout: 12)
-        return parseContainers(output)
+        let containers = parseContainers(output)
+        let lineCount = output.split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .count
+        LogManager.info(
+            .docker,
+            "listContainers command finished bytes=\(output.utf8.count) lines=\(lineCount) parsed=\(containers.count) sample=\(Self.logSample(output))"
+        )
+        return containers
     }
 
     func inspectContainer(id: String, target: ShellTarget) async throws -> DockerContainerDetails {
@@ -749,6 +764,20 @@ actor DockerCommandService {
             networks: networks,
             labels: labels
         )
+    }
+
+    private static func logSample(_ output: String) -> String {
+        let sample = output
+            .split(separator: "\n")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        guard !sample.isEmpty else { return "-" }
+        let limit = 240
+        if sample.count <= limit {
+            return sample
+        }
+        return "\(sample.prefix(limit))..."
     }
 
     private func parseInspectPorts(_ ports: [String: [InspectPortBinding]?]?) -> [String] {

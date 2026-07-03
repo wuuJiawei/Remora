@@ -71,7 +71,6 @@ struct DockerPanelView: View {
 
                 sidebarSection(title: tr("General")) {
                     sidebarButton(.activityMonitor, title: tr("Activity Monitor"), systemImage: "chart.xyaxis.line")
-                    sidebarButton(.commands, title: tr("Commands"), systemImage: "terminal")
                 }
 
                 Spacer(minLength: 0)
@@ -328,9 +327,9 @@ struct DockerPanelView: View {
         VStack {
             Spacer()
             ContentUnavailableView(
-                currentTitle,
+                viewModel.selectedTab.isKubernetesPendingFeature ? tr("Stay Tuned") : currentTitle,
                 systemImage: currentSystemImage,
-                description: Text(tr("This section is not available yet."))
+                description: Text(viewModel.selectedTab.isKubernetesPendingFeature ? tr("Kubernetes features are in development") : tr("This section is not available yet."))
             )
             Spacer()
         }
@@ -1263,7 +1262,9 @@ struct DockerPanelView: View {
             return String(format: tr("%d total"), viewModel.images.count)
         case .networks:
             return String(format: tr("%d total"), viewModel.networks.count)
-        case .kubernetesPods, .kubernetesServices, .machines, .commands:
+        case .kubernetesPods, .kubernetesServices:
+            return tr("Kubernetes features are in development")
+        case .machines, .commands:
             return tr("Unavailable")
         case .activityMonitor:
             return String(format: tr("%d running"), viewModel.containers.filter(\.isRunning).count)

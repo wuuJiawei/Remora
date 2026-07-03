@@ -46,9 +46,9 @@ final class DockerWindowSplitController: NSSplitViewController {
         tableItem.minimumThickness = DockerListMetrics.minContainerListWidth
 
         let detailItem = NSSplitViewItem(viewController: detailController)
-        detailItem.minimumThickness = 300
+        detailItem.minimumThickness = DockerListMetrics.minDetailWidth
         detailItem.maximumThickness = 420
-        detailItem.canCollapse = true
+        detailItem.canCollapse = false
 
         addSplitViewItem(sidebarItem)
         addSplitViewItem(tableItem)
@@ -135,7 +135,7 @@ private final class DockerOutlineSidebarController: NSViewController, NSOutlineV
             case .kubernetes:
                 return [.kubernetesPods, .kubernetesServices]
             case .general:
-                return [.activityMonitor, .commands]
+                return [.activityMonitor]
             }
         }
     }
@@ -338,6 +338,7 @@ private final class DockerResourceListContainerController: NSViewController {
     private let viewModel: DockerPanelViewModel
     private let containerListController: DockerContainerListView
     private let resourceTableController: DockerResourceTableController
+    private let kubernetesComingSoonController = DockerComingSoonController()
     private var activeController: NSViewController?
 
     init(
@@ -367,15 +368,27 @@ private final class DockerResourceListContainerController: NSViewController {
 
     func reload() {
         guard isViewLoaded else { return }
-        let target = viewModel.selectedTab == .containers ? containerListController : resourceTableController
+        let target: NSViewController = {
+            if viewModel.selectedTab.isKubernetesPendingFeature {
+                return kubernetesComingSoonController
+            }
+            if viewModel.selectedTab == .containers {
+                return containerListController
+            }
+            return resourceTableController
+        }()
         show(target)
         if viewModel.selectedTab == .containers {
+            LogManager.debug(
+                .docker,
+                "containerList reload rawContainers=\(viewModel.containers.count) filteredContainers=\(viewModel.filteredContainers.count) rawCompose=\(viewModel.composeProjects.count) filteredCompose=\(viewModel.filteredComposeProjects.count) containerFilter=\(Self.logFilter(viewModel.containerFilterText)) composeFilter=\(Self.logFilter(viewModel.composeFilterText)) isLoadingContainers=\(viewModel.isLoadingContainers) isLoadingCompose=\(viewModel.isLoadingCompose)"
+            )
             containerListController.reload(
                 containers: viewModel.filteredContainers,
                 composeProjects: viewModel.filteredComposeProjects,
                 isLoading: viewModel.isLoadingContainers || viewModel.isLoadingCompose
             )
-        } else {
+        } else if !viewModel.selectedTab.isKubernetesPendingFeature {
             resourceTableController.reload()
         }
     }
@@ -397,6 +410,11 @@ private final class DockerResourceListContainerController: NSViewController {
         ])
         activeController = controller
         onSelectionChanged?(nil)
+    }
+
+    private static func logFilter(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "-" : trimmed
     }
 }
 
@@ -925,6 +943,7 @@ private final class DockerResourceDetailController: NSViewController {
 
     private let viewModel: DockerPanelViewModel
     private let scrollView = NSScrollView()
+    private let detailDocumentView = DockerDetailDocumentView()
     private let stackView = NSStackView()
 
     init(viewModel: DockerPanelViewModel) {
@@ -942,13 +961,15 @@ private final class DockerResourceDetailController: NSViewController {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
-        scrollView.documentView = stackView
+        scrollView.documentView = detailDocumentView
 
         stackView.orientation = .vertical
         stackView.alignment = .leading
         stackView.spacing = 14
         stackView.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
         stackView.translatesAutoresizingMaskIntoConstraints = false
+        detailDocumentView.translatesAutoresizingMaskIntoConstraints = false
+        detailDocumentView.addSubview(stackView)
 
         container.addSubview(scrollView)
         NSLayoutConstraint.activate([
@@ -956,7 +977,12 @@ private final class DockerResourceDetailController: NSViewController {
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: container.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            stackView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+
+            detailDocumentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+            stackView.leadingAnchor.constraint(equalTo: detailDocumentView.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: detailDocumentView.trailingAnchor),
+            stackView.topAnchor.constraint(equalTo: detailDocumentView.topAnchor),
+            stackView.bottomAnchor.constraint(equalTo: detailDocumentView.bottomAnchor),
         ])
         view = container
     }
@@ -966,6 +992,11 @@ private final class DockerResourceDetailController: NSViewController {
         stackView.arrangedSubviews.forEach {
             stackView.removeArrangedSubview($0)
             $0.removeFromSuperview()
+        }
+
+        if viewModel.selectedTab.isKubernetesPendingFeature {
+            addComingSoon()
+            return
         }
 
         guard let selection else {
@@ -978,71 +1009,76 @@ private final class DockerResourceDetailController: NSViewController {
             if viewModel.details(for: container.id) == nil {
                 viewModel.ensureContainerDetails(container)
             }
-            addHeader(title: container.name, subtitle: container.image, systemImage: "cube.box.fill")
+            addHeader(title: container.name, subtitle: container.image, systemImage: "cube.box.fill", copyValue: container.name)
             addSection(tr("Info"), rows: [
-                (tr("Status"), container.status),
-                (tr("ID"), container.id),
-                (tr("Image"), container.image),
-                (tr("Ports"), container.ports ?? dash),
-                (tr("Compose"), container.composeProject ?? dash),
+                DockerDetailRow(tr("Status"), container.status),
+                DockerDetailRow(tr("ID"), container.id, copyValue: container.id),
+                DockerDetailRow(tr("Image"), container.image, copyValue: container.image),
+                DockerDetailRow(tr("Ports"), container.ports ?? dash, copyValue: container.ports),
+                DockerDetailRow(tr("Compose"), container.composeProject ?? dash, copyValue: container.composeProject),
             ])
             if let details = viewModel.details(for: container.id) {
                 addSection(tr("Details"), rows: [
-                    (tr("Command"), details.command ?? dash),
-                    (tr("Working Dir"), details.workingDir ?? dash),
-                    (tr("Entrypoint"), details.entrypoint ?? dash),
-                    (tr("Restart Count"), details.restartCount.map(String.init) ?? dash),
-                    (tr("Mounts"), details.mounts.isEmpty ? dash : details.mounts.joined(separator: "\n")),
-                    (tr("Networks"), details.networks.isEmpty ? dash : details.networks.joined(separator: "\n")),
+                    DockerDetailRow(tr("Command"), details.command ?? dash, copyValue: details.command),
+                    DockerDetailRow(tr("Working Dir"), details.workingDir ?? dash),
+                    DockerDetailRow(tr("Entrypoint"), details.entrypoint ?? dash),
+                    DockerDetailRow(tr("Restart Count"), details.restartCount.map(String.init) ?? dash),
+                    DockerDetailRow(tr("Mounts"), details.mounts.isEmpty ? dash : details.mounts.joined(separator: "\n")),
+                    DockerDetailRow(tr("Networks"), details.networks.isEmpty ? dash : details.networks.joined(separator: "\n")),
                 ])
             } else {
                 addMutedText(tr("Loading container details..."))
             }
         case .compose(let project):
             let containers = viewModel.containers.filter { $0.composeProject == project.name }
-            addHeader(title: project.name, subtitle: String(format: tr("%d containers"), containers.count), systemImage: "square.stack.3d.up.fill")
+            addHeader(
+                title: project.name,
+                subtitle: String(format: tr("%d containers"), containers.count),
+                systemImage: "square.stack.3d.up.fill",
+                copyValue: project.name
+            )
             addSection(tr("Info"), rows: [
-                (tr("Status"), project.status ?? dash),
-                (tr("Services"), project.serviceCount.map(String.init) ?? "\(containers.count)"),
-                (tr("Working Dir"), project.workingDir ?? dash),
-                (tr("Compose Files"), project.configFiles.isEmpty ? dash : project.configFiles.joined(separator: "\n")),
+                DockerDetailRow(tr("Status"), project.status ?? dash),
+                DockerDetailRow(tr("Services"), project.serviceCount.map(String.init) ?? "\(containers.count)"),
+                DockerDetailRow(tr("Working Dir"), project.workingDir ?? dash),
+                DockerDetailRow(tr("Compose Files"), project.configFiles.isEmpty ? dash : project.configFiles.joined(separator: "\n")),
             ])
-            addSection(tr("Containers"), rows: containers.map { ($0.name, $0.stateBadgeLabel) })
+            addSection(tr("Containers"), rows: containers.map { DockerDetailRow($0.name, $0.stateBadgeLabel) })
         case .volume(let volume):
             addHeader(title: volume.name, subtitle: volume.driver ?? dash, systemImage: "externaldrive")
             addSection(tr("Info"), rows: [
-                (tr("Name"), volume.name),
-                (tr("Driver"), volume.driver ?? dash),
-                (tr("Scope"), volume.scope ?? dash),
-                (tr("Mountpoint"), volume.mountpoint ?? dash),
+                DockerDetailRow(tr("Name"), volume.name),
+                DockerDetailRow(tr("Driver"), volume.driver ?? dash),
+                DockerDetailRow(tr("Scope"), volume.scope ?? dash),
+                DockerDetailRow(tr("Mountpoint"), volume.mountpoint ?? dash),
             ])
         case .image(let image):
             addHeader(title: image.displayName, subtitle: image.size ?? dash, systemImage: "cube.transparent.fill")
             addSection(tr("Info"), rows: [
-                (tr("Repository"), image.repository),
-                (tr("Tag"), image.tag),
-                (tr("ID"), image.imageID),
-                (tr("Digest"), image.digest ?? dash),
-                (tr("Created"), image.createdSince ?? image.createdAt ?? dash),
-                (tr("Size"), image.size ?? dash),
+                DockerDetailRow(tr("Repository"), image.repository),
+                DockerDetailRow(tr("Tag"), image.tag),
+                DockerDetailRow(tr("ID"), image.imageID),
+                DockerDetailRow(tr("Digest"), image.digest ?? dash),
+                DockerDetailRow(tr("Created"), image.createdSince ?? image.createdAt ?? dash),
+                DockerDetailRow(tr("Size"), image.size ?? dash),
             ])
         case .network(let network):
             addHeader(title: network.name, subtitle: network.subnet ?? network.driver ?? dash, systemImage: "network")
             addSection(tr("Info"), rows: [
-                (tr("ID"), network.id),
-                (tr("Driver"), network.driver ?? dash),
-                (tr("Scope"), network.scope ?? dash),
-                (tr("Subnet"), network.subnet ?? dash),
-                (tr("Gateway"), network.gateway ?? dash),
+                DockerDetailRow(tr("ID"), network.id),
+                DockerDetailRow(tr("Driver"), network.driver ?? dash),
+                DockerDetailRow(tr("Scope"), network.scope ?? dash),
+                DockerDetailRow(tr("Subnet"), network.subnet ?? dash),
+                DockerDetailRow(tr("Gateway"), network.gateway ?? dash),
             ])
         case .activity(let stat):
             addHeader(title: stat.name, subtitle: String(format: "%.1f%% CPU", stat.cpuPercent), systemImage: "chart.xyaxis.line")
             addSection(tr("Info"), rows: [
-                (tr("CPU %"), String(format: "%.1f", stat.cpuPercent)),
-                (tr("Memory"), stat.memoryUsage),
-                (tr("Network"), stat.networkIO),
-                (tr("Disk"), stat.blockIO),
-                (tr("PIDs"), stat.pids ?? dash),
+                DockerDetailRow(tr("CPU %"), String(format: "%.1f", stat.cpuPercent)),
+                DockerDetailRow(tr("Memory"), stat.memoryUsage),
+                DockerDetailRow(tr("Network"), stat.networkIO),
+                DockerDetailRow(tr("Disk"), stat.blockIO),
+                DockerDetailRow(tr("PIDs"), stat.pids ?? dash),
             ])
         case .placeholder(let title, let subtitle):
             addHeader(title: title, subtitle: subtitle, systemImage: "exclamationmark.triangle")
@@ -1059,7 +1095,21 @@ private final class DockerResourceDetailController: NSViewController {
         label.widthAnchor.constraint(equalTo: stackView.widthAnchor, constant: -36).isActive = true
     }
 
-    private func addHeader(title: String, subtitle: String, systemImage: String) {
+    private func addComingSoon() {
+        let view = DockerComingSoonView(
+            title: tr("Stay Tuned"),
+            subtitle: tr("Kubernetes features are in development"),
+            systemImage: "atom"
+        )
+        view.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(view)
+        NSLayoutConstraint.activate([
+            view.widthAnchor.constraint(equalTo: stackView.widthAnchor, constant: -36),
+            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 220),
+        ])
+    }
+
+    private func addHeader(title: String, subtitle: String, systemImage: String, copyValue: String? = nil) {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
@@ -1081,12 +1131,21 @@ private final class DockerResourceDetailController: NSViewController {
         titleField.textColor = .labelColor
         titleField.lineBreakMode = .byTruncatingTail
 
+        let titleRow = NSStackView()
+        titleRow.orientation = .horizontal
+        titleRow.alignment = .centerY
+        titleRow.spacing = 6
+        titleRow.addArrangedSubview(titleField)
+        if let copyValue, !copyValue.isEmpty, copyValue != dash {
+            titleRow.addArrangedSubview(copyButton(copyValue: copyValue))
+        }
+
         let subtitleField = NSTextField(labelWithString: subtitle.isEmpty ? dash : subtitle)
         subtitleField.font = .systemFont(ofSize: 12)
         subtitleField.textColor = .secondaryLabelColor
         subtitleField.lineBreakMode = .byTruncatingMiddle
 
-        textStack.addArrangedSubview(titleField)
+        textStack.addArrangedSubview(titleRow)
         textStack.addArrangedSubview(subtitleField)
         row.addArrangedSubview(imageView)
         row.addArrangedSubview(textStack)
@@ -1099,7 +1158,7 @@ private final class DockerResourceDetailController: NSViewController {
         ])
     }
 
-    private func addSection(_ title: String, rows: [(String, String)]) {
+    private func addSection(_ title: String, rows: [DockerDetailRow]) {
         let section = NSStackView()
         section.orientation = .vertical
         section.alignment = .leading
@@ -1112,14 +1171,14 @@ private final class DockerResourceDetailController: NSViewController {
         section.addArrangedSubview(titleField)
 
         for row in rows {
-            section.addArrangedSubview(detailRow(title: row.0, value: row.1))
+            section.addArrangedSubview(detailRow(title: row.title, value: row.value, copyValue: row.copyValue))
         }
 
         stackView.addArrangedSubview(section)
         section.widthAnchor.constraint(equalTo: stackView.widthAnchor, constant: -36).isActive = true
     }
 
-    private func detailRow(title: String, value: String) -> NSView {
+    private func detailRow(title: String, value: String, copyValue: String?) -> NSView {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .top
@@ -1135,9 +1194,13 @@ private final class DockerResourceDetailController: NSViewController {
         valueField.textColor = .labelColor
         valueField.allowsEditingTextAttributes = false
         valueField.isSelectable = true
+        valueField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         row.addArrangedSubview(titleField)
         row.addArrangedSubview(valueField)
+        if let copyValue, !copyValue.isEmpty, copyValue != dash {
+            row.addArrangedSubview(copyButton(copyValue: copyValue))
+        }
         titleField.widthAnchor.constraint(equalToConstant: 96).isActive = true
         return row
     }
@@ -1147,6 +1210,61 @@ private final class DockerResourceDetailController: NSViewController {
         label.font = .systemFont(ofSize: 12)
         label.textColor = .secondaryLabelColor
         stackView.addArrangedSubview(label)
+    }
+
+    private func copyButton(copyValue: String) -> NSButton {
+        let button = DockerCopyButton(copyValue: copyValue)
+        button.title = ""
+        button.isBordered = false
+        button.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: tr("Copy"))
+        button.imagePosition = .imageOnly
+        button.contentTintColor = .secondaryLabelColor
+        button.bezelStyle = .regularSquare
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.target = self
+        button.action = #selector(handleCopyButton(_:))
+        NSLayoutConstraint.activate([
+            button.widthAnchor.constraint(equalToConstant: 18),
+            button.heightAnchor.constraint(equalToConstant: 18),
+        ])
+        return button
+    }
+
+    @objc private func handleCopyButton(_ sender: NSButton) {
+        guard let value = (sender as? DockerCopyButton)?.copyValue else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
+        viewModel.presentToast(tr("Copied"))
+    }
+}
+
+private struct DockerDetailRow {
+    let title: String
+    let value: String
+    let copyValue: String?
+
+    init(_ title: String, _ value: String, copyValue: String? = nil) {
+        self.title = title
+        self.value = value
+        self.copyValue = copyValue
+    }
+}
+
+private final class DockerDetailDocumentView: NSView {
+    override var isFlipped: Bool { true }
+}
+
+private final class DockerCopyButton: NSButton {
+    let copyValue: String
+
+    init(copyValue: String) {
+        self.copyValue = copyValue
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        self.copyValue = ""
+        super.init(coder: coder)
     }
 }
 

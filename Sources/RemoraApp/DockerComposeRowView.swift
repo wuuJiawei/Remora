@@ -12,6 +12,13 @@ final class DockerComposeRowView: NSTableCellView {
     private let actionStack = NSStackView()
     private let primaryButton = DockerIconButton(symbolName: "stop.fill")
     private let deleteButton = DockerIconButton(symbolName: "trash")
+    private var isRunning = false
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            updateColors()
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -24,14 +31,11 @@ final class DockerComposeRowView: NSTableCellView {
     }
 
     func configure(node: DockerContainerNode) {
-        let isRunning = node.state == .running
+        isRunning = node.state == .running
         titleField.stringValue = node.title
-        titleField.textColor = isRunning ? .labelColor : .tertiaryLabelColor
         iconView.image = NSImage(systemSymbolName: "square.stack.3d.up.fill", accessibilityDescription: node.title)
-        iconView.contentTintColor = isRunning ? .systemIndigo : .tertiaryLabelColor
         primaryButton.symbolName = isRunning ? "stop.fill" : "play.fill"
-        primaryButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
-        deleteButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
+        updateColors()
     }
 
     private func setup() {
@@ -106,6 +110,21 @@ final class DockerComposeRowView: NSTableCellView {
 
     @objc private func handleDelete() {
         onDelete?()
+    }
+
+    private func updateColors() {
+        let isSelected = backgroundStyle == .emphasized
+        if isSelected {
+            titleField.textColor = .white
+            iconView.contentTintColor = .white
+            primaryButton.contentTintColor = .white
+            deleteButton.contentTintColor = .white
+        } else {
+            titleField.textColor = isRunning ? .labelColor : .tertiaryLabelColor
+            iconView.contentTintColor = isRunning ? .systemIndigo : .tertiaryLabelColor
+            primaryButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
+            deleteButton.contentTintColor = isRunning ? .secondaryLabelColor : .tertiaryLabelColor
+        }
     }
 }
 
