@@ -10,6 +10,8 @@ enum AppShortcutCommand: String, CaseIterable, Identifiable {
     case newSSHConnection
     case importConnections
     case exportConnections
+    case terminalCopy
+    case terminalPaste
     case terminalClearScreen
 
     var id: String { rawValue }
@@ -26,6 +28,10 @@ enum AppShortcutCommand: String, CaseIterable, Identifiable {
             return "menu.remora.import"
         case .exportConnections:
             return "menu.remora.export"
+        case .terminalCopy:
+            return "Copy"
+        case .terminalPaste:
+            return "Paste"
         case .terminalClearScreen:
             return "Clear Screen"
         }
@@ -43,6 +49,10 @@ enum AppShortcutCommand: String, CaseIterable, Identifiable {
             return "Import Connections"
         case .exportConnections:
             return "Export Connections"
+        case .terminalCopy:
+            return "Copy"
+        case .terminalPaste:
+            return "Paste"
         case .terminalClearScreen:
             return "Clear Screen"
         }
@@ -60,6 +70,10 @@ enum AppShortcutCommand: String, CaseIterable, Identifiable {
             return AppKeyboardShortcut(keyToken: "i", modifierFlags: [.command])
         case .exportConnections:
             return AppKeyboardShortcut(keyToken: "e", modifierFlags: [.command])
+        case .terminalCopy:
+            return AppKeyboardShortcut(keyToken: "c", modifierFlags: [.command])
+        case .terminalPaste:
+            return AppKeyboardShortcut(keyToken: "v", modifierFlags: [.command])
         case .terminalClearScreen:
             return AppKeyboardShortcut(keyToken: "k", modifierFlags: [.command])
         }
@@ -77,6 +91,10 @@ enum AppShortcutCommand: String, CaseIterable, Identifiable {
             return .remoraImportConnectionsCommand
         case .exportConnections:
             return .remoraExportConnectionsCommand
+        case .terminalCopy:
+            return .remoraTerminalCopyCommand
+        case .terminalPaste:
+            return .remoraTerminalPasteCommand
         case .terminalClearScreen:
             return .remoraTerminalClearScreenCommand
         }
@@ -84,6 +102,10 @@ enum AppShortcutCommand: String, CaseIterable, Identifiable {
 
     var selector: Selector? {
         switch self {
+        case .terminalCopy:
+            return #selector(NSText.copy(_:))
+        case .terminalPaste:
+            return #selector(NSText.paste(_:))
         case .terminalClearScreen:
             return #selector(TerminalView.clearScreen(_:))
         case .openSettings, .toggleSSHSidebar, .newSSHConnection, .importConnections, .exportConnections:

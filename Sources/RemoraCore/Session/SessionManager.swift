@@ -40,6 +40,9 @@ public actor SessionManager: SessionManagerProtocol {
             case .stopped, .failed:
                 continuation.finish()
                 stateContinuation.finish()
+                Task { [weak self] in
+                    await self?.removeTerminatedSession(id: descriptor.id)
+                }
             case .idle, .running:
                 break
             }
@@ -93,5 +96,10 @@ public actor SessionManager: SessionManagerProtocol {
 
     public func activeSessions() async -> [TerminalSessionDescriptor] {
         sessions.values.map(\.descriptor).sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private func removeTerminatedSession(id: UUID) async {
+        guard let container = sessions.removeValue(forKey: id) else { return }
+        await container.shell.stop()
     }
 }

@@ -23,8 +23,8 @@ struct SystemSSHClientTests {
         #expect(args.contains("ServerAliveInterval=30"))
         #expect(args.contains("ServerAliveCountMax=3"))
         #expect(args.contains("StrictHostKeyChecking=ask"))
-        #expect(args.contains("ControlMaster=auto"))
-        #expect(args.contains(where: { $0.hasPrefix("ControlPath=/tmp/") }))
+        #expect(!args.contains("ControlMaster=auto"))
+        #expect(!args.contains(where: { $0.hasPrefix("ControlPath=/tmp/") }))
         #expect(args.contains("-i"))
         #expect(args.contains("/Users/demo/.ssh/id_ed25519"))
         #expect(args.contains("deploy@10.0.0.2"))
@@ -45,6 +45,24 @@ struct SystemSSHClientTests {
         #expect(args.contains("ConnectTimeout=1"))
         #expect(args.contains("ServerAliveInterval=5"))
         #expect(args.contains("PreferredAuthentications=publickey"))
+    }
+
+    @Test
+    func controlPathIncludesPurposeAndHostIdentity() {
+        let host = Host(
+            name: "prod",
+            address: "example.com",
+            username: "ubuntu",
+            auth: HostAuth(method: .agent)
+        )
+
+        let shellPath = SSHConnectionReuse.controlPath(for: host, purpose: .shell)
+        let sftpPath = SSHConnectionReuse.controlPath(for: host, purpose: .sftp)
+
+        #expect(shellPath != sftpPath)
+        #expect(shellPath.contains(host.id.uuidString.prefix(8)))
+        #expect(shellPath.contains("-shell-"))
+        #expect(sftpPath.contains("-sftp-"))
     }
 
     @Test
@@ -400,7 +418,33 @@ struct SystemSSHClientTests {
         #expect(launch?.arguments.contains("-L") == true)
         #expect(launch?.arguments.contains("127.0.0.1:5432:10.0.0.5:5432") == true)
         #expect(launch?.arguments.contains("ExitOnForwardFailure=yes") == true)
+        #expect(launch?.arguments.contains(where: { $0.contains("-port-forward-") }) == true)
         #expect(launch?.arguments.contains("-tt") == false)
+    }
+
+    @Test
+    func shellLaunchPlanDoesNotUseControlMaster() {
+        let host = Host(
+            name: "shell",
+            address: "example.com",
+            username: "ubuntu",
+            auth: HostAuth(method: .agent)
+        )
+
+        let plan = ProcessSSHShellSession.makeShellLaunchPlan(
+            for: host,
+            storedPassword: nil
+        )
+
+        #expect(!plan.configuration.arguments.contains("ControlMaster=auto"))
+        #expect(!plan.configuration.arguments.contains(where: { $0.hasPrefix("ControlPath=") }))
+    }
+
+    @Test
+    func detectsControlMasterSessionOpenFailures() {
+        #expect(ProcessSSHShellSession.isControlMasterFailure("mux_client_request_session: session request failed: Session open refused by peer"))
+        #expect(ProcessSSHShellSession.isControlMasterFailure("control socket connect(/tmp/remora.sock): Connection refused"))
+        #expect(!ProcessSSHShellSession.isControlMasterFailure("Permission denied (publickey,password)."))
     }
 
     @Test

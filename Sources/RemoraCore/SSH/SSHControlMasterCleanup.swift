@@ -11,6 +11,10 @@ private actor SSHControlMasterCleanupRegistry {
     func snapshot() -> [String] {
         Array(paths)
     }
+
+    func remove(_ path: String) {
+        paths.remove(path)
+    }
 }
 
 /// Cleans up SSH processes and ControlMaster sockets created by Remora.
@@ -21,6 +25,13 @@ public enum SSHControlMasterCleanup {
         Task {
             await registry.register(path)
         }
+    }
+
+    public static func removeControlPath(_ path: String) {
+        Task {
+            await registry.remove(path)
+        }
+        removeSocket(at: path)
     }
 
     /// Kill all Remora SSH processes and clean up sockets.
@@ -49,15 +60,19 @@ public enum SSHControlMasterCleanup {
     }
 
     private static func cleanupSockets(for paths: [String]) {
-        let fm = FileManager.default
         for path in paths {
-            guard let attributes = try? fm.attributesOfItem(atPath: path),
-                  let fileType = attributes[.type] as? FileAttributeType,
-                  fileType == .typeSocket
-            else {
-                continue
-            }
-            try? fm.removeItem(atPath: path)
+            removeSocket(at: path)
         }
+    }
+
+    private static func removeSocket(at path: String) {
+        let fm = FileManager.default
+        guard let attributes = try? fm.attributesOfItem(atPath: path),
+              let fileType = attributes[.type] as? FileAttributeType,
+              fileType == .typeSocket
+        else {
+            return
+        }
+        try? fm.removeItem(atPath: path)
     }
 }

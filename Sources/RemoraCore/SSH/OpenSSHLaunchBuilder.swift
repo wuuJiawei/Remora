@@ -20,8 +20,6 @@ enum OpenSSHLaunchBuilder {
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile(),
         skipAutoPasswordDelivery: Bool = false
     ) -> OpenSSHLaunchPlan {
-        let hasStoredPassword = storedPassword?.isEmpty == false
-
         if host.auth.method == .password, let password = storedPassword, !password.isEmpty {
             if !skipAutoPasswordDelivery, let launch = makePasswordLaunchConfiguration(
                 for: host,
@@ -36,21 +34,17 @@ enum OpenSSHLaunchBuilder {
             return OpenSSHLaunchPlan(
                 configuration: makeStandardLaunchConfiguration(
                     for: host,
-                    useConnectionReuse: true,
+                    useConnectionReuse: false,
                     compatibilityProfile: compatibilityProfile
                 ),
                 interactivePasswordAutofill: password
             )
         }
 
-        let useConnectionReuse = SSHConnectionReusePolicy.shouldUseConnectionReuse(
-            authMethod: host.auth.method,
-            hasStoredPassword: hasStoredPassword
-        )
         return OpenSSHLaunchPlan(
             configuration: makeStandardLaunchConfiguration(
                 for: host,
-                useConnectionReuse: useConnectionReuse,
+                useConnectionReuse: false,
                 compatibilityProfile: compatibilityProfile
             ),
             interactivePasswordAutofill: nil
@@ -89,6 +83,7 @@ enum OpenSSHLaunchBuilder {
                 for: host,
                 useConnectionReuse: useConnectionReuse,
                 allocateTTY: false,
+                connectionReusePurpose: .portForward,
                 remoteCommand: nil,
                 compatibilityProfile: compatibilityProfile,
                 extraArguments: portForwardArguments(for: preset)
@@ -102,6 +97,7 @@ enum OpenSSHLaunchBuilder {
         for host: Host,
         useConnectionReuse: Bool = true,
         allocateTTY: Bool = true,
+        connectionReusePurpose: SSHConnectionReuse.Purpose = .shell,
         remoteCommand: String? = nil,
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile(),
         extraArguments: [String] = []
@@ -117,7 +113,7 @@ enum OpenSSHLaunchBuilder {
             args.insert("-tt", at: 0)
         }
         if useConnectionReuse {
-            args.append(contentsOf: SSHConnectionReuse.masterOptions(for: host))
+            args.append(contentsOf: SSHConnectionReuse.masterOptions(for: host, purpose: connectionReusePurpose))
         }
         args.append(contentsOf: compatibilityProfile.additionalSSHOptions())
         args.append(contentsOf: extraArguments)
@@ -199,6 +195,7 @@ enum OpenSSHLaunchBuilder {
                 for: host,
                 useConnectionReuse: useConnectionReuse,
                 allocateTTY: false,
+                connectionReusePurpose: .remoteCommand,
                 remoteCommand: command,
                 compatibilityProfile: compatibilityProfile
             ),
@@ -220,7 +217,7 @@ enum OpenSSHLaunchBuilder {
         if let sshpassPath {
             let sshArgs = makeSSHArguments(
                 for: host,
-                useConnectionReuse: true,
+                useConnectionReuse: false,
                 allocateTTY: allocateTTY,
                 remoteCommand: remoteCommand,
                 compatibilityProfile: compatibilityProfile,

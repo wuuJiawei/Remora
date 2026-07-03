@@ -89,10 +89,7 @@ final class DockerPanelViewModel: ObservableObject {
         case .directHost:
             client = SystemSFTPClient(host: host)
         case .requireExistingSSHConnection:
-            client = SystemSFTPClient(
-                host: host,
-                connectionReuseMode: .requireExistingConnection
-            )
+            client = SystemSFTPClient(host: host)
         }
         target = .init(host: host, client: client)
         refresh()
