@@ -1147,6 +1147,9 @@ private final class UpdateAvailableWindowController: NSWindowController, NSWindo
             primaryButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 140),
             releaseButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
             laterButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
+            progressContainer.widthAnchor.constraint(equalTo: root.widthAnchor, multiplier: 0.72),
+            progressTitleLabel.widthAnchor.constraint(equalTo: progressContainer.widthAnchor),
+            progressDetailLabel.widthAnchor.constraint(equalTo: progressContainer.widthAnchor),
             progressIndicator.widthAnchor.constraint(equalTo: progressContainer.widthAnchor),
         ])
 
