@@ -85,7 +85,8 @@ When a script runs from an SSH host context, Remora injects `REMORA_HOST_ID`, `R
       <img src="./docs/screenshots/remora-docker-containers-2026-07-04.png" alt="Remora Docker container management" />
     </td>
     <td width="50%" valign="top">
-      &nbsp;
+      <strong>Standalone File Manager Window</strong><br />
+      <img src="./docs/screenshots/remora-file-manager-window-2026-07-04.png" alt="Remora standalone file manager window" />
     </td>
   </tr>
 </table>

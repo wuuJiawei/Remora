@@ -86,7 +86,8 @@ Remora 聚焦在一个实用组合：
       <img src="./docs/screenshots/remora-docker-containers-2026-07-04.png" alt="Remora Docker container management" />
     </td>
     <td width="50%" valign="top">
-      &nbsp;
+      <strong>独立文件管理窗口</strong><br />
+      <img src="./docs/screenshots/remora-file-manager-window-2026-07-04.png" alt="Remora standalone file manager window" />
     </td>
   </tr>
 </table>
