@@ -72,27 +72,17 @@ When a script runs from an SSH host context, Remora injects `REMORA_HOST_ID`, `R
   <tr>
     <td width="50%" valign="top">
       <strong>SSH Workspace</strong><br />
-      <img src="./docs/screenshots/PixPin_2026-03-04_22-45-28.png" alt="Remora SSH workspace" />
+      <img src="./docs/screenshots/remora-ssh-workspace-2026-07-04.png" alt="Remora SSH workspace" />
     </td>
     <td width="50%" valign="top">
       <strong>Terminal (TUI-friendly)</strong><br />
-      <img src="./docs/screenshots/PixPin_2026-03-04_22-45-57.png" alt="Remora terminal TUI" />
+      <img src="./docs/screenshots/remora-terminal-session-2026-07-04.png" alt="Remora terminal session" />
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <strong>Standalone File Manager + Transfer Progress</strong><br />
-      <img src="./docs/screenshots/remora-file-manager-window-transfers-2026-06-10.png" alt="Remora standalone file manager window with transfers" />
-    </td>
-    <td width="50%" valign="top">
-      <strong>Terminal AI Conversation</strong><br />
-      <img src="./docs/screenshots/PixPin_2026-03-20_11-27-18.png" alt="Remora Terminal AI settings" />
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <strong>Terminal AI Settings</strong><br />
-      <img src="./docs/screenshots/PixPin_2026-03-20_11-28-21.png" alt="Remora Terminal AI drawer" />
+      <strong>Docker Container Management</strong><br />
+      <img src="./docs/screenshots/remora-docker-containers-2026-07-04.png" alt="Remora Docker container management" />
     </td>
     <td width="50%" valign="top">
       &nbsp;
