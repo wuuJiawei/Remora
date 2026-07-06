@@ -7,14 +7,17 @@ struct TerminalAIAssistantView: View {
 
     @State private var promptDraft = ""
     @State private var submissionError: String?
-    @State private var pendingRunCommand: TerminalAICommandSuggestion?
+    @State private var pendingRunCommand: TerminalAIPendingRun?
     @State private var isNearBottom = true
     @State private var viewportBottomGlobal: CGFloat = 0
     @State private var bottomMarkerMaxY: CGFloat = 0
-    @RemoraStored(\.aiRequireRunConfirmation)
-    private var aiRequireRunConfirmation: Bool
+    @RemoraStored(\.aiInteractionModeRawValue)
+    private var aiInteractionModeRawValue: String
 
     private let bottomAnchorID = "terminal-ai-bottom-anchor"
+    private var interactionMode: AIInteractionMode {
+        AIInteractionMode.resolved(from: aiInteractionModeRawValue)
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -35,6 +38,10 @@ struct TerminalAIAssistantView: View {
 
                 if !coordinator.queuedPrompts.isEmpty {
                     queuedPromptStrip
+                }
+
+                if !coordinator.agentRuns.isEmpty {
+                    agentActivityStrip
                 }
 
                 transcriptScrollView(proxy: proxy)
@@ -66,21 +73,14 @@ struct TerminalAIAssistantView: View {
                 Button(tr("Cancel"), role: .cancel) {
                     pendingRunCommand = nil
                 }
-                Button(tr("Always Run")) {
-                    aiRequireRunConfirmation = false
-                    if let command = pendingRunCommand?.command {
-                        runtime.runAssistantCommand(command)
-                    }
-                    pendingRunCommand = nil
-                }
                 Button(tr("Run")) {
-                    if let command = pendingRunCommand?.command {
-                        runtime.runAssistantCommand(command)
+                    if let pendingRunCommand {
+                        performRun(pendingRunCommand)
                     }
                     pendingRunCommand = nil
                 }
             } message: {
-                Text(pendingRunCommand?.command ?? tr("This command will be sent to the current terminal session."))
+                Text(pendingRunCommand?.confirmationMessage ?? tr("This command will be sent to the current terminal session."))
             }
         }
     }
@@ -154,6 +154,9 @@ struct TerminalAIAssistantView: View {
             Text(tr("Terminal AI"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(VisualStyle.textPrimary)
+            Text(interactionModeDescription)
+                .font(.system(size: 11))
+                .foregroundStyle(VisualStyle.textSecondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -195,6 +198,50 @@ struct TerminalAIAssistantView: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var agentActivityStrip: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(tr("Agent Activity"))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(VisualStyle.textSecondary)
+
+            ForEach(coordinator.agentRuns.suffix(2)) { run in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(run.objective)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(VisualStyle.textPrimary)
+                        .lineLimit(1)
+
+                    ForEach(run.steps.suffix(3)) { step in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(step.command)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(VisualStyle.textPrimary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                            Spacer(minLength: 6)
+
+                            Text(stepStatusLabel(step))
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(step.risk == .safe ? Color.green : Color.orange)
+                        }
+                    }
+                }
+                .padding(9)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(VisualStyle.settingsSubtleBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(VisualStyle.borderSoft, lineWidth: 1)
+                )
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
     }
 
     private func actionButton(title: String, prompt: String) -> some View {
@@ -291,15 +338,13 @@ struct TerminalAIAssistantView: View {
                 if !response.commands.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(Array(response.commands.enumerated()), id: \.offset) { _, command in
+                            let policy = coordinator.evaluatePolicy(for: command.command)
                             TerminalAICommandCardView(
                                 suggestion: command,
+                                policy: policy,
                                 onInsert: { runtime.insertAssistantCommand(command.command) },
                                 onRun: {
-                                    if aiRequireRunConfirmation {
-                                        pendingRunCommand = command
-                                    } else {
-                                        runtime.runAssistantCommand(command.command)
-                                    }
+                                    handleRunRequest(suggestion: command, policy: policy)
                                 },
                                 onCopy: {
                                     NSPasteboard.general.clearContents()
@@ -406,6 +451,60 @@ struct TerminalAIAssistantView: View {
         viewportBottomGlobal > 0 && bottomMarkerMaxY > viewportBottomGlobal + 20
     }
 
+    private var interactionModeDescription: String {
+        switch interactionMode {
+        case .suggest:
+            return tr("Suggest mode: AI explains and suggests; commands never auto-run.")
+        case .review:
+            return tr("Review mode: every AI command requires confirmation.")
+        case .intervention:
+            return tr("Intervention mode: read-only diagnostics may run directly; changes require confirmation.")
+        case .runbook:
+            return tr("Runbook mode: entry point is available; runbook automation is not enabled yet.")
+        }
+    }
+
+    private func stepStatusLabel(_ step: AgentStep) -> String {
+        switch step.decision {
+        case .allowAutoRun:
+            return tr("Auto-run")
+        case .requireConfirmation:
+            return tr("Confirmed")
+        case .deny:
+            return tr("Blocked")
+        }
+    }
+
+    private func handleRunRequest(
+        suggestion: TerminalAICommandSuggestion,
+        policy: CommandPolicyResult
+    ) {
+        switch policy.decision {
+        case .allowAutoRun:
+            performRun(.init(suggestion: suggestion, policy: policy))
+        case .requireConfirmation:
+            pendingRunCommand = .init(suggestion: suggestion, policy: policy)
+        case .deny:
+            submissionError = tr("This AI command is blocked by policy.")
+        }
+    }
+
+    private func performRun(_ pending: TerminalAIPendingRun) {
+        guard pending.policy.decision != .deny else {
+            submissionError = tr("This AI command is blocked by policy.")
+            return
+        }
+        coordinator.recordCommandDispatched(
+            suggestion: pending.suggestion,
+            policy: pending.policy
+        )
+        runtime.runPolicyApprovedAssistantCommand(
+            pending.suggestion.command,
+            policy: pending.policy
+        )
+        submissionError = nil
+    }
+
     private func updateScrollPosition() {
         isNearBottom = bottomMarkerMaxY <= viewportBottomGlobal + 20
     }
@@ -489,6 +588,15 @@ struct TerminalAIAssistantView: View {
 
     static func trStatic(_ key: String) -> String {
         L10n.tr(key, fallback: key)
+    }
+}
+
+private struct TerminalAIPendingRun: Equatable {
+    let suggestion: TerminalAICommandSuggestion
+    let policy: CommandPolicyResult
+
+    var confirmationMessage: String {
+        "\(policy.command)\n\n\(policy.reason)"
     }
 }
 
@@ -594,6 +702,7 @@ private struct TerminalAIQueuedPromptRow: View {
 
 private struct TerminalAICommandCardView: View {
     let suggestion: TerminalAICommandSuggestion
+    let policy: CommandPolicyResult
     var onInsert: () -> Void
     var onRun: () -> Void
     var onCopy: () -> Void
@@ -623,18 +732,25 @@ private struct TerminalAICommandCardView: View {
                 .foregroundStyle(VisualStyle.textSecondary)
                 .textSelection(.enabled)
 
+            Text(policy.reason)
+                .font(.system(size: 11))
+                .foregroundStyle(policy.decision == .deny ? Color.red : VisualStyle.textSecondary)
+                .textSelection(.enabled)
+
             HStack(spacing: 8) {
                 Button(TerminalAIAssistantView.trStatic("Insert"), action: onInsert)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                Button(TerminalAIAssistantView.trStatic("Copy"), action: onCopy)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
 
                 Button(TerminalAIAssistantView.trStatic("Run"), action: onRun)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-
-                Button(TerminalAIAssistantView.trStatic("Copy"), action: onCopy)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .disabled(policy.decision == .deny)
+                    .help(policy.reason)
             }
         }
         .padding(10)
@@ -654,7 +770,7 @@ private struct TerminalAICommandCardView: View {
     }
 
     private var riskLabel: String {
-        switch suggestion.risk {
+        switch policy.risk {
         case .safe:
             return TerminalAIAssistantView.trStatic("Safe")
         case .review:
@@ -665,7 +781,7 @@ private struct TerminalAICommandCardView: View {
     }
 
     private var riskColor: Color {
-        switch suggestion.risk {
+        switch policy.risk {
         case .safe:
             return .green
         case .review:

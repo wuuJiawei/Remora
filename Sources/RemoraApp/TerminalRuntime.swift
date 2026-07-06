@@ -711,6 +711,12 @@ final class TerminalRuntime: ObservableObject {
         replaceCurrentInputLine(with: trimmed)
     }
 
+    func runPolicyApprovedAssistantCommand(_ command: String, policy: CommandPolicyResult) {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard policy.command == trimmed, policy.decision != .deny else { return }
+        runAssistantCommand(trimmed)
+    }
+
     func runAssistantCommand(_ command: String) {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }

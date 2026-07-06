@@ -12,6 +12,7 @@ struct AppPreferencesSnapshot: Codable, Equatable {
     var aiAPIFormatRawValue: String
     var aiBaseURL: String
     var aiModel: String
+    var aiInteractionModeRawValue: String
     var aiLanguageRawValue: String
     var aiSmartAssistEnabled: Bool
     var aiIncludeWorkingDirectory: Bool
@@ -38,6 +39,7 @@ struct AppPreferencesSnapshot: Codable, Equatable {
             aiAPIFormatRawValue: AppSettings.defaultAIAPIFormat,
             aiBaseURL: AppSettings.defaultAIBaseURL,
             aiModel: AppSettings.defaultAIModel,
+            aiInteractionModeRawValue: AppSettings.defaultAIInteractionMode,
             aiLanguageRawValue: AppSettings.defaultAILanguage,
             aiSmartAssistEnabled: AppSettings.defaultAISmartAssistEnabled,
             aiIncludeWorkingDirectory: AppSettings.defaultAIIncludeWorkingDirectory,
@@ -65,6 +67,7 @@ struct AppPreferencesSnapshot: Codable, Equatable {
             Set(collapsedGroupNames.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
         ).sorted()
         normalized.aiTranscriptLineCount = AppSettings.clampedAITerminalTranscriptLineCount(aiTranscriptLineCount)
+        normalized.aiInteractionModeRawValue = AIInteractionMode.resolved(from: aiInteractionModeRawValue).rawValue
         normalized.aiAPIKey = aiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         normalized.serverMetricsActiveRefreshSeconds = AppSettings.clampedServerMetricsActiveRefreshSeconds(serverMetricsActiveRefreshSeconds)
         normalized.serverMetricsInactiveRefreshSeconds = AppSettings.clampedServerMetricsInactiveRefreshSeconds(serverMetricsInactiveRefreshSeconds)
@@ -84,6 +87,7 @@ extension AppPreferencesSnapshot {
         case aiAPIFormatRawValue
         case aiBaseURL
         case aiModel
+        case aiInteractionModeRawValue
         case aiLanguageRawValue
         case aiSmartAssistEnabled
         case aiIncludeWorkingDirectory
@@ -111,6 +115,8 @@ extension AppPreferencesSnapshot {
         aiAPIFormatRawValue = try container.decode(String.self, forKey: .aiAPIFormatRawValue)
         aiBaseURL = try container.decode(String.self, forKey: .aiBaseURL)
         aiModel = try container.decode(String.self, forKey: .aiModel)
+        aiInteractionModeRawValue = try container.decodeIfPresent(String.self, forKey: .aiInteractionModeRawValue)
+            ?? AppSettings.defaultAIInteractionMode
         aiLanguageRawValue = try container.decode(String.self, forKey: .aiLanguageRawValue)
         aiSmartAssistEnabled = try container.decode(Bool.self, forKey: .aiSmartAssistEnabled)
         aiIncludeWorkingDirectory = try container.decode(Bool.self, forKey: .aiIncludeWorkingDirectory)

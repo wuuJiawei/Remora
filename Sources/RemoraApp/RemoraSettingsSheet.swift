@@ -79,6 +79,7 @@ struct RemoraSettingsSheet: View {
     @RemoraStored(\.aiAPIFormatRawValue) private var aiAPIFormatRawValue: String
     @RemoraStored(\.aiBaseURL) private var aiBaseURL: String
     @RemoraStored(\.aiModel) private var aiModel: String
+    @RemoraStored(\.aiInteractionModeRawValue) private var aiInteractionModeRawValue: String
     @RemoraStored(\.aiLanguageRawValue) private var aiLanguageRawValue: String
     @RemoraStored(\.aiSmartAssistEnabled) private var aiSmartAssistEnabled: Bool
     @RemoraStored(\.aiIncludeWorkingDirectory) private var aiIncludeWorkingDirectory: Bool
@@ -485,6 +486,25 @@ struct RemoraSettingsSheet: View {
                     title: tr("Assistant Behavior"),
                     message: tr("Control what context is sent to the model and when Remora should suggest using AI.")
                 ) {
+                    compactSettingRow(title: tr("Interaction Mode")) {
+                        Picker(
+                            tr("Interaction Mode"),
+                            selection: Binding(
+                                get: { selectedAIInteractionMode },
+                                set: { mode in
+                                    aiInteractionModeRawValue = mode.rawValue
+                                }
+                            )
+                        ) {
+                            ForEach(AIInteractionMode.allCases) { mode in
+                                Text(interactionModeTitle(mode)).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 220, alignment: .trailing)
+                        .accessibilityIdentifier("settings-ai-interaction-mode")
+                    }
+
                     compactSettingRow(title: tr("Show smart assist on failures")) {
                         Toggle("", isOn: $aiSmartAssistEnabled)
                             .labelsHidden()
@@ -844,6 +864,10 @@ struct RemoraSettingsSheet: View {
         AILanguageOption.resolved(from: aiLanguageRawValue)
     }
 
+    private var selectedAIInteractionMode: AIInteractionMode {
+        AIInteractionMode.resolved(from: aiInteractionModeRawValue)
+    }
+
     private func providerTitle(_ provider: AIProviderOption) -> String {
         switch provider {
         case .openAI:
@@ -860,6 +884,19 @@ struct RemoraSettingsSheet: View {
             return "Ollama"
         case .custom:
             return tr("Custom")
+        }
+    }
+
+    private func interactionModeTitle(_ mode: AIInteractionMode) -> String {
+        switch mode {
+        case .suggest:
+            return tr("Suggest")
+        case .review:
+            return tr("Review")
+        case .intervention:
+            return tr("Intervention")
+        case .runbook:
+            return tr("Runbook")
         }
     }
 

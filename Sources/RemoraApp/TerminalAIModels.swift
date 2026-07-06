@@ -18,6 +18,77 @@ struct TerminalAIResponse: Codable, Equatable, Sendable {
     var warnings: [String]
 }
 
+enum AgentRunStatus: String, Codable, Equatable, Sendable {
+    case active
+    case completed
+    case failed
+    case cancelled
+}
+
+struct AgentStep: Identifiable, Codable, Equatable, Sendable {
+    var id: UUID
+    var command: String
+    var purpose: String
+    var risk: TerminalAICommandRisk
+    var decision: CommandPolicyDecision
+    var output: String?
+    var exitCode: Int?
+    var startedAt: Date
+    var finishedAt: Date?
+
+    init(
+        id: UUID = UUID(),
+        command: String,
+        purpose: String,
+        risk: TerminalAICommandRisk,
+        decision: CommandPolicyDecision,
+        output: String? = nil,
+        exitCode: Int? = nil,
+        startedAt: Date = .now,
+        finishedAt: Date? = nil
+    ) {
+        self.id = id
+        self.command = command
+        self.purpose = purpose
+        self.risk = risk
+        self.decision = decision
+        self.output = output
+        self.exitCode = exitCode
+        self.startedAt = startedAt
+        self.finishedAt = finishedAt
+    }
+}
+
+struct AgentRun: Identifiable, Codable, Equatable, Sendable {
+    var runId: UUID
+    var sessionId: UUID
+    var hostId: String?
+    var objective: String
+    var mode: AIInteractionMode
+    var status: AgentRunStatus
+    var steps: [AgentStep]
+
+    var id: UUID { runId }
+
+    init(
+        runId: UUID = UUID(),
+        sessionId: UUID,
+        hostId: String?,
+        objective: String,
+        mode: AIInteractionMode,
+        status: AgentRunStatus = .active,
+        steps: [AgentStep] = []
+    ) {
+        self.runId = runId
+        self.sessionId = sessionId
+        self.hostId = hostId
+        self.objective = objective
+        self.mode = mode
+        self.status = status
+        self.steps = steps
+    }
+}
+
 struct TerminalAIRequestContext: Equatable, Sendable {
     var userPrompt: String
     var sessionMode: String?

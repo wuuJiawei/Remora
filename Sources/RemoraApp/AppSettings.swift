@@ -10,6 +10,7 @@ enum AppSettings {
     static let aiAPIFormatKey = "settings.ai.apiFormat"
     static let aiBaseURLKey = "settings.ai.baseURL"
     static let aiModelKey = "settings.ai.model"
+    static let aiInteractionModeKey = "settings.ai.interactionMode"
     static let aiLanguageKey = "settings.ai.language"
     static let aiSmartAssistEnabledKey = "settings.ai.smartAssistEnabled"
     static let aiIncludeWorkingDirectoryKey = "settings.ai.includeWorkingDirectory"
@@ -32,6 +33,7 @@ enum AppSettings {
     static let defaultAIAPIFormat = AIProviderOption.openAI.defaultAPIFormat.rawValue
     static let defaultAIBaseURL = AIProviderOption.openAI.defaultBaseURL
     static let defaultAIModel = "gpt-5.4"
+    static let defaultAIInteractionMode = AIInteractionMode.suggest.rawValue
     static let defaultAILanguage = AILanguageOption.system.rawValue
     static let defaultAISmartAssistEnabled = true
     static let defaultAIIncludeWorkingDirectory = true

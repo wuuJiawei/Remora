@@ -11,6 +11,7 @@ struct AISettingsValue: Equatable, Sendable {
     var apiFormat: AIAPIFormatOption
     var baseURL: String
     var model: String
+    var interactionMode: AIInteractionMode
     var smartAssistEnabled: Bool
     var includeWorkingDirectory: Bool
     var includeTranscript: Bool
@@ -24,6 +25,7 @@ struct AISettingsValue: Equatable, Sendable {
         apiFormat: .openAICompatible,
         baseURL: AppSettings.defaultAIBaseURL,
         model: AppSettings.defaultAIModel,
+        interactionMode: .suggest,
         smartAssistEnabled: AppSettings.defaultAISmartAssistEnabled,
         includeWorkingDirectory: AppSettings.defaultAIIncludeWorkingDirectory,
         includeTranscript: AppSettings.defaultAIIncludeTranscript,
@@ -31,6 +33,19 @@ struct AISettingsValue: Equatable, Sendable {
         language: .system,
         requireRunConfirmation: AppSettings.defaultAIRequireRunConfirmation
     )
+}
+
+enum AIInteractionMode: String, CaseIterable, Identifiable, Codable, Sendable {
+    case suggest
+    case review
+    case intervention
+    case runbook
+
+    var id: String { rawValue }
+
+    static func resolved(from rawValue: String) -> AIInteractionMode {
+        AIInteractionMode(rawValue: rawValue) ?? .suggest
+    }
 }
 
 enum AILanguageOption: String, CaseIterable, Identifiable, Sendable {

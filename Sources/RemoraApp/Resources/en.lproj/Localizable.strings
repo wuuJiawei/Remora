@@ -90,6 +90,10 @@
 "Model" = "Model";
 "Suggested models depend on the current provider, but you can still type a custom model ID." = "Suggested models depend on the current provider, but you can still type a custom model ID.";
 "Assistant Behavior" = "Assistant Behavior";
+"Interaction Mode" = "Interaction Mode";
+"Suggest" = "Suggest";
+"Intervention" = "Intervention";
+"Runbook" = "Runbook";
 "Show smart assist on failures" = "Show smart assist on failures";
 "Include working directory" = "Include working directory";
 "Include recent terminal output" = "Include recent terminal output";
@@ -102,6 +106,15 @@
 "Missing file or path" = "Missing file or path";
 "Run AI command?" = "Run AI command?";
 "This command will be sent to the current terminal session." = "This command will be sent to the current terminal session.";
+"Suggest mode: AI explains and suggests; commands never auto-run." = "Suggest mode: AI explains and suggests; commands never auto-run.";
+"Review mode: every AI command requires confirmation." = "Review mode: every AI command requires confirmation.";
+"Intervention mode: read-only diagnostics may run directly; changes require confirmation." = "Intervention mode: read-only diagnostics may run directly; changes require confirmation.";
+"Runbook mode: entry point is available; runbook automation is not enabled yet." = "Runbook mode: entry point is available; runbook automation is not enabled yet.";
+"Agent Activity" = "Agent Activity";
+"Auto-run" = "Auto-run";
+"Confirmed" = "Confirmed";
+"Blocked" = "Blocked";
+"This AI command is blocked by policy." = "This AI command is blocked by policy.";
 "Quick Actions" = "Quick Actions";
 "Explain Output" = "Explain Output";
 "Suggest Next Command" = "Suggest Next Command";
@@ -126,7 +139,6 @@
 "Follow App Language" = "Follow App Language";
 "Confirm before running AI commands" = "Confirm before running AI commands";
 "Queued Messages" = "Queued Messages";
-"Always Run" = "Always Run";
 "Confirm before closing an active session tab" = "Confirm before closing an active session tab";
 "Reopen the last selected workspace on launch" = "Reopen the last selected workspace on launch";
 "Default local shell" = "Default local shell";

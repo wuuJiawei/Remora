@@ -99,6 +99,8 @@ struct AppSettingsTests {
         #expect(AIProviderOption.deepSeek.suggestedModels.contains(where: { $0.displayName.contains("V3.2") }))
         #expect(AppSettings.defaultAILanguage == AILanguageOption.system.rawValue)
         #expect(AppSettings.defaultAIRequireRunConfirmation == true)
+        #expect(AppSettings.defaultAIInteractionMode == AIInteractionMode.suggest.rawValue)
+        #expect(AIInteractionMode.resolved(from: "unknown") == .suggest)
     }
 
     @Test

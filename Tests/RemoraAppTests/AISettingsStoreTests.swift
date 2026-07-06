@@ -24,6 +24,7 @@ struct AISettingsStoreTests {
         #expect(settings.baseURL == AIProviderOption.openAI.defaultBaseURL)
         #expect(settings.model == AppSettings.defaultAIModel)
         #expect(settings.terminalTranscriptLineCount == AppSettings.defaultAITerminalTranscriptLineCount)
+        #expect(settings.interactionMode == .suggest)
         #expect(settings.language == .system)
         #expect(settings.requireRunConfirmation == true)
         #expect(await store.apiKey() == nil)
@@ -48,6 +49,7 @@ struct AISettingsStoreTests {
                 apiFormat: .claudeCompatible,
                 baseURL: "https://llm.example.com",
                 model: "claude-compat-model",
+                interactionMode: .intervention,
                 smartAssistEnabled: false,
                 includeWorkingDirectory: false,
                 includeTranscript: true,
@@ -63,6 +65,7 @@ struct AISettingsStoreTests {
         #expect(saved.apiFormat == .claudeCompatible)
         #expect(saved.baseURL == "https://llm.example.com")
         #expect(saved.model == "claude-compat-model")
+        #expect(saved.interactionMode == .intervention)
         #expect(saved.smartAssistEnabled == false)
         #expect(saved.includeWorkingDirectory == false)
         #expect(saved.includeTranscript == true)

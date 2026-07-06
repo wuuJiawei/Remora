@@ -50,6 +50,7 @@ final class TerminalPaneModel: ObservableObject, Identifiable {
             return TerminalAIRuntimeSnapshot(
                 sessionMode: runtime.connectionMode.rawValue,
                 hostLabel: hostLabel,
+                hostId: runtime.connectedSSHHost?.id.uuidString,
                 workingDirectory: runtime.workingDirectory,
                 transcript: runtime.transcriptSnapshot
             )

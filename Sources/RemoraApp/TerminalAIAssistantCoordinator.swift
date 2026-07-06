@@ -13,12 +13,28 @@ extension TerminalAIService: TerminalAIResponding {}
 struct TerminalAIRuntimeSnapshot: Equatable, Sendable {
     var sessionMode: String?
     var hostLabel: String?
+    var hostId: String?
     var workingDirectory: String?
     var transcript: String?
+
+    init(
+        sessionMode: String? = nil,
+        hostLabel: String? = nil,
+        hostId: String? = nil,
+        workingDirectory: String? = nil,
+        transcript: String? = nil
+    ) {
+        self.sessionMode = sessionMode
+        self.hostLabel = hostLabel
+        self.hostId = hostId
+        self.workingDirectory = workingDirectory
+        self.transcript = transcript
+    }
 
     static let empty = TerminalAIRuntimeSnapshot(
         sessionMode: nil,
         hostLabel: nil,
+        hostId: nil,
         workingDirectory: nil,
         transcript: nil
     )
@@ -91,25 +107,31 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
     @Published private(set) var smartAssist: TerminalAISmartAssist?
     @Published private(set) var isResponding = false
     @Published private(set) var queuedPrompts: [TerminalAIQueuedPrompt] = []
+    @Published private(set) var agentRuns: [AgentRun] = []
 
     private let service: any TerminalAIResponding
     private let settingsStore: AISettingsStore
+    private let policyEngine: CommandPolicyEngine
     private let runtimeSnapshot: () -> TerminalAIRuntimeSnapshot
     private let streamingChunkDelayNanoseconds: UInt64
     private let conversationCharacterBudget: Int
     private var boundSessionID: UUID?
     private var messagesBySession: [UUID: [TerminalAIAssistantMessage]] = [:]
     private var queuedPromptsBySession: [UUID: [TerminalAIQueuedPrompt]] = [:]
+    private var agentRunsBySession: [UUID: [AgentRun]] = [:]
+    private var latestObjectiveBySession: [UUID: String] = [:]
 
     init(
         service: any TerminalAIResponding = TerminalAIService(),
         settingsStore: AISettingsStore = AISettingsStore(),
+        policyEngine: CommandPolicyEngine = CommandPolicyEngine(),
         runtimeSnapshot: @escaping () -> TerminalAIRuntimeSnapshot = { .empty },
         streamingChunkDelayNanoseconds: UInt64 = 14_000_000,
         conversationCharacterBudget: Int = 6_000
     ) {
         self.service = service
         self.settingsStore = settingsStore
+        self.policyEngine = policyEngine
         self.runtimeSnapshot = runtimeSnapshot
         self.streamingChunkDelayNanoseconds = streamingChunkDelayNanoseconds
         self.conversationCharacterBudget = conversationCharacterBudget
@@ -119,6 +141,7 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
         boundSessionID = sessionID
         messages = messagesBySession[sessionID, default: []]
         queuedPrompts = queuedPromptsBySession[sessionID, default: []]
+        agentRuns = agentRunsBySession[sessionID, default: []]
         refreshSmartAssist()
     }
 
@@ -146,6 +169,7 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
             throw TerminalAIAssistantCoordinatorError.missingAPIKey
         }
 
+        latestObjectiveBySession[sessionID] = trimmedPrompt
         append(.init(kind: .user, prompt: trimmedPrompt), to: sessionID)
         let assistantMessageID = UUID()
         append(.init(id: assistantMessageID, kind: .assistant, streamedText: "", isThinking: true), to: sessionID)
@@ -204,6 +228,59 @@ final class TerminalAIAssistantCoordinator: ObservableObject {
         guard let sessionID = boundSessionID else { return }
         messagesBySession[sessionID] = newMessages
         messages = newMessages
+    }
+
+    func evaluatePolicy(for command: String) -> CommandPolicyResult {
+        let settings = settingsStore.load()
+        let snapshot = runtimeSnapshot()
+        let hostContext = CommandPolicyHostContext(
+            sessionMode: snapshot.sessionMode,
+            hostLabel: snapshot.hostLabel,
+            hostId: snapshot.hostId,
+            workingDirectory: snapshot.workingDirectory
+        )
+        return policyEngine.evaluate(
+            command: command,
+            hostContext: hostContext,
+            mode: settings.interactionMode
+        )
+    }
+
+    func recordCommandDispatched(
+        suggestion: TerminalAICommandSuggestion,
+        policy: CommandPolicyResult
+    ) {
+        guard let sessionID = boundSessionID else { return }
+        let snapshot = runtimeSnapshot()
+        let objective = latestObjectiveBySession[sessionID] ?? suggestion.purpose
+        var runs = agentRunsBySession[sessionID, default: []]
+        var run = runs.last(where: { $0.status == .active && $0.objective == objective && $0.mode == policy.mode })
+            ?? AgentRun(
+                sessionId: sessionID,
+                hostId: snapshot.hostId,
+                objective: objective,
+                mode: policy.mode
+            )
+
+        run.steps.append(
+            AgentStep(
+                command: policy.command,
+                purpose: suggestion.purpose,
+                risk: policy.risk,
+                decision: policy.decision
+            )
+        )
+
+        if let index = runs.firstIndex(where: { $0.runId == run.runId }) {
+            runs[index] = run
+        } else {
+            runs.append(run)
+        }
+
+        agentRunsBySession[sessionID] = runs
+        if boundSessionID == sessionID {
+            agentRuns = runs
+        }
     }
 
     func refreshSmartAssist() {

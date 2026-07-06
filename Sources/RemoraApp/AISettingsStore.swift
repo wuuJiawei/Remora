@@ -17,6 +17,9 @@ final class AISettingsStore: @unchecked Sendable {
         )
         let baseURL = normalizedStoredString(preferences.value(for: \.aiBaseURL)) ?? provider.defaultBaseURL
         let model = normalizedStoredString(preferences.value(for: \.aiModel)) ?? AppSettings.defaultAIModel
+        let interactionMode = AIInteractionMode.resolved(
+            from: preferences.value(for: \.aiInteractionModeRawValue)
+        )
         let language = AILanguageOption.resolved(
             from: preferences.value(for: \.aiLanguageRawValue)
         )
@@ -27,6 +30,7 @@ final class AISettingsStore: @unchecked Sendable {
             apiFormat: apiFormat,
             baseURL: baseURL,
             model: model,
+            interactionMode: interactionMode,
             smartAssistEnabled: preferences.value(for: \.aiSmartAssistEnabled),
             includeWorkingDirectory: preferences.value(for: \.aiIncludeWorkingDirectory),
             includeTranscript: preferences.value(for: \.aiIncludeTranscript),
@@ -42,6 +46,7 @@ final class AISettingsStore: @unchecked Sendable {
         preferences.set(value.apiFormat.rawValue, for: \.aiAPIFormatRawValue)
         preferences.set(normalizedStoredString(value.baseURL) ?? value.provider.defaultBaseURL, for: \.aiBaseURL)
         preferences.set(normalizedStoredString(value.model) ?? AppSettings.defaultAIModel, for: \.aiModel)
+        preferences.set(value.interactionMode.rawValue, for: \.aiInteractionModeRawValue)
         preferences.set(value.language.rawValue, for: \.aiLanguageRawValue)
         preferences.set(value.smartAssistEnabled, for: \.aiSmartAssistEnabled)
         preferences.set(value.includeWorkingDirectory, for: \.aiIncludeWorkingDirectory)

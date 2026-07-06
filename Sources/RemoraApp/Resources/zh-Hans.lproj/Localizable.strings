@@ -89,6 +89,10 @@
 "Model" = "模型";
 "Suggested models depend on the current provider, but you can still type a custom model ID." = "建议模型会随当前供应商变化，但你仍可输入自定义模型 ID。";
 "Assistant Behavior" = "助手行为";
+"Interaction Mode" = "交互模式";
+"Suggest" = "建议";
+"Intervention" = "介入";
+"Runbook" = "运行手册";
 "Show smart assist on failures" = "命令失败时显示智能辅助";
 "Include working directory" = "包含当前工作目录";
 "Include recent terminal output" = "包含最近终端输出";
@@ -101,6 +105,15 @@
 "Missing file or path" = "缺少文件或路径";
 "Run AI command?" = "运行 AI 命令？";
 "This command will be sent to the current terminal session." = "该命令会发送到当前终端会话。";
+"Suggest mode: AI explains and suggests; commands never auto-run." = "建议模式：AI 只解释和建议，命令不会自动运行。";
+"Review mode: every AI command requires confirmation." = "复查模式：每条 AI 命令都需要确认。";
+"Intervention mode: read-only diagnostics may run directly; changes require confirmation." = "介入模式：只读诊断命令可直接运行，变更操作需要确认。";
+"Runbook mode: entry point is available; runbook automation is not enabled yet." = "运行手册模式：入口已开放，自动化引擎暂未启用。";
+"Agent Activity" = "Agent 执行记录";
+"Auto-run" = "自动运行";
+"Confirmed" = "已确认";
+"Blocked" = "已阻止";
+"This AI command is blocked by policy." = "该 AI 命令已被策略阻止。";
 "Quick Actions" = "快捷操作";
 "Explain Output" = "解释输出";
 "Suggest Next Command" = "建议下一条命令";
@@ -125,7 +138,6 @@
 "Follow App Language" = "跟随应用语言";
 "Confirm before running AI commands" = "运行 AI 命令前先确认";
 "Queued Messages" = "排队中的消息";
-"Always Run" = "始终直接运行";
 "Confirm before closing an active session tab" = "关闭活动会话标签前确认";
 "Reopen the last selected workspace on launch" = "启动时恢复上次选中的工作区";
 "Default local shell" = "默认本地 Shell";
