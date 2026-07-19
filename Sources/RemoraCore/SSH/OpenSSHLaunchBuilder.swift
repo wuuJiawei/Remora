@@ -20,6 +20,11 @@ enum OpenSSHLaunchBuilder {
         compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile(),
         skipAutoPasswordDelivery: Bool = false
     ) -> OpenSSHLaunchPlan {
+        let useConnectionReuse = SSHConnectionReusePolicy.shouldUseConnectionReuse(
+            authMethod: host.auth.method,
+            hasStoredPassword: storedPassword?.isEmpty == false
+        )
+
         if host.auth.method == .password, let password = storedPassword, !password.isEmpty {
             if !skipAutoPasswordDelivery, let launch = makePasswordLaunchConfiguration(
                 for: host,
@@ -34,7 +39,7 @@ enum OpenSSHLaunchBuilder {
             return OpenSSHLaunchPlan(
                 configuration: makeStandardLaunchConfiguration(
                     for: host,
-                    useConnectionReuse: false,
+                    useConnectionReuse: useConnectionReuse,
                     compatibilityProfile: compatibilityProfile
                 ),
                 interactivePasswordAutofill: password
@@ -44,7 +49,7 @@ enum OpenSSHLaunchBuilder {
         return OpenSSHLaunchPlan(
             configuration: makeStandardLaunchConfiguration(
                 for: host,
-                useConnectionReuse: false,
+                useConnectionReuse: useConnectionReuse,
                 compatibilityProfile: compatibilityProfile
             ),
             interactivePasswordAutofill: nil

@@ -30,6 +30,9 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
     public var onOutput: (@Sendable (Data) -> Void)?
     public var onStateChange: (@Sendable (ShellSessionState) -> Void)?
+    public var usesStoredPasswordDelivery: Bool {
+        stateQueue.sync { activeLaunchUsesStoredPasswordDelivery }
+    }
 
     private let host: Host
     private let launchConfigurationOverride: LaunchConfiguration?
@@ -41,6 +44,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     private var masterFileDescriptor: Int32?
     private let credentialStore = CredentialStore()
     private let stateQueue = DispatchQueue(label: "io.lighting-tech.remora.ssh.session")
+    private let outputQueue = DispatchQueue(label: "io.lighting-tech.remora.ssh.session.output")
     private let compatibilityRetryWindow: TimeInterval = 3
     private let interactivePasswordAutofillWindow: TimeInterval
     private let compatibilityPersistenceDelay: Duration = .seconds(1)
@@ -56,6 +60,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     private var authPromptProbeTail = ""
     private var interactivePasswordAutofillDeadline: Date?
     private var hasRetriedWithoutConnectionReuse = false
+    private var activeLaunchUsesStoredPasswordDelivery = false
 
     public init(host: Host, pty: PTYSize) {
         self.host = host
@@ -137,17 +142,20 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         proc.standardError = stderrHandle
 
         masterHandle.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else { return }
-            self?.recordFailureProbeOutput(data)
-            self?.attemptInteractivePasswordAutofillIfNeeded(from: data)
-            self?.onOutput?(data)
+            guard let self else { return }
+            self.outputQueue.async { [weak self] in
+                guard let self else { return }
+                self.drainAvailableOutput(fileDescriptor: handle.fileDescriptor)
+            }
         }
 
         proc.terminationHandler = { [weak self] task in
             guard let self else { return }
-            self.drainRemainingOutputIfNeeded()
-            let snapshot = self.terminationSnapshot()
+            masterHandle.readabilityHandler = nil
+            let snapshot = self.outputQueue.sync {
+                self.drainAvailableOutput(fileDescriptor: masterFD)
+                return self.terminationSnapshot()
+            }
             self.cleanupHandles()
             Task {
                 await self.handleProcessTermination(
@@ -157,16 +165,6 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
                     compatibilityProfile: snapshot.profile
                 )
             }
-        }
-
-        do {
-            try proc.run()
-        } catch {
-            masterHandle.readabilityHandler = nil
-            try? masterHandle.close()
-            cleanupHandles()
-            onStateChange?(.failed(error.localizedDescription))
-            throw SSHError.connectionFailed(error.localizedDescription)
         }
 
         stateQueue.sync {
@@ -182,7 +180,22 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             interactivePasswordAutofillDeadline = skipAutoPasswordDelivery
                 ? attemptStartedAt.addingTimeInterval(interactivePasswordAutofillWindow)
                 : nil
+            activeLaunchUsesStoredPasswordDelivery = launchPlan.interactivePasswordAutofill != nil
+                || launchPlan.configuration.environment["SSHPASS"] != nil
+                || launchPlan.configuration.environment["REMORA_SSH_PASSWORD"] != nil
         }
+
+        do {
+            try proc.run()
+        } catch {
+            masterHandle.readabilityHandler = nil
+            try? masterHandle.close()
+            cleanupHandles()
+            onStateChange?(.failed(error.localizedDescription))
+            throw SSHError.connectionFailed(error.localizedDescription)
+        }
+
+        guard stateQueue.sync(execute: { process === proc }) else { return }
 
         scheduleCompatibilityProfilePersistence(
             for: compatibilityProfile,
@@ -264,15 +277,6 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         try? currentHandle?.close()
     }
 
-    private func drainRemainingOutputIfNeeded() {
-        guard let handle = stateQueue.sync(execute: { masterHandle }) else { return }
-        let data = handle.availableData
-        guard !data.isEmpty else { return }
-        recordFailureProbeOutput(data)
-        attemptInteractivePasswordAutofillIfNeeded(from: data)
-        onOutput?(data)
-    }
-
     private struct TerminationSnapshot {
         var output: String
         var startedAt: Date
@@ -285,6 +289,30 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             if recentFailureProbeBuffer.count > failureProbeBufferLimit {
                 recentFailureProbeBuffer = recentFailureProbeBuffer.suffix(failureProbeBufferLimit)
             }
+        }
+    }
+
+    private func handleProcessOutput(_ data: Data) {
+        guard !data.isEmpty else { return }
+        recordFailureProbeOutput(data)
+        attemptInteractivePasswordAutofillIfNeeded(from: data)
+        onOutput?(data)
+    }
+
+    private func drainAvailableOutput(fileDescriptor: Int32) {
+        var buffer = [UInt8](repeating: 0, count: 4_096)
+        while true {
+            var descriptor = pollfd(
+                fd: fileDescriptor,
+                events: Int16(POLLIN | POLLHUP | POLLERR),
+                revents: 0
+            )
+            guard Darwin.poll(&descriptor, 1, 0) > 0 else { return }
+            let count = buffer.withUnsafeMutableBytes { bytes in
+                Darwin.read(fileDescriptor, bytes.baseAddress, bytes.count)
+            }
+            guard count > 0 else { return }
+            handleProcessOutput(Data(buffer.prefix(count)))
         }
     }
 
@@ -318,13 +346,12 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
                     self.interactivePasswordAutofillDeadline = nil
                     return nil
                 }
-
-                if Self.looksLikeOTPChallenge(lowercasedProbeTail) {
-                    return nil
-                }
             }
 
-            guard Self.detectPasswordPrompt(in: lowercasedProbeTail) else {
+            let promptLine = Self.currentAuthenticationPromptLine(in: lowercasedProbeTail)
+            guard !Self.looksLikeOTPChallenge(promptLine),
+                  Self.detectPasswordPrompt(in: promptLine)
+            else {
                 return nil
             }
 
@@ -624,6 +651,18 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             || lowercasedText.contains("userauth_passwd")
     }
 
+    private static func currentAuthenticationPromptLine(in lowercasedText: String) -> String {
+        let normalized = lowercasedText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        return normalized
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .reversed()
+            .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+    }
+
     private static func wrappedSSHLaunchConfiguration(
         sshArguments: [String],
         environment: [String: String],
@@ -636,7 +675,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         )
     }
 
-    private static func launchConfigurationWithoutConnectionReuse(
+    static func launchConfigurationWithoutConnectionReuse(
         _ configuration: OpenSSHLaunchConfiguration
     ) -> OpenSSHLaunchConfiguration {
         var arguments: [String] = []

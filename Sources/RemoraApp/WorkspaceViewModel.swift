@@ -249,6 +249,20 @@ final class WorkspaceViewModel: ObservableObject {
         pane.runtime.connectSSH(host: resolvedHost)
     }
 
+    @discardableResult
+    func cloneConnectedSSHSession(from tabID: UUID) -> RemoraCore.Host? {
+        guard let sourceTab = tab(id: tabID),
+              let sourcePane = preferredPane(in: sourceTab),
+              let host = sourcePane.runtime.connectedSSHHost
+        else {
+            return nil
+        }
+
+        createTab(title: sourceTab.title, connectLocalShell: false)
+        connectActivePane(host: host, template: nil)
+        return host
+    }
+
     func disconnectActivePane() {
         activePane?.runtime.disconnect()
     }
@@ -277,6 +291,15 @@ final class WorkspaceViewModel: ObservableObject {
 
     private func makePane() -> TerminalPaneModel {
         paneFactory()
+    }
+
+    private func preferredPane(in tab: TerminalTabModel) -> TerminalPaneModel? {
+        if let preferredPaneID = activePaneByTab[tab.id],
+           let pane = tab.panes.first(where: { $0.id == preferredPaneID })
+        {
+            return pane
+        }
+        return tab.panes.first
     }
 
     private func duplicateConnectionIfNeeded(from sourcePane: TerminalPaneModel, to targetPane: TerminalPaneModel) {

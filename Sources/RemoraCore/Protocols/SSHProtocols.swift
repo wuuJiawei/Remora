@@ -9,10 +9,15 @@ public protocol SSHTransportClientProtocol: Sendable {
 public protocol SSHTransportSessionProtocol: AnyObject, Sendable {
     var onOutput: (@Sendable (Data) -> Void)? { get set }
     var onStateChange: (@Sendable (ShellSessionState) -> Void)? { get set }
+    var usesStoredPasswordDelivery: Bool { get }
     func start() async throws
     func write(_ data: Data) async throws
     func resize(_ size: PTYSize) async throws
     func stop() async
+}
+
+public extension SSHTransportSessionProtocol {
+    var usesStoredPasswordDelivery: Bool { false }
 }
 
 public typealias SSHClientProtocol = SSHTransportClientProtocol

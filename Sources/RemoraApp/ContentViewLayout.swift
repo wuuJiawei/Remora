@@ -697,6 +697,7 @@ extension ContentView {
         let hasTabsOnLeft = tabIndex.map { $0 > 0 } ?? false
         let hasTabsOnRight = tabIndex.map { $0 + 1 < workspace.tabs.count } ?? false
         let canReconnectSSH = runtime?.reconnectableSSHHost != nil
+        let canCloneSSH = runtime?.connectedSSHHost != nil
         let canDisconnectSession = runtime != nil
         let renameHint = tr("Only this tab name changes. The saved SSH connection name stays the same.")
         let canCloseInactiveTabs: Bool = {
@@ -735,7 +736,7 @@ extension ContentView {
             contextMenuButton(tr("Clone Session"), systemImage: ContextMenuIconCatalog.cloneSession) {
                 cloneSession(tab.id)
             }
-            .disabled(!canReconnectSSH)
+            .disabled(!canCloneSSH)
 
             contextMenuButton(tr("Disconnect Session"), systemImage: ContextMenuIconCatalog.disconnect) {
                 disconnectSession(tab.id)

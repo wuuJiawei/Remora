@@ -22,7 +22,8 @@ public actor SessionManager: SessionManagerProtocol {
         try await client.connect(to: host)
         let shell = try await client.openShell(pty: pty)
 
-        let descriptor = TerminalSessionDescriptor(host: host)
+        let descriptorID = UUID()
+        let createdAt = Date()
         let pair = AsyncStream.makeStream(of: Data.self)
         let stream = pair.stream
         let continuation = pair.continuation
@@ -41,7 +42,7 @@ public actor SessionManager: SessionManagerProtocol {
                 continuation.finish()
                 stateContinuation.finish()
                 Task { [weak self] in
-                    await self?.removeTerminatedSession(id: descriptor.id)
+                    await self?.removeTerminatedSession(id: descriptorID)
                 }
             case .idle, .running:
                 break
@@ -49,6 +50,13 @@ public actor SessionManager: SessionManagerProtocol {
         }
 
         try await shell.start()
+
+        let descriptor = TerminalSessionDescriptor(
+            id: descriptorID,
+            host: host,
+            createdAt: createdAt,
+            usesStoredPasswordDelivery: shell.usesStoredPasswordDelivery
+        )
 
         sessions[descriptor.id] = SessionContainer(
             descriptor: descriptor,

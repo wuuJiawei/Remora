@@ -79,6 +79,8 @@ final class TerminalRuntime: ObservableObject {
     private var activeSSHHostAddress: String?
     private var displayEndsAtLineStart = true
     private var activeSSHHasStoredPassword = false
+    private var hasHiddenStoredPasswordPrompt = false
+    private var lastSSHAuthPromptSignature: String?
     private var isWorkingDirectoryTrackingEnabled = false
     private var pendingWorkingDirectoryProbeTask: Task<Void, Never>?
     private var awaitingPwdResponse = false
@@ -197,10 +199,9 @@ final class TerminalRuntime: ObservableObject {
 
             await MainActor.run {
                 activeSSHHostAddress = host.address
-                activeSSHHasStoredPassword = {
-                    guard let ref = host.auth.passwordReference else { return false }
-                    return !ref.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                }()
+                activeSSHHasStoredPassword = false
+                hasHiddenStoredPasswordPrompt = false
+                lastSSHAuthPromptSignature = nil
                 if config.mode == .ssh {
                     lastConnectedSSHHost = host
                 }
@@ -223,6 +224,9 @@ final class TerminalRuntime: ObservableObject {
                 await MainActor.run {
                     sessionID = descriptor.id
                     activeSessionManager = manager
+                    activeSSHHasStoredPassword = descriptor.usesStoredPasswordDelivery
+                    hasHiddenStoredPasswordPrompt = false
+                    lastSSHAuthPromptSignature = nil
                     connectionState = "Connected (\(config.mode.rawValue))"
                     connectedSSHHost = config.mode == .ssh ? descriptor.host : nil
                     bindOutput(for: descriptor.id, manager: manager)
@@ -797,6 +801,8 @@ final class TerminalRuntime: ObservableObject {
         activeSSHAuthStage = nil
         activeSSHHostAddress = nil
         activeSSHHasStoredPassword = false
+        hasHiddenStoredPasswordPrompt = false
+        lastSSHAuthPromptSignature = nil
         connectedSSHHost = nil
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         hostKeyPromptMessage = nil
@@ -913,6 +919,9 @@ final class TerminalRuntime: ObservableObject {
         promptBoundaryProcessor = TerminalPromptBoundaryProcessor()
         displayEndsAtLineStart = true
         activeSSHAuthStage = nil
+        activeSSHHasStoredPassword = false
+        hasHiddenStoredPasswordPrompt = false
+        lastSSHAuthPromptSignature = nil
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         hostKeyPromptMessage = nil
         otpPromptMessage = nil
@@ -1165,7 +1174,18 @@ final class TerminalRuntime: ObservableObject {
         guard !chunk.isEmpty else { return }
 
         let probeText = sshAuthProbeTail + chunk
-        let detectedStage = Self.detectSSHAuthStage(in: probeText.lowercased())
+        let lowercasedProbeText = probeText.lowercased()
+        let detectedStage = Self.detectSSHAuthStage(in: lowercasedProbeText)
+        let promptLine = Self.currentAuthenticationPromptLine(in: lowercasedProbeText)
+        let promptSignature = detectedStage.map { "\($0.rawValue):\(promptLine)" }
+        let repeatsPasswordPrompt = detectedStage == .password
+            && Self.detectSSHAuthStage(in: chunk.lowercased()) == .password
+            && promptSignature == lastSSHAuthPromptSignature
+        let isNewPrompt = promptSignature != nil
+            && (promptSignature != lastSSHAuthPromptSignature || repeatsPasswordPrompt)
+        if isNewPrompt {
+            lastSSHAuthPromptSignature = promptSignature
+        }
 
         if let detectedStage {
             activeSSHAuthStage = detectedStage
@@ -1180,7 +1200,10 @@ final class TerminalRuntime: ObservableObject {
                 }
             case .password:
                 connectionState = "Waiting (password)"
-                if passwordPromptMessage == nil, !activeSSHHasStoredPassword {
+                if activeSSHHasStoredPassword, isNewPrompt, !hasHiddenStoredPasswordPrompt {
+                    hasHiddenStoredPasswordPrompt = true
+                } else if isNewPrompt, passwordPromptMessage == nil {
+                    activeSSHHasStoredPassword = false
                     passwordPromptMessage = activeSSHHostAddress ?? ""
                 }
             case .otp:
@@ -1196,6 +1219,7 @@ final class TerminalRuntime: ObservableObject {
             }
         } else if activeSSHAuthStage != nil {
             activeSSHAuthStage = nil
+            lastSSHAuthPromptSignature = nil
             hostKeyPromptMessage = nil
             otpPromptMessage = nil
             passwordPromptMessage = nil

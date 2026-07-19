@@ -30,16 +30,18 @@ enum SSHConnectionReuse {
     }
 
     static func controlPath(for host: Host, purpose: Purpose) -> String {
-        let stableID = host.id.uuidString.prefix(8)
-        let raw = "remora-\(stableID)-\(purpose.rawValue)-\(host.username)-\(host.address)-\(host.port)"
-        let sanitized = raw.map { scalar -> Character in
-            if scalar.isLetter || scalar.isNumber || scalar == "-" || scalar == "_" {
-                return scalar
-            }
-            return "_"
+        let identity = "\(host.id.uuidString)|\(host.username)|\(host.address)|\(host.port)|\(purpose.rawValue)"
+        let digest = stableDigest(identity)
+        return "/tmp/remora-\(host.id.uuidString.prefix(8))-\(purpose.rawValue)-\(digest).sock"
+    }
+
+    private static func stableDigest(_ value: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
         }
-        let limited = String(sanitized.prefix(72))
-        return "/tmp/\(limited).sock"
+        return String(hash, radix: 16)
     }
 }
 

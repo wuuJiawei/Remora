@@ -243,6 +243,82 @@ struct WorkspaceViewModelTests {
     }
 
     @Test
+    func cloneConnectedSSHSessionCreatesTabWithoutStoppingOriginal() async {
+        let workspace = makeWorkspace()
+        let host = Host(
+            name: "prod-api",
+            address: "47.100.100.215",
+            port: 2222,
+            username: "root",
+            group: "Production",
+            auth: HostAuth(method: .agent)
+        )
+
+        workspace.createTab(title: host.name, connectLocalShell: false)
+        guard let originalTab = workspace.activeTab,
+              let originalPane = workspace.activePane
+        else {
+            Issue.record("Expected original tab before cloning.")
+            return
+        }
+        workspace.connectActivePane(host: host, template: nil)
+        let originalConnected = await waitUntil(timeout: 2.0) {
+            originalPane.runtime.connectedSSHHost?.id == host.id
+        }
+        #expect(originalConnected)
+
+        let clonedHost = workspace.cloneConnectedSSHSession(from: originalTab.id)
+
+        #expect(clonedHost?.id == host.id)
+        #expect(workspace.tabs.count == 2)
+        #expect(workspace.tabs.contains(where: { $0.id == originalTab.id }))
+        guard let clonedPane = workspace.activePane else {
+            Issue.record("Expected cloned pane.")
+            return
+        }
+        let cloneConnected = await waitUntil(timeout: 2.0) {
+            clonedPane.runtime.connectedSSHHost?.id == host.id
+                && clonedPane.runtime.connectedSSHHost?.address == host.address
+                && clonedPane.runtime.connectedSSHHost?.port == host.port
+        }
+        #expect(cloneConnected)
+        #expect(originalPane.runtime.connectedSSHHost?.id == host.id)
+        workspace.tabs.flatMap(\.panes).forEach { $0.runtime.disconnect() }
+    }
+
+    @Test
+    func cloneSessionRejectsLocalAndDisconnectedTabs() async {
+        let workspace = makeWorkspace()
+        workspace.createTab(connectLocalShell: false)
+        guard let localTab = workspace.activeTab else {
+            Issue.record("Expected local tab.")
+            return
+        }
+        #expect(workspace.cloneConnectedSSHSession(from: localTab.id) == nil)
+        #expect(workspace.tabs.count == 1)
+
+        let host = Host(
+            name: "prod",
+            address: "example.com",
+            username: "deploy",
+            auth: HostAuth(method: .agent)
+        )
+        workspace.connectActivePane(host: host, template: nil)
+        let connected = await waitUntil(timeout: 5.0) {
+            workspace.activePane?.runtime.connectedSSHHost?.id == host.id
+        }
+        #expect(connected)
+        workspace.disconnectActivePane()
+        let disconnected = await waitUntil(timeout: 2.0) {
+            workspace.activePane?.runtime.connectedSSHHost == nil
+        }
+        #expect(disconnected)
+
+        #expect(workspace.cloneConnectedSSHSession(from: localTab.id) == nil)
+        #expect(workspace.tabs.count == 1)
+    }
+
+    @Test
     func closePaneRemovesSplitPaneAndKeepsRemainingPaneActive() async {
         let workspace = makeWorkspace()
         let host = Host(

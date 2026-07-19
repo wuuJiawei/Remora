@@ -66,6 +66,38 @@ struct SystemSSHClientTests {
     }
 
     @Test
+    func controlPathSeparatesHostsAndConnectionSettings() {
+        let hostID = UUID()
+        let host = Host(
+            id: hostID,
+            name: "prod",
+            address: String(repeating: "a", count: 100) + ".example.com",
+            port: 22,
+            username: String(repeating: "deploy", count: 20),
+            auth: HostAuth(method: .agent)
+        )
+        var changedAddress = host
+        changedAddress.address = String(repeating: "b", count: 100) + ".example.com"
+        var changedPort = host
+        changedPort.port = 2222
+        let differentHost = Host(
+            name: host.name,
+            address: host.address,
+            port: host.port,
+            username: host.username,
+            auth: host.auth
+        )
+
+        let path = SSHConnectionReuse.controlPath(for: host, purpose: .shell)
+
+        #expect(path == SSHConnectionReuse.controlPath(for: host, purpose: .shell))
+        #expect(path != SSHConnectionReuse.controlPath(for: changedAddress, purpose: .shell))
+        #expect(path != SSHConnectionReuse.controlPath(for: changedPort, purpose: .shell))
+        #expect(path != SSHConnectionReuse.controlPath(for: differentHost, purpose: .shell))
+        #expect(path.utf8.count < 104)
+    }
+
+    @Test
     func buildsArgumentsForPasswordWithMultiPromptSupport() {
         let host = Host(
             name: "prod-password",
@@ -411,6 +443,43 @@ struct SystemSSHClientTests {
     }
 
     @Test
+    func runningSessionNeverAutofillsStoredLoginPasswordIntoOTPChallenge() async throws {
+        let host = Host(
+            name: "otp-test",
+            address: "example.com",
+            username: "root",
+            auth: HostAuth(method: .password, passwordReference: "pw-ref")
+        )
+        let output = OutputCollector()
+        let session = ProcessSSHShellSession(
+            host: host,
+            pty: .init(columns: 80, rows: 24),
+            launchConfigurationOverride: ProcessSSHShellSession.LaunchConfiguration(
+                executablePath: "/bin/bash",
+                arguments: [
+                    "-lc",
+                    "printf 'One-time password:'; if IFS= read -r -t 0.5 code; then printf '\\r\\nLEAKED\\r\\n'; else printf '\\r\\nSAFE\\r\\n'; fi"
+                ],
+                environment: ["TERM": "xterm-256color"]
+            ),
+            interactivePasswordAutofillOverride: "stored-login-password"
+        )
+        session.onOutput = { data in
+            Task {
+                await output.append(String(decoding: data, as: UTF8.self))
+            }
+        }
+        try await session.start()
+
+        #expect(
+            await waitUntil(timeout: 2) { await output.joined.contains("SAFE") },
+            "A saved login password must not be submitted to an OTP keyboard-interactive prompt."
+        )
+        #expect(await output.joined.contains("LEAKED") == false)
+        await session.stop()
+    }
+
+    @Test
     func runningSessionDoesNotRetryInteractiveAuthWithoutCachedPassword() async throws {
         let host = Host(
             name: "retry-without-password",
@@ -494,21 +563,205 @@ struct SystemSSHClientTests {
     }
 
     @Test
-    func shellLaunchPlanDoesNotUseControlMaster() {
-        let host = Host(
-            name: "shell",
+    func shellLaunchPlanUsesConnectionReusePolicy() {
+        let agentHost = Host(
+            name: "agent-shell",
             address: "example.com",
             username: "ubuntu",
             auth: HostAuth(method: .agent)
         )
-
-        let plan = ProcessSSHShellSession.makeShellLaunchPlan(
-            for: host,
-            storedPassword: nil
+        let keyHost = Host(
+            name: "key-shell",
+            address: "example.com",
+            username: "ubuntu",
+            auth: HostAuth(method: .privateKey, keyReference: "/tmp/id_ed25519")
+        )
+        let passwordHost = Host(
+            name: "password-shell",
+            address: "example.com",
+            username: "ubuntu",
+            auth: HostAuth(method: .password, passwordReference: "password-ref")
         )
 
-        #expect(!plan.configuration.arguments.contains("ControlMaster=auto"))
-        #expect(!plan.configuration.arguments.contains(where: { $0.hasPrefix("ControlPath=") }))
+        let agentPlan = ProcessSSHShellSession.makeShellLaunchPlan(for: agentHost, storedPassword: nil)
+        let keyPlan = ProcessSSHShellSession.makeShellLaunchPlan(for: keyHost, storedPassword: nil)
+        let missingPasswordPlan = ProcessSSHShellSession.makeShellLaunchPlan(
+            for: passwordHost,
+            storedPassword: nil,
+            sshpassPath: nil,
+            askPassScriptPath: nil
+        )
+        let emptyPasswordPlan = ProcessSSHShellSession.makeShellLaunchPlan(
+            for: passwordHost,
+            storedPassword: "",
+            sshpassPath: nil,
+            askPassScriptPath: nil
+        )
+        let storedPasswordPlan = ProcessSSHShellSession.makeShellLaunchPlan(
+            for: passwordHost,
+            storedPassword: "stored-password",
+            sshpassPath: "/usr/bin/false",
+            askPassScriptPath: nil
+        )
+
+        for plan in [agentPlan, keyPlan, missingPasswordPlan, emptyPasswordPlan] {
+            #expect(plan.configuration.arguments.contains("ControlMaster=auto"))
+            #expect(plan.configuration.arguments.contains("ControlPersist=no"))
+            #expect(plan.configuration.arguments.contains(where: { $0.hasPrefix("ControlPath=") }))
+        }
+        #expect(!storedPasswordPlan.configuration.arguments.contains("ControlMaster=auto"))
+        #expect(!storedPasswordPlan.configuration.arguments.contains(where: { $0.hasPrefix("ControlPath=") }))
+    }
+
+    @Test
+    func disablingConnectionReuseRemovesOnlyControlOptions() {
+        let configuration = ProcessSSHShellSession.LaunchConfiguration(
+            executablePath: "/usr/bin/ssh",
+            arguments: [
+                "-tt",
+                "-o", "ControlMaster=auto",
+                "-o", "StrictHostKeyChecking=ask",
+                "-o", "ControlPath=/tmp/remora.sock",
+                "-o", "ControlPersist=no",
+                "ubuntu@example.com",
+            ],
+            environment: ["TERM": "xterm-256color"]
+        )
+
+        let fallback = ProcessSSHShellSession.launchConfigurationWithoutConnectionReuse(configuration)
+
+        #expect(fallback.arguments == [
+            "-tt",
+            "-o", "StrictHostKeyChecking=ask",
+            "ubuntu@example.com",
+        ])
+        #expect(fallback.environment == configuration.environment)
+    }
+
+    @Test
+    func controlMasterFailureRetriesOnceWithoutReuseOptions() async throws {
+        let host = Host(
+            name: "reuse-fallback",
+            address: "example.com",
+            username: "ubuntu",
+            auth: HostAuth(method: .agent)
+        )
+        let output = OutputCollector()
+        let states = StateCollector()
+        let argumentsLogURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-reuse-args-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: argumentsLogURL) }
+        let script = """
+        printf '%s\n' "$*" >> '\(argumentsLogURL.path)'
+        case " $* " in
+          *ControlMaster=auto*) printf 'mux_client_request_session: session request failed: Session open refused by peer\r\n'; exit 1 ;;
+          *) printf 'READY\r\n'; sleep 1 ;;
+        esac
+        """
+        let session = ProcessSSHShellSession(
+            host: host,
+            pty: .init(columns: 80, rows: 24),
+            launchConfigurationOverride: ProcessSSHShellSession.LaunchConfiguration(
+                executablePath: "/bin/sh",
+                arguments: [
+                    "-c", script, "remora-reuse-test",
+                    "-o", "ControlMaster=auto",
+                    "-o", "ControlPath=/tmp/remora-reuse-test.sock",
+                    "-o", "ControlPersist=no",
+                    "-o", "StrictHostKeyChecking=ask",
+                ],
+                environment: ["TERM": "xterm-256color"]
+            )
+        )
+        session.onOutput = { data in
+            Task {
+                await output.append(String(decoding: data, as: UTF8.self))
+            }
+        }
+        session.onStateChange = { state in
+            Task {
+                await states.append(state)
+            }
+        }
+
+        try await session.start()
+
+        let becameReady = await waitUntil(timeout: 2) { await output.joined.contains("READY") }
+        let attempts = try String(contentsOf: argumentsLogURL, encoding: .utf8)
+            .split(separator: "\n")
+            .map(String.init)
+        let capturedOutput = await output.joined
+        let capturedState = await states.last
+        #expect(becameReady, "Captured state: \(capturedState); output: \(capturedOutput)")
+        #expect(attempts.count == 2, "Attempts: \(attempts); state: \(capturedState); output: \(capturedOutput)")
+        guard attempts.count == 2 else {
+            await session.stop()
+            return
+        }
+        #expect(attempts[0].contains("ControlMaster=auto"))
+        #expect(!attempts[1].contains("ControlMaster="))
+        #expect(!attempts[1].contains("ControlPath="))
+        #expect(!attempts[1].contains("ControlPersist="))
+        #expect(attempts[1].contains("StrictHostKeyChecking=ask"))
+        await session.stop()
+    }
+
+    @Test
+    func repeatedControlMasterFailureDoesNotRetryIndefinitely() async throws {
+        let host = Host(
+            name: "reuse-loop-guard",
+            address: "example.com",
+            username: "ubuntu",
+            auth: HostAuth(method: .agent)
+        )
+        let states = StateCollector()
+        let output = OutputCollector()
+        let attemptFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-reuse-count-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: attemptFileURL) }
+        let script = """
+        count=$(cat '\(attemptFileURL.path)' 2>/dev/null || printf '0')
+        count=$((count + 1))
+        printf '%s' "$count" > '\(attemptFileURL.path)'
+        printf 'mux_client_request_session: session request failed: Session open refused by peer\r\n'
+        exit 1
+        """
+        let session = ProcessSSHShellSession(
+            host: host,
+            pty: .init(columns: 80, rows: 24),
+            launchConfigurationOverride: ProcessSSHShellSession.LaunchConfiguration(
+                executablePath: "/bin/sh",
+                arguments: [
+                    "-c", script, "remora-reuse-loop-test",
+                    "-o", "ControlMaster=auto",
+                    "-o", "ControlPath=/tmp/remora-reuse-loop-test.sock",
+                    "-o", "ControlPersist=no",
+                ],
+                environment: ["TERM": "xterm-256color"]
+            )
+        )
+        session.onStateChange = { state in
+            Task {
+                await states.append(state)
+            }
+        }
+        session.onOutput = { data in
+            Task {
+                await output.append(String(decoding: data, as: UTF8.self))
+            }
+        }
+
+        try await session.start()
+
+        let failed = await waitUntil(timeout: 2) {
+            if case .failed = await states.last { return true }
+            return false
+        }
+        let attempts = try String(contentsOf: attemptFileURL, encoding: .utf8)
+        let capturedOutput = await output.joined
+        let capturedState = await states.last
+        #expect(failed, "State: \(capturedState); output: \(capturedOutput)")
+        #expect(attempts == "2", "Output: \(capturedOutput)")
     }
 
     @Test
