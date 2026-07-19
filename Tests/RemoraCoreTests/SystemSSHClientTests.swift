@@ -147,9 +147,56 @@ struct SystemSSHClientTests {
         #expect(command.contains("\\033]7;file://"))
         #expect(command.contains("\\033]133;A\\007"))
         #expect(command.contains("--on-event fish_prompt"))
+        #expect(command.contains("status --is-interactive; or return"))
+        #expect(command.contains("status --is-interactive; or exit") == false)
         #expect(command.contains("__remora_prompt_command=\"${PROMPT_COMMAND-}\""))
         #expect(command.contains("PROMPT_COMMAND=\"${__remora_prompt_command:+$__remora_prompt_command; }__remora_pre_prompt\""))
         #expect(command.contains("precmd_functions=(${precmd_functions[@]} __remora_precmd)"))
+        #expect(command.contains("if [ -z \"${BASH_VERSION:-}\" ]; then"))
+        #expect(command.contains("if [[ ! -o interactive ]] || [[ ! -t 1 ]]; then"))
+        #expect(command.contains("*i*) [ -r \"$HOME/.config/remora/shell-integration.bash\" ]"))
+    }
+
+    @Test
+    func installedShellIntegrationsDoNotPolluteNonInteractiveOutput() throws {
+        let homeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-shell-integration-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeURL) }
+
+        let installResult = try runProcess(
+            executablePath: "/bin/sh",
+            arguments: ["-c", OpenSSHRemoteShellIntegrationInstaller.installCommand],
+            environment: ["HOME": homeURL.path]
+        )
+        #expect(installResult.status == 0, "Installer failed: \(installResult.stderr)")
+
+        let bashScriptPath = homeURL.appendingPathComponent(".config/remora/shell-integration.bash").path
+        let zshScriptPath = homeURL.appendingPathComponent(".config/remora/shell-integration.zsh").path
+        let fishScriptPath = homeURL.appendingPathComponent(".config/fish/conf.d/remora.fish").path
+        let installedScripts = try [bashScriptPath, zshScriptPath, fishScriptPath].map {
+            try String(contentsOfFile: $0, encoding: .utf8)
+        }
+        for script in installedScripts {
+            #expect(script.contains("\n__remora_emit_cwd\n") == false)
+        }
+        #expect(installedScripts[2].contains("function __remora_pre_prompt --on-event fish_prompt\n    __remora_emit_cwd"))
+
+        let cases = [
+            ("/bin/sh", ["-c", ". \"$REMORA_SCRIPT\"; printf REMORA_OK"], bashScriptPath),
+            ("/bin/bash", ["--noprofile", "--norc", "-c", ". \"$REMORA_SCRIPT\"; printf REMORA_OK"], bashScriptPath),
+            ("/bin/zsh", ["-f", "-c", "source \"$REMORA_SCRIPT\"; printf REMORA_OK"], zshScriptPath),
+        ]
+
+        for (executablePath, arguments, scriptPath) in cases {
+            let result = try runProcess(
+                executablePath: executablePath,
+                arguments: arguments,
+                environment: ["REMORA_SCRIPT": scriptPath]
+            )
+            #expect(result.status == 0, "\(executablePath) failed: \(result.stderr)")
+            #expect(result.stdout == "REMORA_OK", "\(executablePath) polluted stdout: \(result.stdout.debugDescription)")
+        }
     }
 
     @Test
@@ -159,6 +206,30 @@ struct SystemSSHClientTests {
         #expect(command.contains("__remora_prompt_command=\"${PROMPT_COMMAND-}\""))
         #expect(command.contains("__remora_prompt_command=\"${__remora_prompt_command%\"${__remora_prompt_command##*[![:space:];]}\"}\""))
         #expect(command.contains("PROMPT_COMMAND=\"${__remora_prompt_command:+$__remora_prompt_command; }__remora_pre_prompt\""))
+    }
+
+    private func runProcess(
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String]
+    ) throws -> (status: Int32, stdout: String, stderr: String) {
+        let process = Process()
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        try process.run()
+        process.waitUntilExit()
+
+        return (
+            process.terminationStatus,
+            String(decoding: stdout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self),
+            String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        )
     }
 
     @Test

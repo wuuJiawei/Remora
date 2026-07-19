@@ -14,6 +14,16 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
     mkdir -p "$config_dir" "$fish_dir"
 
     cat >"$config_dir/shell-integration.bash" <<'REMORA_BASH'
+    if [ -z "${BASH_VERSION:-}" ]; then
+      return 0 2>/dev/null || exit 0
+    fi
+    case $- in
+      *i*) ;;
+      *) return 0 2>/dev/null || exit 0 ;;
+    esac
+    if [ ! -t 1 ]; then
+      return 0 2>/dev/null || exit 0
+    fi
     if [ -n "${REMORA_SHELL_INTEGRATION_LOADED:-}" ]; then
       return 0 2>/dev/null || exit 0
     fi
@@ -30,10 +40,12 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
         PROMPT_COMMAND="${__remora_prompt_command:+$__remora_prompt_command; }__remora_pre_prompt"
         ;;
     esac
-    __remora_emit_cwd
     REMORA_BASH
 
     cat >"$config_dir/shell-integration.zsh" <<'REMORA_ZSH'
+    if [[ ! -o interactive ]] || [[ ! -t 1 ]]; then
+      return 0 2>/dev/null || exit 0
+    fi
     if [[ -n "${REMORA_SHELL_INTEGRATION_LOADED:-}" ]]; then
       return 0
     fi
@@ -59,19 +71,18 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
       chpwd_functions=(__remora_emit_cwd ${chpwd_functions[@]})
       precmd_functions=(${precmd_functions[@]} __remora_precmd)
     fi
-    __remora_emit_cwd
     REMORA_ZSH
 
     cat >"$fish_dir/remora.fish" <<'REMORA_FISH'
-    status --is-interactive; or exit
+    status --is-interactive; or return
     function __remora_emit_cwd --on-variable PWD
         set -l __remora_host_name (hostname -f 2>/dev/null; or hostname 2>/dev/null; or printf localhost)
         printf '\\033]7;file://%s%s\\007' "$__remora_host_name" "$PWD"
     end
-    function __remora_emit_prompt_start --on-event fish_prompt
+    function __remora_pre_prompt --on-event fish_prompt
+        __remora_emit_cwd
         printf '\\033]133;A\\007'
     end
-    __remora_emit_cwd
     REMORA_FISH
 
     ensure_block() {
@@ -87,10 +98,18 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
       fi
     }
 
-    ensure_block "$HOME/.bashrc" '[ -r "$HOME/.config/remora/shell-integration.bash" ] && . "$HOME/.config/remora/shell-integration.bash"'
-    ensure_block "$HOME/.bash_profile" '[ -r "$HOME/.config/remora/shell-integration.bash" ] && . "$HOME/.config/remora/shell-integration.bash"'
-    ensure_block "$HOME/.profile" '[ -r "$HOME/.config/remora/shell-integration.bash" ] && . "$HOME/.config/remora/shell-integration.bash"'
-    ensure_block "$HOME/.zshrc" '[ -r "$HOME/.config/remora/shell-integration.zsh" ] && source "$HOME/.config/remora/shell-integration.zsh"'
+    bash_loader='if [ -n "${BASH_VERSION:-}" ]; then
+      case $- in
+        *i*) [ -r "$HOME/.config/remora/shell-integration.bash" ] && . "$HOME/.config/remora/shell-integration.bash" ;;
+      esac
+    fi'
+    zsh_loader='if [[ -o interactive ]] && [[ -t 1 ]] && [[ -r "$HOME/.config/remora/shell-integration.zsh" ]]; then
+      source "$HOME/.config/remora/shell-integration.zsh"
+    fi'
+    ensure_block "$HOME/.bashrc" "$bash_loader"
+    ensure_block "$HOME/.bash_profile" "$bash_loader"
+    ensure_block "$HOME/.profile" "$bash_loader"
+    ensure_block "$HOME/.zshrc" "$zsh_loader"
     printf 'remora-shell-integration-installed\n'
     """
 
