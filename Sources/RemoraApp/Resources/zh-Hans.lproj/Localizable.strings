@@ -555,6 +555,7 @@
 "Subfolders" = "子目录";
 "Subfolders in %@" = "%@ 下的子目录";
 "Terminal Sync" = "终端同步";
+"Open Path in Terminal" = "在终端中打开该路径";
 "Enable terminal sync" = "启用终端同步";
 "Disable terminal sync" = "关闭终端同步";
 "Scanned %lld items · %lld matches" = "已扫描 %lld 项 · %lld 个匹配";

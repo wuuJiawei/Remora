@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchFieldDelegate {
     let toolbar = NSToolbar(identifier: "file-manager-window-toolbar")
-    let searchField = NSSearchField(frame: NSRect(x: 0, y: 0, width: 220, height: 0))
+    let searchField = NSSearchField(frame: NSRect(x: 0, y: 0, width: 220, height: 28))
     let pathControl = FileManagerToolbarPathControl(frame: NSRect(x: 0, y: 0, width: 420, height: 28))
     fileprivate let downloadsButtonView = FileManagerDownloadsButtonView(frame: NSRect(x: 0, y: 0, width: 30, height: 30))
 
@@ -13,12 +13,15 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
     var onRefresh: (() -> Void)?
     var onPathSelected: ((String) -> Void)?
     var onCopyCurrentPath: ((String) -> Void)?
+    var onTerminalSyncToggled: (() -> Void)?
     var onSearchChanged: ((String) -> Void)?
     var onDownloadsClicked: (() -> Void)?
     var downloadsAnchorView: NSView { downloadsButtonView }
 
     private weak var backItem: NSToolbarItem?
     private weak var forwardItem: NSToolbarItem?
+    private weak var terminalSyncItem: NSToolbarItem?
+    private var isTerminalSyncEnabled = false
     private var pathMap: [String: String] = [:]
     private var currentPathForCopy: String?
 
@@ -60,6 +63,15 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
         downloadsButtonView.status = status
     }
 
+    func updateTerminalSync(isEnabled: Bool) {
+        isTerminalSyncEnabled = isEnabled
+        terminalSyncItem?.image = NSImage(
+            systemSymbolName: isEnabled ? "link.circle.fill" : "link",
+            accessibilityDescription: tr("Terminal Sync")
+        )
+        terminalSyncItem?.toolTip = tr(isEnabled ? "Disable terminal sync" : "Enable terminal sync")
+    }
+
     func controlTextDidChange(_ obj: Notification) {
         onSearchChanged?(searchField.stringValue)
     }
@@ -72,6 +84,7 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
             .fileManagerPathControl,
             .flexibleSpace,
             .fileManagerDownloads,
+            .fileManagerTerminalSync,
             .fileManagerSearch,
         ]
     }
@@ -124,6 +137,18 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
             item.label = tr("Transfers")
             item.view = downloadsButtonView
             return item
+        case .fileManagerTerminalSync:
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            item.label = tr("Terminal Sync")
+            item.image = NSImage(
+                systemSymbolName: isTerminalSyncEnabled ? "link.circle.fill" : "link",
+                accessibilityDescription: item.label
+            )
+            item.toolTip = tr(isTerminalSyncEnabled ? "Disable terminal sync" : "Enable terminal sync")
+            item.target = self
+            item.action = #selector(handleTerminalSyncToggle)
+            terminalSyncItem = item
+            return item
         default:
             return nil
         }
@@ -132,6 +157,7 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
     @objc private func handleBack() { onBack?() }
     @objc private func handleForward() { onForward?() }
     @objc private func handleRefresh() { onRefresh?() }
+    @objc private func handleTerminalSyncToggle() { onTerminalSyncToggled?() }
 
     @objc private func handlePathClick() {
         guard let clicked = pathControl.clickedPathItem else { return }
@@ -180,6 +206,7 @@ private extension NSToolbarItem.Identifier {
     static let fileManagerRefresh = NSToolbarItem.Identifier("file-manager-toolbar-refresh")
     static let fileManagerPathControl = NSToolbarItem.Identifier("file-manager-toolbar-path")
     static let fileManagerDownloads = NSToolbarItem.Identifier("file-manager-toolbar-downloads")
+    static let fileManagerTerminalSync = NSToolbarItem.Identifier("file-manager-toolbar-terminal-sync")
     static let fileManagerSearch = NSToolbarItem.Identifier("file-manager-toolbar-search")
 }
 

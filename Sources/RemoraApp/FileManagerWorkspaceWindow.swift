@@ -431,6 +431,9 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             onCopyPath: { path in
                 copyPathHandler?(path)
             },
+            onOpenInTerminal: { path in
+                runtime.changeDirectory(to: path)
+            },
             onUploadToDirectory: { path in
                 let panel = NSOpenPanel()
                 panel.allowsMultipleSelection = true
@@ -464,6 +467,9 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         }
         toolbarController.onCopyCurrentPath = { path in
             toolbarCopyPathHandler?(path)
+        }
+        toolbarController.onTerminalSyncToggled = {
+            viewModel.isTerminalDirectorySyncEnabled.toggle()
         }
 
         let window = NSWindow(contentViewController: splitController)
@@ -535,6 +541,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             hasHistory: !viewModel.transferQueue.isEmpty,
             status: transferQueueStatus(for: viewModel)
         )
+        toolbarController.updateTerminalSync(isEnabled: viewModel.isTerminalDirectorySyncEnabled)
         toolbarController.onSearchChanged = { [weak self, weak viewModel] query in
             guard let self, let viewModel else { return }
             self.splitController.updateSearchQuery(query)
@@ -655,6 +662,14 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
     }
 
     private func bindToolbar(viewModel: FileTransferViewModel) {
+        viewModel.$isTerminalDirectorySyncEnabled
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isEnabled in
+                self?.toolbarController.updateTerminalSync(isEnabled: isEnabled)
+            }
+            .store(in: &toolbarCancellables)
+
         viewModel.$remoteDirectoryPath
             .combineLatest(viewModel.$canNavigateRemoteBack, viewModel.$canNavigateRemoteForward)
             .receive(on: RunLoop.main)

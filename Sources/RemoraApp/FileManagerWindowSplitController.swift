@@ -29,6 +29,21 @@ enum FileManagerPasteTargetResolver {
     }
 }
 
+enum FileManagerTerminalPathResolver {
+    static func detailTargetDirectory(currentPath: String, clickedEntry: RemoteFileEntry?) -> String {
+        guard let clickedEntry else { return currentPath }
+        if clickedEntry.isDirectory {
+            return clickedEntry.path
+        }
+        let parentPath = URL(fileURLWithPath: clickedEntry.path).deletingLastPathComponent().path
+        return parentPath.isEmpty ? "/" : parentPath
+    }
+
+    static func sidebarTargetDirectory(clickedItemPath: String?) -> String? {
+        FileManagerContextCopyPathResolver.sidebarTargetPath(clickedItemPath: clickedItemPath)
+    }
+}
+
 private enum FileManagerContextMenuItemFactory {
     static func item(_ title: String, systemImage: String, action: Selector? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -58,6 +73,7 @@ private enum FileManagerContextMenuSelectors {
     static let handleRename = NSSelectorFromString("handleRename")
     static let handleDelete = NSSelectorFromString("handleDelete")
     static let handleCopyPath = NSSelectorFromString("handleCopyPath")
+    static let handleOpenInTerminal = NSSelectorFromString("handleOpenInTerminal")
     static let handleDownload = NSSelectorFromString("handleDownload")
     static let handleCopyEntries = NSSelectorFromString("handleCopyEntries")
     static let handleCutEntries = NSSelectorFromString("handleCutEntries")
@@ -95,6 +111,7 @@ private enum FileManagerContextMenuBuilder {
         var paste = true
         var clone = true
         var copyPath = true
+        var openInTerminal = true
         var archive = true
         var compress = true
         var extract = true
@@ -124,6 +141,7 @@ private enum FileManagerContextMenuBuilder {
         var canOpenFile = false
         var canShowInfo = false
         var canRemoveQuickPath = false
+        var canOpenInTerminal = false
         var hideUnavailable = false
     }
 
@@ -131,6 +149,11 @@ private enum FileManagerContextMenuBuilder {
         let menu = NSMenu()
         if visibility.refresh {
             menu.addItem(item(tr("Refresh"), icon: ContextMenuIconCatalog.refresh, action: FileManagerContextMenuSelectors.handleRefresh))
+        }
+        if visibility.openInTerminal {
+            menu.addItem(item(tr("Open Path in Terminal"), icon: ContextMenuIconCatalog.openInTerminal, action: FileManagerContextMenuSelectors.handleOpenInTerminal))
+        }
+        if visibility.refresh || visibility.openInTerminal {
             menu.addItem(.separator())
         }
 
@@ -332,6 +355,8 @@ private enum FileManagerContextMenuBuilder {
                 item.isEnabled = capabilities.canPaste
             case FileManagerContextMenuSelectors.handleRemoveQuickPath:
                 item.isEnabled = capabilities.canRemoveQuickPath
+            case FileManagerContextMenuSelectors.handleOpenInTerminal:
+                item.isEnabled = capabilities.canOpenInTerminal
             default:
                 item.isEnabled = true
             }
@@ -410,6 +435,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
         onCloneEntry: @escaping (RemoteFileEntry) -> Void,
         onMoveEntries: @escaping ([RemoteFileEntry]) -> Void,
         onCopyPath: @escaping (String) -> Void,
+        onOpenInTerminal: @escaping (String) -> Void,
         onUploadToDirectory: @escaping (String) -> Void,
         onUploadLocalFiles: @escaping ([URL], String) -> Void
     ) {
@@ -437,6 +463,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
             onCloneEntry: onCloneEntry,
             onMoveEntries: onMoveEntries,
             onCopyPath: onCopyPath,
+            onOpenInTerminal: onOpenInTerminal,
             onUploadToDirectory: onUploadToDirectory
         )
         self.detailController = FileManagerFinderDetailController(
@@ -455,6 +482,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
             onCloneEntry: onCloneEntry,
             onMoveEntries: onMoveEntries,
             onCopyPath: onCopyPath,
+            onOpenInTerminal: onOpenInTerminal,
             onUploadToDirectory: onUploadToDirectory,
             onUploadLocalFiles: onUploadLocalFiles
         )
@@ -585,6 +613,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     private let onCloneEntry: (RemoteFileEntry) -> Void
     private let onMoveEntries: ([RemoteFileEntry]) -> Void
     private let onCopyPath: (String) -> Void
+    private let onOpenInTerminal: (String) -> Void
     private let onUploadToDirectory: (String) -> Void
     var onEditPermissions: ((RemoteFileEntry) -> Void)?
     var onShowProperties: ((RemoteFileEntry) -> Void)?
@@ -655,6 +684,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         onCloneEntry: @escaping (RemoteFileEntry) -> Void,
         onMoveEntries: @escaping ([RemoteFileEntry]) -> Void,
         onCopyPath: @escaping (String) -> Void,
+        onOpenInTerminal: @escaping (String) -> Void,
         onUploadToDirectory: @escaping (String) -> Void
     ) {
         self.selectedPath = selectedPath
@@ -680,6 +710,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         self.onCloneEntry = onCloneEntry
         self.onMoveEntries = onMoveEntries
         self.onCopyPath = onCopyPath
+        self.onOpenInTerminal = onOpenInTerminal
         self.onUploadToDirectory = onUploadToDirectory
         self.directoryNodeCache[rootDirectoryNode.path] = rootDirectoryNode
         super.init(nibName: nil, bundle: nil)
@@ -1388,6 +1419,14 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         onCopyPath(targetPath)
     }
 
+    @objc private func handleOpenInTerminal() {
+        guard let targetPath = FileManagerTerminalPathResolver.sidebarTargetDirectory(
+            clickedItemPath: sidebarCopyPathTarget()
+        ) else { return }
+        LogManager.debug(.fileManager, "sidebar context openInTerminal path=\(targetPath)")
+        onOpenInTerminal(targetPath)
+    }
+
     @objc private func handleDownload() {
         guard let entry = selectedSidebarEntry(), !selectedSidebarIsRoot() else { return }
         LogManager.debug(.fileManager, "sidebar context download path=\(entry.path)")
@@ -1500,6 +1539,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
                 canOpenFile: false,
                 canShowInfo: true,
                 canRemoveQuickPath: isQuickPath,
+                canOpenInTerminal: true,
                 hideUnavailable: true
             )
         )
@@ -1547,6 +1587,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     private let onCloneEntry: (RemoteFileEntry) -> Void
     private let onMoveEntries: ([RemoteFileEntry]) -> Void
     private let onCopyPath: (String) -> Void
+    private let onOpenInTerminal: (String) -> Void
     private let onUploadToDirectory: (String) -> Void
     private let onUploadLocalFiles: ([URL], String) -> Void
     var onEditPermissions: ((RemoteFileEntry) -> Void)?
@@ -1614,6 +1655,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         onCloneEntry: @escaping (RemoteFileEntry) -> Void,
         onMoveEntries: @escaping ([RemoteFileEntry]) -> Void,
         onCopyPath: @escaping (String) -> Void,
+        onOpenInTerminal: @escaping (String) -> Void,
         onUploadToDirectory: @escaping (String) -> Void,
         onUploadLocalFiles: @escaping ([URL], String) -> Void
     ) {
@@ -1632,6 +1674,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         self.onCloneEntry = onCloneEntry
         self.onMoveEntries = onMoveEntries
         self.onCopyPath = onCopyPath
+        self.onOpenInTerminal = onOpenInTerminal
         self.onUploadToDirectory = onUploadToDirectory
         self.onUploadLocalFiles = onUploadLocalFiles
         super.init(nibName: nil, bundle: nil)
@@ -1986,6 +2029,15 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         onCopyPath(targetPath)
     }
 
+    @objc private func handleOpenInTerminal() {
+        let targetPath = FileManagerTerminalPathResolver.detailTargetDirectory(
+            currentPath: currentPath,
+            clickedEntry: clickedEntry()
+        )
+        LogManager.debug(.fileManager, "detail context openInTerminal path=\(targetPath)")
+        onOpenInTerminal(targetPath)
+    }
+
     @objc private func handleDownload() {
         let entries = clickedOrSelectedEntries()
         guard !entries.isEmpty else { return }
@@ -2105,7 +2157,8 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
                 canExtract: canExtract,
                 canOpenFile: selectedEntries.count == 1 && selectedFileCount == 1,
                 canShowInfo: hasSelection,
-                canRemoveQuickPath: false
+                canRemoveQuickPath: false,
+                canOpenInTerminal: true
             )
         )
     }

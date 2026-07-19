@@ -44,6 +44,7 @@ enum ContextMenuIconCatalog {
     static let liveView = "waveform.path.ecg"
     static let edit = "doc.text"
     static let copyPath = "link"
+    static let openInTerminal = "terminal"
     static let properties = "slider.horizontal.3"
     static let permissions = "lock.shield"
     static let reveal = "folder"
