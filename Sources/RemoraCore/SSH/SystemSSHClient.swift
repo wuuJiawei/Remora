@@ -61,6 +61,8 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     private var interactivePasswordAutofillDeadline: Date?
     private var hasRetriedWithoutConnectionReuse = false
     private var activeLaunchUsesStoredPasswordDelivery = false
+    private var hasObservedOTPChallenge = false
+    private var isStopping = false
 
     public init(host: Host, pty: PTYSize) {
         self.host = host
@@ -162,18 +164,21 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
                     status: task.terminationStatus,
                     output: snapshot.output,
                     attemptStartedAt: snapshot.startedAt,
-                    compatibilityProfile: snapshot.profile
+                    compatibilityProfile: snapshot.profile,
+                    hasObservedOTPChallenge: snapshot.hasObservedOTPChallenge
                 )
             }
         }
 
         stateQueue.sync {
             process = proc
+            isStopping = false
             self.masterHandle = masterHandle
             masterFileDescriptor = masterFD
             activeCompatibilityProfile = compatibilityProfile
             activeAttemptStartedAt = attemptStartedAt
             recentFailureProbeBuffer.removeAll(keepingCapacity: true)
+            hasObservedOTPChallenge = false
             interactivePasswordAutofill = launchPlan.interactivePasswordAutofill
             hasSubmittedInteractivePassword = false
             authPromptProbeTail.removeAll(keepingCapacity: true)
@@ -229,7 +234,10 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     }
 
     public func stop() async {
-        let currentProcess = stateQueue.sync { process }
+        let currentProcess = stateQueue.sync {
+            isStopping = true
+            return process
+        }
         guard let currentProcess else {
             cleanupHandles()
             onStateChange?(.stopped)
@@ -281,6 +289,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         var output: String
         var startedAt: Date
         var profile: SSHCompatibilityProfile
+        var hasObservedOTPChallenge: Bool
     }
 
     private func recordFailureProbeOutput(_ data: Data) {
@@ -288,6 +297,10 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             recentFailureProbeBuffer.append(data)
             if recentFailureProbeBuffer.count > failureProbeBufferLimit {
                 recentFailureProbeBuffer = recentFailureProbeBuffer.suffix(failureProbeBufferLimit)
+            }
+            let probeText = String(decoding: recentFailureProbeBuffer.suffix(512), as: UTF8.self).lowercased()
+            if Self.looksLikeOTPChallenge(probeText) {
+                hasObservedOTPChallenge = true
             }
         }
     }
@@ -321,7 +334,8 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
             TerminationSnapshot(
                 output: String(decoding: recentFailureProbeBuffer, as: UTF8.self),
                 startedAt: activeAttemptStartedAt ?? Date(),
-                profile: activeCompatibilityProfile
+                profile: activeCompatibilityProfile,
+                hasObservedOTPChallenge: hasObservedOTPChallenge
             )
         }
     }
@@ -367,6 +381,8 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
     private static func looksLikeOTPChallenge(_ output: String) -> Bool {
         output.contains("verification code")
             || output.contains("one-time password")
+            || output.contains("email code")
+            || output.contains("mfa code")
             || output.contains("otp")
             || output.contains("token code")
             || output.contains("authenticator code")
@@ -376,8 +392,14 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         status: Int32,
         output: String,
         attemptStartedAt: Date,
-        compatibilityProfile: SSHCompatibilityProfile
+        compatibilityProfile: SSHCompatibilityProfile,
+        hasObservedOTPChallenge: Bool
     ) async {
+        if stateQueue.sync(execute: { isStopping }) {
+            onStateChange?(.stopped)
+            return
+        }
+
         if status == 0 {
             onStateChange?(.stopped)
             return
@@ -424,6 +446,7 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
         if !skipAutoPasswordDelivery,
            host.auth.method == .password,
            elapsed <= compatibilityRetryWindow,
+           !hasObservedOTPChallenge,
            stateQueue.sync(execute: { cachedStoredPassword?.isEmpty == false }),
            Self.looksLikeInteractiveAuthRetryCandidate(output) {
             skipAutoPasswordDelivery = true
@@ -455,6 +478,8 @@ public final class ProcessSSHShellSession: SSHTransportSessionProtocol, @uncheck
 
         if lower.contains("one-time password")
             || lower.contains("verification code")
+            || lower.contains("email code")
+            || lower.contains("mfa code")
             || lower.contains("otp")
             || lower.contains("authenticator code")
             || lower.contains("token code")

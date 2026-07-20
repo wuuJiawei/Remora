@@ -480,6 +480,139 @@ struct SystemSSHClientTests {
     }
 
     @Test
+    func runningSessionNeverAutofillsStoredLoginPasswordIntoJumpServerEmailCodeChallenge() async throws {
+        let host = Host(
+            name: "jumpserver-email-code",
+            address: "example.com",
+            username: "root",
+            auth: HostAuth(method: .password, passwordReference: "pw-ref")
+        )
+        let output = OutputCollector()
+        let session = ProcessSSHShellSession(
+            host: host,
+            pty: .init(columns: 80, rows: 24),
+            launchConfigurationOverride: ProcessSSHShellSession.LaunchConfiguration(
+                executablePath: "/bin/bash",
+                arguments: [
+                    "-lc",
+                    "printf '(root@example.com) [EMAIL Code]:'; if IFS= read -r -t 0.5 code; then printf '\r\nLEAKED\r\n'; else printf '\r\nSAFE\r\n'; fi"
+                ],
+                environment: ["TERM": "xterm-256color"]
+            ),
+            interactivePasswordAutofillOverride: "stored-login-password"
+        )
+        session.onOutput = { data in
+            Task {
+                await output.append(String(decoding: data, as: UTF8.self))
+            }
+        }
+        try await session.start()
+
+        #expect(
+            await waitUntil(timeout: 2) { await output.joined.contains("SAFE") },
+            "A saved login password must not be submitted to JumpServer's email MFA prompt."
+        )
+        #expect(await output.joined.contains("LEAKED") == false)
+        await session.stop()
+    }
+
+    @Test
+    func stoppingEmailCodeChallengeDoesNotRetryAuthentication() async throws {
+        let host = Host(
+            name: "cancel-email-code",
+            address: "example.com",
+            username: "root",
+            auth: HostAuth(method: .password, passwordReference: "pw-ref")
+        )
+        let output = OutputCollector()
+        let attemptFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-system-ssh-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: attemptFileURL) }
+
+        let script = """
+        count=$(cat '\(attemptFileURL.path)' 2>/dev/null || printf '0')
+        count=$((count + 1))
+        printf '%s' "$count" > '\(attemptFileURL.path)'
+        printf '(root@example.com) [EMAIL Code]:'
+        sleep 5
+        """
+        let session = ProcessSSHShellSession(
+            host: host,
+            pty: .init(columns: 80, rows: 24),
+            launchConfigurationOverride: ProcessSSHShellSession.LaunchConfiguration(
+                executablePath: "/bin/sh",
+                arguments: ["-c", script],
+                environment: ["TERM": "xterm-256color"]
+            ),
+            interactivePasswordAutofillOverride: "stored-login-password",
+            cachedStoredPasswordOverride: "stored-login-password"
+        )
+        session.onOutput = { data in
+            Task {
+                await output.append(String(decoding: data, as: UTF8.self))
+            }
+        }
+
+        try await session.start()
+        #expect(await waitUntil(timeout: 2) { await output.joined.contains("[EMAIL Code]:") })
+        await session.stop()
+        try? await Task.sleep(for: .milliseconds(300))
+
+        let attempts = try String(contentsOf: attemptFileURL, encoding: .utf8)
+        #expect(attempts == "1", "Cancelling an MFA prompt must not start another SSH attempt or send another code.")
+    }
+
+    @Test
+    func exitingImmediatelyAfterEmailCodeAuthenticationDoesNotRetryWithoutStoredPassword() async throws {
+        let host = Host(
+            name: "jumpserver-reconnect",
+            address: "example.com",
+            username: "root",
+            auth: HostAuth(method: .password, passwordReference: "pw-ref")
+        )
+        let output = OutputCollector()
+        let attemptFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remora-system-ssh-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: attemptFileURL) }
+
+        let script = """
+        count=$(cat '\(attemptFileURL.path)' 2>/dev/null || printf '0')
+        count=$((count + 1))
+        printf '%s' "$count" > '\(attemptFileURL.path)'
+        printf '(root@example.com) [EMAIL Code]:'
+        IFS= read -r code
+        printf '\r\nWelcome to JumpServer\r\n'
+        exit 130
+        """
+        let session = ProcessSSHShellSession(
+            host: host,
+            pty: .init(columns: 80, rows: 24),
+            launchConfigurationOverride: ProcessSSHShellSession.LaunchConfiguration(
+                executablePath: "/bin/sh",
+                arguments: ["-c", script],
+                environment: ["TERM": "xterm-256color"]
+            ),
+            interactivePasswordAutofillOverride: "stored-login-password",
+            cachedStoredPasswordOverride: "stored-login-password"
+        )
+        session.onOutput = { data in
+            Task {
+                await output.append(String(decoding: data, as: UTF8.self))
+            }
+        }
+
+        try await session.start()
+        #expect(await waitUntil(timeout: 2) { await output.joined.contains("[EMAIL Code]:") })
+        try await session.write(Data("123456\n".utf8))
+        #expect(await waitUntil(timeout: 2) { await output.joined.contains("Welcome to JumpServer") })
+        try? await Task.sleep(for: .milliseconds(300))
+
+        let attempts = try String(contentsOf: attemptFileURL, encoding: .utf8)
+        #expect(attempts == "1", "A completed MFA session ending within the retry window must not launch a password-only SSH attempt.")
+        await session.stop()
+    }
+
+    @Test
     func runningSessionDoesNotRetryInteractiveAuthWithoutCachedPassword() async throws {
         let host = Host(
             name: "retry-without-password",

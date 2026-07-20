@@ -2,7 +2,7 @@ import SwiftUI
 import RemoraCore
 
 struct TerminalPaneView: View {
-    private enum AuthPromptKind {
+    private enum AuthPromptKind: String {
         case hostKey
         case otp
         case password
@@ -234,6 +234,12 @@ struct TerminalPaneView: View {
         .onChange(of: runtime.transcriptSnapshot) {
             aiAssistant.refreshSmartAssist()
         }
+        .onChange(of: runtime.passwordPromptMessage) {
+            LogManager.info(
+                .ssh,
+                "auth alert visibility stage=password visible=\(runtime.passwordPromptMessage != nil) connectionState=\(diagnosticConnectionState)"
+            )
+        }
         .onChange(of: aiEnabled) {
             if !aiEnabled {
                 pane.isAIAssistantVisible = false
@@ -242,6 +248,10 @@ struct TerminalPaneView: View {
             aiAssistant.refreshSmartAssist()
         }
         .onChange(of: aiAssistant.smartAssist) {
+            LogManager.info(
+                .ssh,
+                "terminal ai smartAssist=\(String(describing: aiAssistant.smartAssist?.kind)) connectionState=\(diagnosticConnectionState)"
+            )
             smartAssistNotificationState.sync(currentSmartAssist: aiAssistant.smartAssist, aiEnabled: aiEnabled)
         }
         .onChange(of: pane.isAIAssistantVisible) {
@@ -256,6 +266,10 @@ struct TerminalPaneView: View {
                 get: { activeAuthPrompt != nil },
                 set: { isPresented in
                     guard !isPresented else { return }
+                    LogManager.info(
+                        .ssh,
+                        "auth alert binding dismissed active=\(activeAuthPrompt?.rawValue ?? "none") connectionState=\(diagnosticConnectionState)"
+                    )
                     switch activeAuthPrompt {
                     case .hostKey:
                         runtime.dismissHostKeyPrompt()
@@ -287,6 +301,7 @@ struct TerminalPaneView: View {
                     runtime.respondToOTPPrompt(code: otpInputCode)
                     otpInputCode = ""
                 }
+                .disabled(otpInputCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             case .password:
                 SecureField(tr("Enter password"), text: $passwordInput)
                 Button(tr("Cancel"), role: .cancel) {
@@ -329,6 +344,14 @@ struct TerminalPaneView: View {
             return .orange
         }
         return .secondary
+    }
+
+    private var diagnosticConnectionState: String {
+        if runtime.connectionState.hasPrefix(TerminalRuntime.connectedPrefix) { return "connected" }
+        if runtime.connectionState.hasPrefix(TerminalRuntime.failedPrefix) { return "failed" }
+        if runtime.connectionState.hasPrefix(TerminalRuntime.waitingPrefix) { return "waiting" }
+        if runtime.connectionState == TerminalRuntime.connectingState { return "connecting" }
+        return "other"
     }
 
     private var canReconnect: Bool {

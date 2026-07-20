@@ -81,6 +81,7 @@ final class TerminalRuntime: ObservableObject {
     private var activeSSHHasStoredPassword = false
     private var hasHiddenStoredPasswordPrompt = false
     private var lastSSHAuthPromptSignature: String?
+    private var awaitingSSHAuthResponse = false
     private var isWorkingDirectoryTrackingEnabled = false
     private var pendingWorkingDirectoryProbeTask: Task<Void, Never>?
     private var awaitingPwdResponse = false
@@ -178,6 +179,12 @@ final class TerminalRuntime: ObservableObject {
     }
 
     func connect(using config: TerminalConnectConfig) {
+        if config.mode == .ssh {
+            LogManager.info(
+                .ssh,
+                "connect requested host=\(config.hostAddress) port=\(config.hostPort) user=\(config.username) auth=\(config.authMethod.rawValue) passwordReferencePresent=\(config.passwordReference?.isEmpty == false)"
+            )
+        }
         Task {
             await stopActiveSessionIfNeeded()
             await MainActor.run {
@@ -227,31 +234,47 @@ final class TerminalRuntime: ObservableObject {
                     activeSSHHasStoredPassword = descriptor.usesStoredPasswordDelivery
                     hasHiddenStoredPasswordPrompt = false
                     lastSSHAuthPromptSignature = nil
-                    connectionState = "Connected (\(config.mode.rawValue))"
+                    awaitingSSHAuthResponse = config.mode == .ssh && host.auth.method == .password
+                    connectionState = awaitingSSHAuthResponse
+                        ? "Waiting (authentication)"
+                        : "Connected (\(config.mode.rawValue))"
                     connectedSSHHost = config.mode == .ssh ? descriptor.host : nil
                     bindOutput(for: descriptor.id, manager: manager)
                     bindSessionState(for: descriptor.id, manager: manager)
                     isReconnecting = false
+                    if config.mode == .ssh {
+                        LogManager.info(
+                            .ssh,
+                            "session started id=\(descriptor.id.uuidString) storedPasswordDelivery=\(descriptor.usesStoredPasswordDelivery)"
+                        )
+                    }
                 }
                 await self.applyPendingResizeIfNeeded()
 
                 if config.mode == .ssh, !shouldPreinstallRemoteShellIntegration {
-                    Task {
-                        try? await self.remoteShellIntegrationInstaller(host)
-                    }
+                    LogManager.info(
+                        .ssh,
+                        "shell integration skipped reason=interactivePasswordAuth"
+                    )
                 }
             } catch {
                 await MainActor.run {
                     connectionState = "Failed: \(error.localizedDescription)"
                     connectedSSHHost = nil
                     isReconnecting = false
+                    if config.mode == .ssh {
+                        LogManager.error(
+                            .ssh,
+                            "session start failed category=\(Self.failureCategory(error.localizedDescription))"
+                        )
+                    }
                 }
             }
         }
     }
 
     private static func shouldPreinstallRemoteShellIntegration(for host: RemoraCore.Host) -> Bool {
-        host.auth.method != .password || ProcessSSHShellSession.hasSSHPassInstalled()
+        host.auth.method != .password
     }
 
     func disconnect() {
@@ -299,41 +322,51 @@ final class TerminalRuntime: ObservableObject {
     }
 
     func respondToHostKeyPrompt(accept: Bool) {
+        LogManager.info(.ssh, "auth prompt response stage=hostKey accepted=\(accept)")
         enqueueInput(Data((accept ? "yes\n" : "no\n").utf8), trackWorkingDirectory: false)
         hostKeyPromptMessage = nil
         activeSSHAuthStage = nil
+        awaitingSSHAuthResponse = accept
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         connectionState = accept ? "Waiting (authentication)" : "Host key rejected"
     }
 
     func dismissHostKeyPrompt() {
+        LogManager.info(.ssh, "auth prompt dismissed stage=hostKey")
         hostKeyPromptMessage = nil
     }
 
     func respondToOTPPrompt(code: String) {
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        LogManager.info(.ssh, "auth prompt response stage=otp valuePresent=true")
         enqueueInput(Data("\(trimmed)\n".utf8), trackWorkingDirectory: false)
         otpPromptMessage = nil
         activeSSHAuthStage = nil
+        awaitingSSHAuthResponse = true
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         connectionState = "Waiting (authentication)"
     }
 
     func dismissOTPPrompt() {
+        LogManager.info(.ssh, "auth prompt cancelled stage=otp disconnecting=true")
         otpPromptMessage = nil
+        disconnect()
     }
 
     func respondToPasswordPrompt(password: String) {
         guard !password.isEmpty else { return }
+        LogManager.info(.ssh, "auth prompt response stage=password valuePresent=true")
         enqueueInput(Data((password + "\n").utf8), trackWorkingDirectory: false)
         passwordPromptMessage = nil
         activeSSHAuthStage = nil
+        awaitingSSHAuthResponse = true
         sshAuthProbeTail.removeAll(keepingCapacity: false)
         connectionState = "Waiting (authentication)"
     }
 
     func dismissPasswordPrompt() {
+        LogManager.info(.ssh, "auth prompt dismissed stage=password")
         passwordPromptMessage = nil
     }
 
@@ -580,15 +613,28 @@ final class TerminalRuntime: ObservableObject {
             let stream = await manager.sessionStateStream(sessionID: id)
             for await state in stream {
                 await MainActor.run {
+                    let authStageBeforeStateChange = activeSSHAuthStage?.rawValue ?? "none"
                     switch state {
                     case .idle:
+                        LogManager.debug(
+                            .ssh,
+                            "session state id=\(id.uuidString) state=idle authStage=\(authStageBeforeStateChange)"
+                        )
                         connectionState = "Idle"
                     case .running:
-                        if activeSSHAuthStage == nil {
+                        LogManager.debug(
+                            .ssh,
+                            "session state id=\(id.uuidString) state=running authStage=\(authStageBeforeStateChange)"
+                        )
+                        if activeSSHAuthStage == nil, !awaitingSSHAuthResponse {
                             connectionState = "Connected (\(connectionMode.rawValue))"
                         }
                     case .stopped:
                         let wasIntentionallyStopped = intentionallyStoppedSessionIDs.remove(id) != nil
+                        LogManager.info(
+                            .ssh,
+                            "session state id=\(id.uuidString) state=stopped intentional=\(wasIntentionallyStopped) authStage=\(authStageBeforeStateChange) passwordDialogVisible=\(passwordPromptMessage != nil)"
+                        )
                         connectionState = "Disconnected"
                         connectedSSHHost = nil
                         terminalInputReconnectEnabled = !wasIntentionallyStopped
@@ -598,8 +644,13 @@ final class TerminalRuntime: ObservableObject {
                         otpPromptMessage = nil
                         passwordPromptMessage = nil
                         activeSSHAuthStage = nil
+                        awaitingSSHAuthResponse = false
                     case .failed(let reason):
                         let wasIntentionallyStopped = intentionallyStoppedSessionIDs.remove(id) != nil
+                        LogManager.error(
+                            .ssh,
+                            "session state id=\(id.uuidString) state=failed category=\(Self.failureCategory(reason)) intentional=\(wasIntentionallyStopped) authStage=\(authStageBeforeStateChange) passwordDialogVisible=\(passwordPromptMessage != nil)"
+                        )
                         connectionState = "Failed: \(reason)"
                         connectedSSHHost = nil
                         terminalInputReconnectEnabled = !wasIntentionallyStopped
@@ -609,6 +660,7 @@ final class TerminalRuntime: ObservableObject {
                         otpPromptMessage = nil
                         passwordPromptMessage = nil
                         activeSSHAuthStage = nil
+                        awaitingSSHAuthResponse = false
                     }
                 }
             }
@@ -799,6 +851,7 @@ final class TerminalRuntime: ObservableObject {
         lastAppliedPTYSize = nil
         displayEndsAtLineStart = true
         activeSSHAuthStage = nil
+        awaitingSSHAuthResponse = false
         activeSSHHostAddress = nil
         activeSSHHasStoredPassword = false
         hasHiddenStoredPasswordPrompt = false
@@ -919,6 +972,7 @@ final class TerminalRuntime: ObservableObject {
         promptBoundaryProcessor = TerminalPromptBoundaryProcessor()
         displayEndsAtLineStart = true
         activeSSHAuthStage = nil
+        awaitingSSHAuthResponse = false
         activeSSHHasStoredPassword = false
         hasHiddenStoredPasswordPrompt = false
         lastSSHAuthPromptSignature = nil
@@ -1176,6 +1230,9 @@ final class TerminalRuntime: ObservableObject {
         let probeText = sshAuthProbeTail + chunk
         let lowercasedProbeText = probeText.lowercased()
         let detectedStage = Self.detectSSHAuthStage(in: lowercasedProbeText)
+        let responseText = stripANSISequences(from: chunk)
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.controlCharacters))
+        let isAuthenticationFailure = Self.isSSHAuthenticationFailure(responseText)
         let promptLine = Self.currentAuthenticationPromptLine(in: lowercasedProbeText)
         let promptSignature = detectedStage.map { "\($0.rawValue):\(promptLine)" }
         let repeatsPasswordPrompt = detectedStage == .password
@@ -1188,7 +1245,15 @@ final class TerminalRuntime: ObservableObject {
         }
 
         if let detectedStage {
+            let previousStage = activeSSHAuthStage
             activeSSHAuthStage = detectedStage
+            awaitingSSHAuthResponse = false
+            if isNewPrompt || previousStage != detectedStage {
+                LogManager.info(
+                    .ssh,
+                    "auth prompt detected stage=\(detectedStage.rawValue) isNew=\(isNewPrompt) storedPasswordDelivery=\(activeSSHHasStoredPassword) hiddenStoredPrompt=\(hasHiddenStoredPasswordPrompt)"
+                )
+            }
             switch detectedStage {
             case .hostKey:
                 connectionState = "Waiting (host-key)"
@@ -1202,9 +1267,11 @@ final class TerminalRuntime: ObservableObject {
                 connectionState = "Waiting (password)"
                 if activeSSHHasStoredPassword, isNewPrompt, !hasHiddenStoredPasswordPrompt {
                     hasHiddenStoredPasswordPrompt = true
+                    LogManager.info(.ssh, "auth prompt suppressed stage=password reason=storedPasswordDelivery")
                 } else if isNewPrompt, passwordPromptMessage == nil {
                     activeSSHHasStoredPassword = false
                     passwordPromptMessage = activeSSHHostAddress ?? ""
+                    LogManager.info(.ssh, "auth dialog requested stage=password reason=manualRetry")
                 }
             case .otp:
                 connectionState = "Waiting (otp)"
@@ -1217,12 +1284,22 @@ final class TerminalRuntime: ObservableObject {
             case .passphrase:
                 connectionState = "Waiting (passphrase)"
             }
-        } else if activeSSHAuthStage != nil {
+        } else if activeSSHAuthStage != nil, !responseText.isEmpty, !isAuthenticationFailure {
+            LogManager.info(
+                .ssh,
+                "auth stage cleared previous=\(activeSSHAuthStage?.rawValue ?? "none") passwordDialogVisible=\(passwordPromptMessage != nil)"
+            )
             activeSSHAuthStage = nil
             lastSSHAuthPromptSignature = nil
             hostKeyPromptMessage = nil
             otpPromptMessage = nil
             passwordPromptMessage = nil
+            awaitingSSHAuthResponse = false
+            connectionState = "Connected (\(connectionMode.rawValue))"
+        } else if awaitingSSHAuthResponse, !responseText.isEmpty, !isAuthenticationFailure {
+            LogManager.info(.ssh, "auth response accepted connectionState=connected")
+            awaitingSSHAuthResponse = false
+            lastSSHAuthPromptSignature = nil
             connectionState = "Connected (\(connectionMode.rawValue))"
         }
 
@@ -1254,6 +1331,8 @@ final class TerminalRuntime: ObservableObject {
 
         if promptLine.contains("one-time password")
             || promptLine.contains("verification code:")
+            || promptLine.contains("email code")
+            || promptLine.contains("mfa code")
             || promptLine.contains("otp:")
             || promptLine.contains("authenticator code")
             || promptLine.contains("token code")
@@ -1282,6 +1361,27 @@ final class TerminalRuntime: ObservableObject {
         }
 
         return normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func failureCategory(_ reason: String) -> String {
+        let normalized = reason.lowercased()
+        if normalized.contains("permission denied") { return "permissionDenied" }
+        if normalized.contains("host identification has changed") { return "hostKeyChanged" }
+        if normalized.contains("host key verification failed") { return "hostKeyVerification" }
+        if normalized.contains("connection closed") { return "connectionClosed" }
+        if normalized.contains("timed out") || normalized.contains("timeout") { return "timeout" }
+        return "other"
+    }
+
+    private static func isSSHAuthenticationFailure(_ output: String) -> Bool {
+        let normalized = output.lowercased()
+        return normalized.contains("permission denied")
+            || normalized.contains("authentication failed")
+            || normalized.contains("authentication failure")
+            || normalized.contains("access denied")
+            || normalized.contains("login incorrect")
+            || normalized.contains("invalid code")
+            || normalized.contains("connection closed")
     }
 
     static func makeHostKeyPromptMessage(from probeText: String, hostAddress: String?) -> String {

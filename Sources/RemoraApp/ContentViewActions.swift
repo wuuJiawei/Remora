@@ -845,10 +845,26 @@ extension ContentView {
     }
 
     func syncServerMetricsTracking() {
-        let connectedHosts = workspace.tabs.compactMap { tab in
-            runtimeForTab(tab)?.connectedSSHHost
+        let connectedHosts: [RemoraCore.Host] = workspace.tabs.compactMap { tab -> RemoraCore.Host? in
+            guard let runtime = runtimeForTab(tab),
+                  runtime.connectionState.hasPrefix(TerminalRuntime.connectedPrefix),
+                  let host = runtime.connectedSSHHost,
+                  host.auth.method != .password
+            else {
+                return nil
+            }
+            return host
         }
-        let activeHost = workspace.activePane?.runtime.connectedSSHHost
+        let activeHost: RemoraCore.Host? = {
+            guard let runtime = workspace.activePane?.runtime,
+                  runtime.connectionState.hasPrefix(TerminalRuntime.connectedPrefix),
+                  let host = runtime.connectedSSHHost,
+                  host.auth.method != .password
+            else {
+                return nil
+            }
+            return host
+        }()
         serverMetricsCenter.updateTrackedHosts(connectedHosts, activeHost: activeHost)
     }
 

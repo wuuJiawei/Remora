@@ -84,11 +84,13 @@ struct TerminalRuntimeTests {
         let hostKeyPrompt = "Are you sure you want to continue connecting (yes/no/[fingerprint])?"
         let passwordPrompt = "deploy@example.com's password:"
         let otpPrompt = "Verification code:"
+        let emailCodePrompt = "(deploy@example.com) [EMAIL Code]:"
         let passphrasePrompt = "Enter passphrase for key '/Users/demo/.ssh/id_ed25519':"
 
         #expect(TerminalRuntime.detectSSHAuthStage(in: hostKeyPrompt.lowercased()) == .hostKey)
         #expect(TerminalRuntime.detectSSHAuthStage(in: passwordPrompt.lowercased()) == .password)
         #expect(TerminalRuntime.detectSSHAuthStage(in: otpPrompt.lowercased()) == .otp)
+        #expect(TerminalRuntime.detectSSHAuthStage(in: emailCodePrompt.lowercased()) == .otp)
         #expect(TerminalRuntime.detectSSHAuthStage(in: passphrasePrompt.lowercased()) == .passphrase)
     }
 
@@ -283,6 +285,111 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func jumpServerEmailCodePromptPublishesMandatoryOTPDialog() async {
+        let manager = SessionManager(
+            sshClientFactory: {
+                AuthPromptSSHClient(promptSequence: [
+                    "(deploy@jump.example.com) [EMAIL Code]:"
+                ])
+            }
+        )
+        let runtime = TerminalRuntime(
+            localSessionManager: manager,
+            sshSessionManager: manager,
+            remoteShellIntegrationInstaller: { _ in }
+        )
+        let view = TerminalView(rows: 4, columns: 80)
+        runtime.attach(view: view)
+
+        runtime.connectSSH(address: "jump.example.com", port: 2222, username: "deploy", privateKeyPath: nil)
+
+        let prompted = await waitUntil(timeout: 2.0) {
+            runtime.otpPromptMessage == "jump.example.com"
+                && runtime.connectionState == "Waiting (otp)"
+        }
+        #expect(prompted)
+        #expect(runtime.transcriptSnapshot.contains("EMAIL Code"))
+
+        view.selectAll()
+        NSPasteboard.general.clearContents()
+        view.performTerminalAction(.copy)
+        let copied = NSPasteboard.general.string(forType: .string) ?? ""
+        #expect(copied.contains("EMAIL Code") == false)
+
+        runtime.dismissOTPPrompt()
+        #expect(await waitUntil(timeout: 2.0) { runtime.connectionState == "Disconnected" })
+    }
+
+    @Test
+    func jumpServerEmailCodeSubmissionWaitsForSuccessBeforeConnecting() async {
+        let recorder = AuthenticationInputRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                InteractiveChallengeSSHClient(
+                    prompts: ["(deploy@jump.example.com) [EMAIL Code]:"],
+                    recorder: recorder,
+                    completionOutput: "\r\nWelcome to JumpServer\r\n"
+                )
+            }
+        )
+        let runtime = TerminalRuntime(
+            localSessionManager: manager,
+            sshSessionManager: manager,
+            remoteShellIntegrationInstaller: { _ in }
+        )
+        let host = Host(
+            name: "jumpserver",
+            address: "jump.example.com",
+            port: 2222,
+            username: "deploy",
+            auth: HostAuth(method: .password, passwordReference: "pw-ref")
+        )
+
+        runtime.connectSSH(host: host)
+        #expect(await waitUntil(timeout: 2.0) { runtime.connectionState == "Waiting (otp)" })
+
+        runtime.respondToOTPPrompt(code: " 123456 ")
+        #expect(runtime.connectionState == "Waiting (authentication)")
+        #expect(await waitUntil(timeout: 2.0) { runtime.connectionState == "Connected (SSH)" })
+        #expect(await recorder.writes == ["123456\n"])
+        runtime.disconnect()
+    }
+
+    @Test
+    func jumpServerAuthenticationFailureOutputDoesNotMarkSessionConnected() async {
+        let recorder = AuthenticationInputRecorder()
+        let manager = SessionManager(
+            sshClientFactory: {
+                InteractiveChallengeSSHClient(
+                    prompts: ["(deploy@jump.example.com) [EMAIL Code]:"],
+                    recorder: recorder,
+                    completionOutput: "\r\nPermission denied (keyboard-interactive).\r\n"
+                )
+            }
+        )
+        let runtime = TerminalRuntime(
+            localSessionManager: manager,
+            sshSessionManager: manager,
+            remoteShellIntegrationInstaller: { _ in }
+        )
+        let host = Host(
+            name: "jumpserver",
+            address: "jump.example.com",
+            port: 2222,
+            username: "deploy",
+            auth: HostAuth(method: .password, passwordReference: "pw-ref")
+        )
+
+        runtime.connectSSH(host: host)
+        #expect(await waitUntil(timeout: 2.0) { runtime.connectionState == "Waiting (otp)" })
+
+        runtime.respondToOTPPrompt(code: "000000")
+        try? await Task.sleep(for: .milliseconds(150))
+        #expect(runtime.connectionState == "Waiting (authentication)")
+        runtime.disconnect()
+    }
+
+    @Test
     func passphrasePromptDoesNotReusePasswordOrOtpDialogState() async {
         let manager = SessionManager(
             sshClientFactory: {
@@ -458,7 +565,7 @@ struct TerminalRuntimeTests {
     }
 
     @Test
-    func passwordSSHDefersShellIntegrationInstallerUntilAfterSessionConnectsWhenSSHPassIsUnavailable() async {
+    func passwordSSHSkipsAutomaticShellIntegrationInstaller() async {
         let manager = SessionManager(sshClientFactory: { MockSSHClient() })
         let recorder = InstallerStateRecorder()
         let runtimeBox = RuntimeStateBox()
@@ -489,15 +596,8 @@ struct TerminalRuntimeTests {
         #expect(connected)
         guard connected else { return }
 
-        let installerRan = await waitUntilAsync(timeout: 2.0) {
-            await recorder.records.count == 1
-        }
-        #expect(installerRan)
-        guard installerRan else { return }
-
-        let records = await recorder.records
-        #expect(records.first?.host.address == "127.0.0.1")
-        #expect(records.first?.state.contains("Connected (SSH)") == true)
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(await recorder.records.isEmpty)
         runtime.disconnect()
     }
 
@@ -1315,16 +1415,19 @@ private actor InteractiveChallengeSSHClient: SSHTransportClientProtocol {
     private let prompts: [String]
     private let recorder: AuthenticationInputRecorder
     private let advancesOnInput: Bool
+    private let completionOutput: String?
     private var connectedHost: RemoraCore.Host?
 
     init(
         prompts: [String],
         recorder: AuthenticationInputRecorder,
-        advancesOnInput: Bool = true
+        advancesOnInput: Bool = true,
+        completionOutput: String? = nil
     ) {
         self.prompts = prompts
         self.recorder = recorder
         self.advancesOnInput = advancesOnInput
+        self.completionOutput = completionOutput
     }
 
     func connect(to host: RemoraCore.Host) async throws {
@@ -1336,7 +1439,8 @@ private actor InteractiveChallengeSSHClient: SSHTransportClientProtocol {
         return InteractiveChallengeShellSession(
             prompts: prompts,
             recorder: recorder,
-            advancesOnInput: advancesOnInput
+            advancesOnInput: advancesOnInput,
+            completionOutput: completionOutput
         )
     }
 
@@ -1352,17 +1456,21 @@ private final class InteractiveChallengeShellSession: SSHTransportSessionProtoco
     private let prompts: [String]
     private let recorder: AuthenticationInputRecorder
     private let advancesOnInput: Bool
+    private let completionOutput: String?
     private let lock = NSLock()
     private var nextPromptIndex = 0
+    private var didEmitCompletion = false
 
     init(
         prompts: [String],
         recorder: AuthenticationInputRecorder,
-        advancesOnInput: Bool
+        advancesOnInput: Bool,
+        completionOutput: String?
     ) {
         self.prompts = prompts
         self.recorder = recorder
         self.advancesOnInput = advancesOnInput
+        self.completionOutput = completionOutput
     }
 
     func start() async throws {
@@ -1376,7 +1484,9 @@ private final class InteractiveChallengeShellSession: SSHTransportSessionProtoco
     func write(_ data: Data) async throws {
         await recorder.append(data)
         if advancesOnInput {
-            emitNextPrompt()
+            if !emitNextPrompt() {
+                emitCompletionOutputIfNeeded()
+            }
         }
     }
 
@@ -1396,6 +1506,16 @@ private final class InteractiveChallengeShellSession: SSHTransportSessionProtoco
         guard let prompt else { return false }
         onOutput?(Data(prompt.utf8))
         return true
+    }
+
+    private func emitCompletionOutputIfNeeded() {
+        let output: String? = lock.withLock {
+            guard !didEmitCompletion else { return nil }
+            didEmitCompletion = true
+            return completionOutput
+        }
+        guard let output else { return }
+        onOutput?(Data(output.utf8))
     }
 }
 
