@@ -4,7 +4,7 @@ import RemoraCore
 actor DockerCommandService {
     struct ShellTarget: Sendable {
         let host: RemoraCore.Host
-        let client: SFTPClientProtocol
+        let executor: any RemoteCommandExecutorProtocol
     }
 
     private struct DockerVersionPayload: Decodable {
@@ -342,7 +342,7 @@ actor DockerCommandService {
     func listContainers(target: ShellTarget) async throws -> [DockerContainer] {
         let command = "docker ps -a --format '{{json .}}'"
         LogManager.info(.docker, "listContainers command start host=\(target.host.address)")
-        let output = try await target.client.executeRemoteShellCommand(command, timeout: 12)
+        let output = try await execute(command, on: target, timeout: 12, replayPolicy: .readOnly)
         let containers = parseContainers(output)
         let lineCount = output.split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -356,14 +356,14 @@ actor DockerCommandService {
 
     func inspectContainer(id: String, target: ShellTarget) async throws -> DockerContainerDetails {
         let command = "docker inspect \(quoteShellArgument(id))"
-        let output = try await target.client.executeRemoteShellCommand(command, timeout: 15)
+        let output = try await execute(command, on: target, timeout: 15, replayPolicy: .readOnly)
         return try parseContainerDetails(output, fallbackID: id)
     }
 
     func containerLogs(containerID: String, tail: Int, target: ShellTarget) async throws -> String {
         let lineCount = max(1, min(tail, 5000))
         let command = "docker logs --tail \(lineCount) \(quoteShellArgument(containerID)) 2>&1"
-        return try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        return try await execute(command, on: target, timeout: 20, replayPolicy: .readOnly)
     }
 
     func streamContainerLogs(
@@ -373,37 +373,37 @@ actor DockerCommandService {
     ) async throws -> AsyncThrowingStream<String, Error> {
         let lineCount = max(1, min(tail, 5000))
         let command = "docker logs --tail \(lineCount) -f \(quoteShellArgument(containerID)) 2>&1"
-        return try await target.client.streamRemoteShellCommand(command)
+        return try await stream(command, on: target)
     }
 
     func startContainer(id: String, target: ShellTarget) async throws {
         let command = "docker start \(quoteShellArgument(id))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        _ = try await execute(command, on: target, timeout: 20, replayPolicy: .never)
     }
 
     func stopContainer(id: String, target: ShellTarget) async throws {
         let command = "docker stop \(quoteShellArgument(id))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        _ = try await execute(command, on: target, timeout: 20, replayPolicy: .never)
     }
 
     func restartContainer(id: String, target: ShellTarget) async throws {
         let command = "docker restart \(quoteShellArgument(id))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        _ = try await execute(command, on: target, timeout: 20, replayPolicy: .never)
     }
 
     func pauseContainer(id: String, target: ShellTarget) async throws {
         let command = "docker pause \(quoteShellArgument(id))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        _ = try await execute(command, on: target, timeout: 20, replayPolicy: .never)
     }
 
     func killContainer(id: String, target: ShellTarget) async throws {
         let command = "docker kill \(quoteShellArgument(id))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        _ = try await execute(command, on: target, timeout: 20, replayPolicy: .never)
     }
 
     func deleteContainer(id: String, target: ShellTarget) async throws {
         let command = "docker rm \(quoteShellArgument(id))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        _ = try await execute(command, on: target, timeout: 20, replayPolicy: .never)
     }
 
     func listComposeProjects(target: ShellTarget) async throws -> [DockerComposeProject] {
@@ -419,32 +419,32 @@ actor DockerCommandService {
             if classifyComposeIssue(message) == .composeUnavailable {
                 throw error
             }
-            let fallback = try await target.client.executeRemoteShellCommand("docker compose ls", timeout: 12)
+            let fallback = try await execute("docker compose ls", on: target, timeout: 12, replayPolicy: .readOnly)
             return parseComposeProjectsText(fallback)
         }
     }
 
     func listImages(target: ShellTarget) async throws -> [DockerImage] {
         let command = "docker images --digests --format '{{json .}}'"
-        let output = try await target.client.executeRemoteShellCommand(command, timeout: 12)
+        let output = try await execute(command, on: target, timeout: 12, replayPolicy: .readOnly)
         return parseImages(output)
     }
 
     func listVolumes(target: ShellTarget) async throws -> [DockerVolume] {
         let command = "docker volume ls --format '{{json .}}'"
-        let output = try await target.client.executeRemoteShellCommand(command, timeout: 12)
+        let output = try await execute(command, on: target, timeout: 12, replayPolicy: .readOnly)
         return parseVolumes(output)
     }
 
     func listNetworks(target: ShellTarget) async throws -> [DockerNetwork] {
         let command = "ids=$(docker network ls -q); if [ -n \"$ids\" ]; then docker network inspect $ids; fi"
-        let output = try await target.client.executeRemoteShellCommand(command, timeout: 15)
+        let output = try await execute(command, on: target, timeout: 15, replayPolicy: .readOnly)
         return parseNetworks(output)
     }
 
     func containerStats(target: ShellTarget) async throws -> [DockerContainerStats] {
         let command = "docker stats --no-stream --format '{{json .}}'"
-        let output = try await target.client.executeRemoteShellCommand(command, timeout: 12)
+        let output = try await execute(command, on: target, timeout: 12, replayPolicy: .readOnly)
         return parseStats(output)
     }
 
@@ -454,7 +454,7 @@ actor DockerCommandService {
             action: "logs --tail \(lineCount)",
             project: project
         )
-        return try await target.client.executeRemoteShellCommand(command, timeout: 25)
+        return try await execute(command, on: target, timeout: 25, replayPolicy: .readOnly)
     }
 
     func streamComposeLogs(
@@ -467,47 +467,47 @@ actor DockerCommandService {
             action: "logs --tail \(lineCount) -f",
             project: project
         )
-        return try await target.client.streamRemoteShellCommand(command)
+        return try await stream(command, on: target)
     }
 
     func composeUp(project: DockerComposeProject, target: ShellTarget) async throws {
         let command = try composeCommand(action: "up -d", project: project)
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+        _ = try await execute(command, on: target, timeout: 30, replayPolicy: .never)
     }
 
     func composeDown(project: DockerComposeProject, target: ShellTarget) async throws {
         let command = try composeCommand(action: "down", project: project)
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+        _ = try await execute(command, on: target, timeout: 30, replayPolicy: .never)
     }
 
     func composeRestart(project: DockerComposeProject, target: ShellTarget) async throws {
         let command = try composeCommand(action: "restart", project: project)
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+        _ = try await execute(command, on: target, timeout: 30, replayPolicy: .never)
     }
 
     func composePause(project: DockerComposeProject, target: ShellTarget) async throws {
         let command = try composeCommand(action: "pause", project: project)
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+        _ = try await execute(command, on: target, timeout: 30, replayPolicy: .never)
     }
 
     func composeKill(project: DockerComposeProject, target: ShellTarget) async throws {
         let command = try composeCommand(action: "kill", project: project)
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+        _ = try await execute(command, on: target, timeout: 30, replayPolicy: .never)
     }
 
     func deleteVolume(_ volume: DockerVolume, target: ShellTarget) async throws {
         let command = "docker volume rm \(quoteShellArgument(volume.name))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        _ = try await execute(command, on: target, timeout: 20, replayPolicy: .never)
     }
 
     func deleteImage(_ image: DockerImage, target: ShellTarget) async throws {
         let command = "docker image rm \(quoteShellArgument(image.imageID))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 30)
+        _ = try await execute(command, on: target, timeout: 30, replayPolicy: .never)
     }
 
     func deleteNetwork(_ network: DockerNetwork, target: ShellTarget) async throws {
         let command = "docker network rm \(quoteShellArgument(network.id))"
-        _ = try await target.client.executeRemoteShellCommand(command, timeout: 20)
+        _ = try await execute(command, on: target, timeout: 20, replayPolicy: .never)
     }
 
     private func runCommand(
@@ -516,10 +516,86 @@ actor DockerCommandService {
         timeout: TimeInterval
     ) async -> Result<String, Error> {
         do {
-            let output = try await target.client.executeRemoteShellCommand(command, timeout: timeout)
+            let output = try await execute(command, on: target, timeout: timeout, replayPolicy: .readOnly)
             return .success(output)
         } catch {
             return .failure(error)
+        }
+    }
+
+    private func execute(
+        _ command: String,
+        on target: ShellTarget,
+        timeout: TimeInterval,
+        replayPolicy: CommandReplayPolicy
+    ) async throws -> String {
+        let result = try await target.executor.execute(
+            RemoteCommandRequest(
+                executable: .shell(command),
+                privilege: target.host.remoteCommandPrivilege,
+                replayPolicy: replayPolicy,
+                timeout: .seconds(timeout)
+            )
+        )
+        guard result.exitStatus == 0 else {
+            let stderr = String(decoding: result.standardError, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let stdout = String(decoding: result.standardOutput, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            throw RemoteOperationError(
+                category: target.host.remoteCommandPrivilege == .sudoNonInteractive ? .privilege : .command,
+                code: target.host.remoteCommandPrivilege == .sudoNonInteractive
+                    ? "privilege_command_failed"
+                    : "command_exit_nonzero",
+                safeDiagnosticMessage: stderr.isEmpty ? stdout : stderr,
+                operationID: nil,
+                backendCode: Int(result.exitStatus)
+            )
+        }
+        return String(decoding: result.standardOutput, as: UTF8.self)
+    }
+
+    private func stream(
+        _ command: String,
+        on target: ShellTarget
+    ) async throws -> AsyncThrowingStream<String, Error> {
+        let execution = try await target.executor.start(
+            RemoteCommandRequest(
+                executable: .shell(command),
+                privilege: target.host.remoteCommandPrivilege,
+                replayPolicy: .never
+            )
+        )
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let events = await execution.events()
+                    for try await event in events {
+                        switch event {
+                        case .standardOutput(let data), .standardError(let data):
+                            if !data.isEmpty {
+                                continuation.yield(String(decoding: data, as: UTF8.self))
+                            }
+                        case .exitStatus(let status):
+                            if status != 0 {
+                                throw RemoteOperationError(
+                                    category: .command,
+                                    code: "command_exit_nonzero",
+                                    safeDiagnosticMessage: "Remote log command exited with status \(status)",
+                                    backendCode: Int(status)
+                                )
+                            }
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+                Task { await execution.cancel() }
+            }
         }
     }
 

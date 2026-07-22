@@ -163,6 +163,13 @@ remora_ssh_error_code remora_ssh_channel_create_shell(
     remora_ssh_error *out_error
 );
 
+remora_ssh_error_code remora_ssh_channel_create_exec(
+    remora_ssh_context *context,
+    const char *command,
+    remora_ssh_channel **out_channel,
+    remora_ssh_error *out_error
+);
+
 remora_ssh_error_code remora_ssh_channel_start(
     remora_ssh_channel *channel,
     remora_ssh_error *out_error
@@ -182,6 +189,11 @@ remora_ssh_error_code remora_ssh_channel_write(
     const uint8_t *bytes,
     size_t length,
     size_t *out_written,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_channel_send_eof(
+    remora_ssh_channel *channel,
     remora_ssh_error *out_error
 );
 

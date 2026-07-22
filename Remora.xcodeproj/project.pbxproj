@@ -51,6 +51,7 @@
 		1FB3AB7674C89B613A3142316073D3E9 /* UpdateChecker.strings in Resources */ = {isa = PBXBuildFile; fileRef = B7775A89BFA9796E0EB5EEE2B205D9FF /* UpdateChecker.strings */; };
 		1FD8E14F91C91A8E88E3786C59AB63F6 /* DockerContainerListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50B7B787ED9949F6D3B0A1C58CE63290 /* DockerContainerListViewModel.swift */; };
 		200E6B7316C0EE09D3DAFAF91E8090C0 /* RemoteFileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 725450DCAB03A4CB0F8FD2E2971D02BD /* RemoteFileSystem.swift */; };
+		202D5910BEB5B353F89379FC411DDE3D /* LibSSH2CommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBDCD6849A280A567B90AB442C68E4A5 /* LibSSH2CommandExecutor.swift */; };
 		21A5C9BEE23F4F2F04993EEF8D28C22D /* DockerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 045A4829191257A528D3A89DC332DF10 /* DockerModels.swift */; };
 		23BE80AD7EC9211FA8DEBED477B9891B /* WorkspaceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23499887955E6E0D598497EDFC6C100 /* WorkspaceViewModel.swift */; };
 		23C1F7700F57922F316BF0C6EA9F3333 /* nist_kw.c in Sources */ = {isa = PBXBuildFile; fileRef = EBBA1B72BDE02E1A59AA3322C7FA157C /* nist_kw.c */; };
@@ -601,6 +602,7 @@
 		C9275E48FD86480F584F94A713397003 /* TerminalSmartAssistNotificationState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalSmartAssistNotificationState.swift; sourceTree = "<group>"; };
 		C9CB5A658D0CDE21A940558831AA7C97 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		CADD72294CAF6B683C1D8D82238BBE59 /* TerminalSessionDescriptor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TerminalSessionDescriptor.swift; path = Models/TerminalSessionDescriptor.swift; sourceTree = "<group>"; };
+		CBDCD6849A280A567B90AB442C68E4A5 /* LibSSH2CommandExecutor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LibSSH2CommandExecutor.swift; path = RemoteCommand/LibSSH2CommandExecutor.swift; sourceTree = "<group>"; };
 		CC41150691770D66ED19E090D7675FE0 /* FileTransferViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileTransferViewModel.swift; sourceTree = "<group>"; };
 		CD265B43A71078ADA85D53569F8FD250 /* RemoraEditorWebView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoraEditorWebView.swift; path = Editor/RemoraEditorWebView.swift; sourceTree = "<group>"; };
 		CD951262EDEBE29FCF4667145C124335 /* rsa_alt_helpers.c */ = {isa = PBXFileReference; includeInIndex = 1; name = rsa_alt_helpers.c; path = library/rsa_alt_helpers.c; sourceTree = "<group>"; };
@@ -1082,6 +1084,7 @@
 				F61F49B393F79F8F295FB64E9D4B5503 /* SFTPProtocols.swift */,
 				48BE13EC53B3CB74D615D215328AC870 /* SSHProtocols.swift */,
 				49E67A383CBCE2CF3C977C563020A205 /* SessionManagerProtocol.swift */,
+				CBDCD6849A280A567B90AB442C68E4A5 /* LibSSH2CommandExecutor.swift */,
 				7830E9AD1D4BBCBEBEA73854A392660B /* RemoteCommandExecutor.swift */,
 				31501BE238A33AF6C86FC807BBFCD07D /* RemoteCommandModels.swift */,
 				725450DCAB03A4CB0F8FD2E2971D02BD /* RemoteFileSystem.swift */,
@@ -1562,6 +1565,7 @@
 				670C4B113A5F3FD1DE4992451E6F4689 /* SFTPProtocols.swift in Sources */,
 				8C77A8DEA2E98C3EA681C2E0B6EC3BA5 /* SSHProtocols.swift in Sources */,
 				01B1A457F67AA494716BDFE553294060 /* SessionManagerProtocol.swift in Sources */,
+				202D5910BEB5B353F89379FC411DDE3D /* LibSSH2CommandExecutor.swift in Sources */,
 				881C3241D5744DD57A696F0B58A5C643 /* RemoteCommandExecutor.swift in Sources */,
 				9FE4A91749456836DFF87C4F5FC4FA98 /* RemoteCommandModels.swift in Sources */,
 				200E6B7316C0EE09D3DAFAF91E8090C0 /* RemoteFileSystem.swift in Sources */,

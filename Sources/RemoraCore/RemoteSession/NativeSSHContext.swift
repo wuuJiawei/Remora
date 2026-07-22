@@ -213,6 +213,29 @@ final class NativeSSHContext: @unchecked Sendable {
         return NativeSSHChannelHandle(handle: channelHandle, context: self)
     }
 
+    func createExec(command: String) throws -> NativeSSHChannelHandle {
+        let handle = try requiredHandle()
+        var channelHandle: OpaquePointer?
+        var nativeError = remora_ssh_error()
+        let result = command.withCString { commandPointer in
+            remora_ssh_channel_create_exec(
+                handle,
+                commandPointer,
+                &channelHandle,
+                &nativeError
+            )
+        }
+        guard result == REMORA_SSH_ERROR_NONE, let channelHandle else {
+            throw operationError(
+                result,
+                error: &nativeError,
+                category: .command,
+                code: "command_allocation_failed"
+            )
+        }
+        return NativeSSHChannelHandle(handle: channelHandle, context: self)
+    }
+
     func blockDirections() -> NativeSocketDirections {
         guard let handle else { return .both }
         let rawValue = remora_ssh_context_block_directions(handle)

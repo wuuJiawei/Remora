@@ -19,6 +19,7 @@ typedef enum remora_ssh_shell_phase {
     REMORA_SSH_SHELL_OPENING = 0,
     REMORA_SSH_SHELL_REQUESTING_PTY,
     REMORA_SSH_SHELL_STARTING,
+    REMORA_SSH_EXEC_STARTING,
     REMORA_SSH_SHELL_READY,
     REMORA_SSH_SHELL_SENDING_EOF,
     REMORA_SSH_SHELL_CLOSING,
@@ -50,6 +51,8 @@ struct remora_ssh_channel {
     char terminal_type[64];
     uint32_t columns;
     uint32_t rows;
+    char *command;
+    bool eof_sent;
     int32_t exit_status;
 };
 
@@ -787,6 +790,57 @@ remora_ssh_error_code remora_ssh_channel_create_shell(
     return REMORA_SSH_ERROR_NONE;
 }
 
+remora_ssh_error_code remora_ssh_channel_create_exec(
+    remora_ssh_context *context,
+    const char *command,
+    remora_ssh_channel **out_channel,
+    remora_ssh_error *out_error
+) {
+    if (!remora_ssh_context_valid(context)) {
+        return remora_ssh_invalid_context(out_error);
+    }
+    if (!remora_ssh_context_is_authenticated(context) || out_channel == NULL ||
+        command == NULL || command[0] == '\0') {
+        remora_ssh_error_set(
+            out_error,
+            REMORA_SSH_ERROR_INVALID_ARGUMENT,
+            0,
+            "exec channel arguments are invalid"
+        );
+        return REMORA_SSH_ERROR_INVALID_ARGUMENT;
+    }
+    *out_channel = NULL;
+
+    remora_ssh_channel *channel = calloc(1, sizeof(*channel));
+    if (channel == NULL) {
+        remora_ssh_error_set(
+            out_error,
+            REMORA_SSH_ERROR_ALLOCATION_FAILED,
+            0,
+            "unable to allocate native SSH exec channel"
+        );
+        return REMORA_SSH_ERROR_ALLOCATION_FAILED;
+    }
+    channel->command = strdup(command);
+    if (channel->command == NULL) {
+        free(channel);
+        remora_ssh_error_set(
+            out_error,
+            REMORA_SSH_ERROR_ALLOCATION_FAILED,
+            0,
+            "unable to copy native SSH exec command"
+        );
+        return REMORA_SSH_ERROR_ALLOCATION_FAILED;
+    }
+    channel->magic = REMORA_SSH_CHANNEL_MAGIC;
+    channel->context = context;
+    channel->phase = REMORA_SSH_SHELL_OPENING;
+    context->channel_count += 1;
+    *out_channel = channel;
+    remora_ssh_error_reset(out_error);
+    return REMORA_SSH_ERROR_NONE;
+}
+
 remora_ssh_error_code remora_ssh_channel_start(
     remora_ssh_channel *channel,
     remora_ssh_error *out_error
@@ -802,7 +856,9 @@ remora_ssh_error_code remora_ssh_channel_start(
             int result = libssh2_session_last_errno(context->session);
             return remora_ssh_map_result(context, result, "unable to open SSH channel", out_error);
         }
-        channel->phase = REMORA_SSH_SHELL_REQUESTING_PTY;
+        channel->phase = channel->command == NULL
+            ? REMORA_SSH_SHELL_REQUESTING_PTY
+            : REMORA_SSH_EXEC_STARTING;
     }
 
     if (channel->phase == REMORA_SSH_SHELL_REQUESTING_PTY) {
@@ -827,6 +883,14 @@ remora_ssh_error_code remora_ssh_channel_start(
         int result = libssh2_channel_shell(channel->channel);
         if (result != LIBSSH2_ERROR_NONE) {
             return remora_ssh_map_result(context, result, "unable to start remote shell", out_error);
+        }
+        channel->phase = REMORA_SSH_SHELL_READY;
+    }
+
+    if (channel->phase == REMORA_SSH_EXEC_STARTING) {
+        int result = libssh2_channel_exec(channel->channel, channel->command);
+        if (result != LIBSSH2_ERROR_NONE) {
+            return remora_ssh_map_result(context, result, "unable to start remote command", out_error);
         }
         channel->phase = REMORA_SSH_SHELL_READY;
     }
@@ -930,6 +994,27 @@ remora_ssh_error_code remora_ssh_channel_write(
     );
 }
 
+remora_ssh_error_code remora_ssh_channel_send_eof(
+    remora_ssh_channel *channel,
+    remora_ssh_error *out_error
+) {
+    if (!remora_ssh_channel_valid(channel)) {
+        return remora_ssh_invalid_channel(out_error);
+    }
+    if (channel->phase != REMORA_SSH_SHELL_READY) {
+        return remora_ssh_invalid_channel(out_error);
+    }
+    if (channel->eof_sent) {
+        remora_ssh_error_reset(out_error);
+        return REMORA_SSH_ERROR_NONE;
+    }
+    int result = libssh2_channel_send_eof(channel->channel);
+    if (result == LIBSSH2_ERROR_NONE) {
+        channel->eof_sent = true;
+    }
+    return remora_ssh_map_result(channel->context, result, "unable to send channel EOF", out_error);
+}
+
 remora_ssh_error_code remora_ssh_channel_resize(
     remora_ssh_channel *channel,
     uint32_t columns,
@@ -999,9 +1084,12 @@ remora_ssh_error_code remora_ssh_channel_close(
         channel->phase = REMORA_SSH_SHELL_SENDING_EOF;
     }
     if (channel->phase == REMORA_SSH_SHELL_SENDING_EOF) {
-        int result = libssh2_channel_send_eof(channel->channel);
-        if (result != LIBSSH2_ERROR_NONE) {
-            return remora_ssh_map_result(context, result, "unable to send channel EOF", out_error);
+        if (!channel->eof_sent) {
+            int result = libssh2_channel_send_eof(channel->channel);
+            if (result != LIBSSH2_ERROR_NONE) {
+                return remora_ssh_map_result(context, result, "unable to send channel EOF", out_error);
+            }
+            channel->eof_sent = true;
         }
         channel->phase = REMORA_SSH_SHELL_CLOSING;
     }
@@ -1046,6 +1134,9 @@ void remora_ssh_channel_destroy(remora_ssh_channel **channel_pointer) {
             }
         }
         channel->context = NULL;
+        remora_ssh_secure_zero(channel->command, channel->command == NULL ? 0 : strlen(channel->command));
+        free(channel->command);
+        channel->command = NULL;
         channel->magic = 0;
     }
     free(channel);

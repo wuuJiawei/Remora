@@ -100,6 +100,13 @@ final class NativeSSHChannelHandle: @unchecked Sendable {
         return try status(result, error: &error, code: "shell_close_failed")
     }
 
+    func sendEOF() throws -> NativeSSHCallStatus {
+        let handle = try requiredHandle()
+        var error = remora_ssh_error()
+        let result = remora_ssh_channel_send_eof(handle, &error)
+        return try status(result, error: &error, code: "channel_eof_failed")
+    }
+
     func destroy() {
         remora_ssh_channel_destroy(&handle)
     }

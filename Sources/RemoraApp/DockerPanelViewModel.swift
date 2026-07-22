@@ -42,6 +42,7 @@ final class DockerPanelViewModel: ObservableObject {
 
     private let service: DockerCommandService
     private var target: DockerCommandService.ShellTarget?
+    private var sessionLease: (any RemoteSessionLeaseProtocol)?
     private var refreshTask: Task<Void, Never>?
     private var activityRefreshTask: Task<Void, Never>?
     private var toastHideTask: Task<Void, Never>?
@@ -97,17 +98,42 @@ final class DockerPanelViewModel: ObservableObject {
             return
         }
 
-        guard let host = binding.host else { return }
-        let client: SFTPClientProtocol
-        switch binding.executionMode {
-        case .directHost:
-            client = SystemSFTPClient(host: host)
-        case .requireExistingSSHConnection:
-            client = SystemSFTPClient(host: host)
-        }
-        target = .init(host: host, client: client)
+        LogManager.info(.docker, "runtime binding accepted waitingForNativeLease=true")
+    }
+
+    func attachNativeSession(
+        host: RemoraCore.Host,
+        lease: any RemoteSessionLeaseProtocol,
+        executor: any RemoteCommandExecutorProtocol
+    ) {
+        sessionLease = lease
+        target = .init(host: host, executor: executor)
+        LogManager.info(.docker, "native session attached lease=\(lease.id.uuidString)")
         updateActivityMonitorRefreshState()
         refresh()
+    }
+
+    func failNativeSessionAttachment(_ error: Error) {
+        target = nil
+        environment = DockerEnvironmentStatus(
+            dockerAvailable: false,
+            composeAvailable: false,
+            dockerVersion: nil,
+            composeVersion: nil,
+            dockerIssue: .commandFailed(error.localizedDescription),
+            composeIssue: .commandFailed(error.localizedDescription)
+        )
+        LogManager.error(.docker, "native session attachment failed detail=\(error.localizedDescription)")
+    }
+
+    func releaseNativeSession() async {
+        refreshTask?.cancel()
+        activityRefreshTask?.cancel()
+        target = nil
+        let lease = sessionLease
+        sessionLease = nil
+        await lease?.release()
+        LogManager.info(.docker, "native session released lease=\(lease?.id.uuidString ?? "none")")
     }
 
     func refresh() {

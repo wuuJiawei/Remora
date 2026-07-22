@@ -52,6 +52,17 @@ public actor RemoteSession: RemoteSessionProtocol {
         return managed
     }
 
+    public func commandExecutor() throws -> any RemoteCommandExecutorProtocol {
+        guard state == .ready, let transport = transport as? LibSSH2Transport else {
+            throw RemoteOperationError(
+                category: .session,
+                code: "command_capability_unavailable",
+                safeDiagnosticMessage: "Remote session does not provide native command execution"
+            )
+        }
+        return LibSSH2CommandExecutor(transport: transport)
+    }
+
     public func close() async {
         guard state.phase != .closing, state.phase != .closed else { return }
         state = .closing

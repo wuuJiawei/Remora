@@ -11,7 +11,7 @@ final class DockerWorkspaceWindowManager: ObservableObject {
         let runtimeID: ObjectIdentifier
         let viewModel: DockerPanelViewModel
         let controller: DockerWorkspaceWindowController
-        let runtimeObserver: AnyCancellable
+        let sessionTask: Task<Void, Never>
 
         init(
             id: UUID,
@@ -19,14 +19,14 @@ final class DockerWorkspaceWindowManager: ObservableObject {
             runtimeID: ObjectIdentifier,
             viewModel: DockerPanelViewModel,
             controller: DockerWorkspaceWindowController,
-            runtimeObserver: AnyCancellable
+            sessionTask: Task<Void, Never>
         ) {
             self.id = id
             self.host = host
             self.runtimeID = runtimeID
             self.viewModel = viewModel
             self.controller = controller
-            self.runtimeObserver = runtimeObserver
+            self.sessionTask = sessionTask
         }
     }
 
@@ -43,35 +43,53 @@ final class DockerWorkspaceWindowManager: ObservableObject {
         let viewModel = DockerPanelViewModel()
         viewModel.updateRuntimeBinding(makeBinding(from: runtime, fallbackHost: host))
 
+        var sessionTask: Task<Void, Never>?
         let controller = DockerWorkspaceWindowController(
             host: host,
             viewModel: viewModel,
             onOpenContainerShell: { container in
                 onOpenContainerShell(host, container)
             },
-            onClose: { [weak self] in
+            onClose: { [weak self, weak viewModel] in
+                sessionTask?.cancel()
+                if let viewModel {
+                    Task { await viewModel.releaseNativeSession() }
+                }
                 self?.windows.removeValue(forKey: windowID)
             }
         )
         applyAppearanceMode(to: controller.window)
         positionWindowNearPrimaryWindow(controller.window, cascadeIndex: cascadeIndex)
-        let runtimeObserver = Publishers.CombineLatest3(
-            runtime.$connectionMode,
-            runtime.$connectionState,
-            runtime.$connectedSSHHost
-        )
-        .receive(on: RunLoop.main)
-        .sink { [weak self, weak viewModel] _, _, _ in
-            guard let self, let viewModel else { return }
-            viewModel.updateRuntimeBinding(self.makeBinding(from: runtime, fallbackHost: host))
+        let acquisitionTask = Task { [weak viewModel] in
+            guard let viewModel else { return }
+            do {
+                let lease = try await runtime.acquireRemoteSessionLease()
+                do {
+                    let session = try await lease.session()
+                    let executor = try await session.commandExecutor()
+                    guard !Task.isCancelled else {
+                        await lease.release()
+                        return
+                    }
+                    viewModel.attachNativeSession(host: host, lease: lease, executor: executor)
+                } catch {
+                    await lease.release()
+                    throw error
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                viewModel.failNativeSessionAttachment(error)
+            }
         }
+        sessionTask = acquisitionTask
         windows[windowID] = WindowRecord(
             id: windowID,
             host: host,
             runtimeID: runtimeID,
             viewModel: viewModel,
             controller: controller,
-            runtimeObserver: runtimeObserver
+            sessionTask: acquisitionTask
         )
 
         controller.showWindow(nil)

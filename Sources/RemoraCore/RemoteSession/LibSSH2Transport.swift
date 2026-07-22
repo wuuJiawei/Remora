@@ -213,6 +213,32 @@ public actor LibSSH2Transport {
         )
     }
 
+    func openCommand(_ command: String, timeout: Duration?) async throws -> NativeCommandExecution {
+        guard state == .ready, let runtime else {
+            throw RemoteOperationError(
+                category: .session,
+                code: "transport_not_ready",
+                safeDiagnosticMessage: "Native SSH transport is not ready"
+            )
+        }
+        guard !command.isEmpty else {
+            throw RemoteOperationError(
+                category: .command,
+                code: "command_empty",
+                safeDiagnosticMessage: "Remote command is empty"
+            )
+        }
+        let handle = try await runtime.perform {
+            try runtime.context.createExec(command: command)
+        }
+        return NativeCommandExecution(
+            handle: handle,
+            runtime: runtime,
+            diagnosticLog: diagnosticLog,
+            timeout: timeout
+        )
+    }
+
     public func close() async {
         guard state != .closing, state != .closed else { return }
         state = .closing
