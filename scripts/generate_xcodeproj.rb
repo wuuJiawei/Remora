@@ -71,16 +71,18 @@ resources_group = ensure_group(project.main_group, 'Resources', 'Resources')
 scripts_group = ensure_group(project.main_group, 'scripts', 'scripts')
 scripts_group.new_file('scripts/package_macos.sh')
 
+native_group = ensure_group(sources_group, 'RemoraSSHNative', 'RemoraSSHNative')
 core_group = ensure_group(sources_group, 'RemoraCore', 'RemoraCore')
 terminal_group = ensure_group(sources_group, 'RemoraTerminal', 'RemoraTerminal')
 app_group = ensure_group(sources_group, 'RemoraApp', 'RemoraApp')
 app_resources_group = ensure_group(app_group, 'Resources', 'Resources')
 
+native_target = project.new_target(:static_library, 'RemoraSSHNative', :osx, DEPLOYMENT_TARGET)
 core_target = project.new_target(:static_library, 'RemoraCore', :osx, DEPLOYMENT_TARGET)
 terminal_target = project.new_target(:static_library, 'RemoraTerminal', :osx, DEPLOYMENT_TARGET)
 app_target = project.new_target(:application, 'Remora', :osx, DEPLOYMENT_TARGET)
 
-[core_target, terminal_target, app_target].each do |target|
+[native_target, core_target, terminal_target, app_target].each do |target|
   target.build_configurations.each do |config|
     config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = DEPLOYMENT_TARGET
     config.build_settings['SWIFT_VERSION'] = '6.0'
@@ -91,12 +93,23 @@ app_target = project.new_target(:application, 'Remora', :osx, DEPLOYMENT_TARGET)
   end
 end
 
-[core_target, terminal_target].each do |target|
+[native_target, core_target, terminal_target].each do |target|
   target.build_configurations.each do |config|
     config.build_settings['DEFINES_MODULE'] = 'YES'
     config.build_settings['SKIP_INSTALL'] = 'YES'
     config.build_settings['PRODUCT_NAME'] = '$(TARGET_NAME)'
   end
+end
+
+native_target.build_configurations.each do |config|
+  config.build_settings['GCC_C_LANGUAGE_STANDARD'] = 'gnu17'
+  config.build_settings['HEADER_SEARCH_PATHS'] = '$(SRCROOT)/Sources/RemoraSSHNative/include'
+  config.build_settings['MODULEMAP_FILE'] = '$(SRCROOT)/Sources/RemoraSSHNative/include/module.modulemap'
+  config.build_settings['PRODUCT_MODULE_NAME'] = 'RemoraSSHNative'
+end
+
+core_target.build_configurations.each do |config|
+  config.build_settings['SWIFT_INCLUDE_PATHS'] = '$(SRCROOT)/Sources/RemoraSSHNative/include'
 end
 
 app_target.build_configurations.each do |config|
@@ -113,10 +126,12 @@ app_target.build_configurations.each do |config|
   config.build_settings['ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS'] = 'NO'
 end
 
+core_target.add_dependency(native_target)
 terminal_target.add_dependency(core_target)
 app_target.add_dependency(core_target)
 app_target.add_dependency(terminal_target)
 
+core_target.frameworks_build_phase.add_file_reference(native_target.product_reference, true)
 terminal_target.frameworks_build_phase.add_file_reference(core_target.product_reference, true)
 app_target.frameworks_build_phase.add_file_reference(core_target.product_reference, true)
 app_target.frameworks_build_phase.add_file_reference(terminal_target.product_reference, true)
@@ -132,6 +147,15 @@ add_remote_package_dependency(
 core_target.add_system_framework('Security')
 terminal_target.add_system_frameworks(['AppKit', 'CoreText', 'QuartzCore'])
 app_target.add_system_frameworks(['SwiftUI', 'AppKit'])
+
+native_source_ref = native_group.new_file('remora_ssh.c')
+native_target.source_build_phase.add_file_reference(native_source_ref, true)
+
+native_include_group = ensure_group(native_group, 'include', 'include')
+native_header_ref = native_include_group.new_file('remora_ssh.h')
+native_header_build_file = native_target.headers_build_phase.add_file_reference(native_header_ref)
+native_header_build_file.settings = { 'ATTRIBUTES' => ['Public'] }
+native_include_group.new_file('module.modulemap')
 
 add_file_references(
   core_group,

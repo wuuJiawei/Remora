@@ -16,7 +16,12 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "RemoraCore"
+            name: "RemoraSSHNative",
+            publicHeadersPath: "include"
+        ),
+        .target(
+            name: "RemoraCore",
+            dependencies: ["RemoraSSHNative"]
         ),
         .target(
             name: "RemoraTerminal",

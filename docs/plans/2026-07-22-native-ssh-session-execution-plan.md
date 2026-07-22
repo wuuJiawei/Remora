@@ -163,17 +163,17 @@ Native package files are added according to the dependency gate.
 
 ### Tasks
 
-- [ ] Define stable route and runtime target identity values.
-- [ ] Define session states and legal transitions.
-- [ ] Define typed errors with safe diagnostic metadata.
-- [ ] Define shell, exec, file, and forwarding capabilities without implementation
+- [x] Define stable route and runtime target identity values.
+- [x] Define session states and legal transitions.
+- [x] Define typed errors with safe diagnostic metadata.
+- [x] Define shell, exec, file, and forwarding capabilities without implementation
   defaults that hide unsupported behavior.
-- [ ] Define `RemoteCommandRequest`, result/stream events, privilege, timeout, and replay
+- [x] Define `RemoteCommandRequest`, result/stream events, privilege, timeout, and replay
   policy.
-- [ ] Define streaming file handles and metadata; avoid `Data`-only transfer contracts.
-- [ ] Add native opaque handle creation/destruction smoke tests.
-- [ ] Add failure-path tests proving double-close and use-after-close are rejected.
-- [ ] Update `Package.swift` and `scripts/generate_xcodeproj.rb` from the same source of
+- [x] Define streaming file handles and metadata; avoid `Data`-only transfer contracts.
+- [x] Add native opaque handle creation/destruction smoke tests.
+- [x] Add failure-path tests proving double-close and use-after-close are rejected.
+- [x] Update `Package.swift` and `scripts/generate_xcodeproj.rb` from the same source of
   truth so SwiftPM and packaged Xcode builds remain aligned.
 
 ### Design checks

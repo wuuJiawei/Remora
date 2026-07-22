@@ -222,7 +222,7 @@ public struct HostAuth: Codable, Equatable, Sendable {
     }
 }
 
-public enum AuthenticationMethod: String, Codable, Sendable {
+public enum AuthenticationMethod: String, Codable, Hashable, Sendable {
     case password
     case privateKey
     case agent

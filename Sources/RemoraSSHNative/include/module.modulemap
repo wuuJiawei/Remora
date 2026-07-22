@@ -1,0 +1,4 @@
+module RemoraSSHNative {
+    header "remora_ssh.h"
+    export *
+}
