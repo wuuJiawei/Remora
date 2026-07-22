@@ -102,8 +102,8 @@ depend on these files after Phase 2.
 - [x] Verify `libssh2_sftp_init` cannot attach to an arbitrary sudo exec channel.
 - [x] Select the exact reviewed libssh2 release/commit, not an unreviewed moving HEAD.
 - [x] Select and pin a crypto backend that can be statically distributed on macOS.
-- [ ] Add third-party license notices and a documented update process.
-- [ ] Prove reproducible arm64 and x86_64 builds without Homebrew.
+- [x] Add third-party license notices and a documented update process.
+- [x] Prove reproducible arm64 and x86_64 builds without Homebrew.
 
 ### Dependency packaging decision gate
 

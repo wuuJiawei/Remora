@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "dependencies": {
+    "libssh2": {
+      "archiveSHA256": "d9ec76cbe34db98eec3539fe2c899d26b0c837cb3eb466a56b0f109cabf658f7",
+      "archiveURL": "https://github.com/libssh2/libssh2/releases/download/libssh2-1.11.1/libssh2-1.11.1.tar.gz",
+      "commit": "a312b43325e3383c865a87bb1d26cb52e3292641",
+      "license": "BSD-3-Clause",
+      "tag": "libssh2-1.11.1",
+      "version": "1.11.1"
+    },
+    "mbedtls": {
+      "archiveSHA256": "a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6",
+      "archiveURL": "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.7/mbedtls-3.6.7.tar.bz2",
+      "commit": "068ff080b369adfac81509f9b57b2afabaf82dc5",
+      "license": "Apache-2.0",
+      "tag": "v3.6.7",
+      "version": "3.6.7"
+    }
+  }
+}

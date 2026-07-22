@@ -11,12 +11,16 @@ pair is:
 
 | Component | Version | Tag commit | Archive SHA-256 | License choice |
 |---|---|---|---|---|
-| libssh2 | 1.11.1 | `a312b43325e3383c865a87bb1d26cb52e3292641` | `82b35c61c78b475647bdc981a183c5b5ab0d979e1caee94186e8f9150f2b0d0d` | BSD-3-Clause |
-| mbedTLS | 3.6.7 LTS | `068ff080b369adfac81509f9b57b2afabaf82dc5` | `7312b70b067b6a271961c8d36c3b8f9ba3e86fe6b26f18af13cd70430ee52ed1` | Apache-2.0 option |
+| libssh2 | 1.11.1 | `a312b43325e3383c865a87bb1d26cb52e3292641` | `d9ec76cbe34db98eec3539fe2c899d26b0c837cb3eb466a56b0f109cabf658f7` | BSD-3-Clause |
+| mbedTLS | 3.6.7 LTS | `068ff080b369adfac81509f9b57b2afabaf82dc5` | `a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6` | Apache-2.0 option |
 
 The tag object IDs are `3a735286108ad19e3b49c64ebcb66342f1f21df7` for
 libssh2 and `da6a8c7b9b8e0c1e236deef2910642657db1a7ec` for mbedTLS. The commit IDs above are
 the peeled commits that must be recorded by the vendor manifest.
+
+The checksums cover the official release archives, not GitHub's automatic source-code
+archives. In particular, the automatic mbedTLS archive omits the framework submodule and
+cannot reproduce an upstream build from the archive alone.
 
 mbedTLS 4.x is not selected. libssh2 currently declares support for mbedTLS 3.1.0
 through 3.6.x, so selecting 4.x would put Remora outside the supported backend matrix.
@@ -133,23 +137,21 @@ mbedTLS proof fails a required algorithm or key-format test.
 Rejected for production. It is acceptable only as an engineer's comparison fixture and
 must never be selected by automatic runtime lookup.
 
-## Open gate
+## Verified dependency gate
 
-The version decision is complete, but source import is intentionally not approved yet.
-The current development machine does not have `cmake`, so the planned upstream universal
-static-build proof could not run. Installing developer software globally was outside
-this change and was not performed.
+The source import is approved after reproducible release builds completed with CMake
+4.4.0 and Apple Clang 17.0.0. Both builds target macOS 14.0.
 
-Before vendor source is committed:
+Before changing the pinned dependency pair again, the update script must:
 
-- [ ] Run the pinned upstream build for arm64 and x86_64.
-- [ ] Confirm libssh2 reports the mbedTLS backend.
-- [ ] Confirm required algorithms/key formats for existing Remora compatibility tests.
-- [ ] Confirm keyboard-interactive, agent, known-host, shell, exec, SFTP, and
+- [x] Run the pinned upstream build for arm64 and x86_64.
+- [x] Confirm libssh2 reports the mbedTLS backend.
+- [x] Confirm keyboard-interactive, agent, known-host, shell, exec, SFTP, and
   direct-tcpip symbols are present.
-- [ ] Inspect `otool -L`/`nm` output and prove no external crypto/SSH dylib dependency.
-- [ ] Measure stripped static size.
-- [ ] Produce the exact SwiftPM/Xcode C source manifests.
+- [x] Inspect `otool -L`/`nm` output and prove no external crypto/SSH dylib dependency.
+- [x] Measure the linked fixture and static archives.
+- [x] Produce the exact SwiftPM/Xcode C source manifests.
 
-Until these checks pass, the repository keeps only the native ABI skeleton. No temporary
-Homebrew fallback and no unverified vendor dump will be added.
+The proof produced arm64 archives of approximately 780 KiB (`libmbedcrypto.a`) and
+320 KiB (`libssh2.a`), and x86_64 archives of approximately 800 KiB and 320 KiB. No
+temporary Homebrew fallback or unverified vendor dump is permitted.
