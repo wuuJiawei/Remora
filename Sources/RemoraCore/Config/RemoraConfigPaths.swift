@@ -7,6 +7,7 @@ public enum RemoraConfigFile: String, Sendable {
     case keyboardShortcuts = "keyboard-shortcuts.json"
     case sshCompatibilityProfiles = "ssh-compatibility.json"
     case extensionScripts = "extension-scripts.json"
+    case hostKeys = "host-keys.json"
 }
 
 public enum RemoraConfigPaths {
