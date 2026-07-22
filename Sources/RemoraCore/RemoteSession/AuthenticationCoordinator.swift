@@ -16,25 +16,28 @@ public struct KeyboardInteractiveChallenge: Equatable, Identifiable, Sendable {
     public let name: String
     public let instruction: String
     public let prompts: [KeyboardInteractivePrompt]
+    public let deadline: Date
 
     public init(
         id: UUID = UUID(),
         name: String,
         instruction: String,
-        prompts: [KeyboardInteractivePrompt]
+        prompts: [KeyboardInteractivePrompt],
+        deadline: Date
     ) {
         self.id = id
         self.name = name
         self.instruction = instruction
         self.prompts = prompts
+        self.deadline = deadline
     }
 }
 
 public final class AuthenticationCoordinator: @unchecked Sendable {
     let bridge: KeyboardInteractiveBridge
 
-    public init() {
-        bridge = KeyboardInteractiveBridge()
+    public init(challengeTimeout: Duration = .seconds(300)) {
+        bridge = KeyboardInteractiveBridge(challengeTimeout: challengeTimeout)
     }
 
     public func challenges() -> AsyncStream<KeyboardInteractiveChallenge> {
@@ -56,16 +59,18 @@ final class KeyboardInteractiveBridge: @unchecked Sendable {
 
     private let continuation: AsyncStream<KeyboardInteractiveChallenge>.Continuation
     private let condition = NSCondition()
+    private let challengeTimeout: TimeInterval
     private var pendingChallenge: KeyboardInteractiveChallenge?
     private var pendingResponses: [String]?
     private var isCancelled = false
 
-    init() {
+    init(challengeTimeout: Duration) {
         let stream = AsyncStream<KeyboardInteractiveChallenge>.makeStream(
             bufferingPolicy: .bufferingNewest(8)
         )
         challenges = stream.stream
         continuation = stream.continuation
+        self.challengeTimeout = challengeTimeout.timeInterval
     }
 
     deinit {
@@ -77,10 +82,13 @@ final class KeyboardInteractiveBridge: @unchecked Sendable {
         instruction: String,
         prompts: [KeyboardInteractivePrompt]
     ) -> [String]? {
+        guard !prompts.isEmpty else { return [] }
+        let deadline = Date().addingTimeInterval(challengeTimeout)
         let challenge = KeyboardInteractiveChallenge(
             name: name,
             instruction: instruction,
-            prompts: prompts
+            prompts: prompts,
+            deadline: deadline
         )
 
         condition.lock()
@@ -96,7 +104,7 @@ final class KeyboardInteractiveBridge: @unchecked Sendable {
 
         condition.lock()
         while pendingResponses == nil && !isCancelled {
-            condition.wait()
+            guard condition.wait(until: deadline) else { break }
         }
         let responses = pendingResponses
         pendingChallenge = nil
@@ -169,7 +177,12 @@ let nativeKeyboardChallengeHandler: remora_ssh_keyboard_challenge_handler = {
     }
 
     for (index, responseText) in responses.enumerated() {
-        let responseBytes = Array(responseText.utf8)
+        var responseBytes = Array(responseText.utf8)
+        defer {
+            _ = responseBytes.withUnsafeMutableBytes { bytes in
+                bytes.initializeMemory(as: UInt8.self, repeating: 0)
+            }
+        }
         guard responseBytes.count <= REMORA_SSH_MAX_KEYBOARD_RESPONSE_BYTES else {
             return false
         }
@@ -188,4 +201,13 @@ let nativeKeyboardChallengeHandler: remora_ssh_keyboard_challenge_handler = {
 private func decodeNativeString(bytes: UnsafePointer<UInt8>?, length: Int) -> String {
     guard let bytes, length > 0 else { return "" }
     return String(decoding: UnsafeBufferPointer(start: bytes, count: length), as: UTF8.self)
+}
+
+private extension Duration {
+    var timeInterval: TimeInterval {
+        let components = self.components
+        let seconds = Double(components.seconds)
+        let fractionalSeconds = Double(components.attoseconds) / 1_000_000_000_000_000_000
+        return max(0.001, seconds + fractionalSeconds)
+    }
 }

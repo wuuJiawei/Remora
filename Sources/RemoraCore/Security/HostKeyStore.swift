@@ -50,18 +50,7 @@ public actor HostKeyStore {
             : .changed(old: existing, new: fingerprint)
     }
 
-    public func validate(host: String, fingerprint: String) -> HostKeyValidationResult {
-        let result = check(host: host, fingerprint: fingerprint)
-        guard result == .firstSeen else { return result }
-        fingerprints[host] = fingerprint
-        return .firstSeen
-    }
-
-    public func trust(host: String, fingerprint: String) {
-        fingerprints[host] = fingerprint
-    }
-
-    public func trustPersisting(host: String, fingerprint: String) throws {
+    public func trust(host: String, fingerprint: String) throws {
         var updated = fingerprints
         updated[host] = fingerprint
         if let fileStore {

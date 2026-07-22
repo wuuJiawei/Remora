@@ -175,6 +175,14 @@ static void remora_ssh_agent_reset(remora_ssh_context *context) {
     context->agent_username = NULL;
 }
 
+static void remora_ssh_secure_zero(void *bytes, size_t length) {
+    volatile uint8_t *cursor = bytes;
+    while (length > 0) {
+        *cursor++ = 0;
+        length -= 1;
+    }
+}
+
 static void remora_ssh_context_finalize(remora_ssh_context *context) {
     if (context == NULL || context->magic != REMORA_SSH_CONTEXT_MAGIC) {
         return;
@@ -199,7 +207,8 @@ static void remora_ssh_keyboard_callback(
 ) {
     remora_ssh_context *context = abstract == NULL ? NULL : *abstract;
     if (!remora_ssh_context_valid(context) || context->keyboard_handler == NULL ||
-        prompt_count < 0 || prompt_count > REMORA_SSH_MAX_KEYBOARD_PROMPTS) {
+        prompt_count < 0 || prompt_count > REMORA_SSH_MAX_KEYBOARD_PROMPTS ||
+        (prompt_count > 0 && (prompts == NULL || responses == NULL))) {
         if (context != NULL) {
             context->keyboard_challenge_failed = true;
         }
@@ -228,6 +237,7 @@ static void remora_ssh_keyboard_callback(
         remora_responses
     );
     if (!accepted) {
+        remora_ssh_secure_zero(remora_responses, sizeof(remora_responses));
         context->keyboard_challenge_failed = true;
         return;
     }
@@ -235,11 +245,23 @@ static void remora_ssh_keyboard_callback(
     for (int index = 0; index < prompt_count; index++) {
         size_t length = remora_responses[index].length;
         if (length > REMORA_SSH_MAX_KEYBOARD_RESPONSE_BYTES || length > UINT32_MAX) {
+            for (int cleanup_index = 0; cleanup_index < index; cleanup_index++) {
+                free(responses[cleanup_index].text);
+                responses[cleanup_index].text = NULL;
+                responses[cleanup_index].length = 0;
+            }
+            remora_ssh_secure_zero(remora_responses, sizeof(remora_responses));
             context->keyboard_challenge_failed = true;
             return;
         }
         responses[index].text = malloc(length + 1);
         if (responses[index].text == NULL) {
+            for (int cleanup_index = 0; cleanup_index < index; cleanup_index++) {
+                free(responses[cleanup_index].text);
+                responses[cleanup_index].text = NULL;
+                responses[cleanup_index].length = 0;
+            }
+            remora_ssh_secure_zero(remora_responses, sizeof(remora_responses));
             context->keyboard_challenge_failed = true;
             return;
         }
@@ -247,6 +269,7 @@ static void remora_ssh_keyboard_callback(
         responses[index].text[length] = '\0';
         responses[index].length = (unsigned int)length;
     }
+    remora_ssh_secure_zero(remora_responses, sizeof(remora_responses));
 }
 
 uint32_t remora_ssh_native_abi_version(void) {

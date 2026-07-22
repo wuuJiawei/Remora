@@ -76,7 +76,7 @@ public struct HostKeyVerifier: Sendable {
                 )
             }
             do {
-                try await store.trustPersisting(host: host, fingerprint: hostKey.fingerprint)
+                try await store.trust(host: host, fingerprint: hostKey.fingerprint)
             } catch {
                 throw RemoteOperationError(
                     category: .hostKey,
