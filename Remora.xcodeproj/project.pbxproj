@@ -259,6 +259,7 @@
 		D1CDB30238F5FEEEE2A426D07C3E5FCC /* transport.c in Sources */ = {isa = PBXBuildFile; fileRef = 5833E5764E6EDE6B224FCFCA854A5C81 /* transport.c */; };
 		D2560E5D00D6ADA8BF67BF8312FA772F /* NativeSSHContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250C3F8E2FA8C556970284F9AE799CD7 /* NativeSSHContext.swift */; };
 		D2AC711B31389150677A30414A1F7D86 /* hostkey.c in Sources */ = {isa = PBXBuildFile; fileRef = 0FDEBC6DCE9FE79080FBA0A5BEA52193 /* hostkey.c */; };
+		D77DF2D0C7806A0499373C1947C6755F /* RemoteSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 171948D43AA35E78DD4E67AE9B8F72CB /* RemoteSession.swift */; };
 		D84B54654BCDD54DD3F77763A2A9AEC6 /* DockerComposeRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1960A6671E0F33463EB5CE76E98D2575 /* DockerComposeRowView.swift */; };
 		D8700EBFC444B64F33F1CB95EA27C20C /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22833899FDF991E0052863D852B60BE3 /* AppKit.framework */; };
 		D88FDBDF0FD2ADAFE515FC64D079A0C9 /* pem.c in Sources */ = {isa = PBXBuildFile; fileRef = 20A56A5CCC3471B329DA59891DB1C8B2 /* pem.c */; };
@@ -280,6 +281,7 @@
 		E6F5602300FFD38033E5E8F75F6EA628 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE47737300FF6DCF46416D241CFC446F /* AppLanguage.swift */; };
 		E71325999F0A477A2373AFACF9225062 /* ServerMonitoringSortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652908DA46402D49BD9C77CC50478C7E /* ServerMonitoringSortOrder.swift */; };
 		E792751D57D6DF5C34E32B83E989B7B3 /* psa_crypto_ecp.c in Sources */ = {isa = PBXBuildFile; fileRef = 3C85F201126F09D0538EFD27D7F81ABC /* psa_crypto_ecp.c */; };
+		E82B73EED2B2C08A5B9D6B57267ED829 /* RemoteSessionHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB56CEBA8BFFB84871C195288ED3271 /* RemoteSessionHub.swift */; };
 		E95622C1146AEB606B49E5575F899FCA /* TerminalRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0E9976DF7089F13B546174728A4978 /* TerminalRuntime.swift */; };
 		E9710362B247EC426CEA40A0B9BC35EF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 855B0AB6E17DDC43C41F9D6316EEA9E4 /* Assets.xcassets */; };
 		E9CE217B47BF295C7B204DFAA1F0F125 /* chachapoly.c in Sources */ = {isa = PBXBuildFile; fileRef = 6802D5603209ED3FC39B743A51336205 /* chachapoly.c */; };
@@ -289,6 +291,7 @@
 		EE23CA12DA2B592696FF08DA4C444A6A /* BottomPanelVisibilityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2B461357C12E21FE365DE5B16B025B /* BottomPanelVisibilityState.swift */; };
 		EF152245C209A16B9239DF1368320CE6 /* AppKitCodeMirrorCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EE3D5F4B14114B3B7237487E57B1FD9 /* AppKitCodeMirrorCoordinator.swift */; };
 		F034D543D0B2037084B7F640BFAE9390 /* RemoteTargetIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E704AE268A780B03329CCCF5B6E935A0 /* RemoteTargetIdentity.swift */; };
+		F2B570247E0E138A9CB5CD3682B00160 /* RemoteSessionLease.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED9A64A1162DED63BBED9C27022B9E60 /* RemoteSessionLease.swift */; };
 		F366A809E536419D64F8BC1A65F8D652 /* channel.c in Sources */ = {isa = PBXBuildFile; fileRef = D8FA2BCA018DA9B9FB1F5253887AD443 /* channel.c */; };
 		F44F5E131EC8CB6B01DCFE8AAD949DE5 /* ViewScreenAnchorRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07D356B8BE42151AC13F514BD68B1270 /* ViewScreenAnchorRegistry.swift */; };
 		F55543A6F4AF2EA54AE513BE7726E5E1 /* DockerContainerRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3673A8C527F3B4E5E0B63DA802E0ADCC /* DockerContainerRowView.swift */; };
@@ -363,6 +366,7 @@
 		07D356B8BE42151AC13F514BD68B1270 /* ViewScreenAnchorRegistry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ViewScreenAnchorRegistry.swift; sourceTree = "<group>"; };
 		09630556310CD85C9A6AAA130E921B59 /* psa_crypto_storage.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_storage.c; path = library/psa_crypto_storage.c; sourceTree = "<group>"; };
 		0A276D14463E63E8B766937FF8CA400C /* ExtensionScriptRunner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExtensionScriptRunner.swift; path = Extensions/ExtensionScriptRunner.swift; sourceTree = "<group>"; };
+		0BB56CEBA8BFFB84871C195288ED3271 /* RemoteSessionHub.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteSessionHub.swift; path = RemoteSession/RemoteSessionHub.swift; sourceTree = "<group>"; };
 		0BE86C42AC50153D6ADCE612EDEBFECA /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		0C401943046E91FF40253186DCF7B607 /* CredentialStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CredentialStore.swift; path = Security/CredentialStore.swift; sourceTree = "<group>"; };
 		0CABB05FBBF48F080AAE9330F9FB4EA9 /* ecdh.c */ = {isa = PBXFileReference; includeInIndex = 1; name = ecdh.c; path = library/ecdh.c; sourceTree = "<group>"; };
@@ -375,6 +379,7 @@
 		10D73E97BE3A98F65E925A72237EE75A /* hkdf.c */ = {isa = PBXFileReference; includeInIndex = 1; name = hkdf.c; path = library/hkdf.c; sourceTree = "<group>"; };
 		13977CB9F76165B7A434E1A295621B4D /* ActivityMonitorSortDescriptor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityMonitorSortDescriptor.swift; sourceTree = "<group>"; };
 		1458F05B8436AE11BEF52748FFDB620E /* ZmodemFrame.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ZmodemFrame.swift; path = ZModem/ZmodemFrame.swift; sourceTree = "<group>"; };
+		171948D43AA35E78DD4E67AE9B8F72CB /* RemoteSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteSession.swift; path = RemoteSession/RemoteSession.swift; sourceTree = "<group>"; };
 		172C30A5BC295CD1017CC0C882097C8F /* NativeShellChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeShellChannel.swift; path = RemoteSession/NativeShellChannel.swift; sourceTree = "<group>"; };
 		1791AB6160366D6C80DC357BC70E15EC /* psa_crypto_rsa.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_rsa.c; path = library/psa_crypto_rsa.c; sourceTree = "<group>"; };
 		17B79C27FD4A19804A1F13F7A656E492 /* ServerMetricsCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerMetricsCenter.swift; sourceTree = "<group>"; };
@@ -635,6 +640,7 @@
 		EC5DAEEAF1889F2430C4D234A1DB6EC2 /* ContentViewLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentViewLayout.swift; sourceTree = "<group>"; };
 		ED0E9976DF7089F13B546174728A4978 /* TerminalRuntime.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalRuntime.swift; sourceTree = "<group>"; };
 		ED5078B1C27D3B82FBFAC8FA4FC2F8B4 /* poly1305.c */ = {isa = PBXFileReference; includeInIndex = 1; name = poly1305.c; path = src/poly1305.c; sourceTree = "<group>"; };
+		ED9A64A1162DED63BBED9C27022B9E60 /* RemoteSessionLease.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteSessionLease.swift; path = RemoteSession/RemoteSessionLease.swift; sourceTree = "<group>"; };
 		F0A5791C71E9BD6759DFE72F62329B74 /* pk.c */ = {isa = PBXFileReference; includeInIndex = 1; name = pk.c; path = library/pk.c; sourceTree = "<group>"; };
 		F2E7F0AE95A7E2C7DF07EBE06E78EE4C /* CrossWindowFlyAnimator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CrossWindowFlyAnimator.swift; sourceTree = "<group>"; };
 		F4744396467E68B59DD18B68CB6779A4 /* version.c */ = {isa = PBXFileReference; includeInIndex = 1; name = version.c; path = library/version.c; sourceTree = "<group>"; };
@@ -1083,7 +1089,10 @@
 				250C3F8E2FA8C556970284F9AE799CD7 /* NativeSSHContext.swift */,
 				44F137857CEBBAF298837257A974C600 /* NativeSSHModels.swift */,
 				172C30A5BC295CD1017CC0C882097C8F /* NativeShellChannel.swift */,
+				171948D43AA35E78DD4E67AE9B8F72CB /* RemoteSession.swift */,
 				825D1530C7800521EA80F3F30B6E7F02 /* RemoteSessionError.swift */,
+				0BB56CEBA8BFFB84871C195288ED3271 /* RemoteSessionHub.swift */,
+				ED9A64A1162DED63BBED9C27022B9E60 /* RemoteSessionLease.swift */,
 				9F0F8266DDFFBCD0B9E2C0D2C0E3AC41 /* RemoteSessionProtocols.swift */,
 				C46A67EFB21CDBA9FEC5ABFDB326FD02 /* RemoteSessionState.swift */,
 				E704AE268A780B03329CCCF5B6E935A0 /* RemoteTargetIdentity.swift */,
@@ -1558,7 +1567,10 @@
 				D2560E5D00D6ADA8BF67BF8312FA772F /* NativeSSHContext.swift in Sources */,
 				A5935A397121B124999B09E61ED1B54F /* NativeSSHModels.swift in Sources */,
 				8E534EA09B41A9D50EFFB868B9A19360 /* NativeShellChannel.swift in Sources */,
+				D77DF2D0C7806A0499373C1947C6755F /* RemoteSession.swift in Sources */,
 				F892AE164A544D97F1C8D0F990B7E833 /* RemoteSessionError.swift in Sources */,
+				E82B73EED2B2C08A5B9D6B57267ED829 /* RemoteSessionHub.swift in Sources */,
+				F2B570247E0E138A9CB5CD3682B00160 /* RemoteSessionLease.swift in Sources */,
 				56BA4E735BE1270E5F84FAE87C9A75A8 /* RemoteSessionProtocols.swift in Sources */,
 				8D8E727DB011AA2CC92291406F2F6E0F /* RemoteSessionState.swift in Sources */,
 				F034D543D0B2037084B7F640BFAE9390 /* RemoteTargetIdentity.swift in Sources */,
