@@ -227,16 +227,26 @@ Tests/RemoraCoreTests/NativeShellChannelTests.swift
 
 ### Tasks
 
-- [ ] Implement TCP connect with DNS/connect timeout and cancellation.
-- [ ] Implement nonblocking handshake and socket-readiness waiting.
-- [ ] Fetch advertised authentication methods.
-- [ ] Implement agent, private-key, passphrase, password, and keyboard-interactive auth.
-- [ ] Support multi-round/multi-prompt keyboard-interactive challenges.
-- [ ] Implement cancellation that wakes challenge and socket waits.
-- [ ] Implement host-key SHA-256 fingerprinting, unknown-key trust, and mismatch block.
-- [ ] Persist host-key decisions atomically.
-- [ ] Implement PTY shell open, stdout/stderr, stdin, resize, EOF, exit status, close.
-- [ ] Add bounded diagnostic events for every state transition.
+- [x] Implement TCP connect with DNS/connect timeout and cancellation.
+- [x] Implement nonblocking handshake and socket-readiness waiting.
+- [x] Fetch advertised authentication methods.
+- [x] Implement agent, private-key, passphrase, password, and keyboard-interactive auth.
+- [x] Support multi-round/multi-prompt keyboard-interactive challenges.
+- [x] Implement cancellation that wakes challenge and socket waits.
+- [x] Implement host-key SHA-256 fingerprinting, unknown-key trust, and mismatch block.
+- [x] Persist host-key decisions atomically.
+- [x] Implement PTY shell open, stdout/stderr, stdin, resize, EOF, exit status, close.
+- [x] Add bounded diagnostic events for every state transition.
+
+### Implementation verification status
+
+- `swift build` passes.
+- The generated Xcode project builds the complete Release app for arm64 and x86_64.
+- Both app executables contain the native shim, libssh2, and mbedTLS symbols and have no
+  Homebrew or other non-system dynamic-library dependency.
+- Real SSH fixtures, authentication flows, sanitizers, and runtime behavior were not
+  executed at the user's request. The Phase 2 exit condition therefore remains pending
+  user acceptance and must not be treated as green solely from compile verification.
 
 ### Test fixtures
 

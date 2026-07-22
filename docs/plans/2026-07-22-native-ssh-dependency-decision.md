@@ -1,6 +1,6 @@
 # Native SSH Dependency Decision
 
-**Status:** Versions selected; source integration blocked by the universal-build proof  
+**Status:** Approved and integrated after universal-build proof
 **Date:** 2026-07-22  
 **Related architecture:** `2026-07-22-native-ssh-session-architecture.md`  
 
@@ -94,6 +94,12 @@ This selection does not imply enabling every mbedTLS algorithm. The committed co
 must keep only the algorithms required by libssh2 and Remora's compatibility policy,
 with modern algorithms preferred and legacy algorithms opt-in only where the existing
 product explicitly supports them.
+
+The selected libssh2 mbedTLS backend can verify Ed25519 host keys but does not load
+Ed25519 private-key files for public-key authentication. That key format must produce a
+typed authentication error; it must not trigger an OpenSSH fallback. If Ed25519 private
+key authentication is a release requirement, the crypto-backend decision must be
+reopened explicitly rather than hidden behind compatibility logic.
 
 ## Audited alternatives
 
