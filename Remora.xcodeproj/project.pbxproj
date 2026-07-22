@@ -27,8 +27,10 @@
 		0D6B97D62DFB0C3E3445CEAB912AD6F8 /* TransferQueuePresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89EF81F8E4E5576ED07A5614FC9C271 /* TransferQueuePresentationState.swift */; };
 		0E13ABDCE753F07B13C9F26DC89AE969 /* FileManagerContextMenuPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25ECA675FC73A01C934AC4F2D08B1BFF /* FileManagerContextMenuPolicy.swift */; };
 		1012CE5A724DEDCA49E5B6BD33B7255E /* gcm.c in Sources */ = {isa = PBXBuildFile; fileRef = A850189B2D9DB409DE5AD597CB0826D1 /* gcm.c */; };
+		101D1AD9128CF4CD4105C90A58B7C7A4 /* LibSSH2Transport.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA50B1C63DDE6C75C7EB8B88F6F0049B /* LibSSH2Transport.swift */; };
 		10AD456495EF815B97D3B64FB52497CE /* padlock.c in Sources */ = {isa = PBXBuildFile; fileRef = 79823C6B819FC0C31393FB9E07FF6B62 /* padlock.c */; };
 		111265D9ABC478C5941D931875F87C82 /* FileManagerWindowSplitController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2346D755D3827453CB34B06D04032E0F /* FileManagerWindowSplitController.swift */; };
+		1113F1071079BFACADB501993500CE0E /* NativeSSHChannelHandle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC69BE2A7D6A8803BDF2335139F658B /* NativeSSHChannelHandle.swift */; };
 		11C059F0877C630C97BAC2FD242B8144 /* ActivityMonitorSortDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13977CB9F76165B7A434E1A295621B4D /* ActivityMonitorSortDescriptor.swift */; };
 		131913E0904EA76BB7A4B2449277826F /* remora_ssh.c in Sources */ = {isa = PBXBuildFile; fileRef = 66401F16BF77AF3A21FAD162618F4765 /* remora_ssh.c */; };
 		13467CDC18E6557B01E0150BCB7F970D /* cmac.c in Sources */ = {isa = PBXBuildFile; fileRef = 39B508166FC7B81A090D3624618EB0F7 /* cmac.c */; };
@@ -144,6 +146,7 @@
 		6D559FF94389713E9F681495DA23F2B2 /* RemoteFilePropertiesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42137B4AEEC762488DE8BAE5BB68149F /* RemoteFilePropertiesViewModel.swift */; };
 		6D5C01FB100267F6DFAE81C964E18260 /* ZmodemSendEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F27D68C760B01628E8704D735EFF33F /* ZmodemSendEngine.swift */; };
 		6DCDFD7CBEE8710932811567BDEFB6A6 /* asn1parse.c in Sources */ = {isa = PBXBuildFile; fileRef = 05EEFC436FA99730DD1F8E5FBA600817 /* asn1parse.c */; };
+		6E175EB588AADDF260433FD1EE8F4005 /* HostKeyVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617B0B1F9CDD8082ABAEEDE48559E7E3 /* HostKeyVerifier.swift */; };
 		71AC491B99F335BA186A3A542148B1F1 /* AppKitCodeMirrorEditorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F118A3F6D28736681C1951CBE21C591 /* AppKitCodeMirrorEditorViewController.swift */; };
 		71D6F1A3DAEDD09D7333F2B92F787207 /* constant_time.c in Sources */ = {isa = PBXBuildFile; fileRef = 974187EF358E032F1512768994C84A1B /* constant_time.c */; };
 		72E84F510991193C1FF6650899D83F22 /* ecp.c in Sources */ = {isa = PBXBuildFile; fileRef = 7D5DCB96E6004A999DDAF16FF4CCF35C /* ecp.c */; };
@@ -188,9 +191,11 @@
 		8CFAEB25865609600C905A44A44C4E2B /* psa_crypto_mac.c in Sources */ = {isa = PBXBuildFile; fileRef = 42934C3AF1FEA3438DADB409D4ECAA53 /* psa_crypto_mac.c */; };
 		8D8E727DB011AA2CC92291406F2F6E0F /* RemoteSessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46A67EFB21CDBA9FEC5ABFDB326FD02 /* RemoteSessionState.swift */; };
 		8D98DC2CF6CC26F794D8A7D4AF4EB426 /* session.c in Sources */ = {isa = PBXBuildFile; fileRef = 65C61E0B8B784F5E15A176921EED79D9 /* session.c */; };
+		8E534EA09B41A9D50EFFB868B9A19360 /* NativeShellChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 172C30A5BC295CD1017CC0C882097C8F /* NativeShellChannel.swift */; };
 		8ED8087345EACE041BB85343D44D949C /* SSHCompatibilityProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07D2B61322289BCFCF22894511D4DC11 /* SSHCompatibilityProfile.swift */; };
 		8F3BAD908FD018BCFD221C5A9DA5FE45 /* TerminalPromptBoundaryProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB63C6E5CF8E190192515DF9AAF6B3F3 /* TerminalPromptBoundaryProcessor.swift */; };
 		91002AB2C120419C32EAAD54FA91AA1F /* WebEditor in Resources */ = {isa = PBXBuildFile; fileRef = 0060F22E9C7E2C2DB46CC5A4D51A96C8 /* WebEditor */; };
+		91B988467E335A045F16B263FA1A4E5E /* SocketReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E509BA10E05C45D0D6B3C9AD17442D2 /* SocketReadiness.swift */; };
 		951E232EC88195D5DCF3C70E79173180 /* remora_ssh.h in Headers */ = {isa = PBXBuildFile; fileRef = 6EE987ADF510CCD33C3A698599B43686 /* remora_ssh.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		9525C690833B86AD6CD24371D5CE1064 /* RemoraAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0AA0F05C6776CA72175AAD3662954D /* RemoraAppMain.swift */; };
 		962647D8EBD3AA2E756958B973564B09 /* libRemoraMbedCrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F620BE5904E4F07AE210733818F5EA92 /* libRemoraMbedCrypto.a */; };
@@ -210,9 +215,11 @@
 		A49AD491501C2C3DDE09EB85A1D53F2C /* MirroredRemoraEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA34F6E03A48CDBC7E05802DCFC89A5C /* MirroredRemoraEditorView.swift */; };
 		A4E25A2D483263DBCE18C60B4CBDD4D9 /* FileManagerPanelViewCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0382D7469E78BA412302A810A547731 /* FileManagerPanelViewCompatibility.swift */; };
 		A585FE0B5C0536579DFB1B90297F3272 /* psa_crypto_rsa.c in Sources */ = {isa = PBXBuildFile; fileRef = 1791AB6160366D6C80DC357BC70E15EC /* psa_crypto_rsa.c */; };
+		A5935A397121B124999B09E61ED1B54F /* NativeSSHModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44F137857CEBBAF298837257A974C600 /* NativeSSHModels.swift */; };
 		A6B40817D3DCFA9D5F2926EFF3F01808 /* FocusableCodeMirrorWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAEECDC46CF100F6825D1C6251B973DB /* FocusableCodeMirrorWebView.swift */; };
 		A7BEF4499D8D3F1BF3681DDE523234DF /* hkdf.c in Sources */ = {isa = PBXBuildFile; fileRef = 10D73E97BE3A98F65E925A72237EE75A /* hkdf.c */; };
 		A87D0297717330115C8DDE96A0F78CE4 /* bcrypt_pbkdf.c in Sources */ = {isa = PBXBuildFile; fileRef = 24E53B82829EDA3D2E0F823D924B96F9 /* bcrypt_pbkdf.c */; };
+		AA2763D3E2F5AACE9FD97A27A62696AB /* AuthenticationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */; };
 		AB35D7F60B7055A089C5044DDFABF66F /* RemoraJSONFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C827F4577893BD91176AF0DECC3F75B5 /* RemoraJSONFileStore.swift */; };
 		AB501F0F26759353E1B8BAB974BC8F8F /* TerminalAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD2C2500A307DB67006D95FD14150BDF /* TerminalAIModels.swift */; };
 		AB7F971CD68FE5ECEB8B390982E79879 /* EditorDocumentDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55056B117373D578F60DA7258AB2C167 /* EditorDocumentDescriptor.swift */; };
@@ -368,6 +375,7 @@
 		10D73E97BE3A98F65E925A72237EE75A /* hkdf.c */ = {isa = PBXFileReference; includeInIndex = 1; name = hkdf.c; path = library/hkdf.c; sourceTree = "<group>"; };
 		13977CB9F76165B7A434E1A295621B4D /* ActivityMonitorSortDescriptor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityMonitorSortDescriptor.swift; sourceTree = "<group>"; };
 		1458F05B8436AE11BEF52748FFDB620E /* ZmodemFrame.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ZmodemFrame.swift; path = ZModem/ZmodemFrame.swift; sourceTree = "<group>"; };
+		172C30A5BC295CD1017CC0C882097C8F /* NativeShellChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeShellChannel.swift; path = RemoteSession/NativeShellChannel.swift; sourceTree = "<group>"; };
 		1791AB6160366D6C80DC357BC70E15EC /* psa_crypto_rsa.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_rsa.c; path = library/psa_crypto_rsa.c; sourceTree = "<group>"; };
 		17B79C27FD4A19804A1F13F7A656E492 /* ServerMetricsCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerMetricsCenter.swift; sourceTree = "<group>"; };
 		17DF0BF232F591397C45DAB680266A5E /* RemoteArchiveSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteArchiveSupport.swift; sourceTree = "<group>"; };
@@ -375,6 +383,7 @@
 		18C17FB78475397A440996B8839FE2F9 /* crypto.c */ = {isa = PBXFileReference; includeInIndex = 1; name = crypto.c; path = src/crypto.c; sourceTree = "<group>"; };
 		19583DCE6320CB7D8C5020BFDBFC1D6B /* ZmodemDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ZmodemDetector.swift; path = ZModem/ZmodemDetector.swift; sourceTree = "<group>"; };
 		1960A6671E0F33463EB5CE76E98D2575 /* DockerComposeRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerComposeRowView.swift; sourceTree = "<group>"; };
+		1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthenticationCoordinator.swift; path = RemoteSession/AuthenticationCoordinator.swift; sourceTree = "<group>"; };
 		1AC39C573D2A00E0291BB92F09AEC3E0 /* sha3.c */ = {isa = PBXFileReference; includeInIndex = 1; name = sha3.c; path = library/sha3.c; sourceTree = "<group>"; };
 		1D744EAC8CC1CB96E442104054561CF3 /* DockerCommandService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerCommandService.swift; sourceTree = "<group>"; };
 		1D8F2D2388EE496D0249FD2141B399DC /* ccm.c */ = {isa = PBXFileReference; includeInIndex = 1; name = ccm.c; path = library/ccm.c; sourceTree = "<group>"; };
@@ -426,6 +435,7 @@
 		42482A0E0AC25E1CDC4686B50D855CE2 /* aria.c */ = {isa = PBXFileReference; includeInIndex = 1; name = aria.c; path = library/aria.c; sourceTree = "<group>"; };
 		42934C3AF1FEA3438DADB409D4ECAA53 /* psa_crypto_mac.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_mac.c; path = library/psa_crypto_mac.c; sourceTree = "<group>"; };
 		42A321BFB235F6AC8274421A8C0FE01E /* keepalive.c */ = {isa = PBXFileReference; includeInIndex = 1; name = keepalive.c; path = src/keepalive.c; sourceTree = "<group>"; };
+		44F137857CEBBAF298837257A974C600 /* NativeSSHModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeSSHModels.swift; path = RemoteSession/NativeSSHModels.swift; sourceTree = "<group>"; };
 		45814E9D3928A5097B860838ABDF7569 /* RemoraSettingsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoraSettingsSheet.swift; sourceTree = "<group>"; };
 		45CC1D13368E89F0BDA7A5DBC3B828D5 /* oid.c */ = {isa = PBXFileReference; includeInIndex = 1; name = oid.c; path = library/oid.c; sourceTree = "<group>"; };
 		4604E3524C5AEC7029675E0510575A66 /* LocalizationHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalizationHelpers.swift; sourceTree = "<group>"; };
@@ -461,11 +471,13 @@
 		5C76993AAF71806A98F88B19E3156500 /* UpdateChecker.strings */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = UpdateChecker.strings; path = en.lproj/UpdateChecker.strings; sourceTree = "<group>"; };
 		5D08D530CD5BF2F4C424F9A581586B4A /* DockerSectionHeaderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerSectionHeaderView.swift; sourceTree = "<group>"; };
 		5D0FB8E5118B40BAD05270E87F18FCB5 /* ExtensionScriptRunnerViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExtensionScriptRunnerViewModel.swift; sourceTree = "<group>"; };
+		5E509BA10E05C45D0D6B3C9AD17442D2 /* SocketReadiness.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SocketReadiness.swift; path = RemoteSession/SocketReadiness.swift; sourceTree = "<group>"; };
 		5E757BFFAF9A25E91A4B86038EBDF9E1 /* ContentViewSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentViewSupport.swift; sourceTree = "<group>"; };
 		5F09CC50EDFFB2FB43B03ACA93514621 /* ContentViewSessionComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentViewSessionComponents.swift; sourceTree = "<group>"; };
 		5FD16A1FD72D906352A6CF5D247BD880 /* DockerPanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerPanelView.swift; sourceTree = "<group>"; };
 		60819E76DC32AAD47E67EDF3E4FD9065 /* PerformanceMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PerformanceMetrics.swift; path = Metrics/PerformanceMetrics.swift; sourceTree = "<group>"; };
 		614DB4486DD456D663F14EC3E2FF14E5 /* ServerStatusWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerStatusWindow.swift; sourceTree = "<group>"; };
+		617B0B1F9CDD8082ABAEEDE48559E7E3 /* HostKeyVerifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HostKeyVerifier.swift; path = RemoteSession/HostKeyVerifier.swift; sourceTree = "<group>"; };
 		629CE1242410FDCC6F252ECD42BC0F2E /* threading.c */ = {isa = PBXFileReference; includeInIndex = 1; name = threading.c; path = library/threading.c; sourceTree = "<group>"; };
 		6438AF10FEB52AE119F4689584460534 /* TerminalViewRepresentable.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalViewRepresentable.swift; sourceTree = "<group>"; };
 		644FF9E08350FFD37771437416463625 /* DockerWindowSplitController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerWindowSplitController.swift; sourceTree = "<group>"; };
@@ -604,6 +616,7 @@
 		DBE58750EF2360742E83CE7A4CB2C75D /* lmots.c */ = {isa = PBXFileReference; includeInIndex = 1; name = lmots.c; path = library/lmots.c; sourceTree = "<group>"; };
 		DD48B879237F44211FBA10A7F6F54409 /* HostCatalogPersistence.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostCatalogPersistence.swift; sourceTree = "<group>"; };
 		DE47737300FF6DCF46416D241CFC446F /* AppLanguage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		DFC69BE2A7D6A8803BDF2335139F658B /* NativeSSHChannelHandle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeSSHChannelHandle.swift; path = RemoteSession/NativeSSHChannelHandle.swift; sourceTree = "<group>"; };
 		E097C8ECD91E8C19E4F0C8AA7653736B /* RemoteExtractSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteExtractSheet.swift; sourceTree = "<group>"; };
 		E0FFC1E7CF15C5A295CE27E802700474 /* bignum_mod.c */ = {isa = PBXFileReference; includeInIndex = 1; name = bignum_mod.c; path = library/bignum_mod.c; sourceTree = "<group>"; };
 		E26F9A5239402ACDF1AB5C5B96D2EE0A /* LocalShellClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocalShellClient.swift; path = SSH/LocalShellClient.swift; sourceTree = "<group>"; };
@@ -616,6 +629,7 @@
 		E9132C7FC2185B4225BA29DF152D2CB9 /* bignum_mod_raw.c */ = {isa = PBXFileReference; includeInIndex = 1; name = bignum_mod_raw.c; path = library/bignum_mod_raw.c; sourceTree = "<group>"; };
 		E937D8DD869D65E15B5D79704F8672BA /* packet.c */ = {isa = PBXFileReference; includeInIndex = 1; name = packet.c; path = src/packet.c; sourceTree = "<group>"; };
 		E996BD18F8BB9332D813A2B4A74CBDCD /* ExtensionScriptAppStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExtensionScriptAppStore.swift; sourceTree = "<group>"; };
+		EA50B1C63DDE6C75C7EB8B88F6F0049B /* LibSSH2Transport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LibSSH2Transport.swift; path = RemoteSession/LibSSH2Transport.swift; sourceTree = "<group>"; };
 		EB63C6E5CF8E190192515DF9AAF6B3F3 /* TerminalPromptBoundaryProcessor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalPromptBoundaryProcessor.swift; sourceTree = "<group>"; };
 		EBBA1B72BDE02E1A59AA3322C7FA157C /* nist_kw.c */ = {isa = PBXFileReference; includeInIndex = 1; name = nist_kw.c; path = library/nist_kw.c; sourceTree = "<group>"; };
 		EC5DAEEAF1889F2430C4D234A1DB6EC2 /* ContentViewLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentViewLayout.swift; sourceTree = "<group>"; };
@@ -1062,11 +1076,18 @@
 				31501BE238A33AF6C86FC807BBFCD07D /* RemoteCommandModels.swift */,
 				725450DCAB03A4CB0F8FD2E2971D02BD /* RemoteFileSystem.swift */,
 				500735EBEDFAC042599808661236DB43 /* RemoteFileSystemModels.swift */,
+				1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */,
+				617B0B1F9CDD8082ABAEEDE48559E7E3 /* HostKeyVerifier.swift */,
+				EA50B1C63DDE6C75C7EB8B88F6F0049B /* LibSSH2Transport.swift */,
+				DFC69BE2A7D6A8803BDF2335139F658B /* NativeSSHChannelHandle.swift */,
 				250C3F8E2FA8C556970284F9AE799CD7 /* NativeSSHContext.swift */,
+				44F137857CEBBAF298837257A974C600 /* NativeSSHModels.swift */,
+				172C30A5BC295CD1017CC0C882097C8F /* NativeShellChannel.swift */,
 				825D1530C7800521EA80F3F30B6E7F02 /* RemoteSessionError.swift */,
 				9F0F8266DDFFBCD0B9E2C0D2C0E3AC41 /* RemoteSessionProtocols.swift */,
 				C46A67EFB21CDBA9FEC5ABFDB326FD02 /* RemoteSessionState.swift */,
 				E704AE268A780B03329CCCF5B6E935A0 /* RemoteTargetIdentity.swift */,
+				5E509BA10E05C45D0D6B3C9AD17442D2 /* SocketReadiness.swift */,
 				94AF2CDEB625D7F441E647330488F657 /* DisconnectedSFTPClient.swift */,
 				C85A46D35083963274106381ACB08C5C /* MockSFTPClient.swift */,
 				E29226849C5CDD72160C9CA2ED7776E9 /* SystemSFTPClient.swift */,
@@ -1530,11 +1551,18 @@
 				9FE4A91749456836DFF87C4F5FC4FA98 /* RemoteCommandModels.swift in Sources */,
 				200E6B7316C0EE09D3DAFAF91E8090C0 /* RemoteFileSystem.swift in Sources */,
 				E17D2567F60F947C24AEEF9CAB77EFCB /* RemoteFileSystemModels.swift in Sources */,
+				AA2763D3E2F5AACE9FD97A27A62696AB /* AuthenticationCoordinator.swift in Sources */,
+				6E175EB588AADDF260433FD1EE8F4005 /* HostKeyVerifier.swift in Sources */,
+				101D1AD9128CF4CD4105C90A58B7C7A4 /* LibSSH2Transport.swift in Sources */,
+				1113F1071079BFACADB501993500CE0E /* NativeSSHChannelHandle.swift in Sources */,
 				D2560E5D00D6ADA8BF67BF8312FA772F /* NativeSSHContext.swift in Sources */,
+				A5935A397121B124999B09E61ED1B54F /* NativeSSHModels.swift in Sources */,
+				8E534EA09B41A9D50EFFB868B9A19360 /* NativeShellChannel.swift in Sources */,
 				F892AE164A544D97F1C8D0F990B7E833 /* RemoteSessionError.swift in Sources */,
 				56BA4E735BE1270E5F84FAE87C9A75A8 /* RemoteSessionProtocols.swift in Sources */,
 				8D8E727DB011AA2CC92291406F2F6E0F /* RemoteSessionState.swift in Sources */,
 				F034D543D0B2037084B7F640BFAE9390 /* RemoteTargetIdentity.swift in Sources */,
+				91B988467E335A045F16B263FA1A4E5E /* SocketReadiness.swift in Sources */,
 				620794392634FB76E09A5355A0850959 /* DisconnectedSFTPClient.swift in Sources */,
 				CDF788606DA30EF3EB7944C4AE5BCFA6 /* MockSFTPClient.swift in Sources */,
 				C388883E69B4001074CC48D2DDFD7A24 /* SystemSFTPClient.swift in Sources */,
@@ -1831,6 +1859,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Sources/RemoraSSHNative/include";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -1900,6 +1929,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.wuujiawei.remora;
 				PRODUCT_NAME = Remora;
 				SDKROOT = macosx;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Sources/RemoraSSHNative/include";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
@@ -2045,6 +2075,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.wuujiawei.remora;
 				PRODUCT_NAME = Remora;
 				SDKROOT = macosx;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Sources/RemoraSSHNative/include";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
@@ -2062,6 +2093,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Sources/RemoraSSHNative/include";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;

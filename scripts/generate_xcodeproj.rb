@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'fileutils'
+require 'digest'
 require 'json'
 require 'pathname'
 require 'xcodeproj'
@@ -12,6 +13,146 @@ DEPLOYMENT_TARGET = '14.0'
 SWIFTTERM_URL = 'https://github.com/wuuJiawei/SwiftTerm'
 SWIFTTERM_REVISION = '4f632d1c60be15ad70152b006cb8679fc81c764f'
 NATIVE_SOURCE_MANIFEST = JSON.parse(ROOT.join('Vendor/NativeSSH/SOURCES.json').read)
+
+def stable_uuid_keys(project)
+  phase_owners = {}
+  configuration_list_owners = {
+    project.root_object.build_configuration_list => 'project',
+  }
+  product_dependency_owners = {}
+  target_dependency_owners = {}
+  proxy_owners = {}
+
+  project.targets.each do |target|
+    target.build_phases.each do |phase|
+      phase_owners[phase] = "target:#{target.name}/phase:#{phase.isa}"
+    end
+    configuration_list_owners[target.build_configuration_list] = "target:#{target.name}"
+    target.package_product_dependencies.each do |dependency|
+      product_dependency_owners[dependency] = "target:#{target.name}"
+    end
+    target.dependencies.each do |dependency|
+      owner = "target:#{target.name}/dependency:#{dependency.display_name}"
+      target_dependency_owners[dependency] = owner
+      proxy_owners[dependency.target_proxy] = owner if dependency.target_proxy
+    end
+  end
+
+  configuration_owners = {}
+  configuration_list_owners.each do |configuration_list, owner|
+    configuration_list.build_configurations.each do |configuration|
+      configuration_owners[configuration] = owner
+    end
+  end
+
+  build_file_owners = {}
+  phase_owners.each do |phase, owner|
+    phase.files.each do |build_file|
+      build_file_owners[build_file] = owner
+    end
+  end
+
+  keys = {}
+  key_for = lambda do |object|
+    return keys.fetch(object) if keys.key?(object)
+
+    key = case object.isa
+          when 'PBXProject'
+            "project:#{object.display_name}"
+          when 'PBXNativeTarget'
+            "target:#{object.name}"
+          when 'PBXGroup', 'PBXVariantGroup'
+            "#{object.isa}:#{object.hierarchy_path}"
+          when 'PBXFileReference'
+            "file:#{object.hierarchy_path}:#{object.path}:#{object.source_tree}"
+          when 'PBXSourcesBuildPhase', 'PBXHeadersBuildPhase',
+               'PBXFrameworksBuildPhase', 'PBXResourcesBuildPhase'
+            phase_owners.fetch(object)
+          when 'PBXBuildFile'
+            reference = object.file_ref || object.product_ref
+            settings = object.settings ? JSON.generate(object.settings.sort.to_h) : ''
+            "#{build_file_owners.fetch(object)}/build:#{key_for.call(reference)}:#{settings}"
+          when 'XCConfigurationList'
+            "#{configuration_list_owners.fetch(object)}/configuration-list"
+          when 'XCBuildConfiguration'
+            "#{configuration_owners.fetch(object)}/configuration:#{object.name}"
+          when 'PBXTargetDependency'
+            target_dependency_owners.fetch(object)
+          when 'PBXContainerItemProxy'
+            "#{proxy_owners.fetch(object)}/proxy"
+          when 'XCRemoteSwiftPackageReference'
+            "package:#{object.repositoryURL}"
+          when 'XCSwiftPackageProductDependency'
+            "#{product_dependency_owners.fetch(object)}/package-product:#{object.product_name}"
+          else
+            raise "Missing stable UUID identity for #{object.isa} (#{object.display_name})"
+          end
+
+    keys[object] = key
+  end
+
+  project.objects.each { |object| key_for.call(object) }
+  duplicates = keys.group_by { |_object, key| key }.select { |_key, entries| entries.length > 1 }
+  unless duplicates.empty?
+    details = duplicates.map { |key, entries| "#{key}: #{entries.map { |object, _| object.isa }.join(', ')}" }
+    raise "Duplicate stable UUID identities:\n#{details.join("\n")}"
+  end
+  keys
+end
+
+def stable_uuid_map(project)
+  stable_uuid_keys(project).to_h { |object, key| [key, object.uuid] }
+end
+
+def apply_stable_uuids(project, previous_uuids)
+  keys = stable_uuid_keys(project)
+  objects_by_old_uuid = project.objects_by_uuid.dup
+  assigned_uuids = {}
+
+  keys.each do |object, key|
+    uuid = previous_uuids[key] || Digest::MD5.hexdigest("Remora/#{key}").upcase
+    raise "Duplicate stable UUID #{uuid} for #{key}" if assigned_uuids.key?(uuid)
+
+    assigned_uuids[uuid] = object
+  end
+
+  uuid_attributes = [:remote_global_id_string, :container_portal, :target_proxy]
+  reference_fixups = project.objects.each_with_object([]) do |object, fixups|
+    uuid_attributes.each do |attribute|
+      next unless object.respond_to?(attribute)
+
+      referenced_object = objects_by_old_uuid[object.send(attribute)]
+      fixups << [object, attribute, referenced_object] if referenced_object
+    end
+  end
+
+  target_attributes = project.root_object.attributes['TargetAttributes'] || {}
+  target_attribute_fixups = target_attributes.each_with_object([]) do |(target_uuid, attributes), fixups|
+    target = objects_by_old_uuid[target_uuid]
+    next unless target
+
+    test_target = objects_by_old_uuid[attributes['TestTargetID']]
+    fixups << [target, attributes, test_target]
+  end
+
+  keys.each do |object, key|
+    uuid = previous_uuids[key] || Digest::MD5.hexdigest("Remora/#{key}").upcase
+    object.instance_variable_set(:@uuid, uuid)
+  end
+  reference_fixups.each do |object, attribute, referenced_object|
+    object.send("#{attribute}=", referenced_object.uuid)
+  end
+  unless target_attribute_fixups.empty?
+    project.root_object.attributes['TargetAttributes'] = target_attribute_fixups.to_h do |target, attributes, test_target|
+      updated_attributes = attributes.dup
+      updated_attributes['TestTargetID'] = test_target.uuid if test_target
+      [target.uuid, updated_attributes]
+    end
+  end
+
+  project.instance_variable_set(:@objects_by_uuid, assigned_uuids)
+  project.mark_dirty!
+end
 
 def sorted_swift_files(path, relative_to:)
   Dir.glob(path.join('**/*.swift').to_s).sort.map { |file| Pathname(file).relative_path_from(relative_to).to_s }
@@ -49,6 +190,11 @@ def add_remote_package_dependency(project, repository_url:, revision:, product_n
   end
 end
 
+previous_uuids = if PROJECT_PATH.exist?
+                   stable_uuid_map(Xcodeproj::Project.open(PROJECT_PATH))
+                 else
+                   {}
+                 end
 package_resolved_contents = PACKAGE_RESOLVED_PATH.read if PACKAGE_RESOLVED_PATH.exist?
 FileUtils.rm_rf(PROJECT_PATH)
 
@@ -146,8 +292,10 @@ native_target.build_configurations.each do |config|
   config.build_settings['PRODUCT_MODULE_NAME'] = 'RemoraSSHNative'
 end
 
-core_target.build_configurations.each do |config|
-  config.build_settings['SWIFT_INCLUDE_PATHS'] = '$(SRCROOT)/Sources/RemoraSSHNative/include'
+[core_target, terminal_target, app_target].each do |swift_target|
+  swift_target.build_configurations.each do |config|
+    config.build_settings['SWIFT_INCLUDE_PATHS'] = '$(SRCROOT)/Sources/RemoraSSHNative/include'
+  end
 end
 
 app_target.build_configurations.each do |config|
@@ -251,10 +399,7 @@ app_target.resources_build_phase.add_file_reference(asset_catalog_ref, true)
 web_editor_ref = app_resources_group.new_file('WebEditor')
 app_target.resources_build_phase.add_file_reference(web_editor_ref, true)
 
-project.predictabilize_uuids
-# Target proxies contain target UUIDs. A second pass makes their own UUIDs stable after
-# the first pass has normalized those references.
-project.predictabilize_uuids
+apply_stable_uuids(project, previous_uuids)
 
 scheme = Xcodeproj::XCScheme.new
 scheme.configure_with_targets(app_target, nil, launch_target: true)
