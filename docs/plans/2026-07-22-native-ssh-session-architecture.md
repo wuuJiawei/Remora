@@ -132,6 +132,11 @@ HEAD. The dependency gate must pin a reviewed release/commit, record license and
 checksums, and build both arm64 and x86_64 release artifacts. Remora must not depend on
 Homebrew at runtime.
 
+The release/backend selection and remaining integration gate are recorded in
+`2026-07-22-native-ssh-dependency-decision.md`. The selected pair is libssh2 1.11.1 with
+mbedTLS 3.6.7 LTS; source import remains blocked until the universal static-build proof
+passes.
+
 ### 6.2 `RemoraCore`
 
 New ownership:
