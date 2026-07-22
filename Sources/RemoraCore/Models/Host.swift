@@ -1,5 +1,22 @@
 import Foundation
 
+public enum RemoteCommandPrivilege: String, Codable, CaseIterable, Identifiable, Sendable {
+    case currentUser
+    case sudoNonInteractive
+
+    public var id: String { rawValue }
+
+    public func wrappingShellCommand(_ command: String) -> String {
+        switch self {
+        case .currentUser:
+            return command
+        case .sudoNonInteractive:
+            let escaped = command.replacingOccurrences(of: "'", with: "'\\''")
+            return "sudo -n -- /bin/sh -c '\(escaped)'"
+        }
+    }
+}
+
 public struct HostQuickCommand: Codable, Equatable, Identifiable, Sendable {
     public let id: UUID
     public var name: String
@@ -79,6 +96,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
     public var lastConnectedAt: Date?
     public var connectCount: Int
     public var auth: HostAuth
+    public var remoteCommandPrivilege: RemoteCommandPrivilege
     public var policies: HostPolicies
     public var quickCommands: [HostQuickCommand]
     public var quickPaths: [HostQuickPath]
@@ -97,6 +115,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         lastConnectedAt: Date? = nil,
         connectCount: Int = 0,
         auth: HostAuth,
+        remoteCommandPrivilege: RemoteCommandPrivilege = .currentUser,
         policies: HostPolicies = .init(),
         quickCommands: [HostQuickCommand] = [],
         quickPaths: [HostQuickPath] = [],
@@ -114,6 +133,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         self.lastConnectedAt = lastConnectedAt
         self.connectCount = connectCount
         self.auth = auth
+        self.remoteCommandPrivilege = remoteCommandPrivilege
         self.policies = policies
         self.quickCommands = quickCommands
         self.quickPaths = quickPaths
@@ -133,6 +153,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         case lastConnectedAt
         case connectCount
         case auth
+        case remoteCommandPrivilege
         case policies
         case quickCommands
         case quickPaths
@@ -153,6 +174,10 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         lastConnectedAt = try container.decodeIfPresent(Date.self, forKey: .lastConnectedAt)
         connectCount = try container.decodeIfPresent(Int.self, forKey: .connectCount) ?? 0
         auth = try container.decode(HostAuth.self, forKey: .auth)
+        remoteCommandPrivilege = try container.decodeIfPresent(
+            RemoteCommandPrivilege.self,
+            forKey: .remoteCommandPrivilege
+        ) ?? .currentUser
         policies = try container.decodeIfPresent(HostPolicies.self, forKey: .policies) ?? .init()
         quickCommands = try container.decodeIfPresent([HostQuickCommand].self, forKey: .quickCommands) ?? []
         quickPaths = try container.decodeIfPresent([HostQuickPath].self, forKey: .quickPaths) ?? []
@@ -173,6 +198,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         try container.encodeIfPresent(lastConnectedAt, forKey: .lastConnectedAt)
         try container.encode(connectCount, forKey: .connectCount)
         try container.encode(auth, forKey: .auth)
+        try container.encode(remoteCommandPrivilege, forKey: .remoteCommandPrivilege)
         try container.encode(policies, forKey: .policies)
         try container.encode(quickCommands, forKey: .quickCommands)
         try container.encode(quickPaths, forKey: .quickPaths)

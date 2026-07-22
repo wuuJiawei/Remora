@@ -213,6 +213,48 @@ struct SystemSFTPClientTests {
     }
 
     @Test
+    func permissionDeniedSwitchesFileTransfersToSSHStreaming() {
+        let error = SSHError.connectionFailed("remote open: Permission denied")
+
+        #expect(SystemSFTPClient.shouldSwitchToSSHStreamingTransfer(for: error))
+    }
+
+    @Test
+    func elevatedFileOperationsWorkAgainstConfiguredIntegrationHost() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let address = environment["REMORA_SUDO_INTEGRATION_HOST"],
+              let username = environment["REMORA_SUDO_INTEGRATION_USER"],
+              let passwordReference = environment["REMORA_SUDO_INTEGRATION_PASSWORD_REFERENCE"]
+        else {
+            return
+        }
+
+        let host = Host(
+            name: "sudo-integration",
+            address: address,
+            port: Int(environment["REMORA_SUDO_INTEGRATION_PORT"] ?? "22") ?? 22,
+            username: username,
+            auth: HostAuth(method: .password, passwordReference: passwordReference),
+            remoteCommandPrivilege: .sudoNonInteractive
+        )
+        let client = SystemSFTPClient(host: host)
+        let filename = ".remora-sudo-integration-\(UUID().uuidString)"
+        let remotePath = "/root/\(filename)"
+        let payload = Data("remora-sudo-integration".utf8)
+
+        _ = try await client.list(path: "/root")
+        do {
+            try await client.upload(data: payload, to: remotePath)
+            let downloaded = try await client.download(path: remotePath)
+            #expect(downloaded == payload)
+            try await client.remove(path: remotePath)
+        } catch {
+            try? await client.remove(path: remotePath)
+            throw error
+        }
+    }
+
+    @Test
     func diagnosticsRetentionDeletesOnlyExpiredFiles() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let justInsideRetention = now.addingTimeInterval(-Double(14 * 24 * 60 * 60 - 60))

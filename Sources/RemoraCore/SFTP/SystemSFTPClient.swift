@@ -41,6 +41,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
 
     private let host: Host
     private let connectionReuseMode: ConnectionReuseMode
+    private let remoteCommandPrivilege: RemoteCommandPrivilege
     private let credentialStore = CredentialStore()
     private let compatibilityProfileStore: SSHCompatibilityProfileStore
     private let directoryOperationTimeout: TimeInterval
@@ -64,25 +65,51 @@ public actor SystemSFTPClient: SFTPClientProtocol {
 
     public init(
         host: Host,
-        connectionReuseMode: ConnectionReuseMode = .automatic
+        connectionReuseMode: ConnectionReuseMode = .automatic,
+        remoteCommandPrivilege: RemoteCommandPrivilege? = nil
     ) {
+        let resolvedPrivilege = remoteCommandPrivilege ?? host.remoteCommandPrivilege
         self.host = host
         self.connectionReuseMode = connectionReuseMode
+        self.remoteCommandPrivilege = resolvedPrivilege
         self.compatibilityProfileStore = .shared
         self.directoryOperationTimeout = TimeInterval(min(10, max(5, host.policies.connectTimeoutSeconds)))
         self.shellFallbackTimeout = TimeInterval(min(6, max(4, host.policies.connectTimeoutSeconds / 2)))
+        Self.appendDiagnostics(
+            Self.formatDiagnosticsMessage(
+                host: host,
+                phase: "client-created",
+                body: [
+                    "privilege=\(resolvedPrivilege.rawValue)",
+                    "connectionReuse=\(String(describing: connectionReuseMode))"
+                ]
+            )
+        )
     }
 
     init(
         host: Host,
         connectionReuseMode: ConnectionReuseMode = .automatic,
+        remoteCommandPrivilege: RemoteCommandPrivilege? = nil,
         compatibilityProfileStore: SSHCompatibilityProfileStore
     ) {
+        let resolvedPrivilege = remoteCommandPrivilege ?? host.remoteCommandPrivilege
         self.host = host
         self.connectionReuseMode = connectionReuseMode
+        self.remoteCommandPrivilege = resolvedPrivilege
         self.compatibilityProfileStore = compatibilityProfileStore
         self.directoryOperationTimeout = TimeInterval(min(10, max(5, host.policies.connectTimeoutSeconds)))
         self.shellFallbackTimeout = TimeInterval(min(6, max(4, host.policies.connectTimeoutSeconds / 2)))
+        Self.appendDiagnostics(
+            Self.formatDiagnosticsMessage(
+                host: host,
+                phase: "client-created",
+                body: [
+                    "privilege=\(resolvedPrivilege.rawValue)",
+                    "connectionReuse=\(String(describing: connectionReuseMode))"
+                ]
+            )
+        )
     }
 
     public func list(path: String) async throws -> [RemoteFileEntry] {
@@ -142,7 +169,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                     host: host,
                     phase: "download-mode-switch",
                     body: [
-                        "reason=\(error.localizedDescription)",
+                        "trigger=\(Self.transferModeSwitchTrigger(for: error))",
+                        "privilege=\(remoteCommandPrivilege.rawValue)",
                         "mode=ssh-streaming"
                     ]
                 )
@@ -194,7 +222,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                             host: host,
                             phase: "download-mode-switch",
                             body: [
-                                "reason=\(error.localizedDescription)",
+                                "trigger=\(Self.transferModeSwitchTrigger(for: error))",
+                                "privilege=\(remoteCommandPrivilege.rawValue)",
                                 "mode=ssh-streaming"
                             ]
                         )
@@ -263,7 +292,8 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                             host: host,
                             phase: "upload-mode-switch",
                             body: [
-                                "reason=\(error.localizedDescription)",
+                                "trigger=\(Self.transferModeSwitchTrigger(for: error))",
+                                "privilege=\(remoteCommandPrivilege.rawValue)",
                                 "mode=ssh-streaming"
                             ]
                         )
@@ -852,6 +882,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     private func runSSHCommandResult(
         _ command: String,
         stdin: Data? = nil,
+        stdinFileURL: URL? = nil,
         timeout: TimeInterval? = nil,
         outputLogMode: OutputLogMode = .text,
         inputLogMode: InputLogMode = .text
@@ -864,6 +895,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         let result = try await runSSHCommandWithFallbacks(
             command: trimmed,
             stdin: stdin,
+            stdinFileURL: stdinFileURL,
             timeout: timeout,
             outputLogMode: outputLogMode,
             inputLogMode: inputLogMode
@@ -1044,11 +1076,10 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     }
 
     private func uploadViaSSH(fileURL: URL, to path: String) async throws {
-        let payload = try Data(contentsOf: fileURL)
         let command = "cat > \(Self.quoteShellArgument(path))"
         _ = try await runSSHCommandResult(
             command,
-            stdin: payload,
+            stdinFileURL: fileURL,
             outputLogMode: .text,
             inputLogMode: .metadataOnly
         )
@@ -1057,6 +1088,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     private func runSSHCommandWithFallbacks(
         command: String,
         stdin: Data? = nil,
+        stdinFileURL: URL? = nil,
         timeout: TimeInterval? = nil,
         outputLogMode: OutputLogMode,
         inputLogMode: InputLogMode,
@@ -1068,6 +1100,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             let result = try await runSSHAttempt(
                 command: command,
                 stdin: stdin,
+                stdinFileURL: stdinFileURL,
                 timeout: timeout,
                 outputLogMode: outputLogMode,
                 inputLogMode: inputLogMode,
@@ -1152,6 +1185,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
     private func runSSHAttempt(
         command: String,
         stdin: Data?,
+        stdinFileURL: URL?,
         timeout: TimeInterval?,
         outputLogMode: OutputLogMode,
         inputLogMode: InputLogMode,
@@ -1167,6 +1201,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             arguments: primary.arguments,
             environment: primary.environment,
             stdin: stdin,
+            stdinFileURL: stdinFileURL,
             timeout: timeout,
             logPhase: "ssh-primary",
             host: host,
@@ -1194,6 +1229,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             arguments: retry.arguments,
             environment: retry.environment,
             stdin: stdin,
+            stdinFileURL: stdinFileURL,
             timeout: timeout,
             logPhase: "ssh-retry-no-reuse",
             host: host,
@@ -1210,6 +1246,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         arguments: [String],
         environment: [String: String],
         stdin: Data?,
+        stdinFileURL: URL? = nil,
         timeout: TimeInterval? = nil,
         logPhase: String,
         host: Host,
@@ -1243,6 +1280,13 @@ public actor SystemSFTPClient: SFTPClientProtocol {
             }
         }
 
+        let stdinDescription: String
+        if let stdinFileURL {
+            let size = (try? stdinFileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            stdinDescription = "<file bytes=\(size)>"
+        } else {
+            stdinDescription = Self.describeInput(stdin, mode: inputLogMode)
+        }
         Self.appendDiagnostics(
             Self.formatDiagnosticsMessage(
                 host: host,
@@ -1251,7 +1295,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                     "executable=\(executablePath)",
                     "arguments=\(arguments.joined(separator: " "))",
                     "environment=\(Self.redactedEnvironmentDescription(environment))",
-                    "stdin=\(Self.describeInput(stdin, mode: inputLogMode))"
+                    "stdin=\(stdinDescription)"
                 ]
             )
         )
@@ -1270,8 +1314,24 @@ public actor SystemSFTPClient: SFTPClientProtocol {
 
                 let stderrPipe = Pipe()
                 process.standardError = stderrPipe
-                let stdinPipe = Pipe()
-                process.standardInput = stdinPipe
+                var stdinPipe: Pipe?
+                var stdinFileHandle: FileHandle?
+                if let stdinFileURL {
+                    do {
+                        let handle = try FileHandle(forReadingFrom: stdinFileURL)
+                        stdinFileHandle = handle
+                        process.standardInput = handle
+                    } catch {
+                        continuation.resume(
+                            throwing: SSHError.connectionFailed("stdin file setup failed: \(error.localizedDescription)")
+                        )
+                        return
+                    }
+                } else {
+                    let pipe = Pipe()
+                    stdinPipe = pipe
+                    process.standardInput = pipe
+                }
                 var stdoutPipe: Pipe?
                 var stdoutHandle: FileHandle?
 
@@ -1299,6 +1359,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                     try process.run()
                     processBox.setProcess(process)
                 } catch {
+                    try? stdinFileHandle?.close()
                     let elapsed = Date().timeIntervalSince(startedAt)
                     Self.appendDiagnostics(
                         Self.formatDiagnosticsMessage(
@@ -1349,7 +1410,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                     outputGroup.leave()
                 }
 
-                if let stdin, !stdin.isEmpty {
+                if let stdin, !stdin.isEmpty, let stdinPipe {
                     do {
                         try stdinPipe.fileHandleForWriting.write(contentsOf: stdin)
                     } catch {
@@ -1370,7 +1431,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                     }
                 }
 
-                try? stdinPipe.fileHandleForWriting.close()
+                try? stdinPipe?.fileHandleForWriting.close()
 
                 let waitOutcome = Self.waitForProcessExit(process, timeout: timeout)
                 outputGroup.wait()
@@ -1378,6 +1439,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
                 let capturedStderr = stderrBuffer.get()
 
                 try? stdoutHandle?.close()
+                try? stdinFileHandle?.close()
                 try? stdoutPipe?.fileHandleForReading.close()
                 try? stderrPipe.fileHandleForReading.close()
 
@@ -1635,8 +1697,21 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         return false
     }
 
-    private static func shouldSwitchToSSHStreamingTransfer(for error: Error) -> Bool {
-        isTransientConnectionFailureMessage(error.localizedDescription)
+    static func shouldSwitchToSSHStreamingTransfer(for error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        return isTransientConnectionFailureMessage(message)
+            || message.contains("permission denied")
+    }
+
+    private static func transferModeSwitchTrigger(for error: Error) -> String {
+        let message = error.localizedDescription.lowercased()
+        if message.contains("permission denied") {
+            return "permission-denied"
+        }
+        if isTransientConnectionFailureMessage(message) {
+            return "transient-connection"
+        }
+        return "unknown"
     }
 
     static func diagnosticsLogFilePath() -> String {
@@ -1835,6 +1910,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         command: String,
         compatibilityProfile: SSHCompatibilityProfile
     ) async -> BatchLaunchConfiguration {
+        let command = remoteCommandPrivilege.wrappingShellCommand(command)
         let authState = await primaryLaunchAuthState()
 
         if connectionReuseMode == .requireExistingConnection {
@@ -1945,6 +2021,7 @@ public actor SystemSFTPClient: SFTPClientProtocol {
         batchMode: Bool,
         compatibilityProfile: SSHCompatibilityProfile
     ) async -> BatchLaunchConfiguration {
+        let command = remoteCommandPrivilege.wrappingShellCommand(command)
         if host.auth.method == .password,
            let passwordLaunch = await makePasswordLaunchConfigurationIfAvailable(
                baseExecutable: "/usr/bin/ssh",

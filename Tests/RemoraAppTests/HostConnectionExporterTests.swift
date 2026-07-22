@@ -21,7 +21,8 @@ struct HostConnectionExporterTests {
                 port: 22,
                 username: "deploy",
                 group: "Production",
-                auth: HostAuth(method: .password, passwordReference: "pw-ref-1")
+                auth: HostAuth(method: .password, passwordReference: "pw-ref-1"),
+                remoteCommandPrivilege: .sudoNonInteractive
             ),
         ]
 
@@ -41,6 +42,7 @@ struct HostConnectionExporterTests {
         #expect(records.first?.name == "prod-api")
         #expect(records.first?.password == "")
         #expect(records.first?.authMethod == AuthenticationMethod.password.rawValue)
+        #expect(records.first?.remoteCommandPrivilege == RemoteCommandPrivilege.sudoNonInteractive.rawValue)
     }
 
     @Test

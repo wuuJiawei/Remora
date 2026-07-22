@@ -832,3 +832,11 @@
 "Deleting volume \"%@\"..." = "正在删除卷“%@”…";
 "Deleting image \"%@\"..." = "正在删除镜像“%@”…";
 "Deleting network \"%@\"..." = "正在删除网络“%@”…";
+"Use sudo for administrative operations" = "使用 sudo 执行管理操作";
+"Requires passwordless sudo. Docker and administrator file operations will run as root." = "需要免密 sudo。Docker 和管理员文件操作将以 root 身份运行。";
+"Administrator Mode" = "管理员模式";
+"Enable administrator mode" = "启用管理员模式";
+"Disable administrator mode" = "停用管理员模式";
+"Administrator mode enabled" = "已启用管理员模式";
+"Administrator mode disabled" = "已停用管理员模式";
+"Wait for active transfers to finish before changing administrator mode." = "请等待当前传输完成后再切换管理员模式。";

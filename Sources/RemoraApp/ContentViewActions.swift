@@ -157,6 +157,9 @@ extension ContentView {
         host.port = port
         host.username = hostEditorDraft.username
         host.group = hostEditorDraft.groupName
+        host.remoteCommandPrivilege = hostEditorDraft.useSudoForAdministrativeOperations
+            ? .sudoNonInteractive
+            : .currentUser
 
         let oldPasswordReference = existingHost?.auth.passwordReference
         let newPasswordValue = hostEditorDraft.password.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -952,9 +955,8 @@ extension ContentView {
                    runtime.connectedSSHHost != nil,
                    runtime.connectionState.hasPrefix("Connected")
                 {
-                    runtime.runAssistantCommand(
-                        "docker exec -it \(container.id) /bin/bash || docker exec -it \(container.id) /bin/sh"
-                    )
+                    let command = "docker exec -it \(container.id) /bin/bash || docker exec -it \(container.id) /bin/sh"
+                    runtime.runAssistantCommand(host.remoteCommandPrivilege.wrappingShellCommand(command))
                     return
                 }
             }

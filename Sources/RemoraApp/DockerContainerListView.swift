@@ -47,7 +47,8 @@ final class DockerContainerListView: NSViewController {
     func reload(
         containers: [DockerContainer],
         composeProjects: [DockerComposeProject],
-        isLoading: Bool
+        isLoading: Bool,
+        errorMessage: String?
     ) {
         let nodes = DockerContainerTreeBuilder.buildContainerTree(
             containers: containers,
@@ -60,7 +61,9 @@ final class DockerContainerListView: NSViewController {
         outlineController.reload(
             nodes: nodes,
             isLoading: isLoading,
-            emptyMessage: isLoading ? tr("Loading...") : tr("No Docker containers were returned by the current server.")
+            emptyMessage: isLoading
+                ? tr("Loading...")
+                : (errorMessage ?? tr("No Docker containers were returned by the current server."))
         )
     }
 }

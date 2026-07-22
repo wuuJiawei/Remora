@@ -836,3 +836,11 @@
 "Deleting volume \"%@\"..." = "Deleting volume \"%@\"...";
 "Deleting image \"%@\"..." = "Deleting image \"%@\"...";
 "Deleting network \"%@\"..." = "Deleting network \"%@\"...";
+"Use sudo for administrative operations" = "Use sudo for administrative operations";
+"Requires passwordless sudo. Docker and administrator file operations will run as root." = "Requires passwordless sudo. Docker and administrator file operations will run as root.";
+"Administrator Mode" = "Administrator Mode";
+"Enable administrator mode" = "Enable administrator mode";
+"Disable administrator mode" = "Disable administrator mode";
+"Administrator mode enabled" = "Administrator mode enabled";
+"Administrator mode disabled" = "Administrator mode disabled";
+"Wait for active transfers to finish before changing administrator mode." = "Wait for active transfers to finish before changing administrator mode.";

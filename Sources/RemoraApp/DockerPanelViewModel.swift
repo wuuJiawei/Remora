@@ -62,7 +62,7 @@ final class DockerPanelViewModel: ObservableObject {
         self.runtimeBinding = binding
         LogManager.info(
             .docker,
-            "updateRuntimeBinding runtimeChanged=\(previous.runtimeID != binding.runtimeID) mode=\(binding.connectionMode?.rawValue ?? "-") state=\(binding.connectionState) host=\(binding.host?.address ?? "-") executionMode=\(binding.executionMode)"
+            "updateRuntimeBinding runtimeChanged=\(previous.runtimeID != binding.runtimeID) mode=\(binding.connectionMode?.rawValue ?? "-") state=\(binding.connectionState) host=\(binding.host?.address ?? "-") executionMode=\(binding.executionMode) privilege=\(binding.host?.remoteCommandPrivilege.rawValue ?? "-")"
         )
 
         if previous.runtimeID == binding.runtimeID,
@@ -127,7 +127,10 @@ final class DockerPanelViewModel: ObservableObject {
 
         refreshTask = Task { [weak self] in
             guard let self else { return }
-            LogManager.info(.docker, "refresh start host=\(target.host.address)")
+            LogManager.info(
+                .docker,
+                "refresh start host=\(target.host.address) privilege=\(target.host.remoteCommandPrivilege.rawValue)"
+            )
             await self.reloadAll(target: target)
         }
     }
@@ -383,7 +386,10 @@ final class DockerPanelViewModel: ObservableObject {
     }
 
     private func reloadAll(target: DockerCommandService.ShellTarget) async {
-        LogManager.info(.docker, "reloadAll start host=\(target.host.address)")
+        LogManager.info(
+            .docker,
+            "reloadAll start host=\(target.host.address) privilege=\(target.host.remoteCommandPrivilege.rawValue)"
+        )
         isLoadingEnvironment = true
         isLoadingContainers = true
         isLoadingVolumes = true

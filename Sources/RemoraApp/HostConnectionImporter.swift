@@ -70,6 +70,7 @@ private struct HostConnectionImportRecord {
     var authMethod: AuthenticationMethod = .agent
     var privateKeyPath: String?
     var password: String?
+    var remoteCommandPrivilege: RemoteCommandPrivilege = .currentUser
     var keepAliveSeconds = 30
     var connectTimeoutSeconds = 10
     var terminalProfileID = "default"
@@ -196,6 +197,7 @@ struct HostConnectionImporter {
             authMethod: parseAuthMethod(record.authMethod),
             privateKeyPath: normalizedNonEmpty(record.privateKeyPath),
             password: normalizedNonEmpty(record.password),
+            remoteCommandPrivilege: parseRemoteCommandPrivilege(record.remoteCommandPrivilege),
             keepAliveSeconds: record.keepAliveSeconds,
             connectTimeoutSeconds: record.connectTimeoutSeconds,
             terminalProfileID: normalizedNonEmpty(record.terminalProfileID) ?? "default"
@@ -248,6 +250,7 @@ struct HostConnectionImporter {
                     authMethod: parseAuthMethod(field("authMethod")),
                     privateKeyPath: normalizedNonEmpty(field("privateKeyPath")),
                     password: normalizedNonEmpty(field("password")),
+                    remoteCommandPrivilege: parseRemoteCommandPrivilege(field("remoteCommandPrivilege")),
                     keepAliveSeconds: Int(field("keepAliveSeconds")) ?? 30,
                     connectTimeoutSeconds: Int(field("connectTimeoutSeconds")) ?? 10,
                     terminalProfileID: normalizedNonEmpty(field("terminalProfileID")) ?? "default"
@@ -763,6 +766,11 @@ struct HostConnectionImporter {
         AuthenticationMethod(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .agent
     }
 
+    private static func parseRemoteCommandPrivilege(_ raw: String?) -> RemoteCommandPrivilege {
+        guard let raw = normalizedNonEmpty(raw) else { return .currentUser }
+        return RemoteCommandPrivilege(rawValue: raw) ?? .currentUser
+    }
+
     private static func passwordReference(for hostID: UUID) -> String {
         "imported-password-\(hostID.uuidString.lowercased())"
     }
@@ -879,6 +887,7 @@ struct HostConnectionImporter {
             lastConnectedAt: record.lastConnectedAt,
             connectCount: max(0, record.connectCount),
             auth: auth,
+            remoteCommandPrivilege: record.remoteCommandPrivilege,
             policies: policy
         )
     }

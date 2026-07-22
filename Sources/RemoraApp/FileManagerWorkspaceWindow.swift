@@ -46,6 +46,11 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         let cascadeIndex = windows.count
         let runtimeID = ObjectIdentifier(runtime)
         let viewModel = FileTransferViewModel()
+        viewModel.isRemoteAdministratorMode = host.remoteCommandPrivilege == .sudoNonInteractive
+        LogManager.info(
+            .fileManager,
+            "administrator mode initialized enabled=\(viewModel.isRemoteAdministratorMode) privilege=\(host.remoteCommandPrivilege.rawValue)"
+        )
         let directorySyncBridge = TerminalDirectorySyncBridge()
         bind(viewModel: viewModel, directorySyncBridge: directorySyncBridge, runtime: runtime, fallbackHost: host)
 
@@ -81,6 +86,20 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             },
             onRefreshRemote: { runtime in
                 Self.refreshOrReconnect(viewModel: viewModel, runtime: runtime)
+            },
+            onAdministratorModeChanged: { [weak self, weak viewModel, weak directorySyncBridge] isEnabled in
+                guard let self, let viewModel, let directorySyncBridge else { return }
+                LogManager.info(
+                    .fileManager,
+                    "administrator mode change requested from=\(viewModel.isRemoteAdministratorMode) to=\(isEnabled)"
+                )
+                viewModel.isRemoteAdministratorMode = isEnabled
+                self.bind(
+                    viewModel: viewModel,
+                    directorySyncBridge: directorySyncBridge,
+                    runtime: runtime,
+                    fallbackHost: host
+                )
             },
             onOpenDownloadSettings: onOpenDownloadSettings,
             onClose: { [weak self] in
@@ -133,7 +152,11 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             .fileManager,
             "bind runtimeMode=\(runtime.connectionMode.rawValue) state=\(runtime.connectionState) workingDir=\(runtime.workingDirectory ?? "/")"
         )
-        let binding = makeBinding(from: runtime, fallbackHost: fallbackHost)
+        let binding = makeBinding(
+            from: runtime,
+            fallbackHost: fallbackHost,
+            administratorMode: viewModel.isRemoteAdministratorMode
+        )
         viewModel.bindSFTPClient(
             binding.client,
             bindingKey: binding.bindingKey,
@@ -161,12 +184,18 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
 
     private func makeBinding(
         from runtime: TerminalRuntime,
-        fallbackHost: RemoraCore.Host
+        fallbackHost: RemoraCore.Host,
+        administratorMode: Bool
     ) -> FileManagerRuntimeBinding {
         if runtime.connectionMode == .ssh, let host = runtime.connectedSSHHost {
+            let privilege: RemoteCommandPrivilege = administratorMode ? .sudoNonInteractive : .currentUser
+            LogManager.info(
+                .fileManager,
+                "create remote client privilege=\(privilege.rawValue) runtimeState=\(runtime.connectionState)"
+            )
             return FileManagerRuntimeBinding(
-                client: SystemSFTPClient(host: host),
-                bindingKey: Self.bindingKey(runtime: runtime, host: host),
+                client: SystemSFTPClient(host: host, remoteCommandPrivilege: privilege),
+                bindingKey: Self.bindingKey(runtime: runtime, host: host, privilege: privilege),
                 initialRemoteDirectory: runtime.workingDirectory ?? "/"
             )
         }
@@ -238,8 +267,12 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         let initialRemoteDirectory: String
     }
 
-    private static func bindingKey(runtime: TerminalRuntime, host: RemoraCore.Host) -> String {
-        "runtime:\(ObjectIdentifier(runtime))|ssh:\(sftpHostSignature(for: host))"
+    private static func bindingKey(
+        runtime: TerminalRuntime,
+        host: RemoraCore.Host,
+        privilege: RemoteCommandPrivilege
+    ) -> String {
+        "runtime:\(ObjectIdentifier(runtime))|ssh:\(sftpHostSignature(for: host))|privilege:\(privilege.rawValue)"
     }
 
     private static func disconnectedBindingKey(runtime: TerminalRuntime, host: RemoraCore.Host) -> String {
@@ -288,6 +321,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         onDeleteQuickPath: @escaping (HostQuickPath, TerminalRuntime) -> Void,
         onReorderQuickPaths: @escaping ([UUID], TerminalRuntime) -> Void,
         onRefreshRemote: @escaping (TerminalRuntime) -> Void,
+        onAdministratorModeChanged: @escaping (Bool) -> Void,
         onOpenDownloadSettings: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
@@ -471,7 +505,6 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         toolbarController.onTerminalSyncToggled = {
             viewModel.isTerminalDirectorySyncEnabled.toggle()
         }
-
         let window = NSWindow(contentViewController: splitController)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 1080, height: 760))
@@ -487,6 +520,29 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         super.init(window: window)
         window.delegate = self
         toastController.installIfNeeded(in: window)
+        toolbarController.onAdministratorModeToggled = { [weak self, weak viewModel] in
+            guard let self, let viewModel else { return }
+            let hasActiveTransfers = viewModel.transferQueue.contains { item in
+                item.status == .queued || item.status == .running
+            }
+            guard !hasActiveTransfers else {
+                let activeTransferCount = viewModel.transferQueue.filter { item in
+                    item.status == .queued || item.status == .running
+                }.count
+                LogManager.info(
+                    .fileManager,
+                    "administrator mode change blocked activeTransfers=\(activeTransferCount)"
+                )
+                self.toastController.show(message: tr("Wait for active transfers to finish before changing administrator mode."))
+                return
+            }
+            let isEnabled = !viewModel.isRemoteAdministratorMode
+            onAdministratorModeChanged(isEnabled)
+            LogManager.info(.fileManager, "administrator mode changed enabled=\(isEnabled)")
+            self.toastController.show(
+                message: tr(isEnabled ? "Administrator mode enabled" : "Administrator mode disabled")
+            )
+        }
         copyPathHandler = { [weak self] path in
             self?.copyPathToPasteboard(path)
         }
@@ -542,6 +598,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             status: transferQueueStatus(for: viewModel)
         )
         toolbarController.updateTerminalSync(isEnabled: viewModel.isTerminalDirectorySyncEnabled)
+        toolbarController.updateAdministratorMode(isEnabled: viewModel.isRemoteAdministratorMode)
         toolbarController.onSearchChanged = { [weak self, weak viewModel] query in
             guard let self, let viewModel else { return }
             self.splitController.updateSearchQuery(query)
@@ -667,6 +724,14 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             .receive(on: RunLoop.main)
             .sink { [weak self] isEnabled in
                 self?.toolbarController.updateTerminalSync(isEnabled: isEnabled)
+            }
+            .store(in: &toolbarCancellables)
+
+        viewModel.$isRemoteAdministratorMode
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isEnabled in
+                self?.toolbarController.updateAdministratorMode(isEnabled: isEnabled)
             }
             .store(in: &toolbarCancellables)
 

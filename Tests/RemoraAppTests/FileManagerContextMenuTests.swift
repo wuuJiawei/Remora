@@ -103,6 +103,40 @@ struct FileManagerContextMenuTests {
         }
     }
 
+    @MainActor
+    @Test
+    func administratorModeToolbarItemSupportsLightAndDarkAppearances() {
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            let toolbarController = FileManagerWindowToolbar()
+            toolbarController.updateAdministratorMode(isEnabled: true)
+
+            let window = NSWindow()
+            window.appearance = NSAppearance(named: appearanceName)
+            window.toolbar = toolbarController.toolbar
+
+            guard let item = toolbarController.toolbar.items.first(where: { $0.label == tr("Administrator Mode") }) else {
+                Issue.record("Missing administrator mode toolbar item in \(appearanceName.rawValue) appearance.")
+                continue
+            }
+            let enabledImage = item.image?.tiffRepresentation
+            toolbarController.updateAdministratorMode(isEnabled: false)
+            let disabledImage = item.image?.tiffRepresentation
+
+            #expect(enabledImage != nil)
+            #expect(disabledImage != nil)
+            #expect(enabledImage != disabledImage)
+
+            var toggleCount = 0
+            toolbarController.onAdministratorModeToggled = { toggleCount += 1 }
+            guard let action = item.action else {
+                Issue.record("Missing administrator mode toolbar action in \(appearanceName.rawValue) appearance.")
+                continue
+            }
+            _ = NSApp.sendAction(action, to: item.target, from: item)
+            #expect(toggleCount == 1)
+        }
+    }
+
     @Test
     func pasteTargetDirectoryUsesClickedDirectoryOtherwiseFallsBackToCurrentDirectory() {
         let directory = RemoteFileEntry(

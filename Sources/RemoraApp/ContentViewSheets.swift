@@ -495,6 +495,7 @@ struct SidebarHostEditorDraft {
     var privateKeyPath: String
     var password: String
     var savePassword: Bool
+    var useSudoForAdministrativeOperations: Bool
 
     init(preferredGroup: String = "") {
         self.connectionName = ""
@@ -506,6 +507,7 @@ struct SidebarHostEditorDraft {
         self.privateKeyPath = ""
         self.password = ""
         self.savePassword = false
+        self.useSudoForAdministrativeOperations = false
     }
 
     init(host: RemoraCore.Host) {
@@ -517,6 +519,7 @@ struct SidebarHostEditorDraft {
         self.privateKeyPath = host.auth.keyReference ?? ""
         self.password = ""
         self.savePassword = host.auth.passwordReference != nil
+        self.useSudoForAdministrativeOperations = host.remoteCommandPrivilege == .sudoNonInteractive
 
         switch host.auth.method {
         case .agent:
@@ -865,6 +868,20 @@ struct SidebarHostEditorSheet: View {
                     )
                     .toggleStyle(.checkbox)
                     .accessibilityIdentifier("host-editor-save-password")
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(
+                        tr("Use sudo for administrative operations"),
+                        isOn: $draft.useSudoForAdministrativeOperations
+                    )
+                    .toggleStyle(.checkbox)
+                    .accessibilityIdentifier("host-editor-use-sudo")
+
+                    Text(tr("Requires passwordless sudo. Docker and administrator file operations will run as root."))
+                        .font(.system(size: 11))
+                        .foregroundStyle(VisualStyle.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .textFieldStyle(.roundedBorder)

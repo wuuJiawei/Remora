@@ -387,7 +387,10 @@ private final class DockerResourceListContainerController: NSViewController {
             containerListController.reload(
                 containers: viewModel.filteredContainers,
                 composeProjects: viewModel.filteredComposeProjects,
-                isLoading: viewModel.isLoadingContainers || viewModel.isLoadingCompose
+                isLoading: viewModel.isLoadingContainers || viewModel.isLoadingCompose,
+                errorMessage: viewModel.environment.dockerAvailable
+                    ? nil
+                    : viewModel.environment.dockerIssue?.userMessage
             )
         } else if !viewModel.selectedTab.isKubernetesPendingFeature {
             resourceTableController.reload()

@@ -232,6 +232,7 @@ struct LocalFileEntry: Identifiable, Hashable {
 
 @MainActor
 final class FileTransferViewModel: ObservableObject {
+    @Published var isRemoteAdministratorMode = false
     static let maxInlineEditableTextDocumentBytes = 2 * 1024 * 1024
     static let defaultRemoteLogTailLineCount = 399
     static let maxRemoteLogTailLineCount = 5000

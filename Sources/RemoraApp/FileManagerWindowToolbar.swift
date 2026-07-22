@@ -14,6 +14,7 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
     var onPathSelected: ((String) -> Void)?
     var onCopyCurrentPath: ((String) -> Void)?
     var onTerminalSyncToggled: (() -> Void)?
+    var onAdministratorModeToggled: (() -> Void)?
     var onSearchChanged: ((String) -> Void)?
     var onDownloadsClicked: (() -> Void)?
     var downloadsAnchorView: NSView { downloadsButtonView }
@@ -21,7 +22,9 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
     private weak var backItem: NSToolbarItem?
     private weak var forwardItem: NSToolbarItem?
     private weak var terminalSyncItem: NSToolbarItem?
+    private weak var administratorModeItem: NSToolbarItem?
     private var isTerminalSyncEnabled = false
+    private var isAdministratorModeEnabled = false
     private var pathMap: [String: String] = [:]
     private var currentPathForCopy: String?
 
@@ -72,6 +75,17 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
         terminalSyncItem?.toolTip = tr(isEnabled ? "Disable terminal sync" : "Enable terminal sync")
     }
 
+    func updateAdministratorMode(isEnabled: Bool) {
+        isAdministratorModeEnabled = isEnabled
+        administratorModeItem?.image = NSImage(
+            systemSymbolName: isEnabled ? "lock.fill" : "lock.open",
+            accessibilityDescription: tr("Administrator Mode")
+        )
+        administratorModeItem?.toolTip = tr(
+            isEnabled ? "Disable administrator mode" : "Enable administrator mode"
+        )
+    }
+
     func controlTextDidChange(_ obj: Notification) {
         onSearchChanged?(searchField.stringValue)
     }
@@ -84,6 +98,7 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
             .fileManagerPathControl,
             .flexibleSpace,
             .fileManagerDownloads,
+            .fileManagerAdministratorMode,
             .fileManagerTerminalSync,
             .fileManagerSearch,
         ]
@@ -149,6 +164,20 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
             item.action = #selector(handleTerminalSyncToggle)
             terminalSyncItem = item
             return item
+        case .fileManagerAdministratorMode:
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            item.label = tr("Administrator Mode")
+            item.image = NSImage(
+                systemSymbolName: isAdministratorModeEnabled ? "lock.fill" : "lock.open",
+                accessibilityDescription: item.label
+            )
+            item.toolTip = tr(
+                isAdministratorModeEnabled ? "Disable administrator mode" : "Enable administrator mode"
+            )
+            item.target = self
+            item.action = #selector(handleAdministratorModeToggle)
+            administratorModeItem = item
+            return item
         default:
             return nil
         }
@@ -158,6 +187,7 @@ final class FileManagerWindowToolbar: NSObject, NSToolbarDelegate, NSSearchField
     @objc private func handleForward() { onForward?() }
     @objc private func handleRefresh() { onRefresh?() }
     @objc private func handleTerminalSyncToggle() { onTerminalSyncToggled?() }
+    @objc private func handleAdministratorModeToggle() { onAdministratorModeToggled?() }
 
     @objc private func handlePathClick() {
         guard let clicked = pathControl.clickedPathItem else { return }
@@ -206,6 +236,7 @@ private extension NSToolbarItem.Identifier {
     static let fileManagerRefresh = NSToolbarItem.Identifier("file-manager-toolbar-refresh")
     static let fileManagerPathControl = NSToolbarItem.Identifier("file-manager-toolbar-path")
     static let fileManagerDownloads = NSToolbarItem.Identifier("file-manager-toolbar-downloads")
+    static let fileManagerAdministratorMode = NSToolbarItem.Identifier("file-manager-toolbar-administrator-mode")
     static let fileManagerTerminalSync = NSToolbarItem.Identifier("file-manager-toolbar-terminal-sync")
     static let fileManagerSearch = NSToolbarItem.Identifier("file-manager-toolbar-search")
 }

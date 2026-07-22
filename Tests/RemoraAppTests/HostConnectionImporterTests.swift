@@ -33,7 +33,8 @@ struct HostConnectionImporterTests {
                 port: 22,
                 username: "deploy",
                 group: "Production",
-                auth: HostAuth(method: .password, passwordReference: "export-pass-1")
+                auth: HostAuth(method: .password, passwordReference: "export-pass-1"),
+                remoteCommandPrivilege: .sudoNonInteractive
             ),
         ]
 
@@ -62,6 +63,7 @@ struct HostConnectionImporterTests {
         #expect(imported.first?.name == "prod-api")
         #expect(imported.first?.auth.method == .password)
         #expect(imported.first?.auth.passwordReference != nil)
+        #expect(imported.first?.remoteCommandPrivilege == .sudoNonInteractive)
         let restoredRef = imported.first?.auth.passwordReference ?? ""
         let restoredSecret = await credentialStore.secret(for: restoredRef)
         #expect(restoredSecret == "json-pass")

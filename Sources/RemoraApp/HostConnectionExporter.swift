@@ -84,6 +84,7 @@ struct HostConnectionExporter {
         let authMethod: String
         let privateKeyPath: String
         let password: String
+        let remoteCommandPrivilege: String?
         let keepAliveSeconds: Int
         let connectTimeoutSeconds: Int
         let terminalProfileID: String
@@ -166,6 +167,7 @@ struct HostConnectionExporter {
                     authMethod: host.auth.method.rawValue,
                     privateKeyPath: host.auth.keyReference ?? "",
                     password: plaintextPassword,
+                    remoteCommandPrivilege: host.remoteCommandPrivilege.rawValue,
                     keepAliveSeconds: host.policies.keepAliveSeconds,
                     connectTimeoutSeconds: host.policies.connectTimeoutSeconds,
                     terminalProfileID: host.policies.terminalProfileID
@@ -192,6 +194,7 @@ struct HostConnectionExporter {
             "id", "name", "address", "port", "username", "group",
             "tags", "note", "favorite", "lastConnectedAt", "connectCount",
             "authMethod", "privateKeyPath", "password",
+            "remoteCommandPrivilege",
             "keepAliveSeconds", "connectTimeoutSeconds", "terminalProfileID",
         ]
         var lines = [header.joined(separator: ",")]
@@ -213,6 +216,7 @@ struct HostConnectionExporter {
                 record.authMethod,
                 record.privateKeyPath,
                 record.password,
+                record.remoteCommandPrivilege ?? RemoteCommandPrivilege.currentUser.rawValue,
                 "\(record.keepAliveSeconds)",
                 "\(record.connectTimeoutSeconds)",
                 record.terminalProfileID,
