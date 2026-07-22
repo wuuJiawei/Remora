@@ -1,5 +1,18 @@
 import Foundation
 
+public struct RemoteSessionAcquisitionRequest: Sendable {
+    public let key: RemoteSessionKey
+    public let createSession: @Sendable () async throws -> any RemoteSessionProtocol
+
+    public init(
+        key: RemoteSessionKey,
+        createSession: @escaping @Sendable () async throws -> any RemoteSessionProtocol
+    ) {
+        self.key = key
+        self.createSession = createSession
+    }
+}
+
 public actor RemoteSessionHub {
     public typealias SessionFactory = @Sendable () async throws -> any RemoteSessionProtocol
 

@@ -7,5 +7,7 @@ public protocol SessionManagerProtocol: Sendable {
     func resize(sessionID: UUID, pty: PTYSize) async throws
     func sessionOutputStream(sessionID: UUID) async -> AsyncStream<Data>
     func sessionStateStream(sessionID: UUID) async -> AsyncStream<ShellSessionState>
+    func remoteSessionIdentity(sessionID: UUID) async -> RemoteSessionIdentitySnapshot?
+    func acquireRemoteSessionLease(sessionID: UUID) async throws -> any RemoteSessionLeaseProtocol
     func activeSessions() async -> [TerminalSessionDescriptor]
 }
