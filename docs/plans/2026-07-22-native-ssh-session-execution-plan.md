@@ -298,17 +298,29 @@ Tests/RemoraAppTests/WorkspaceViewModelTests.swift
 
 ### Tasks
 
-- [ ] Implement acquire deduplication for concurrent identical session keys.
-- [ ] Implement explicit lease release and last-lease close.
-- [ ] Implement channel registry and shutdown ordering.
-- [ ] Expose immutable identity/state snapshots to app code.
-- [ ] Adapt `SessionManager` to obtain shell channels from the hub.
-- [ ] Replace terminal runtime `connectedSSHHost` binding with session identity while
+- [x] Implement acquire deduplication for concurrent identical session keys.
+- [x] Implement explicit lease release and last-lease close.
+- [x] Implement channel registry and shutdown ordering.
+- [x] Expose immutable identity/state snapshots to app code.
+- [x] Adapt `SessionManager` to obtain shell channels from the hub.
+- [x] Replace terminal runtime `connectedSSHHost` binding with session identity while
   keeping a saved-host reference only for catalog/reconnect configuration.
-- [ ] Preserve terminal output, input, resize, OSC/CWD, clone/split, and ZModem behavior.
-- [ ] Remove OpenSSH prompt detection from native terminal path.
-- [ ] Add one developer-only composition switch for differential testing; do not add a
+- [x] Preserve terminal output, input, resize, OSC/CWD, clone/split, and ZModem behavior.
+- [x] Remove OpenSSH prompt detection from native terminal path.
+- [x] Add one developer-only composition switch for differential testing; do not add a
   runtime fallback.
+
+The composition seam is constructor injection on `TerminalRuntime`; production defaults
+to the native manager, while focused fixtures can inject the process-backed test manager.
+There is no error-triggered runtime fallback.
+
+### Implementation verification status
+
+- Shared-session lifecycle, terminal adapter, typed authentication interaction, and
+  default native composition compile in SwiftPM.
+- Real direct-host shell, split/clone, CWD, ZModem, cancellation, and lifecycle counter
+  behavior were not executed at the user's request. Phase 3 runtime exit conditions
+  remain pending user acceptance.
 
 ### Lifecycle test matrix
 
@@ -364,18 +376,29 @@ Tests/RemoraAppTests/RemoteArchiveSupportTests.swift
 
 ### Tasks
 
-- [ ] Implement exec channel stdout/stderr separation, stdin, exit status, timeout,
+- [x] Implement exec channel stdout/stderr separation, stdin, exit status, timeout,
   cancellation, and bounded output collection.
-- [ ] Centralize audited POSIX argument quoting.
-- [ ] Implement privilege wrapper as request metadata; use `sudo -n` only.
-- [ ] Require replay policy for every request builder.
-- [ ] Inject a session-scoped executor into Docker; remove SFTP construction.
-- [ ] Preserve Docker command parsing but classify executable/daemon/permission/parse
+- [x] Centralize audited POSIX argument quoting.
+- [x] Implement privilege wrapper as request metadata; use `sudo -n` only.
+- [x] Require replay policy for every request builder.
+- [x] Inject a session-scoped executor into Docker; remove SFTP construction.
+- [x] Preserve Docker command parsing but classify executable/daemon/permission/parse
   failures separately.
 - [ ] Inject executor into metrics and delete per-host `SystemSFTPClient` cache.
 - [ ] Mark metrics `.readOnly`; mark Docker mutations and archive actions `.never`.
 - [ ] Migrate quick commands/extensions with `.never` default.
-- [ ] Make Docker window hold its own session lease and release it on close.
+- [x] Make Docker window hold its own session lease and release it on close.
+
+### Partial implementation status
+
+- The native shim and Swift transport now expose nonblocking exec channels with
+  separate stdout/stderr, stdin EOF, timeout, cancellation, exit status, and bounded
+  collection.
+- Docker read and mutation paths, including live logs, use a session-scoped executor.
+  The Docker window owns an independent lease, so terminal closure does not release the
+  Docker session.
+- Metrics, archive, quick-command, and extension consumers remain pending. Phase 4 is
+  therefore not complete and its exit condition is not green.
 
 ### Required regression tests
 
