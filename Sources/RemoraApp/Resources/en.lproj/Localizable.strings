@@ -844,3 +844,5 @@
 "Administrator mode enabled" = "Administrator mode enabled";
 "Administrator mode disabled" = "Administrator mode disabled";
 "Wait for active transfers to finish before changing administrator mode." = "Wait for active transfers to finish before changing administrator mode.";
+"Private Key Passphrase" = "Private Key Passphrase";
+"Enter passphrase" = "Enter passphrase";

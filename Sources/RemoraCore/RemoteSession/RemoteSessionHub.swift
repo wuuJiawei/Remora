@@ -14,6 +14,8 @@ public struct RemoteSessionAcquisitionRequest: Sendable {
 }
 
 public actor RemoteSessionHub {
+    public static let shared = RemoteSessionHub()
+
     public typealias SessionFactory = @Sendable () async throws -> any RemoteSessionProtocol
 
     private struct Entry {

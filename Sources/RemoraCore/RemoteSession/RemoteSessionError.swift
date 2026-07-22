@@ -12,7 +12,7 @@ public enum RemoteErrorCategory: String, Codable, CaseIterable, Sendable {
     case privilege
 }
 
-public struct RemoteOperationError: Error, Equatable, Sendable {
+public struct RemoteOperationError: Error, LocalizedError, Equatable, Sendable {
     public let category: RemoteErrorCategory
     public let code: String
     public let safeDiagnosticMessage: String
@@ -31,6 +31,10 @@ public struct RemoteOperationError: Error, Equatable, Sendable {
         self.safeDiagnosticMessage = safeDiagnosticMessage
         self.operationID = operationID
         self.backendCode = backendCode
+    }
+
+    public var errorDescription: String? {
+        safeDiagnosticMessage
     }
 }
 

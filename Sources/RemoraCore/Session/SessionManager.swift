@@ -31,6 +31,11 @@ public actor SessionManager: SessionManagerProtocol {
         backend = .remote(remoteSessionHub, requestBuilder)
     }
 
+    public func usesNativeRemoteSessions() -> Bool {
+        if case .remote = backend { return true }
+        return false
+    }
+
     public func startSession(for host: Host, pty: PTYSize) async throws -> TerminalSessionDescriptor {
         let shell: SSHTransportSessionProtocol
         let remoteIdentity: RemoteSessionIdentitySnapshot?
@@ -81,7 +86,14 @@ public actor SessionManager: SessionManagerProtocol {
             }
         }
 
-        try await shell.start()
+        do {
+            try await shell.start()
+        } catch {
+            await shell.stop()
+            continuation.finish()
+            stateContinuation.finish()
+            throw error
+        }
 
         let descriptor = TerminalSessionDescriptor(
             id: descriptorID,

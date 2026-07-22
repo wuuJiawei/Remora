@@ -10,6 +10,7 @@
 		00F4B070CD81785992A1AAE5735D8EC2 /* base64.c in Sources */ = {isa = PBXBuildFile; fileRef = 8352BF076FBDDE7A858D924161ED04B3 /* base64.c */; };
 		017C3CBC9982B54547432220455AC321 /* packet.c in Sources */ = {isa = PBXBuildFile; fileRef = E937D8DD869D65E15B5D79704F8672BA /* packet.c */; };
 		01B1A457F67AA494716BDFE553294060 /* SessionManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E67A383CBCE2CF3C977C563020A205 /* SessionManagerProtocol.swift */; };
+		023A2CCBB892E839D5273DE1FE040F4E /* NativeDirectSessionConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B6D76CB0DCF7EF82A1B4DC598AC746 /* NativeDirectSessionConnector.swift */; };
 		04A31B64D446059026EE50BAA8E18560 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B55DD1999A275BBAD49D2D63FBD75FE3 /* Security.framework */; };
 		058B09BE7343A04D554FB67C950212DE /* FileManagerLegacyFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2198BC511AE86AD3E3B4586C095EDFE0 /* FileManagerLegacyFormatting.swift */; };
 		05B213DBEEA4FF3DC319CD107FF01312 /* OpenSSHRemoteShellIntegrationInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237F50C0BDFC65963ACBCAB943417977 /* OpenSSHRemoteShellIntegrationInstaller.swift */; };
@@ -271,6 +272,7 @@
 		DDDDF6AE6969115D1EBD2595EFE4F93D /* poly1305.c in Sources */ = {isa = PBXBuildFile; fileRef = 6BDE2415FCFE0967B8E53DD29003EEB9 /* poly1305.c */; };
 		E17D2567F60F947C24AEEF9CAB77EFCB /* RemoteFileSystemModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 500735EBEDFAC042599808661236DB43 /* RemoteFileSystemModels.swift */; };
 		E25D2BA5A95531927ED99BB59C6CC722 /* pkwrite.c in Sources */ = {isa = PBXBuildFile; fileRef = 7B47D025E746FD441B606C19A3057CB8 /* pkwrite.c */; };
+		E27A20390ABA96D3D782D0824F9ED58F /* NativeSessionInteractionBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034D4DAA18FB9395E6B7B5F7A21C7B28 /* NativeSessionInteractionBroker.swift */; };
 		E2CD3BBA078ED04C4C62AEEFB91E790E /* CrossWindowFlyAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E7F0AE95A7E2C7DF07EBE06E78EE4C /* CrossWindowFlyAnimator.swift */; };
 		E34D8D53E8022A90CD27E50FD141CDAA /* RemoteExtractSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E097C8ECD91E8C19E4F0C8AA7653736B /* RemoteExtractSheet.swift */; };
 		E38F7604C06EE29C6B8E3ECD557EF5B5 /* keepalive.c in Sources */ = {isa = PBXBuildFile; fileRef = 42A321BFB235F6AC8274421A8C0FE01E /* keepalive.c */; };
@@ -357,11 +359,13 @@
 		0060F22E9C7E2C2DB46CC5A4D51A96C8 /* WebEditor */ = {isa = PBXFileReference; includeInIndex = 1; path = WebEditor; sourceTree = "<group>"; };
 		01116BC93E89F4FEE3D6BBF04C6DD83A /* version.c */ = {isa = PBXFileReference; includeInIndex = 1; name = version.c; path = src/version.c; sourceTree = "<group>"; };
 		02A45679909DE985D708968C6CE16AE6 /* Remora.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Remora.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		034D4DAA18FB9395E6B7B5F7A21C7B28 /* NativeSessionInteractionBroker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeSessionInteractionBroker.swift; path = RemoteSession/NativeSessionInteractionBroker.swift; sourceTree = "<group>"; };
 		0352A27E411E73FD0E8164F4DED87AB0 /* bignum.c */ = {isa = PBXFileReference; includeInIndex = 1; name = bignum.c; path = library/bignum.c; sourceTree = "<group>"; };
 		03A659A351022327EF2BD55F55C92732 /* HostCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostCatalog.swift; sourceTree = "<group>"; };
 		045A4829191257A528D3A89DC332DF10 /* DockerModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerModels.swift; sourceTree = "<group>"; };
 		05BA7236F2BE4A26955BB1EF40A3C551 /* psa_crypto_cipher.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_cipher.c; path = library/psa_crypto_cipher.c; sourceTree = "<group>"; };
 		05EEFC436FA99730DD1F8E5FBA600817 /* asn1parse.c */ = {isa = PBXFileReference; includeInIndex = 1; name = asn1parse.c; path = library/asn1parse.c; sourceTree = "<group>"; };
+		07B6D76CB0DCF7EF82A1B4DC598AC746 /* NativeDirectSessionConnector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeDirectSessionConnector.swift; path = RemoteSession/NativeDirectSessionConnector.swift; sourceTree = "<group>"; };
 		07D2B61322289BCFCF22894511D4DC11 /* SSHCompatibilityProfile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SSHCompatibilityProfile.swift; path = SSH/SSHCompatibilityProfile.swift; sourceTree = "<group>"; };
 		07D356B8BE42151AC13F514BD68B1270 /* ViewScreenAnchorRegistry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ViewScreenAnchorRegistry.swift; sourceTree = "<group>"; };
 		09630556310CD85C9A6AAA130E921B59 /* psa_crypto_storage.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_storage.c; path = library/psa_crypto_storage.c; sourceTree = "<group>"; };
@@ -1085,9 +1089,11 @@
 				1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */,
 				617B0B1F9CDD8082ABAEEDE48559E7E3 /* HostKeyVerifier.swift */,
 				EA50B1C63DDE6C75C7EB8B88F6F0049B /* LibSSH2Transport.swift */,
+				07B6D76CB0DCF7EF82A1B4DC598AC746 /* NativeDirectSessionConnector.swift */,
 				DFC69BE2A7D6A8803BDF2335139F658B /* NativeSSHChannelHandle.swift */,
 				250C3F8E2FA8C556970284F9AE799CD7 /* NativeSSHContext.swift */,
 				44F137857CEBBAF298837257A974C600 /* NativeSSHModels.swift */,
+				034D4DAA18FB9395E6B7B5F7A21C7B28 /* NativeSessionInteractionBroker.swift */,
 				172C30A5BC295CD1017CC0C882097C8F /* NativeShellChannel.swift */,
 				171948D43AA35E78DD4E67AE9B8F72CB /* RemoteSession.swift */,
 				825D1530C7800521EA80F3F30B6E7F02 /* RemoteSessionError.swift */,
@@ -1563,9 +1569,11 @@
 				AA2763D3E2F5AACE9FD97A27A62696AB /* AuthenticationCoordinator.swift in Sources */,
 				6E175EB588AADDF260433FD1EE8F4005 /* HostKeyVerifier.swift in Sources */,
 				101D1AD9128CF4CD4105C90A58B7C7A4 /* LibSSH2Transport.swift in Sources */,
+				023A2CCBB892E839D5273DE1FE040F4E /* NativeDirectSessionConnector.swift in Sources */,
 				1113F1071079BFACADB501993500CE0E /* NativeSSHChannelHandle.swift in Sources */,
 				D2560E5D00D6ADA8BF67BF8312FA772F /* NativeSSHContext.swift in Sources */,
 				A5935A397121B124999B09E61ED1B54F /* NativeSSHModels.swift in Sources */,
+				E27A20390ABA96D3D782D0824F9ED58F /* NativeSessionInteractionBroker.swift in Sources */,
 				8E534EA09B41A9D50EFFB868B9A19360 /* NativeShellChannel.swift in Sources */,
 				D77DF2D0C7806A0499373C1947C6755F /* RemoteSession.swift in Sources */,
 				F892AE164A544D97F1C8D0F990B7E833 /* RemoteSessionError.swift in Sources */,

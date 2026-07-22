@@ -261,6 +261,7 @@ struct TerminalPaneView: View {
         .alert(
             activeAuthPrompt == .hostKey ? tr("Trust SSH Host Key?")
                 : activeAuthPrompt == .otp ? tr("OTP Verification")
+                : runtime.isPrivateKeyPassphrasePrompt ? tr("Private Key Passphrase")
                 : tr("SSH Password"),
             isPresented: Binding(
                 get: { activeAuthPrompt != nil },
@@ -303,7 +304,10 @@ struct TerminalPaneView: View {
                 }
                 .disabled(otpInputCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             case .password:
-                SecureField(tr("Enter password"), text: $passwordInput)
+                SecureField(
+                    runtime.isPrivateKeyPassphrasePrompt ? tr("Enter passphrase") : tr("Enter password"),
+                    text: $passwordInput
+                )
                 Button(tr("Cancel"), role: .cancel) {
                     passwordInput = ""
                     runtime.dismissPasswordPrompt()
