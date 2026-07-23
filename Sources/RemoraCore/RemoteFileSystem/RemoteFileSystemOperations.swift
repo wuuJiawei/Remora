@@ -162,9 +162,10 @@ public actor RemoteFileSystemOperations {
                 guard let remoteHandle else {
                     throw RemoteFileSystemOperationError(status: .connectionLost, path: path)
                 }
-                try await writeAll(chunk, to: remoteHandle)
-                transferred += Int64(chunk.count)
-                progress?(.init(bytesTransferred: transferred, totalBytes: totalSize))
+                try await writeAll(chunk, to: remoteHandle) { written in
+                    transferred += Int64(written)
+                    progress?(.init(bytesTransferred: transferred, totalBytes: totalSize))
+                }
             }
             try localHandle?.close()
             localHandle = nil
@@ -218,7 +219,11 @@ public actor RemoteFileSystemOperations {
         }
     }
 
-    private func writeAll(_ data: Data, to handle: any RemoteFileHandleProtocol) async throws {
+    private func writeAll(
+        _ data: Data,
+        to handle: any RemoteFileHandleProtocol,
+        onProgress: ((Int) -> Void)? = nil
+    ) async throws {
         var offset = 0
         while offset < data.count {
             let written = try await handle.write(Data(data[offset...]))
@@ -226,6 +231,7 @@ public actor RemoteFileSystemOperations {
                 throw RemoteFileSystemOperationError(status: .connectionLost)
             }
             offset += written
+            onProgress?(written)
         }
     }
 
