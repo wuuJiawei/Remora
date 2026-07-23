@@ -6,7 +6,7 @@ import Darwin
 import Glibc
 #endif
 
-enum HostConnectionImportError: LocalizedError {
+enum HostConnectionImportError: LocalizedError, Equatable {
     case emptyFile
     case unsupportedFormat
     case invalidJSON
@@ -17,6 +17,10 @@ enum HostConnectionImportError: LocalizedError {
     case invalidXshellFile
     case invalidPuTTYRegistryExport
     case noImportableHosts
+    case unsupportedExportSchemaVersion(Int)
+    case unsupportedRouteSchemaVersion(Int)
+    case unsupportedGatewayProvider(String)
+    case invalidRouteConfiguration
 
     var errorDescription: String? {
         switch self {
@@ -40,6 +44,14 @@ enum HostConnectionImportError: LocalizedError {
             return tr("Invalid PuTTY registry export.")
         case .noImportableHosts:
             return tr("No importable SSH hosts were found in the selected file.")
+        case .unsupportedExportSchemaVersion:
+            return tr("The connection export uses an unsupported schema version.")
+        case .unsupportedRouteSchemaVersion:
+            return tr("The connection route uses an unsupported schema version.")
+        case .unsupportedGatewayProvider:
+            return tr("The connection uses an unsupported gateway provider.")
+        case .invalidRouteConfiguration:
+            return tr("The connection route configuration is invalid.")
         }
     }
 }
@@ -74,6 +86,7 @@ private struct HostConnectionImportRecord {
     var keepAliveSeconds = 30
     var connectTimeoutSeconds = 10
     var terminalProfileID = "default"
+    var connectionRoute: HostConnectionRouteConfiguration = .direct
 }
 
 struct HostConnectionImporter {
@@ -167,8 +180,11 @@ struct HostConnectionImporter {
             }
 
             do {
+                try validateJSONRouteMetadata(jsonData)
                 let exported = try decoder.decode([HostConnectionExporter.Record].self, from: jsonData)
-                return exported.map(remoraRecordToImportRecord)
+                return try exported.map(remoraRecordToImportRecord)
+            } catch let error as HostConnectionImportError {
+                throw error
             } catch {
                 throw HostConnectionImportError.invalidJSON
             }
@@ -181,8 +197,14 @@ struct HostConnectionImporter {
         throw HostConnectionImportError.unsupportedFormat
     }
 
-    private static func remoraRecordToImportRecord(_ record: HostConnectionExporter.Record) -> HostConnectionImportRecord {
-        HostConnectionImportRecord(
+    private static func remoraRecordToImportRecord(
+        _ record: HostConnectionExporter.Record
+    ) throws -> HostConnectionImportRecord {
+        let route = try validatedConnectionRoute(
+            record.connectionRoute,
+            exportSchemaVersion: record.schemaVersion
+        )
+        return HostConnectionImportRecord(
             id: record.id,
             name: record.name,
             address: record.address,
@@ -200,7 +222,8 @@ struct HostConnectionImporter {
             remoteCommandPrivilege: parseRemoteCommandPrivilege(record.remoteCommandPrivilege),
             keepAliveSeconds: record.keepAliveSeconds,
             connectTimeoutSeconds: record.connectTimeoutSeconds,
-            terminalProfileID: normalizedNonEmpty(record.terminalProfileID) ?? "default"
+            terminalProfileID: normalizedNonEmpty(record.terminalProfileID) ?? "default",
+            connectionRoute: route
         )
     }
 
@@ -220,6 +243,16 @@ struct HostConnectionImporter {
         guard Set(requiredHeaders).isSubset(of: Set(headers)) else {
             throw HostConnectionImportError.invalidCSVHeader
         }
+        let routeHeaders = [
+            "schemaVersion", "routeKind", "routeSchemaVersion",
+            "gatewayProviderID", "gatewayPlatformUsername", "gatewayTargetBound",
+            "targetAssetID", "targetAssetTarget", "targetAssetDisplayName",
+            "targetAccountID", "targetAccountUsername", "targetProtocol",
+        ]
+        let hasRouteColumns = headers.contains("routeKind")
+        if hasRouteColumns, !Set(routeHeaders).isSubset(of: Set(headers)) {
+            throw HostConnectionImportError.invalidCSVHeader
+        }
 
         let headerIndexMap = Dictionary(uniqueKeysWithValues: headers.enumerated().map { ($1, $0) })
         var records: [HostConnectionImportRecord] = []
@@ -233,6 +266,10 @@ struct HostConnectionImporter {
                 guard let idx = headerIndexMap[key], idx < row.count else { return "" }
                 return row[idx]
             }
+
+            let connectionRoute = hasRouteColumns
+                ? try parseCSVConnectionRoute(field: field)
+                : .direct
 
             records.append(
                 HostConnectionImportRecord(
@@ -253,12 +290,130 @@ struct HostConnectionImporter {
                     remoteCommandPrivilege: parseRemoteCommandPrivilege(field("remoteCommandPrivilege")),
                     keepAliveSeconds: Int(field("keepAliveSeconds")) ?? 30,
                     connectTimeoutSeconds: Int(field("connectTimeoutSeconds")) ?? 10,
-                    terminalProfileID: normalizedNonEmpty(field("terminalProfileID")) ?? "default"
+                    terminalProfileID: normalizedNonEmpty(field("terminalProfileID")) ?? "default",
+                    connectionRoute: connectionRoute
                 )
             )
         }
 
         return records
+    }
+
+    private static func validateJSONRouteMetadata(_ data: Data) throws {
+        guard let records = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw HostConnectionImportError.invalidJSON
+        }
+        for record in records {
+            if let schemaVersion = intValue(record["schemaVersion"]),
+               schemaVersion != HostConnectionExporter.currentSchemaVersion {
+                throw HostConnectionImportError.unsupportedExportSchemaVersion(schemaVersion)
+            }
+            guard let route = record["connectionRoute"] as? [String: Any] else { continue }
+            if let schemaVersion = intValue(route["schemaVersion"]),
+               schemaVersion != HostConnectionRouteConfiguration.currentSchemaVersion {
+                throw HostConnectionImportError.unsupportedRouteSchemaVersion(schemaVersion)
+            }
+            if let gateway = route["gateway"] as? [String: Any],
+               let providerID = normalizedNonEmpty(stringValue(gateway["providerID"])),
+               providerID != JumpServerGatewayProvider.identifier {
+                throw HostConnectionImportError.unsupportedGatewayProvider(providerID)
+            }
+        }
+    }
+
+    private static func parseCSVConnectionRoute(
+        field: (String) -> String
+    ) throws -> HostConnectionRouteConfiguration {
+        guard let schemaVersion = Int(field("schemaVersion")) else {
+            throw HostConnectionImportError.invalidRouteConfiguration
+        }
+        if schemaVersion != HostConnectionExporter.currentSchemaVersion {
+            throw HostConnectionImportError.unsupportedExportSchemaVersion(schemaVersion)
+        }
+        guard let routeSchemaVersion = Int(field("routeSchemaVersion")) else {
+            throw HostConnectionImportError.invalidRouteConfiguration
+        }
+        if routeSchemaVersion != HostConnectionRouteConfiguration.currentSchemaVersion {
+            throw HostConnectionImportError.unsupportedRouteSchemaVersion(routeSchemaVersion)
+        }
+
+        switch field("routeKind").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "direct":
+            return .direct
+        case "gateway":
+            let providerID = field("gatewayProviderID").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard providerID == JumpServerGatewayProvider.identifier else {
+                throw HostConnectionImportError.unsupportedGatewayProvider(providerID)
+            }
+            let targetBound: Bool
+            switch field("gatewayTargetBound").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "true", "1", "yes":
+                targetBound = true
+            case "false", "0", "no":
+                targetBound = false
+            default:
+                throw HostConnectionImportError.invalidRouteConfiguration
+            }
+            let target: GatewayTargetConfiguration?
+            if targetBound {
+                guard let connectionProtocol = RemoteConnectionProtocol(
+                    rawValue: field("targetProtocol").trimmingCharacters(in: .whitespacesAndNewlines)
+                ) else {
+                    throw HostConnectionImportError.invalidRouteConfiguration
+                }
+                target = GatewayTargetConfiguration(
+                    assetID: normalizedNonEmpty(field("targetAssetID")),
+                    assetTarget: field("targetAssetTarget"),
+                    assetDisplayName: field("targetAssetDisplayName"),
+                    accountID: normalizedNonEmpty(field("targetAccountID")),
+                    accountUsername: field("targetAccountUsername"),
+                    connectionProtocol: connectionProtocol
+                )
+            } else {
+                target = nil
+            }
+            return try validatedConnectionRoute(
+                .gateway(
+                    GatewayHostRouteConfiguration(
+                        providerID: providerID,
+                        platformUsername: field("gatewayPlatformUsername"),
+                        target: target
+                    )
+                ),
+                exportSchemaVersion: HostConnectionExporter.currentSchemaVersion
+            )
+        default:
+            throw HostConnectionImportError.invalidRouteConfiguration
+        }
+    }
+
+    private static func validatedConnectionRoute(
+        _ route: HostConnectionRouteConfiguration?,
+        exportSchemaVersion: Int?
+    ) throws -> HostConnectionRouteConfiguration {
+        if let exportSchemaVersion,
+           exportSchemaVersion != HostConnectionExporter.currentSchemaVersion {
+            throw HostConnectionImportError.unsupportedExportSchemaVersion(exportSchemaVersion)
+        }
+        guard let route else {
+            if exportSchemaVersion == nil { return .direct }
+            throw HostConnectionImportError.invalidRouteConfiguration
+        }
+        guard case .gateway(let gateway) = route else { return route }
+        guard gateway.providerID == JumpServerGatewayProvider.identifier else {
+            throw HostConnectionImportError.unsupportedGatewayProvider(gateway.providerID)
+        }
+        do {
+            _ = try JumpServerGatewayProvider().resolve(
+                endpoint: RemoteEndpoint(hostname: "import-validation.invalid"),
+                savedHostID: UUID(),
+                savedHostName: "Imported JumpServer connection",
+                configuration: gateway
+            )
+        } catch {
+            throw HostConnectionImportError.invalidRouteConfiguration
+        }
+        return route
     }
 
     private static func parseOpenSSHRecords(from url: URL) throws -> [HostConnectionImportRecord] {
@@ -888,7 +1043,8 @@ struct HostConnectionImporter {
             connectCount: max(0, record.connectCount),
             auth: auth,
             remoteCommandPrivilege: record.remoteCommandPrivilege,
-            policies: policy
+            policies: policy,
+            connectionRoute: record.connectionRoute
         )
     }
 }

@@ -122,4 +122,58 @@ struct HostConnectionExporterTests {
         #expect(csv.contains("prod-a"))
         #expect(!csv.contains("staging-a"))
     }
+
+    @Test
+    func exportsJumpServerRouteToJSONAndCSV() async throws {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("remora-export-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let host = Host(
+            name: "database via jump",
+            address: "jump.example.test",
+            username: "platform-user",
+            auth: HostAuth(method: .password),
+            connectionRoute: .gateway(
+                GatewayHostRouteConfiguration(
+                    providerID: JumpServerGatewayProvider.identifier,
+                    platformUsername: "platform-user",
+                    target: GatewayTargetConfiguration(
+                        assetID: "asset-42",
+                        assetTarget: "10.0.0.8",
+                        assetDisplayName: "Database",
+                        accountID: "account-7",
+                        accountUsername: "root"
+                    )
+                )
+            )
+        )
+
+        let jsonURL = try await HostConnectionExporter.export(
+            hosts: [host],
+            scope: .all,
+            format: .json,
+            now: Date(timeIntervalSince1970: 0),
+            outputDirectoryOverride: tempRoot
+        )
+        let records = try JSONDecoder().decode(
+            [HostConnectionExporter.Record].self,
+            from: Data(contentsOf: jsonURL)
+        )
+        #expect(records.first?.schemaVersion == HostConnectionExporter.currentSchemaVersion)
+        #expect(records.first?.connectionRoute == host.connectionRoute)
+
+        let csvURL = try await HostConnectionExporter.export(
+            hosts: [host],
+            scope: .all,
+            format: .csv,
+            now: Date(timeIntervalSince1970: 1),
+            outputDirectoryOverride: tempRoot
+        )
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
+        #expect(csv.contains("gatewayProviderID"))
+        #expect(csv.contains("jumpserver"))
+        #expect(csv.contains("asset-42"))
+        #expect(!csv.contains("plain-secret"))
+    }
 }

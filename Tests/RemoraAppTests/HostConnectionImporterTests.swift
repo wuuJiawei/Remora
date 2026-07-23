@@ -110,6 +110,103 @@ struct HostConnectionImporterTests {
     }
 
     @Test
+    func roundTripsBoundJumpServerRouteThroughJSON() async throws {
+        let tempRoot = makeTempRoot()
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let route = HostConnectionRouteConfiguration.gateway(
+            GatewayHostRouteConfiguration(
+                providerID: JumpServerGatewayProvider.identifier,
+                platformUsername: "operator",
+                target: GatewayTargetConfiguration(
+                    assetID: "asset-1",
+                    assetTarget: "10.0.0.9",
+                    assetDisplayName: "App Server",
+                    accountID: "account-1",
+                    accountUsername: "root"
+                )
+            )
+        )
+        let host = Host(
+            name: "app via jump",
+            address: "jump.example.test",
+            username: "operator",
+            auth: HostAuth(method: .password),
+            connectionRoute: route
+        )
+        let exportURL = try await HostConnectionExporter.export(
+            hosts: [host],
+            scope: .all,
+            format: .json,
+            now: Date(timeIntervalSince1970: 0),
+            outputDirectoryOverride: tempRoot
+        )
+
+        let imported = try await HostConnectionImporter.importConnections(
+            from: exportURL,
+            credentialStore: CredentialStore(storage: .isolatedMemory())
+        )
+
+        #expect(imported.first?.connectionRoute == route)
+    }
+
+    @Test
+    func importsLegacyJSONWithoutRouteAsDirect() async throws {
+        let tempRoot = makeTempRoot()
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let fileURL = tempRoot.appendingPathComponent("legacy.json")
+        let json = """
+        [{
+          "id":"\(UUID().uuidString)","name":"legacy","address":"10.0.0.5","port":22,
+          "username":"ops","group":"Default","tags":"","note":"","favorite":false,
+          "lastConnectedAt":"","connectCount":0,"authMethod":"agent","privateKeyPath":"",
+          "password":"","keepAliveSeconds":30,"connectTimeoutSeconds":10,"terminalProfileID":"default"
+        }]
+        """
+        try write(json, to: fileURL)
+
+        let imported = try await HostConnectionImporter.importConnections(from: fileURL)
+
+        #expect(imported.first?.connectionRoute == .direct)
+    }
+
+    @Test
+    func rejectsUnknownRouteSchemaAndProvider() async throws {
+        let tempRoot = makeTempRoot()
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let fileURL = tempRoot.appendingPathComponent("unsupported.json")
+        let baseRecord = """
+        "id":"\(UUID().uuidString)","name":"jump","address":"jump.example.test","port":22,
+        "username":"ops","group":"Default","tags":"","note":"","favorite":false,
+        "lastConnectedAt":"","connectCount":0,"authMethod":"password","privateKeyPath":"",
+        "password":"","keepAliveSeconds":30,"connectTimeoutSeconds":10,"terminalProfileID":"default",
+        "schemaVersion":1
+        """
+        let unsupportedSchema = "[{\(baseRecord),\"connectionRoute\":{\"schemaVersion\":999,\"kind\":\"direct\"}}]"
+        try write(unsupportedSchema, to: fileURL)
+        do {
+            _ = try await HostConnectionImporter.importConnections(from: fileURL)
+            Issue.record("Expected unsupported route schema")
+        } catch let error as HostConnectionImportError {
+            guard case .unsupportedRouteSchemaVersion(999) = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+
+        let unsupportedProvider = "[{\(baseRecord),\"connectionRoute\":{\"schemaVersion\":1,\"kind\":\"gateway\",\"gateway\":{\"providerID\":\"unknown\",\"platformUsername\":\"ops\"}}}]"
+        try write(unsupportedProvider, to: fileURL)
+        do {
+            _ = try await HostConnectionImporter.importConnections(from: fileURL)
+            Issue.record("Expected unsupported gateway provider")
+        } catch let error as HostConnectionImportError {
+            guard case .unsupportedGatewayProvider("unknown") = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+    }
+
+    @Test
     func rejectsRemoraTXTImport() async throws {
         let tempRoot = makeTempRoot()
         defer { try? FileManager.default.removeItem(at: tempRoot) }

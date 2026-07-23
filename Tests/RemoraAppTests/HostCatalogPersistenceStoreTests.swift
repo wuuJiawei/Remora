@@ -123,6 +123,65 @@ struct HostCatalogPersistenceStoreTests {
         #expect(FileManager.default.fileExists(atPath: keyFileURL.path) == false)
     }
 
+    @Test
+    func loadsLegacyCatalogWithoutSchemaOrRoutesAsDirect() async throws {
+        let baseDirectory = makeTemporaryDirectory()
+        defer {
+            let root = baseDirectory.deletingLastPathComponent().deletingLastPathComponent()
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
+        let hostID = UUID()
+        let json = """
+        {
+          "groups": ["Legacy"],
+          "hosts": [{
+            "id": "\(hostID.uuidString)",
+            "name": "legacy",
+            "address": "10.0.0.4",
+            "port": 22,
+            "username": "ops",
+            "group": "Legacy",
+            "tags": [],
+            "favorite": false,
+            "connectCount": 0,
+            "auth": {"method": "agent"},
+            "remoteCommandPrivilege": "currentUser",
+            "policies": {"keepAliveSeconds": 30, "connectTimeoutSeconds": 10, "terminalProfileID": "default"},
+            "quickCommands": [],
+            "quickPaths": [],
+            "portForwardPresets": []
+          }],
+          "templates": [],
+          "recentHostIDs": []
+        }
+        """
+        try Data(json.utf8).write(to: baseDirectory.appendingPathComponent("connections.json"))
+
+        let loaded = try await HostCatalogPersistenceStore(baseDirectoryURL: baseDirectory).load()
+
+        #expect(loaded?.schemaVersion == PersistedHostCatalog.currentSchemaVersion)
+        #expect(loaded?.hosts.first?.connectionRoute == .direct)
+    }
+
+    @Test
+    func rejectsUnknownCatalogSchemaVersion() async throws {
+        let baseDirectory = makeTemporaryDirectory()
+        defer {
+            let root = baseDirectory.deletingLastPathComponent().deletingLastPathComponent()
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
+        let json = """
+        {"schemaVersion":999,"hosts":[],"templates":[],"recentHostIDs":[],"groups":[]}
+        """
+        try Data(json.utf8).write(to: baseDirectory.appendingPathComponent("connections.json"))
+
+        await #expect(throws: DecodingError.self) {
+            _ = try await HostCatalogPersistenceStore(baseDirectoryURL: baseDirectory).load()
+        }
+    }
+
     private func makeTemporaryDirectory() -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("remora-host-catalog-tests-\(UUID().uuidString)", isDirectory: true)

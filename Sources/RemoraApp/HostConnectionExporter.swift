@@ -69,7 +69,10 @@ enum HostConnectionExportError: LocalizedError {
 }
 
 struct HostConnectionExporter {
+    static let currentSchemaVersion = 1
+
     struct Record: Codable, Equatable {
+        let schemaVersion: Int?
         let id: UUID
         let name: String
         let address: String
@@ -88,6 +91,7 @@ struct HostConnectionExporter {
         let keepAliveSeconds: Int
         let connectTimeoutSeconds: Int
         let terminalProfileID: String
+        let connectionRoute: HostConnectionRouteConfiguration?
     }
 
     static func export(
@@ -153,6 +157,7 @@ struct HostConnectionExporter {
             let timestamp = host.lastConnectedAt.map(iso8601String) ?? ""
             records.append(
                 Record(
+                    schemaVersion: currentSchemaVersion,
                     id: host.id,
                     name: host.name,
                     address: host.address,
@@ -170,7 +175,8 @@ struct HostConnectionExporter {
                     remoteCommandPrivilege: host.remoteCommandPrivilege.rawValue,
                     keepAliveSeconds: host.policies.keepAliveSeconds,
                     connectTimeoutSeconds: host.policies.connectTimeoutSeconds,
-                    terminalProfileID: host.policies.terminalProfileID
+                    terminalProfileID: host.policies.terminalProfileID,
+                    connectionRoute: host.connectionRoute
                 )
             )
         }
@@ -191,6 +197,10 @@ struct HostConnectionExporter {
 
     private static func csvString(records: [Record]) -> String {
         let header = [
+            "schemaVersion", "routeKind", "routeSchemaVersion",
+            "gatewayProviderID", "gatewayPlatformUsername", "gatewayTargetBound",
+            "targetAssetID", "targetAssetTarget", "targetAssetDisplayName",
+            "targetAccountID", "targetAccountUsername", "targetProtocol",
             "id", "name", "address", "port", "username", "group",
             "tags", "note", "favorite", "lastConnectedAt", "connectCount",
             "authMethod", "privateKeyPath", "password",
@@ -201,7 +211,20 @@ struct HostConnectionExporter {
         lines.reserveCapacity(records.count + 1)
 
         for record in records {
+            let routeFields = csvRouteFields(record.connectionRoute ?? .direct)
             let row = [
+                "\(record.schemaVersion ?? currentSchemaVersion)",
+                routeFields.kind,
+                "\(HostConnectionRouteConfiguration.currentSchemaVersion)",
+                routeFields.providerID,
+                routeFields.platformUsername,
+                routeFields.targetBound,
+                routeFields.assetID,
+                routeFields.assetTarget,
+                routeFields.assetDisplayName,
+                routeFields.accountID,
+                routeFields.accountUsername,
+                routeFields.connectionProtocol,
                 record.id.uuidString,
                 record.name,
                 record.address,
@@ -225,6 +248,42 @@ struct HostConnectionExporter {
         }
 
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    private static func csvRouteFields(
+        _ route: HostConnectionRouteConfiguration
+    ) -> (
+        kind: String,
+        providerID: String,
+        platformUsername: String,
+        targetBound: String,
+        assetID: String,
+        assetTarget: String,
+        assetDisplayName: String,
+        accountID: String,
+        accountUsername: String,
+        connectionProtocol: String
+    ) {
+        switch route {
+        case .direct:
+            return ("direct", "", "", "false", "", "", "", "", "", "")
+        case .gateway(let gateway):
+            guard let target = gateway.target else {
+                return ("gateway", gateway.providerID, gateway.platformUsername, "false", "", "", "", "", "", "")
+            }
+            return (
+                "gateway",
+                gateway.providerID,
+                gateway.platformUsername,
+                "true",
+                target.assetID ?? "",
+                target.assetTarget,
+                target.assetDisplayName,
+                target.accountID ?? "",
+                target.accountUsername,
+                target.connectionProtocol.rawValue
+            )
+        }
     }
 
     private static func escapedCSVField(_ value: String) -> String {

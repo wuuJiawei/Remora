@@ -466,6 +466,10 @@
 "Select the export or config file for this source to begin importing." = "Select the export or config file for this source to begin importing.";
 "This importer is planned for a future update." = "This importer is planned for a future update.";
 "Import file is empty." = "Import file is empty.";
+"The connection export uses an unsupported schema version." = "The connection export uses an unsupported schema version.";
+"The connection route uses an unsupported schema version." = "The connection route uses an unsupported schema version.";
+"The connection uses an unsupported gateway provider." = "The connection uses an unsupported gateway provider.";
+"The connection route configuration is invalid." = "The connection route configuration is invalid.";
 "Imported" = "Imported";
 "Importing hosts" = "Importing hosts";
 "Importing..." = "Importing...";

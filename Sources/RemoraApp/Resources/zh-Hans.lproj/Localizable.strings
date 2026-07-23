@@ -457,6 +457,10 @@
 "Select the export or config file for this source to begin importing." = "选择该来源对应的导出文件或配置文件，即可开始导入。";
 "This importer is planned for a future update." = "该导入器计划在后续版本中提供。";
 "Import file is empty." = "导入文件为空。";
+"The connection export uses an unsupported schema version." = "连接导出文件使用了不受支持的数据版本。";
+"The connection route uses an unsupported schema version." = "连接路由使用了不受支持的数据版本。";
+"The connection uses an unsupported gateway provider." = "连接使用了不受支持的网关服务。";
+"The connection route configuration is invalid." = "连接路由配置无效。";
 "Imported" = "已导入";
 "Importing hosts" = "正在导入主机";
 "Importing..." = "导入中...";
