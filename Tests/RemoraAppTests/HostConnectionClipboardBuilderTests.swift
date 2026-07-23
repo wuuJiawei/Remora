@@ -6,15 +6,7 @@ import RemoraCore
 struct HostConnectionClipboardBuilderTests {
     @Test
     func buildsPasswordConnectionInfoWithoutPasswordValue() async {
-        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("remora-clipboard-tests-\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
-
-        let credentialStore = CredentialStore(
-            baseDirectoryURL: tempRoot,
-            credentialsFilename: "credentials.json"
-        )
+        let credentialStore = CredentialStore(storage: .isolatedMemory())
         await credentialStore.setSecret("super-secret", for: "pw-1")
 
         let host = Host(
@@ -48,15 +40,7 @@ struct HostConnectionClipboardBuilderTests {
 
     @Test
     func buildsPasswordConnectionInfoWithPasswordValueWhenExplicitlyIncluded() async {
-        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("remora-clipboard-tests-\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
-
-        let credentialStore = CredentialStore(
-            baseDirectoryURL: tempRoot,
-            credentialsFilename: "credentials.json"
-        )
+        let credentialStore = CredentialStore(storage: .isolatedMemory())
         await credentialStore.setSecret("super-secret", for: "pw-1")
 
         let host = Host(

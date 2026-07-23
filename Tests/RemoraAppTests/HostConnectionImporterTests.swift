@@ -23,7 +23,7 @@ struct HostConnectionImporterTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let credentialStore = CredentialStore()
+        let credentialStore = CredentialStore(storage: .isolatedMemory())
         await credentialStore.setSecret("json-pass", for: "export-pass-1")
 
         let hosts = [
@@ -91,7 +91,7 @@ struct HostConnectionImporterTests {
         let csvURL = tempRoot.appendingPathComponent("connections.csv")
         try csvContent.data(using: .utf8)?.write(to: csvURL)
 
-        let credentialStore = CredentialStore()
+        let credentialStore = CredentialStore(storage: .isolatedMemory())
         let imported = try await HostConnectionImporter.importConnections(
             from: csvURL,
             credentialStore: credentialStore

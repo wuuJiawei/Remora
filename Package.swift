@@ -60,7 +60,10 @@ let package = Package(
         ),
         .target(
             name: "RemoraCore",
-            dependencies: ["RemoraSSHNative"]
+            dependencies: ["RemoraSSHNative"],
+            linkerSettings: [
+                .linkedFramework("Security"),
+            ]
         ),
         .target(
             name: "RemoraTerminal",

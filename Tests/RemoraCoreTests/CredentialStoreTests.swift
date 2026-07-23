@@ -1,33 +1,14 @@
-import Foundation
 import Testing
 @testable import RemoraCore
 
 struct CredentialStoreTests {
-    private func makeCredentialDirectory() -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remora-credential-store-tests-\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root.appendingPathComponent(".config/remora", isDirectory: true)
-    }
-
     @Test
-    func setGetRemoveSecretWithPlaintextFile() async throws {
-        let directory = makeCredentialDirectory()
-        defer {
-            let root = directory.deletingLastPathComponent().deletingLastPathComponent()
-            try? FileManager.default.removeItem(at: root)
-        }
-
-        let store = CredentialStore(baseDirectoryURL: directory)
+    func setGetRemoveSecret() async {
+        let store = CredentialStore(storage: .isolatedMemory())
 
         await store.setSecret("secret-value", for: "api-token")
         let value = await store.secret(for: "api-token")
         #expect(value == "secret-value")
-
-        let fileURL = directory.appendingPathComponent("credentials.json")
-        #expect(FileManager.default.fileExists(atPath: fileURL.path))
-        let rawText = try String(contentsOf: fileURL, encoding: .utf8)
-        #expect(rawText.contains("secret-value"))
 
         await store.removeSecret(for: "api-token")
         let afterDelete = await store.secret(for: "api-token")
@@ -36,32 +17,24 @@ struct CredentialStoreTests {
 
     @Test
     func secretPersistsAcrossStoreInstances() async {
-        let directory = makeCredentialDirectory()
-        defer {
-            let root = directory.deletingLastPathComponent().deletingLastPathComponent()
-            try? FileManager.default.removeItem(at: root)
-        }
+        let storage = CredentialStoreStorage.isolatedMemory()
 
-        let first = CredentialStore(baseDirectoryURL: directory)
+        let first = CredentialStore(storage: storage)
         await first.setSecret("db-pass", for: "db-ref")
 
-        let second = CredentialStore(baseDirectoryURL: directory)
+        let second = CredentialStore(storage: storage)
         let loaded = await second.secret(for: "db-ref")
         #expect(loaded == "db-pass")
     }
 
     @Test
     func secretUsesInMemoryCacheAfterFirstRead() async {
-        let directory = makeCredentialDirectory()
-        defer {
-            let root = directory.deletingLastPathComponent().deletingLastPathComponent()
-            try? FileManager.default.removeItem(at: root)
-        }
+        let storage = CredentialStoreStorage.isolatedMemory()
 
-        let first = CredentialStore(baseDirectoryURL: directory)
+        let first = CredentialStore(storage: storage)
         await first.setSecret("cached-pass", for: "cache-ref")
 
-        let second = CredentialStore(baseDirectoryURL: directory)
+        let second = CredentialStore(storage: storage)
         let initialRead = await second.secret(for: "cache-ref")
         #expect(initialRead == "cached-pass")
 

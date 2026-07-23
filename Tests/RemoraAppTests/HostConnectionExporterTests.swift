@@ -11,7 +11,7 @@ struct HostConnectionExporterTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let credentialStore = CredentialStore()
+        let credentialStore = CredentialStore(storage: .isolatedMemory())
         await credentialStore.setSecret("plain-secret", for: "pw-ref-1")
 
         let hosts = [
@@ -52,7 +52,7 @@ struct HostConnectionExporterTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let credentialStore = CredentialStore()
+        let credentialStore = CredentialStore(storage: .isolatedMemory())
         await credentialStore.setSecret("plain-secret", for: "pw-ref-1")
 
         let hosts = [

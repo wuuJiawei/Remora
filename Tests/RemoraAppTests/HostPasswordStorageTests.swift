@@ -6,11 +6,7 @@ import Testing
 struct HostPasswordStorageTests {
     @Test
     func savingPasswordCreatesReferenceAndPersistsSecret() async {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remora-host-password-storage-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let store = CredentialStore(baseDirectoryURL: directory)
+        let store = CredentialStore(storage: .isolatedMemory())
         let hostID = UUID()
 
         let reference = await HostPasswordStorage.persist(
@@ -29,11 +25,7 @@ struct HostPasswordStorageTests {
 
     @Test
     func disablingSavedPasswordRemovesExistingSecret() async {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remora-host-password-storage-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let store = CredentialStore(baseDirectoryURL: directory)
+        let store = CredentialStore(storage: .isolatedMemory())
         await store.setSecret("super-secret", for: "pw-ref")
 
         let reference = await HostPasswordStorage.persist(
@@ -52,11 +44,7 @@ struct HostPasswordStorageTests {
 
     @Test
     func switchingAwayFromPasswordAuthRemovesExistingSecret() async {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remora-host-password-storage-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let store = CredentialStore(baseDirectoryURL: directory)
+        let store = CredentialStore(storage: .isolatedMemory())
         await store.setSecret("super-secret", for: "pw-ref")
 
         let reference = await HostPasswordStorage.persist(
