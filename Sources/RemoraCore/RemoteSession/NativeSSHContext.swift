@@ -7,7 +7,7 @@ enum NativeSSHContextError: Error, Equatable {
 }
 
 final class NativeSSHContext: @unchecked Sendable {
-    static let expectedABIVersion: UInt32 = 3
+    static let expectedABIVersion: UInt32 = 4
     static var nativeABIVersion: UInt32 { remora_ssh_native_abi_version() }
     static var backendVersion: String { String(cString: remora_ssh_backend_version()) }
     static var cryptoBackend: String { String(cString: remora_ssh_crypto_backend()) }
@@ -231,6 +231,39 @@ final class NativeSSHContext: @unchecked Sendable {
                 error: &nativeError,
                 category: .command,
                 code: "command_allocation_failed"
+            )
+        }
+        return NativeSSHChannelHandle(handle: channelHandle, context: self)
+    }
+
+    func createDirectTCPIP(
+        destinationHost: String,
+        destinationPort: UInt16,
+        sourceHost: String,
+        sourcePort: UInt16
+    ) throws -> NativeSSHChannelHandle {
+        let handle = try requiredHandle()
+        var channelHandle: OpaquePointer?
+        var nativeError = remora_ssh_error()
+        let result = destinationHost.withCString { destinationPointer in
+            sourceHost.withCString { sourcePointer in
+                remora_ssh_channel_create_direct_tcpip(
+                    handle,
+                    destinationPointer,
+                    destinationPort,
+                    sourcePointer,
+                    sourcePort,
+                    &channelHandle,
+                    &nativeError
+                )
+            }
+        }
+        guard result == REMORA_SSH_ERROR_NONE, let channelHandle else {
+            throw operationError(
+                result,
+                error: &nativeError,
+                category: .channel,
+                code: "direct_tcpip_allocation_failed"
             )
         }
         return NativeSSHChannelHandle(handle: channelHandle, context: self)

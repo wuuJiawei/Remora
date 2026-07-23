@@ -717,6 +717,7 @@
 "Stopped" = "已停止";
 "Idle" = "空闲";
 "Port forward configuration is invalid." = "端口转发配置无效。";
+"Connect to this host before starting port forwarding." = "请先连接此主机，再启动端口转发。";
 "Docker" = "Docker";
 "Containers" = "容器";
 "Images" = "镜像";

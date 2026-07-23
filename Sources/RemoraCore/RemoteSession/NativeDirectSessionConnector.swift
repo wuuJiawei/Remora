@@ -74,7 +74,24 @@ public struct NativeDirectSessionConnector: Sendable {
                         connectTimeout: .seconds(max(1, host.policies.connectTimeoutSeconds))
                     )
                 )
-                return RemoteSession(key: key, transport: transport)
+                let session = RemoteSession(key: key, transport: transport)
+                if let executor = try? await session.commandExecutor() {
+                    do {
+                        try await RemoteShellIntegrationInstaller.shared.ensureInstalled(using: executor)
+                        await transport.recordDiagnostic(
+                            operation: "shell_integration_install",
+                            message: "completed"
+                        )
+                    } catch {
+                        let operationError = error as? RemoteOperationError
+                        await transport.recordDiagnostic(
+                            operation: "shell_integration_install",
+                            message: "skipped code=\(operationError?.code ?? "unknown")",
+                            backendCode: operationError?.backendCode
+                        )
+                    }
+                }
+                return session
             } catch {
                 await transport.close()
                 throw error

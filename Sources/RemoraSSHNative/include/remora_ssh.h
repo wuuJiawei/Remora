@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define REMORA_SSH_NATIVE_ABI_VERSION 3
+#define REMORA_SSH_NATIVE_ABI_VERSION 4
 #define REMORA_SSH_ERROR_MESSAGE_CAPACITY 256
 #define REMORA_SSH_MAX_KEYBOARD_PROMPTS 16
 #define REMORA_SSH_MAX_KEYBOARD_RESPONSE_BYTES 4096
@@ -191,6 +191,16 @@ remora_ssh_error_code remora_ssh_channel_create_shell(
 remora_ssh_error_code remora_ssh_channel_create_exec(
     remora_ssh_context *context,
     const char *command,
+    remora_ssh_channel **out_channel,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_channel_create_direct_tcpip(
+    remora_ssh_context *context,
+    const char *destination_host,
+    uint16_t destination_port,
+    const char *source_host,
+    uint16_t source_port,
     remora_ssh_channel **out_channel,
     remora_ssh_error *out_error
 );

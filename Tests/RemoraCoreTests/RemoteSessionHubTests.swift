@@ -74,6 +74,30 @@ struct RemoteSessionHubTests {
         }
     }
 
+    @Test("Last lease closes forwarding channels before transport")
+    func lastLeaseClosesForwardingChannelsBeforeTransport() async throws {
+        let key = makeSessionKey()
+        let recorder = LifecycleRecorder()
+        let hub = RemoteSessionHub()
+        let lease = try await hub.acquire(key: key) {
+            RemoteSession(
+                key: key,
+                transport: RecordingSessionTransport(recorder: recorder)
+            )
+        }
+        let session = try await lease.session()
+        _ = try await session.openDirectTCPIP(
+            destinationHost: "database.internal",
+            destinationPort: 5432,
+            sourceHost: "127.0.0.1",
+            sourcePort: 49_152
+        )
+
+        await lease.release()
+
+        #expect(await recorder.events == ["forward.close", "transport.close"])
+    }
+
     private func makeSessionKey() -> RemoteSessionKey {
         let hostID = UUID()
         return RemoteSessionKey(
@@ -116,6 +140,10 @@ private actor LifecycleRecorder {
         transportCloseCount += 1
         events.append("transport.close")
     }
+
+    func recordForwardClose() {
+        events.append("forward.close")
+    }
 }
 
 private struct RecordingSessionTransport: RemoteSessionTransportProtocol {
@@ -125,8 +153,34 @@ private struct RecordingSessionTransport: RemoteSessionTransportProtocol {
         RecordingRemoteShellChannel(recorder: recorder)
     }
 
+    func openDirectTCPIP(
+        destinationHost: String,
+        destinationPort: Int,
+        sourceHost: String,
+        sourcePort: Int
+    ) async throws -> any RemoteForwardChannelProtocol {
+        RecordingRemoteForwardChannel(recorder: recorder)
+    }
+
     func close() async {
         await recorder.recordTransportClose()
+    }
+}
+
+private actor RecordingRemoteForwardChannel: RemoteForwardChannelProtocol {
+    nonisolated let id = UUID()
+    private let recorder: LifecycleRecorder
+
+    init(recorder: LifecycleRecorder) {
+        self.recorder = recorder
+    }
+
+    func read(maximumBytes: Int) async throws -> Data? { nil }
+    func write(_ data: Data) async throws {}
+    func finishWriting() async throws {}
+
+    func close() async {
+        await recorder.recordForwardClose()
     }
 }
 

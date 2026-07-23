@@ -214,6 +214,58 @@ public actor LibSSH2Transport {
         )
     }
 
+    public func openDirectTCPIP(
+        destinationHost: String,
+        destinationPort: Int,
+        sourceHost: String,
+        sourcePort: Int
+    ) async throws -> NativeDirectTCPIPChannel {
+        guard state == .ready, let runtime else {
+            throw RemoteOperationError(
+                category: .session,
+                code: "transport_not_ready",
+                safeDiagnosticMessage: "Native SSH transport is not ready"
+            )
+        }
+        guard !destinationHost.isEmpty,
+              (1...65_535).contains(destinationPort),
+              !sourceHost.isEmpty,
+              (0...65_535).contains(sourcePort)
+        else {
+            throw RemoteOperationError(
+                category: .channel,
+                code: "direct_tcpip_endpoint_invalid",
+                safeDiagnosticMessage: "Direct TCP/IP channel endpoint is invalid"
+            )
+        }
+
+        let handle = try await runtime.perform {
+            try runtime.context.createDirectTCPIP(
+                destinationHost: destinationHost,
+                destinationPort: UInt16(destinationPort),
+                sourceHost: sourceHost,
+                sourcePort: UInt16(sourcePort)
+            )
+        }
+        do {
+            try await runtime.run(phase: .ready, operation: "direct_tcpip_start") {
+                try handle.start()
+            }
+            return NativeDirectTCPIPChannel(
+                handle: handle,
+                runtime: runtime,
+                diagnosticLog: diagnosticLog
+            )
+        } catch {
+            await runtime.destroyChannel(handle)
+            throw error
+        }
+    }
+
+    func recordDiagnostic(operation: String, message: String, backendCode: Int? = nil) {
+        emit(.ready, operation: operation, backendCode: backendCode, message: message)
+    }
+
     func openCommand(_ command: String, timeout: Duration?) async throws -> NativeCommandExecution {
         guard state == .ready, let runtime else {
             throw RemoteOperationError(

@@ -28,14 +28,43 @@ public protocol RemoteShellChannelProtocol: AnyObject, Sendable {
     func close() async
 }
 
+public protocol RemoteForwardChannelProtocol: AnyObject, Sendable {
+    var id: UUID { get }
+    func read(maximumBytes: Int) async throws -> Data?
+    func write(_ data: Data) async throws
+    func finishWriting() async throws
+    func close() async
+}
+
 public protocol RemoteSessionProtocol: AnyObject, Sendable {
     var id: UUID { get }
     func identitySnapshot() async -> RemoteSessionIdentitySnapshot
     func openShell(pty: PTYSize) async throws -> any RemoteShellChannelProtocol
+    func openDirectTCPIP(
+        destinationHost: String,
+        destinationPort: Int,
+        sourceHost: String,
+        sourcePort: Int
+    ) async throws -> any RemoteForwardChannelProtocol
     func commandExecutor() async throws -> any RemoteCommandExecutorProtocol
     func fileSystem() async throws -> any RemoteFileSystemProtocol
     func administratorFileSystem() async throws -> any RemoteFileSystemProtocol
     func close() async
+}
+
+public extension RemoteSessionProtocol {
+    func openDirectTCPIP(
+        destinationHost: String,
+        destinationPort: Int,
+        sourceHost: String,
+        sourcePort: Int
+    ) async throws -> any RemoteForwardChannelProtocol {
+        throw RemoteOperationError(
+            category: .channel,
+            code: "direct_tcpip_unavailable",
+            safeDiagnosticMessage: "Remote session does not support direct TCP/IP channels"
+        )
+    }
 }
 
 public protocol RemoteSessionLeaseProtocol: AnyObject, Sendable {

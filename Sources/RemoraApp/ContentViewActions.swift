@@ -15,6 +15,20 @@ extension ContentView {
         return tab.panes.first?.runtime
     }
 
+    func connectedRuntime(for hostID: UUID) -> TerminalRuntime? {
+        let runtimes = workspace.tabs.flatMap { $0.panes.map(\.runtime) }
+        if let activeRuntime = workspace.activePane?.runtime,
+           activeRuntime.connectedSSHHost?.id == hostID,
+           activeRuntime.connectionState.hasPrefix(TerminalRuntime.connectedPrefix)
+        {
+            return activeRuntime
+        }
+        return runtimes.first {
+            $0.connectedSSHHost?.id == hostID
+                && $0.connectionState.hasPrefix(TerminalRuntime.connectedPrefix)
+        }
+    }
+
     func toggleGroupCollapse(_ groupName: String) {
         if collapsedGroupNames.contains(groupName) {
             collapsedGroupNames.remove(groupName)
@@ -693,7 +707,17 @@ extension ContentView {
         if portForwardCenter.isRunning(presetID: preset.id) {
             portForwardCenter.stop(presetID: preset.id)
         } else {
-            portForwardCenter.startForward(host: host, preset: preset)
+            guard let runtime = connectedRuntime(for: host.id) else {
+                portForwardCenter.recordUnavailable(
+                    host: host,
+                    preset: preset,
+                    reason: tr("Connect to this host before starting port forwarding.")
+                )
+                return
+            }
+            portForwardCenter.startForward(host: host, preset: preset) {
+                try await runtime.acquireRemoteSessionLease()
+            }
         }
     }
 

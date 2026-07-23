@@ -703,14 +703,36 @@ Tests/RemoraAppTests/HostConnectionExporterTests.swift
 
 ### Tasks
 
-- [ ] Replace OpenSSH local forwarding with `NWListener` and direct-tcpip channels.
-- [ ] Give every active forward a session lease.
-- [ ] Add bounded bidirectional pumps and half-close handling.
+- [x] Replace OpenSSH local forwarding with `NWListener` and direct-tcpip channels.
+- [x] Give every active forward a session lease.
+- [x] Add bounded bidirectional pumps and half-close handling.
 - [ ] Verify forwarding through direct and JumpServer routes.
-- [ ] Search the full repository for remaining transport construction and remote command
+- [x] Search the full repository for remaining transport construction and remote command
   use.
-- [ ] Migrate any remaining shell integration installer or helper that launches
+- [x] Migrate any remaining shell integration installer or helper that launches
   independent SSH.
+
+### Implementation record (2026-07-23)
+
+- The native shim ABI is version 4 and exposes libssh2 `direct-tcpip` channel allocation.
+  Forward channels are registered with `RemoteSession` and close before their shared transport.
+- `NativeLocalPortForward` owns one session lease and one `NWListener`. Every accepted local
+  client receives its own direct-tcpip channel on that session; 32 KiB reads and completion-based
+  sends bound memory and apply backpressure in both directions.
+- Local EOF sends SSH channel EOF, remote EOF sends a final TCP write, and cancellation closes
+  both endpoints. Listener failure, startup cancellation, rapid stop/start, and final lease
+  release have explicit lifecycle paths and bounded diagnostics.
+- The App starts a forward only from a connected terminal runtime for the same saved host. This
+  preserves the exact direct or JumpServer route identity and never starts a second authentication
+  flow. A missing matching session is a localized failure rather than an OpenSSH fallback.
+- Shell integration installation now runs through `RemoteCommandExecutor` on the newly connected
+  native session. The old OpenSSH installer, OpenSSH forwarding process, `-L` launch builder, and
+  port-forward ControlPath purpose are removed.
+- Repository search finds no App consumer constructing an OpenSSH/SystemSFTP transport. Legacy
+  transport definitions and their compatibility tests remain for the Phase 9 deletion gate.
+- `swift build --build-tests` compiles. Test cases and real direct/JumpServer forwarding were not
+  run at the user's request, so runtime verification and the Phase 8 exit condition remain pending
+  user acceptance.
 
 ### Verification
 

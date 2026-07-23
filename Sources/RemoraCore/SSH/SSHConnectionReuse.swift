@@ -4,7 +4,6 @@ enum SSHConnectionReuse {
     enum Purpose: String, Sendable {
         case sftp
         case remoteCommand = "remote-command"
-        case portForward = "port-forward"
         case shell
     }
 

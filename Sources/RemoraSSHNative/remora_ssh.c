@@ -30,6 +30,12 @@ typedef enum remora_ssh_shell_phase {
     REMORA_SSH_SHELL_CLOSED
 } remora_ssh_shell_phase;
 
+typedef enum remora_ssh_channel_kind {
+    REMORA_SSH_CHANNEL_SHELL = 0,
+    REMORA_SSH_CHANNEL_EXEC,
+    REMORA_SSH_CHANNEL_DIRECT_TCPIP
+} remora_ssh_channel_kind;
+
 struct remora_ssh_context {
     uint32_t magic;
     LIBSSH2_SESSION *session;
@@ -52,10 +58,15 @@ struct remora_ssh_channel {
     remora_ssh_context *context;
     LIBSSH2_CHANNEL *channel;
     remora_ssh_shell_phase phase;
+    remora_ssh_channel_kind kind;
     char terminal_type[64];
     uint32_t columns;
     uint32_t rows;
     char *command;
+    char *destination_host;
+    uint16_t destination_port;
+    char *source_host;
+    uint16_t source_port;
     bool eof_sent;
     int32_t exit_status;
 };
@@ -921,6 +932,7 @@ remora_ssh_error_code remora_ssh_channel_create_shell(
     channel->magic = REMORA_SSH_CHANNEL_MAGIC;
     channel->context = context;
     channel->phase = REMORA_SSH_SHELL_OPENING;
+    channel->kind = REMORA_SSH_CHANNEL_SHELL;
     channel->columns = columns;
     channel->rows = rows;
     (void)strncpy(channel->terminal_type, terminal_type, sizeof(channel->terminal_type) - 1);
@@ -975,6 +987,69 @@ remora_ssh_error_code remora_ssh_channel_create_exec(
     channel->magic = REMORA_SSH_CHANNEL_MAGIC;
     channel->context = context;
     channel->phase = REMORA_SSH_SHELL_OPENING;
+    channel->kind = REMORA_SSH_CHANNEL_EXEC;
+    context->channel_count += 1;
+    *out_channel = channel;
+    remora_ssh_error_reset(out_error);
+    return REMORA_SSH_ERROR_NONE;
+}
+
+remora_ssh_error_code remora_ssh_channel_create_direct_tcpip(
+    remora_ssh_context *context,
+    const char *destination_host,
+    uint16_t destination_port,
+    const char *source_host,
+    uint16_t source_port,
+    remora_ssh_channel **out_channel,
+    remora_ssh_error *out_error
+) {
+    if (!remora_ssh_context_valid(context)) {
+        return remora_ssh_invalid_context(out_error);
+    }
+    if (!remora_ssh_context_is_authenticated(context) || out_channel == NULL ||
+        destination_host == NULL || destination_host[0] == '\0' || destination_port == 0 ||
+        source_host == NULL || source_host[0] == '\0') {
+        remora_ssh_error_set(
+            out_error,
+            REMORA_SSH_ERROR_INVALID_ARGUMENT,
+            0,
+            "direct-tcpip channel arguments are invalid"
+        );
+        return REMORA_SSH_ERROR_INVALID_ARGUMENT;
+    }
+    *out_channel = NULL;
+
+    remora_ssh_channel *channel = calloc(1, sizeof(*channel));
+    if (channel == NULL) {
+        remora_ssh_error_set(
+            out_error,
+            REMORA_SSH_ERROR_ALLOCATION_FAILED,
+            0,
+            "unable to allocate native SSH direct-tcpip channel"
+        );
+        return REMORA_SSH_ERROR_ALLOCATION_FAILED;
+    }
+    channel->destination_host = strdup(destination_host);
+    channel->source_host = strdup(source_host);
+    if (channel->destination_host == NULL || channel->source_host == NULL) {
+        free(channel->destination_host);
+        free(channel->source_host);
+        free(channel);
+        remora_ssh_error_set(
+            out_error,
+            REMORA_SSH_ERROR_ALLOCATION_FAILED,
+            0,
+            "unable to copy native SSH direct-tcpip endpoint"
+        );
+        return REMORA_SSH_ERROR_ALLOCATION_FAILED;
+    }
+
+    channel->magic = REMORA_SSH_CHANNEL_MAGIC;
+    channel->context = context;
+    channel->phase = REMORA_SSH_SHELL_OPENING;
+    channel->kind = REMORA_SSH_CHANNEL_DIRECT_TCPIP;
+    channel->destination_port = destination_port;
+    channel->source_port = source_port;
     context->channel_count += 1;
     *out_channel = channel;
     remora_ssh_error_reset(out_error);
@@ -991,14 +1066,32 @@ remora_ssh_error_code remora_ssh_channel_start(
     remora_ssh_context *context = channel->context;
 
     if (channel->phase == REMORA_SSH_SHELL_OPENING) {
-        channel->channel = libssh2_channel_open_session(context->session);
+        if (channel->kind == REMORA_SSH_CHANNEL_DIRECT_TCPIP) {
+            channel->channel = libssh2_channel_direct_tcpip_ex(
+                context->session,
+                channel->destination_host,
+                (int)channel->destination_port,
+                channel->source_host,
+                (int)channel->source_port
+            );
+        } else {
+            channel->channel = libssh2_channel_open_session(context->session);
+        }
         if (channel->channel == NULL) {
             int result = libssh2_session_last_errno(context->session);
             return remora_ssh_map_result(context, result, "unable to open SSH channel", out_error);
         }
-        channel->phase = channel->command == NULL
-            ? REMORA_SSH_SHELL_REQUESTING_PTY
-            : REMORA_SSH_EXEC_STARTING;
+        switch (channel->kind) {
+            case REMORA_SSH_CHANNEL_SHELL:
+                channel->phase = REMORA_SSH_SHELL_REQUESTING_PTY;
+                break;
+            case REMORA_SSH_CHANNEL_EXEC:
+                channel->phase = REMORA_SSH_EXEC_STARTING;
+                break;
+            case REMORA_SSH_CHANNEL_DIRECT_TCPIP:
+                channel->phase = REMORA_SSH_SHELL_READY;
+                break;
+        }
     }
 
     if (channel->phase == REMORA_SSH_SHELL_REQUESTING_PTY) {
@@ -1278,6 +1371,10 @@ void remora_ssh_channel_destroy(remora_ssh_channel **channel_pointer) {
         remora_ssh_secure_zero(channel->command, channel->command == NULL ? 0 : strlen(channel->command));
         free(channel->command);
         channel->command = NULL;
+        free(channel->destination_host);
+        channel->destination_host = NULL;
+        free(channel->source_host);
+        channel->source_host = NULL;
         channel->magic = 0;
     }
     free(channel);

@@ -1,11 +1,7 @@
 import Foundation
 
-public protocol RemoteShellIntegrationInstalling: Sendable {
-    func ensureInstalled(for host: Host) async throws
-}
-
-public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInstalling {
-    public static let shared = OpenSSHRemoteShellIntegrationInstaller()
+public actor RemoteShellIntegrationInstaller {
+    public static let shared = RemoteShellIntegrationInstaller()
 
     static let installCommand = """
     umask 077
@@ -29,8 +25,8 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
     fi
     REMORA_SHELL_INTEGRATION_LOADED=1
     __remora_host_name() { hostname -f 2>/dev/null || hostname 2>/dev/null || printf localhost; }
-    __remora_emit_cwd() { printf '\\033]7;file://%s%s\\007' "$(__remora_host_name)" "$PWD"; }
-    __remora_emit_prompt_start() { printf '\\033]133;A\\007'; }
+    __remora_emit_cwd() { printf '\033]7;file://%s%s\007' "$(__remora_host_name)" "$PWD"; }
+    __remora_emit_prompt_start() { printf '\033]133;A\007'; }
     __remora_pre_prompt() { __remora_emit_cwd; __remora_emit_prompt_start; }
     case ";${PROMPT_COMMAND-};" in
       *";__remora_pre_prompt;"*) ;;
@@ -54,10 +50,10 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
       hostname -f 2>/dev/null || hostname 2>/dev/null || print -r -- localhost
     }
     function __remora_emit_cwd() {
-      printf '\\033]7;file://%s%s\\007' "$(__remora_host_name)" "$PWD"
+      printf '\033]7;file://%s%s\007' "$(__remora_host_name)" "$PWD"
     }
     function __remora_emit_prompt_start() {
-      printf '\\033]133;A\\007'
+      printf '\033]133;A\007'
     }
     function __remora_precmd() {
       __remora_emit_cwd
@@ -77,11 +73,11 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
     status --is-interactive; or return
     function __remora_emit_cwd --on-variable PWD
         set -l __remora_host_name (hostname -f 2>/dev/null; or hostname 2>/dev/null; or printf localhost)
-        printf '\\033]7;file://%s%s\\007' "$__remora_host_name" "$PWD"
+        printf '\033]7;file://%s%s\007' "$__remora_host_name" "$PWD"
     end
     function __remora_pre_prompt --on-event fish_prompt
         __remora_emit_cwd
-        printf '\\033]133;A\\007'
+        printf '\033]133;A\007'
     end
     REMORA_FISH
 
@@ -115,40 +111,20 @@ public actor OpenSSHRemoteShellIntegrationInstaller: RemoteShellIntegrationInsta
 
     public init() {}
 
-    public func ensureInstalled(for host: Host) async throws {
-        let compatibilityProfile = await SSHCompatibilityProfileStore.shared.cachedProfile(for: host) ?? SSHCompatibilityProfile()
-        guard let launch = await ProcessSSHShellSession.makeRemoteCommandLaunchConfiguration(
-            for: host,
-            command: Self.installCommand,
-            compatibilityProfile: compatibilityProfile
-        ) else {
-            throw SSHError.connectionFailed("shell integration installer could not build launch configuration")
-        }
-
-        try await Self.run(launch)
-    }
-
-    private static func run(_ launch: ProcessSSHShellSession.LaunchConfiguration) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: launch.executablePath)
-        process.arguments = launch.arguments
-        if !launch.environment.isEmpty {
-            process.environment = ProcessInfo.processInfo.environment.merging(launch.environment) { _, new in new }
-        }
-
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
-            let errorText = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let reason = errorText?.isEmpty == false ? errorText! : "installer exited with status \(process.terminationStatus)"
-            throw SSHError.connectionFailed(reason)
+    public func ensureInstalled(using executor: any RemoteCommandExecutorProtocol) async throws {
+        let result = try await executor.execute(
+            RemoteCommandRequest(
+                executable: .shell(Self.installCommand),
+                replayPolicy: .never,
+                timeout: .seconds(10)
+            )
+        )
+        guard result.exitStatus == 0 else {
+            throw RemoteOperationError(
+                category: .command,
+                code: "shell_integration_install_failed",
+                safeDiagnosticMessage: "Shell integration installer exited with status \(result.exitStatus)"
+            )
         }
     }
 }

@@ -2,7 +2,28 @@ import Foundation
 
 public protocol RemoteSessionTransportProtocol: Sendable {
     func openShell(pty: PTYSize) async throws -> any RemoteShellChannelProtocol
+    func openDirectTCPIP(
+        destinationHost: String,
+        destinationPort: Int,
+        sourceHost: String,
+        sourcePort: Int
+    ) async throws -> any RemoteForwardChannelProtocol
     func close() async
+}
+
+public extension RemoteSessionTransportProtocol {
+    func openDirectTCPIP(
+        destinationHost: String,
+        destinationPort: Int,
+        sourceHost: String,
+        sourcePort: Int
+    ) async throws -> any RemoteForwardChannelProtocol {
+        throw RemoteOperationError(
+            category: .channel,
+            code: "direct_tcpip_unavailable",
+            safeDiagnosticMessage: "Remote session transport does not support direct TCP/IP channels"
+        )
+    }
 }
 
 extension LibSSH2Transport: RemoteSessionTransportProtocol {
@@ -18,6 +39,7 @@ public actor RemoteSession: RemoteSessionProtocol {
     private let transport: any RemoteSessionTransportProtocol
     private var state: RemoteSessionState
     private var channels: [UUID: ManagedRemoteShellChannel] = [:]
+    private var forwardChannels: [UUID: ManagedRemoteForwardChannel] = [:]
     private var fileSystems: [UUID: any RemoteFileSystemProtocol] = [:]
     private var openingFileSystemIDs: Set<UUID> = []
 
@@ -64,6 +86,33 @@ public actor RemoteSession: RemoteSessionProtocol {
             )
         }
         return LibSSH2CommandExecutor(transport: transport)
+    }
+
+    public func openDirectTCPIP(
+        destinationHost: String,
+        destinationPort: Int,
+        sourceHost: String,
+        sourcePort: Int
+    ) async throws -> any RemoteForwardChannelProtocol {
+        try requireBoundTarget(capability: "port forwarding")
+        guard state == .ready else {
+            throw sessionNotReadyError(capability: "port forwarding")
+        }
+        let channel = try await transport.openDirectTCPIP(
+            destinationHost: destinationHost,
+            destinationPort: destinationPort,
+            sourceHost: sourceHost,
+            sourcePort: sourcePort
+        )
+        guard state == .ready else {
+            await channel.close()
+            throw sessionNotReadyError(capability: "port forwarding")
+        }
+        let managed = ManagedRemoteForwardChannel(channel: channel) { [weak self] channelID in
+            await self?.removeForwardChannel(id: channelID)
+        }
+        forwardChannels[managed.id] = managed
+        return managed
     }
 
     public func fileSystem() async throws -> any RemoteFileSystemProtocol {
@@ -150,6 +199,11 @@ public actor RemoteSession: RemoteSessionProtocol {
         for channel in activeChannels {
             await channel.close()
         }
+        let activeForwardChannels = Array(forwardChannels.values)
+        forwardChannels.removeAll(keepingCapacity: false)
+        for channel in activeForwardChannels {
+            await channel.close()
+        }
         let activeFileSystems = Array(fileSystems.values)
         fileSystems.removeAll(keepingCapacity: false)
         for fileSystem in activeFileSystems {
@@ -165,6 +219,10 @@ public actor RemoteSession: RemoteSessionProtocol {
 
     private func removeChannel(id: UUID) {
         channels.removeValue(forKey: id)
+    }
+
+    private func removeForwardChannel(id: UUID) {
+        forwardChannels.removeValue(forKey: id)
     }
 
     private func removeFileSystem(id: UUID) {
@@ -196,6 +254,53 @@ public actor RemoteSession: RemoteSessionProtocol {
                 safeDiagnosticMessage: "Select a gateway asset and account before using \(capability)"
             )
         }
+    }
+}
+
+private actor ManagedRemoteForwardChannel: RemoteForwardChannelProtocol {
+    nonisolated let id: UUID
+
+    private let channel: any RemoteForwardChannelProtocol
+    private let onClose: @Sendable (UUID) async -> Void
+    private var isClosed = false
+
+    init(
+        channel: any RemoteForwardChannelProtocol,
+        onClose: @escaping @Sendable (UUID) async -> Void
+    ) {
+        id = channel.id
+        self.channel = channel
+        self.onClose = onClose
+    }
+
+    func read(maximumBytes: Int) async throws -> Data? {
+        guard !isClosed else { throw closedError() }
+        return try await channel.read(maximumBytes: maximumBytes)
+    }
+
+    func write(_ data: Data) async throws {
+        guard !isClosed else { throw closedError() }
+        try await channel.write(data)
+    }
+
+    func finishWriting() async throws {
+        guard !isClosed else { return }
+        try await channel.finishWriting()
+    }
+
+    func close() async {
+        guard !isClosed else { return }
+        isClosed = true
+        await channel.close()
+        await onClose(id)
+    }
+
+    private func closedError() -> RemoteOperationError {
+        RemoteOperationError(
+            category: .channel,
+            code: "forward_channel_closed",
+            safeDiagnosticMessage: "Remote forwarding channel is closed"
+        )
     }
 }
 

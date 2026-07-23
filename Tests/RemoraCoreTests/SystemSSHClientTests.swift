@@ -169,7 +169,7 @@ struct SystemSSHClientTests {
 
     @Test
     func remoteShellIntegrationInstallCommandConfiguresBashZshAndFishHooks() {
-        let command = OpenSSHRemoteShellIntegrationInstaller.installCommand
+        let command = RemoteShellIntegrationInstaller.installCommand
 
         #expect(command.unicodeScalars.contains("\0") == false)
         #expect(command.contains("shell-integration.bash"))
@@ -198,7 +198,7 @@ struct SystemSSHClientTests {
 
         let installResult = try runProcess(
             executablePath: "/bin/sh",
-            arguments: ["-c", OpenSSHRemoteShellIntegrationInstaller.installCommand],
+            arguments: ["-c", RemoteShellIntegrationInstaller.installCommand],
             environment: ["HOME": homeURL.path]
         )
         #expect(installResult.status == 0, "Installer failed: \(installResult.stderr)")
@@ -233,7 +233,7 @@ struct SystemSSHClientTests {
 
     @Test
     func remoteShellIntegrationInstallCommandTrimsTrailingBashPromptSeparators() {
-        let command = OpenSSHRemoteShellIntegrationInstaller.installCommand
+        let command = RemoteShellIntegrationInstaller.installCommand
 
         #expect(command.contains("__remora_prompt_command=\"${PROMPT_COMMAND-}\""))
         #expect(command.contains("__remora_prompt_command=\"${__remora_prompt_command%\"${__remora_prompt_command##*[![:space:];]}\"}\""))
@@ -662,37 +662,6 @@ struct SystemSSHClientTests {
 
         let attempts = try String(contentsOf: attemptFileURL, encoding: .utf8)
         #expect(attempts == "1")
-    }
-
-    @Test
-    func buildsPortForwardArgumentsForLocalTunnel() {
-        let host = Host(
-            name: "db",
-            address: "example.com",
-            port: 22,
-            username: "deploy",
-            auth: HostAuth(method: .agent)
-        )
-        let preset = HostPortForwardPreset(
-            name: "postgres",
-            localAddress: "127.0.0.1",
-            localPort: 5432,
-            remoteAddress: "10.0.0.5",
-            remotePort: 5432
-        )
-
-        let launch = OpenSSHLaunchBuilder.makePortForwardLaunchConfiguration(
-            for: host,
-            preset: preset,
-            storedPassword: nil
-        )
-
-        #expect(launch?.arguments.contains("-N") == true)
-        #expect(launch?.arguments.contains("-L") == true)
-        #expect(launch?.arguments.contains("127.0.0.1:5432:10.0.0.5:5432") == true)
-        #expect(launch?.arguments.contains("ExitOnForwardFailure=yes") == true)
-        #expect(launch?.arguments.contains(where: { $0.contains("-port-forward-") }) == true)
-        #expect(launch?.arguments.contains("-tt") == false)
     }
 
     @Test

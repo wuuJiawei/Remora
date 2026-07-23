@@ -109,9 +109,7 @@ final class TerminalRuntime: ObservableObject {
         sshSessionManager: SessionManager? = nil,
         remoteSessionHub: RemoteSessionHub = .shared,
         nativeInteractionBroker: NativeSessionInteractionBroker = NativeSessionInteractionBroker(),
-        remoteShellIntegrationInstaller: @escaping @Sendable (RemoraCore.Host) async throws -> Void = { host in
-            try await OpenSSHRemoteShellIntegrationInstaller.shared.ensureInstalled(for: host)
-        }
+        remoteShellIntegrationInstaller: @escaping @Sendable (RemoraCore.Host) async throws -> Void = { _ in }
     ) {
         self.localSessionManager = localSessionManager
         self.nativeInteractionBroker = nativeInteractionBroker

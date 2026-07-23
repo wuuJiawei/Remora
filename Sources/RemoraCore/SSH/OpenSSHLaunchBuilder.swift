@@ -56,48 +56,6 @@ enum OpenSSHLaunchBuilder {
         )
     }
 
-    static func makePortForwardLaunchConfiguration(
-        for host: Host,
-        preset: HostPortForwardPreset,
-        storedPassword: String?,
-        sshpassPath: String? = defaultSSHPassPath(),
-        askPassScriptPath: String? = ensureAskPassScriptPath(),
-        compatibilityProfile: SSHCompatibilityProfile = SSHCompatibilityProfile()
-    ) -> OpenSSHLaunchConfiguration? {
-        guard preset.kind == .local else { return nil }
-
-        if host.auth.method == .password,
-           let password = storedPassword,
-           !password.isEmpty,
-           let launch = makePasswordLaunchConfiguration(
-                for: host,
-                password: password,
-                allocateTTY: false,
-                compatibilityProfile: compatibilityProfile,
-                extraArguments: portForwardArguments(for: preset)
-           ) {
-            return launch
-        }
-
-        let useConnectionReuse = SSHConnectionReusePolicy.shouldUseConnectionReuse(
-            authMethod: host.auth.method,
-            hasStoredPassword: storedPassword?.isEmpty == false
-        )
-        return wrappedSSHLaunchConfiguration(
-            sshArguments: makeSSHArguments(
-                for: host,
-                useConnectionReuse: useConnectionReuse,
-                allocateTTY: false,
-                connectionReusePurpose: .portForward,
-                remoteCommand: nil,
-                compatibilityProfile: compatibilityProfile,
-                extraArguments: portForwardArguments(for: preset)
-            ),
-            environment: [:],
-            wrapInScript: false
-        )
-    }
-
     static func makeSSHArguments(
         for host: Host,
         useConnectionReuse: Bool = true,
@@ -329,12 +287,4 @@ enum OpenSSHLaunchBuilder {
         }
     }
 
-    private static func portForwardArguments(for preset: HostPortForwardPreset) -> [String] {
-        let localTarget = "\(preset.localAddress):\(preset.localPort):\(preset.remoteAddress):\(preset.remotePort)"
-        return [
-            "-N",
-            "-L", localTarget,
-            "-o", "ExitOnForwardFailure=yes",
-        ]
-    }
 }

@@ -721,6 +721,7 @@
 "Stopped" = "Stopped";
 "Idle" = "Idle";
 "Port forward configuration is invalid." = "Port forward configuration is invalid.";
+"Connect to this host before starting port forwarding." = "Connect to this host before starting port forwarding.";
 "Docker" = "Docker";
 "Containers" = "Containers";
 "Images" = "Images";
