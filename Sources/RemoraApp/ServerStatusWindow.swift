@@ -16,7 +16,9 @@ final class ServerStatusWindowManager: NSObject, ObservableObject, NSWindowDeleg
         self.metricsCenter = metricsCenter
         context.host = host
         context.runtime = runtime
-        metricsCenter.setObservedWindowHost(host)
+        metricsCenter.setObservedWindowBinding(
+            ServerMetricsSessionBinding(host: host, runtime: runtime)
+        )
 
         if window == nil {
             createWindow(metricsCenter: metricsCenter)
@@ -108,7 +110,7 @@ final class ServerStatusWindowManager: NSObject, ObservableObject, NSWindowDeleg
     }
 
     func windowWillClose(_ notification: Notification) {
-        metricsCenter?.setObservedWindowHost(nil)
+        metricsCenter?.setObservedWindowBinding(nil)
         context.host = nil
         context.runtime = nil
     }
@@ -142,7 +144,7 @@ private struct ServerStatusWindowView: View {
     }
 
     private func statusContent(for host: RemoraCore.Host) -> some View {
-        let state = metricsCenter.state(for: host) ?? .idle
+        let state = metricsCenter.state(for: context.runtime) ?? .idle
         return ServerMetricsPanel(
             hostTitle: displayHostName(for: host),
             hostSubtitle: "\(host.username)@\(host.address):\(host.port)",

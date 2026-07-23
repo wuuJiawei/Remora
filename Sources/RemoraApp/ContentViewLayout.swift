@@ -643,7 +643,7 @@ extension ContentView {
                             title: tab.title,
                             tabID: tab.id,
                             runtime: runtime,
-                            metricsState: serverMetricsCenter.state(for: runtime.connectedSSHHost),
+                            metricsState: serverMetricsCenter.state(for: runtime),
                             isActive: workspace.activeTabID == tab.id,
                             canClose: workspace.tabs.count > 1,
                             onSelect: {

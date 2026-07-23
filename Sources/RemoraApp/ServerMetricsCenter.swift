@@ -1,19 +1,36 @@
 import Foundation
 import RemoraCore
 
-struct SSHHostMetricsKey: Hashable, Sendable {
-    let address: String
-    let port: Int
-    let username: String
+@MainActor
+struct ServerMetricsSessionBinding {
+    let sessionID: UUID
+    let host: RemoraCore.Host
 
-    init(host: RemoraCore.Host) {
-        self.address = host.address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        self.port = host.port
-        self.username = host.username.trimmingCharacters(in: .whitespacesAndNewlines)
+    private let acquireLeaseHandler: () async throws -> any RemoteSessionLeaseProtocol
+
+    init?(host: RemoraCore.Host, runtime: TerminalRuntime) {
+        guard let identity = runtime.remoteSessionIdentity,
+              identity.state.phase == .ready
+        else {
+            return nil
+        }
+
+        self.sessionID = identity.sessionID
+        self.host = host
+        self.acquireLeaseHandler = { [weak runtime] in
+            guard let runtime else {
+                throw RemoteOperationError(
+                    category: .session,
+                    code: "metrics_runtime_released",
+                    safeDiagnosticMessage: "The terminal runtime for server metrics is no longer available"
+                )
+            }
+            return try await runtime.acquireRemoteSessionLease()
+        }
     }
 
-    var title: String {
-        "\(username)@\(address):\(port)"
+    func acquireLease() async throws -> any RemoteSessionLeaseProtocol {
+        try await acquireLeaseHandler()
     }
 }
 
@@ -398,25 +415,43 @@ actor RemoteServerMetricsProbe {
     REMORA_METRICS
     """#
 
-    private var clients: [SSHHostMetricsKey: SystemSFTPClient] = [:]
-
-    func sample(host: RemoraCore.Host) async throws -> ServerResourceMetricsSnapshot {
-        let key = SSHHostMetricsKey(host: host)
-        let client = clientForHost(host, key: key)
-        let output = try await client.executeRemoteShellCommand(Self.metricsCommand, timeout: 5.5)
+    func sample(
+        executor: any RemoteCommandExecutorProtocol,
+        host: RemoraCore.Host
+    ) async throws -> ServerResourceMetricsSnapshot {
+        let result = try await executor.execute(
+            RemoteCommandRequest(
+                executable: .shell(Self.metricsCommand),
+                privilege: host.remoteCommandPrivilege,
+                replayPolicy: .readOnly,
+                timeout: .milliseconds(5_500)
+            )
+        )
+        guard result.exitStatus == 0 else {
+            throw RemoteOperationError(
+                category: .command,
+                code: "metrics_command_failed",
+                safeDiagnosticMessage: "Server metrics command exited with status \(result.exitStatus)"
+            )
+        }
+        guard !result.standardOutputWasTruncated else {
+            throw RemoteOperationError(
+                category: .command,
+                code: "metrics_output_truncated",
+                safeDiagnosticMessage: "Server metrics output exceeded the collection limit"
+            )
+        }
+        guard let output = String(data: result.standardOutput, encoding: .utf8) else {
+            throw RemoteOperationError(
+                category: .command,
+                code: "metrics_output_invalid_utf8",
+                safeDiagnosticMessage: "Server metrics output was not valid UTF-8"
+            )
+        }
         guard let snapshot = Self.parseSnapshot(from: output) else {
             throw SSHError.connectionFailed("metrics output parsing failed")
         }
         return snapshot
-    }
-
-    private func clientForHost(_ host: RemoraCore.Host, key: SSHHostMetricsKey) -> SystemSFTPClient {
-        if let existing = clients[key] {
-            return existing
-        }
-        let client = SystemSFTPClient(host: host)
-        clients[key] = client
-        return client
     }
 
     static func parseSnapshot(
@@ -658,7 +693,12 @@ actor RemoteServerMetricsProbe {
 
 @MainActor
 final class ServerMetricsCenter: ObservableObject {
-    @Published private(set) var states: [SSHHostMetricsKey: ServerHostMetricsState] = [:]
+    @Published private(set) var states: [UUID: ServerHostMetricsState] = [:]
+
+    private struct NativeSessionResources {
+        let lease: any RemoteSessionLeaseProtocol
+        let executor: any RemoteCommandExecutorProtocol
+    }
 
     private let probe = RemoteServerMetricsProbe()
     private var activeRefreshInterval: TimeInterval
@@ -666,13 +706,13 @@ final class ServerMetricsCenter: ObservableObject {
     private let retentionInterval: TimeInterval
     private var maxConcurrentFetches: Int
 
-    private var tabTrackedHosts: [SSHHostMetricsKey: RemoraCore.Host] = [:]
-    private var activeHostKey: SSHHostMetricsKey?
-    private var observedWindowHost: RemoraCore.Host?
-    private var observedWindowHostKey: SSHHostMetricsKey?
-    private var inFlightKeys: Set<SSHHostMetricsKey> = []
-    private var lastFetchAt: [SSHHostMetricsKey: Date] = [:]
-    private var lastSeenAt: [SSHHostMetricsKey: Date] = [:]
+    private var tabTrackedBindings: [UUID: ServerMetricsSessionBinding] = [:]
+    private var activeSessionID: UUID?
+    private var observedWindowBinding: ServerMetricsSessionBinding?
+    private var nativeSessions: [UUID: NativeSessionResources] = [:]
+    private var fetchTasks: [UUID: Task<Void, Never>] = [:]
+    private var lastFetchAt: [UUID: Date] = [:]
+    private var lastSeenAt: [UUID: Date] = [:]
     private var pollingTask: Task<Void, Never>?
 
     init(
@@ -693,40 +733,62 @@ final class ServerMetricsCenter: ObservableObject {
 
     deinit {
         pollingTask?.cancel()
+        fetchTasks.values.forEach { $0.cancel() }
+        let leases = nativeSessions.values.map(\.lease)
+        Task {
+            for lease in leases {
+                await lease.release()
+            }
+        }
     }
 
-    func updateTrackedHosts(_ hosts: [RemoraCore.Host], activeHost: RemoraCore.Host?) {
+    func updateTrackedSessions(
+        _ bindings: [ServerMetricsSessionBinding],
+        activeSessionID: UUID?
+    ) {
         let now = Date()
-        var unique: [SSHHostMetricsKey: RemoraCore.Host] = [:]
-        unique.reserveCapacity(hosts.count)
-        for host in hosts {
-            let key = SSHHostMetricsKey(host: host)
-            unique[key] = host
-            lastSeenAt[key] = now
+        var unique: [UUID: ServerMetricsSessionBinding] = [:]
+        unique.reserveCapacity(bindings.count)
+        for binding in bindings {
+            unique[binding.sessionID] = binding
+            lastSeenAt[binding.sessionID] = now
         }
-        tabTrackedHosts = unique
-        activeHostKey = activeHost.map(SSHHostMetricsKey.init(host:))
-        if let observedWindowHost {
-            lastSeenAt[SSHHostMetricsKey(host: observedWindowHost)] = now
+        let previousIDs = Set(tabTrackedBindings.keys)
+        tabTrackedBindings = unique
+        self.activeSessionID = activeSessionID
+        if let observedWindowBinding {
+            lastSeenAt[observedWindowBinding.sessionID] = now
         }
+        let currentIDs = Set(mergedTrackedBindings().keys)
+        if previousIDs != Set(unique.keys) {
+            LogManager.info(
+                .ssh,
+                "metrics tracking updated sessions=\(currentIDs.count) active=\(activeSessionID?.uuidString ?? "none")"
+            )
+        }
+        releaseSessions(excluding: currentIDs)
         cleanupStaleEntries(now: now)
         scheduleDueFetches()
     }
 
-    func setObservedWindowHost(_ host: RemoraCore.Host?) {
-        observedWindowHost = host
-        observedWindowHostKey = host.map(SSHHostMetricsKey.init(host:))
+    func setObservedWindowBinding(_ binding: ServerMetricsSessionBinding?) {
+        let previousSessionID = observedWindowBinding?.sessionID
+        observedWindowBinding = binding
         let now = Date()
-        if let observedWindowHostKey {
-            lastSeenAt[observedWindowHostKey] = now
+        if let binding {
+            lastSeenAt[binding.sessionID] = now
+            LogManager.info(.ssh, "metrics window observing session=\(binding.sessionID.uuidString)")
+        } else if let previousSessionID {
+            LogManager.info(.ssh, "metrics window stopped observing session=\(previousSessionID.uuidString)")
         }
+        releaseSessions(excluding: Set(mergedTrackedBindings().keys))
         cleanupStaleEntries(now: now)
         scheduleDueFetches()
     }
 
-    func state(for host: RemoraCore.Host?) -> ServerHostMetricsState? {
-        guard let host else { return nil }
-        return states[SSHHostMetricsKey(host: host)]
+    func state(for runtime: TerminalRuntime?) -> ServerHostMetricsState? {
+        guard let sessionID = runtime?.remoteSessionIdentity?.sessionID else { return nil }
+        return states[sessionID]
     }
 
     func configure(
@@ -766,21 +828,20 @@ final class ServerMetricsCenter: ObservableObject {
 
     private func scheduleDueFetches() {
         let now = Date()
-        let availableSlots = max(0, maxConcurrentFetches - inFlightKeys.count)
+        let availableSlots = max(0, maxConcurrentFetches - fetchTasks.count)
         guard availableSlots > 0 else { return }
-        let trackedHosts = mergedTrackedHosts()
+        let trackedBindings = mergedTrackedBindings()
 
-        let dueHosts = trackedHosts.compactMap { key, host -> (key: SSHHostMetricsKey, host: RemoraCore.Host, age: TimeInterval, isActive: Bool)? in
-            guard !inFlightKeys.contains(key) else { return nil }
-            let interval = refreshInterval(for: key)
-            let lastFetched = lastFetchAt[key] ?? .distantPast
+        let dueBindings = trackedBindings.compactMap { sessionID, binding -> (binding: ServerMetricsSessionBinding, age: TimeInterval, isActive: Bool)? in
+            guard fetchTasks[sessionID] == nil else { return nil }
+            let interval = refreshInterval(for: sessionID)
+            let lastFetched = lastFetchAt[sessionID] ?? .distantPast
             let age = now.timeIntervalSince(lastFetched)
             guard age >= interval else { return nil }
             return (
-                key: key,
-                host: host,
+                binding: binding,
                 age: age,
-                isActive: key == activeHostKey || key == observedWindowHostKey
+                isActive: sessionID == activeSessionID || sessionID == observedWindowBinding?.sessionID
             )
         }
         .sorted { lhs, rhs in
@@ -790,32 +851,41 @@ final class ServerMetricsCenter: ObservableObject {
             return lhs.age > rhs.age
         }
 
-        for due in dueHosts.prefix(availableSlots) {
-            launchFetch(for: due.key, host: due.host, startedAt: now)
+        for due in dueBindings.prefix(availableSlots) {
+            launchFetch(for: due.binding, startedAt: now)
         }
     }
 
-    private func refreshInterval(for key: SSHHostMetricsKey) -> TimeInterval {
-        key == activeHostKey || key == observedWindowHostKey ? activeRefreshInterval : inactiveRefreshInterval
+    private func refreshInterval(for sessionID: UUID) -> TimeInterval {
+        sessionID == activeSessionID || sessionID == observedWindowBinding?.sessionID
+            ? activeRefreshInterval
+            : inactiveRefreshInterval
     }
 
-    private func launchFetch(for key: SSHHostMetricsKey, host: RemoraCore.Host, startedAt: Date) {
-        inFlightKeys.insert(key)
+    private func launchFetch(for binding: ServerMetricsSessionBinding, startedAt: Date) {
+        let sessionID = binding.sessionID
 
-        var currentState = states[key] ?? .idle
+        var currentState = states[sessionID] ?? .idle
         currentState.isLoading = true
         currentState.errorMessage = nil
         currentState.lastAttemptAt = startedAt
-        states[key] = currentState
+        states[sessionID] = currentState
 
-        Task(priority: .utility) { [weak self] in
+        fetchTasks[sessionID] = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             do {
-                let snapshot = try await self.probe.sample(host: host)
-                self.completeFetch(for: key, snapshot: snapshot, errorMessage: nil)
+                let executor = try await self.executor(for: binding)
+                let snapshot = try await self.probe.sample(executor: executor, host: binding.host)
+                self.completeFetch(for: sessionID, snapshot: snapshot, errorMessage: nil)
+            } catch is CancellationError {
+                self.completeFetch(for: sessionID, snapshot: nil, errorMessage: nil)
             } catch {
+                LogManager.error(
+                    .ssh,
+                    "metrics sample failed session=\(sessionID.uuidString) detail=\(error.localizedDescription)"
+                )
                 self.completeFetch(
-                    for: key,
+                    for: sessionID,
                     snapshot: nil,
                     errorMessage: error.localizedDescription
                 )
@@ -824,14 +894,14 @@ final class ServerMetricsCenter: ObservableObject {
     }
 
     private func completeFetch(
-        for key: SSHHostMetricsKey,
+        for sessionID: UUID,
         snapshot: ServerResourceMetricsSnapshot?,
         errorMessage: String?
     ) {
-        inFlightKeys.remove(key)
-        lastFetchAt[key] = Date()
+        fetchTasks.removeValue(forKey: sessionID)
+        lastFetchAt[sessionID] = Date()
 
-        var nextState = states[key] ?? .idle
+        var nextState = states[sessionID] ?? .idle
         nextState.isLoading = false
         if let snapshot {
             nextState.previousSnapshot = nextState.snapshot
@@ -840,31 +910,80 @@ final class ServerMetricsCenter: ObservableObject {
         } else if let errorMessage {
             nextState.errorMessage = errorMessage
         }
-        states[key] = nextState
+        states[sessionID] = nextState
     }
 
     private func cleanupStaleEntries(now: Date) {
-        let trackedKeys = Set(mergedTrackedHosts().keys)
-        let staleKeys = lastSeenAt.compactMap { key, lastSeen -> SSHHostMetricsKey? in
-            guard !trackedKeys.contains(key) else { return nil }
-            guard !inFlightKeys.contains(key) else { return nil }
+        let trackedSessionIDs = Set(mergedTrackedBindings().keys)
+        let staleSessionIDs = lastSeenAt.compactMap { sessionID, lastSeen -> UUID? in
+            guard !trackedSessionIDs.contains(sessionID) else { return nil }
+            guard fetchTasks[sessionID] == nil else { return nil }
             guard now.timeIntervalSince(lastSeen) > retentionInterval else { return nil }
-            return key
+            return sessionID
         }
 
-        guard !staleKeys.isEmpty else { return }
-        for key in staleKeys {
-            lastSeenAt.removeValue(forKey: key)
-            lastFetchAt.removeValue(forKey: key)
-            states.removeValue(forKey: key)
+        guard !staleSessionIDs.isEmpty else { return }
+        for sessionID in staleSessionIDs {
+            lastSeenAt.removeValue(forKey: sessionID)
+            lastFetchAt.removeValue(forKey: sessionID)
+            states.removeValue(forKey: sessionID)
         }
     }
 
-    private func mergedTrackedHosts() -> [SSHHostMetricsKey: RemoraCore.Host] {
-        var merged = tabTrackedHosts
-        if let observedWindowHost, let observedWindowHostKey {
-            merged[observedWindowHostKey] = observedWindowHost
+    private func mergedTrackedBindings() -> [UUID: ServerMetricsSessionBinding] {
+        var merged = tabTrackedBindings
+        if let observedWindowBinding {
+            merged[observedWindowBinding.sessionID] = observedWindowBinding
         }
         return merged
+    }
+
+    private func executor(
+        for binding: ServerMetricsSessionBinding
+    ) async throws -> any RemoteCommandExecutorProtocol {
+        if let resources = nativeSessions[binding.sessionID] {
+            return resources.executor
+        }
+
+        LogManager.info(.ssh, "metrics acquiring native lease session=\(binding.sessionID.uuidString)")
+        let lease = try await binding.acquireLease()
+        do {
+            let session = try await lease.session()
+            let executor = try await session.commandExecutor()
+            guard mergedTrackedBindings()[binding.sessionID] != nil else {
+                throw CancellationError()
+            }
+            nativeSessions[binding.sessionID] = NativeSessionResources(
+                lease: lease,
+                executor: executor
+            )
+            LogManager.info(
+                .ssh,
+                "metrics native lease acquired session=\(binding.sessionID.uuidString) lease=\(lease.id.uuidString)"
+            )
+            return executor
+        } catch {
+            await lease.release()
+            throw error
+        }
+    }
+
+    private func releaseSessions(excluding trackedSessionIDs: Set<UUID>) {
+        let cancelledSessionIDs = Set(fetchTasks.keys).subtracting(trackedSessionIDs)
+        for sessionID in cancelledSessionIDs {
+            fetchTasks.removeValue(forKey: sessionID)?.cancel()
+        }
+
+        let releasedSessionIDs = Set(nativeSessions.keys).subtracting(trackedSessionIDs)
+        for sessionID in releasedSessionIDs {
+            guard let resources = nativeSessions.removeValue(forKey: sessionID) else { continue }
+            LogManager.info(
+                .ssh,
+                "metrics releasing native lease session=\(sessionID.uuidString) lease=\(resources.lease.id.uuidString)"
+            )
+            Task {
+                await resources.lease.release()
+            }
+        }
     }
 }
