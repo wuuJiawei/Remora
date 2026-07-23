@@ -332,8 +332,33 @@ public actor LibSSH2Transport {
                     try context.authenticateKeyboardInteractive(username: username, bridge: coordinator.bridge)
                 }
             } else {
-                try await runtime.run(phase: .authenticating, operation: "password_auth", timeout: timeout) {
-                    try context.authenticatePassword(username: username, password: password)
+                do {
+                    try await runtime.run(phase: .authenticating, operation: "password_auth", timeout: timeout) {
+                        try context.authenticatePassword(username: username, password: password)
+                    }
+                } catch {
+                    guard Self.isPasswordAuthenticationFailure(error) else { throw error }
+                    let remainingMethods = try await runtime.runResult(
+                        phase: .authenticating,
+                        operation: "authentication_methods_after_password",
+                        timeout: timeout
+                    ) {
+                        let result = try context.authenticationMethods(username: username)
+                        return (result.0, result.1)
+                    }
+                    guard remainingMethods.contains(.keyboardInteractive) else { throw error }
+                    emit(
+                        .authenticating,
+                        operation: "keyboard_interactive_auth",
+                        message: "continuing staged authentication after password"
+                    )
+                    try await runtime.run(
+                        phase: .authenticating,
+                        operation: "keyboard_interactive_auth",
+                        timeout: timeout
+                    ) {
+                        try context.authenticateKeyboardInteractive(username: username, bridge: coordinator.bridge)
+                    }
                 }
             }
         }
@@ -358,6 +383,12 @@ public actor LibSSH2Transport {
                 safeDiagnosticMessage: "SSH server does not advertise the selected authentication method"
             )
         }
+    }
+
+    private static func isPasswordAuthenticationFailure(_ error: Error) -> Bool {
+        guard let operationError = error as? RemoteOperationError else { return false }
+        return operationError.category == .authentication
+            && operationError.code == "password_authentication_failed"
     }
 
     private func ensureActive(_ connectionID: UUID) throws {
@@ -730,7 +761,7 @@ private extension NativeSSHAuthentication {
         case .privateKey: "private_key_auth"
         case .agent: "agent_auth"
         case .keyboardInteractive: "keyboard_interactive_auth"
-        case .passwordOrKeyboardInteractive: "jumpserver_auth"
+        case .passwordOrKeyboardInteractive: "password_or_keyboard_interactive_auth"
         }
     }
 

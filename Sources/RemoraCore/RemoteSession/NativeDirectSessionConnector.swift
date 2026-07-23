@@ -87,27 +87,14 @@ public struct NativeDirectSessionConnector: Sendable {
         route: ConnectionRoute
     ) async throws -> NativeSSHAuthentication {
         if case .gateway(let gatewayRoute) = route,
-           gatewayRoute.providerID == JumpServerGatewayProvider.identifier
+           gatewayRoute.providerID == JumpServerGatewayProvider.identifier,
+           host.auth.method != .password
         {
-            guard host.auth.method == .password else {
-                throw RemoteOperationError(
-                    category: .authentication,
-                    code: "jumpserver_authentication_unsupported",
-                    safeDiagnosticMessage: "JumpServer routes currently require password authentication"
-                )
-            }
-            let password = try await password(for: host)
-            let coordinator = AuthenticationCoordinator { prompts in
-                guard prompts.count == 1,
-                      !prompts[0].echo,
-                      prompts[0].text.localizedCaseInsensitiveContains("password")
-                else {
-                    return nil
-                }
-                return [password]
-            }
-            interactionBroker.observeKeyboardInteractive(coordinator)
-            return .passwordOrKeyboardInteractive(password: password, coordinator: coordinator)
+            throw RemoteOperationError(
+                category: .authentication,
+                code: "jumpserver_authentication_unsupported",
+                safeDiagnosticMessage: "JumpServer routes currently require password authentication"
+            )
         }
 
         switch host.auth.method {
@@ -135,7 +122,18 @@ public struct NativeDirectSessionConnector: Sendable {
                 )
             )
         case .password:
-            return .password(try await password(for: host))
+            let password = try await password(for: host)
+            let coordinator = AuthenticationCoordinator { prompts in
+                guard prompts.count == 1,
+                      !prompts[0].echo,
+                      prompts[0].text.localizedCaseInsensitiveContains("password")
+                else {
+                    return nil
+                }
+                return [password]
+            }
+            interactionBroker.observeKeyboardInteractive(coordinator)
+            return .passwordOrKeyboardInteractive(password: password, coordinator: coordinator)
         }
     }
 
