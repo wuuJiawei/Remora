@@ -48,6 +48,7 @@
 		1E89DB9E51B30EAEC7575B96E2C2777F /* rsa.c in Sources */ = {isa = PBXBuildFile; fileRef = 9CD260F96D30C9B52FEF14DEA1E1B21A /* rsa.c */; };
 		1EC5DEFA4A8C7970D5BFE086ED72A19F /* ZmodemConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 329CCC3E1FD4671C58EFBA46B66EE37C /* ZmodemConstants.swift */; };
 		1F0EE9B705B11E2860370D20C3F00273 /* userauth_kbd_packet.c in Sources */ = {isa = PBXBuildFile; fileRef = 724A9FA4715DF1316E7016415734FC34 /* userauth_kbd_packet.c */; };
+		1FB0F5DF6598D3069B8EC1879FA0303B /* SFTPPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E93009D3AE0373A72C16938A93DF741 /* SFTPPacket.swift */; };
 		1FB3AB7674C89B613A3142316073D3E9 /* UpdateChecker.strings in Resources */ = {isa = PBXBuildFile; fileRef = B7775A89BFA9796E0EB5EEE2B205D9FF /* UpdateChecker.strings */; };
 		1FD8E14F91C91A8E88E3786C59AB63F6 /* DockerContainerListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50B7B787ED9949F6D3B0A1C58CE63290 /* DockerContainerListViewModel.swift */; };
 		200E6B7316C0EE09D3DAFAF91E8090C0 /* RemoteFileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 725450DCAB03A4CB0F8FD2E2971D02BD /* RemoteFileSystem.swift */; };
@@ -66,6 +67,7 @@
 		2C110E27465E61376E03C753D12DAD99 /* EditorEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5639FA8F90727983DBD43A53E29E6888 /* EditorEvent.swift */; };
 		2D3EF0187578DEC7DF06D2B1A765E2F8 /* LocalShellClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26F9A5239402ACDF1AB5C5B96D2EE0A /* LocalShellClient.swift */; };
 		2EB43B86770E0B9136CE9746D938F440 /* RemoraConfigPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB7DC5F7BF41A6163AA618D16E686AD /* RemoraConfigPaths.swift */; };
+		2F04264B88675807ABF4CAC112D98740 /* ExecSFTPRemoteFileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 957928E3E95C9E65F78222B36DA76A13 /* ExecSFTPRemoteFileSystem.swift */; };
 		300AC6795A9DB1B323C5CF2BAB67F440 /* psa_crypto_slot_management.c in Sources */ = {isa = PBXBuildFile; fileRef = 7270C11AA8FA368A91ABE9190ADFD14B /* psa_crypto_slot_management.c */; };
 		304619810313FC63E659D0E270506442 /* poly1305.c in Sources */ = {isa = PBXBuildFile; fileRef = ED5078B1C27D3B82FBFAC8FA4FC2F8B4 /* poly1305.c */; };
 		3062593268367C69B9C5BD634127CD4A /* SSHConnectionReuse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D9A7852722797D41E76418C4D6D985E /* SSHConnectionReuse.swift */; };
@@ -81,6 +83,7 @@
 		3EE8FEB4337A6EE36646EDF71BB9AB49 /* scp.c in Sources */ = {isa = PBXBuildFile; fileRef = 74DB4E44DEE64EB40ECB1C7F67280BDB /* scp.c */; };
 		3EF853013EED2F831DD12755975F6293 /* version_features.c in Sources */ = {isa = PBXBuildFile; fileRef = 86CDA161CFAB1C5398F76F7FA01675C9 /* version_features.c */; };
 		3F4FAB62E60E999C206290F8DE1030E0 /* FileTransferViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC41150691770D66ED19E090D7675FE0 /* FileTransferViewModel.swift */; };
+		405CD51B63D8ED69F1B759D0495591FD /* SFTPCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = F46A93B201DD87E3458D4B1CB8F23074 /* SFTPCodec.swift */; };
 		446D74121D9FA4D5E988FC8F20C69048 /* sftp.c in Sources */ = {isa = PBXBuildFile; fileRef = 8D0363F689159694643899822A2A0DDD /* sftp.c */; };
 		44BD76AB0480D7A0FC6B3FDB87998459 /* global.c in Sources */ = {isa = PBXBuildFile; fileRef = F5214B78C5C4D74DF12F1824AD9F32E9 /* global.c */; };
 		46BE81AB6652560389C9375FC1EFDD48 /* ConnectionInfoPasswordCopyConsentGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E27996B164DD1CD915A23DF04AE2389 /* ConnectionInfoPasswordCopyConsentGate.swift */; };
@@ -179,6 +182,7 @@
 		7F1C59A6417693B68E46D55F874834D4 /* version.c in Sources */ = {isa = PBXBuildFile; fileRef = F4744396467E68B59DD18B68CB6779A4 /* version.c */; };
 		7F57CC11723678C961F0557FBC740F13 /* AISettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5776D4AD1C1DDEB337FACEB7700A1C2 /* AISettingsStore.swift */; };
 		8025246BE0E1A4900B1ED7B1A725B2F2 /* agent.c in Sources */ = {isa = PBXBuildFile; fileRef = B911BFE4B81E1FE6698F4580D62145F9 /* agent.c */; };
+		813C25D96650A260F892B397DB1A24DC /* SFTPRequestMultiplexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDFBB59625895BC792346AAC7D5CA22 /* SFTPRequestMultiplexer.swift */; };
 		82AFEDD7203A5FCB04CBEA9526294611 /* libRemoraLibSSH2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 2C1A3DA1D18C724C3C47C89FF392F57F /* libRemoraLibSSH2.a */; };
 		82C843CA50A3D877500753DE6AA507B4 /* ecdsa.c in Sources */ = {isa = PBXBuildFile; fileRef = D77F4E2E37360F3BB7EAFDB13275E53E /* ecdsa.c */; };
 		8362086ECF02D39BCCDCB0D164E382B5 /* DockerSectionHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D08D530CD5BF2F4C424F9A581586B4A /* DockerSectionHeaderView.swift */; };
@@ -188,6 +192,7 @@
 		881C3241D5744DD57A696F0B58A5C643 /* RemoteCommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7830E9AD1D4BBCBEBEA73854A392660B /* RemoteCommandExecutor.swift */; };
 		8961EFF945A7A2A6FC2961FF6FC1C16A /* version.c in Sources */ = {isa = PBXBuildFile; fileRef = 01116BC93E89F4FEE3D6BBF04C6DD83A /* version.c */; };
 		8998C6C662E0925FECC39EB49B09CFB3 /* everest.c in Sources */ = {isa = PBXBuildFile; fileRef = 3240AFAA652F5F09885C0A7C0A065BF2 /* everest.c */; };
+		89D086C310BD9379FC13A274D88E66D6 /* AdministratorSFTPServerResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89FA262F9102870B29F6B1969FE73A24 /* AdministratorSFTPServerResolver.swift */; };
 		8B3A6E91E1E697DF96A9BDFE81C38B63 /* bignum.c in Sources */ = {isa = PBXBuildFile; fileRef = 0352A27E411E73FD0E8164F4DED87AB0 /* bignum.c */; };
 		8B78D39DEFEF12AF6BCA43613119985C /* MockSSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 525CF00EF14E9403740DD05BE1F343CD /* MockSSHClient.swift */; };
 		8C0E776DE0C081247609BF58072302A3 /* TerminalAIAssistantCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5216615C91080FDD34BAF7A021C7EE /* TerminalAIAssistantCoordinator.swift */; };
@@ -419,6 +424,7 @@
 		278E676B44C5CA174D88564A81DDA708 /* block_cipher.c */ = {isa = PBXFileReference; includeInIndex = 1; name = block_cipher.c; path = library/block_cipher.c; sourceTree = "<group>"; };
 		29839883C298D6FDA60AADEEB2E1CFAA /* pem.c */ = {isa = PBXFileReference; includeInIndex = 1; name = pem.c; path = library/pem.c; sourceTree = "<group>"; };
 		2A84EA2682C7E0471F2B379D61EF0BD4 /* camellia.c */ = {isa = PBXFileReference; includeInIndex = 1; name = camellia.c; path = library/camellia.c; sourceTree = "<group>"; };
+		2BDFBB59625895BC792346AAC7D5CA22 /* SFTPRequestMultiplexer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SFTPRequestMultiplexer.swift; path = RemoteFileSystem/SFTPWire/SFTPRequestMultiplexer.swift; sourceTree = "<group>"; };
 		2C1A3DA1D18C724C3C47C89FF392F57F /* libRemoraLibSSH2.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libRemoraLibSSH2.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		2C5216615C91080FDD34BAF7A021C7EE /* TerminalAIAssistantCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIAssistantCoordinator.swift; sourceTree = "<group>"; };
 		2C5CF65EFE1599F9C6B54517AB9267B8 /* aesni.c */ = {isa = PBXFileReference; includeInIndex = 1; name = aesni.c; path = library/aesni.c; sourceTree = "<group>"; };
@@ -543,6 +549,7 @@
 		855B0AB6E17DDC43C41F9D6316EEA9E4 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		86CDA161CFAB1C5398F76F7FA01675C9 /* version_features.c */ = {isa = PBXFileReference; includeInIndex = 1; name = version_features.c; path = library/version_features.c; sourceTree = "<group>"; };
 		89E7C72533B2D56959741A7CC186A0FC /* RemotePermissionsEditorViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemotePermissionsEditorViewModel.swift; sourceTree = "<group>"; };
+		89FA262F9102870B29F6B1969FE73A24 /* AdministratorSFTPServerResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AdministratorSFTPServerResolver.swift; path = RemoteFileSystem/AdministratorSFTPServerResolver.swift; sourceTree = "<group>"; };
 		8A0DAF43497B783B975196230D180340 /* chacha.c */ = {isa = PBXFileReference; includeInIndex = 1; name = chacha.c; path = src/chacha.c; sourceTree = "<group>"; };
 		8D0363F689159694643899822A2A0DDD /* sftp.c */ = {isa = PBXFileReference; includeInIndex = 1; name = sftp.c; path = src/sftp.c; sourceTree = "<group>"; };
 		8DD84BC9512D946C2EBAF193520C4EE0 /* sha512.c */ = {isa = PBXFileReference; includeInIndex = 1; name = sha512.c; path = library/sha512.c; sourceTree = "<group>"; };
@@ -555,12 +562,14 @@
 		947290AE6DEB5252DC782A54E155A4BB /* RemoteTextEditorWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteTextEditorWindow.swift; sourceTree = "<group>"; };
 		94AF2CDEB625D7F441E647330488F657 /* DisconnectedSFTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DisconnectedSFTPClient.swift; path = SFTP/DisconnectedSFTPClient.swift; sourceTree = "<group>"; };
 		94F2A8740324FC7AEC614E383F9D8DC4 /* HostPasswordStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostPasswordStorage.swift; sourceTree = "<group>"; };
+		957928E3E95C9E65F78222B36DA76A13 /* ExecSFTPRemoteFileSystem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExecSFTPRemoteFileSystem.swift; path = RemoteFileSystem/SFTPWire/ExecSFTPRemoteFileSystem.swift; sourceTree = "<group>"; };
 		974187EF358E032F1512768994C84A1B /* constant_time.c */ = {isa = PBXFileReference; includeInIndex = 1; name = constant_time.c; path = library/constant_time.c; sourceTree = "<group>"; };
 		979B0FBBC087D5CC0FE7E933299FD5D6 /* psa_crypto_hash.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_hash.c; path = library/psa_crypto_hash.c; sourceTree = "<group>"; };
 		9852DFD56296A387A3C1B7CD74E8B9B3 /* RemoteTextEditorViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteTextEditorViewModel.swift; sourceTree = "<group>"; };
 		995E7AB5377867BEDC5C6CB1ABE74031 /* AppAppearance.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppAppearance.swift; sourceTree = "<group>"; };
 		9CD260F96D30C9B52FEF14DEA1E1B21A /* rsa.c */ = {isa = PBXFileReference; includeInIndex = 1; name = rsa.c; path = library/rsa.c; sourceTree = "<group>"; };
 		9D7C150DD6A06F384F839941381D3C9E /* AppKeyboardShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppKeyboardShortcuts.swift; sourceTree = "<group>"; };
+		9E93009D3AE0373A72C16938A93DF741 /* SFTPPacket.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SFTPPacket.swift; path = RemoteFileSystem/SFTPWire/SFTPPacket.swift; sourceTree = "<group>"; };
 		9F0F8266DDFFBCD0B9E2C0D2C0E3AC41 /* RemoteSessionProtocols.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteSessionProtocols.swift; path = RemoteSession/RemoteSessionProtocols.swift; sourceTree = "<group>"; };
 		9F8761E7B11AEFAE366109231B9EB8B5 /* TransferCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransferCenter.swift; sourceTree = "<group>"; };
 		9FDB6080AED63771D7F8A6F7E894508E /* memory_buffer_alloc.c */ = {isa = PBXFileReference; includeInIndex = 1; name = memory_buffer_alloc.c; path = library/memory_buffer_alloc.c; sourceTree = "<group>"; };
@@ -655,6 +664,7 @@
 		ED9A64A1162DED63BBED9C27022B9E60 /* RemoteSessionLease.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteSessionLease.swift; path = RemoteSession/RemoteSessionLease.swift; sourceTree = "<group>"; };
 		F0A5791C71E9BD6759DFE72F62329B74 /* pk.c */ = {isa = PBXFileReference; includeInIndex = 1; name = pk.c; path = library/pk.c; sourceTree = "<group>"; };
 		F2E7F0AE95A7E2C7DF07EBE06E78EE4C /* CrossWindowFlyAnimator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CrossWindowFlyAnimator.swift; sourceTree = "<group>"; };
+		F46A93B201DD87E3458D4B1CB8F23074 /* SFTPCodec.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SFTPCodec.swift; path = RemoteFileSystem/SFTPWire/SFTPCodec.swift; sourceTree = "<group>"; };
 		F4744396467E68B59DD18B68CB6779A4 /* version.c */ = {isa = PBXFileReference; includeInIndex = 1; name = version.c; path = library/version.c; sourceTree = "<group>"; };
 		F4C94578FDA46FED52198B842FD29DFF /* psa_crypto_driver_wrappers_no_static.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_driver_wrappers_no_static.c; path = library/psa_crypto_driver_wrappers_no_static.c; sourceTree = "<group>"; };
 		F5214B78C5C4D74DF12F1824AD9F32E9 /* global.c */ = {isa = PBXFileReference; includeInIndex = 1; name = global.c; path = src/global.c; sourceTree = "<group>"; };
@@ -1093,11 +1103,16 @@
 				CBDCD6849A280A567B90AB442C68E4A5 /* LibSSH2CommandExecutor.swift */,
 				7830E9AD1D4BBCBEBEA73854A392660B /* RemoteCommandExecutor.swift */,
 				31501BE238A33AF6C86FC807BBFCD07D /* RemoteCommandModels.swift */,
+				89FA262F9102870B29F6B1969FE73A24 /* AdministratorSFTPServerResolver.swift */,
 				E53EAA9687B5C92B8B1BD99FF0A65CF7 /* LibSSH2RemoteFileSystem.swift */,
 				C114E030D9BC089EC45582D38952AF98 /* NativeSFTPHandles.swift */,
 				725450DCAB03A4CB0F8FD2E2971D02BD /* RemoteFileSystem.swift */,
 				500735EBEDFAC042599808661236DB43 /* RemoteFileSystemModels.swift */,
 				274D3DDFDBA8B2F005F26BDE2DB39DA6 /* RemoteFileSystemOperations.swift */,
+				957928E3E95C9E65F78222B36DA76A13 /* ExecSFTPRemoteFileSystem.swift */,
+				F46A93B201DD87E3458D4B1CB8F23074 /* SFTPCodec.swift */,
+				9E93009D3AE0373A72C16938A93DF741 /* SFTPPacket.swift */,
+				2BDFBB59625895BC792346AAC7D5CA22 /* SFTPRequestMultiplexer.swift */,
 				1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */,
 				617B0B1F9CDD8082ABAEEDE48559E7E3 /* HostKeyVerifier.swift */,
 				EA50B1C63DDE6C75C7EB8B88F6F0049B /* LibSSH2Transport.swift */,
@@ -1577,11 +1592,16 @@
 				202D5910BEB5B353F89379FC411DDE3D /* LibSSH2CommandExecutor.swift in Sources */,
 				881C3241D5744DD57A696F0B58A5C643 /* RemoteCommandExecutor.swift in Sources */,
 				9FE4A91749456836DFF87C4F5FC4FA98 /* RemoteCommandModels.swift in Sources */,
+				89D086C310BD9379FC13A274D88E66D6 /* AdministratorSFTPServerResolver.swift in Sources */,
 				51001EB58F55BD294112FAF994D1860B /* LibSSH2RemoteFileSystem.swift in Sources */,
 				6200890E97DC99C23C243B10171E94FE /* NativeSFTPHandles.swift in Sources */,
 				200E6B7316C0EE09D3DAFAF91E8090C0 /* RemoteFileSystem.swift in Sources */,
 				E17D2567F60F947C24AEEF9CAB77EFCB /* RemoteFileSystemModels.swift in Sources */,
 				36BF1899D108AA823208411D02987F20 /* RemoteFileSystemOperations.swift in Sources */,
+				2F04264B88675807ABF4CAC112D98740 /* ExecSFTPRemoteFileSystem.swift in Sources */,
+				405CD51B63D8ED69F1B759D0495591FD /* SFTPCodec.swift in Sources */,
+				1FB0F5DF6598D3069B8EC1879FA0303B /* SFTPPacket.swift in Sources */,
+				813C25D96650A260F892B397DB1A24DC /* SFTPRequestMultiplexer.swift in Sources */,
 				AA2763D3E2F5AACE9FD97A27A62696AB /* AuthenticationCoordinator.swift in Sources */,
 				6E175EB588AADDF260433FD1EE8F4005 /* HostKeyVerifier.swift in Sources */,
 				101D1AD9128CF4CD4105C90A58B7C7A4 /* LibSSH2Transport.swift in Sources */,

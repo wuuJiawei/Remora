@@ -127,7 +127,11 @@ public final class LibSSH2CommandExecutor: RemoteCommandExecutorProtocol, @unche
     }
 }
 
-actor NativeCommandExecution: RemoteCommandExecutionProtocol {
+protocol SFTPCommandExecution: RemoteCommandExecutionProtocol {
+    func start() async throws
+}
+
+actor NativeCommandExecution: SFTPCommandExecution {
     nonisolated let id = UUID()
 
     private let handle: NativeSSHChannelHandle

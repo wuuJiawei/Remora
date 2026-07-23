@@ -18,7 +18,8 @@ public actor RemoteSession: RemoteSessionProtocol {
     private let transport: any RemoteSessionTransportProtocol
     private var state: RemoteSessionState
     private var channels: [UUID: ManagedRemoteShellChannel] = [:]
-    private var fileSystems: [UUID: LibSSH2RemoteFileSystem] = [:]
+    private var fileSystems: [UUID: any RemoteFileSystemProtocol] = [:]
+    private var openingFileSystemIDs: Set<UUID> = []
 
     public init(
         id: UUID = UUID(),
@@ -72,10 +73,68 @@ public actor RemoteSession: RemoteSessionProtocol {
                 safeDiagnosticMessage: "Remote session does not provide native file access"
             )
         }
-        let fileSystem = try await transport.openFileSystem { [weak self] fileSystemID in
-            await self?.removeFileSystem(id: fileSystemID)
+        let registrationID = UUID()
+        openingFileSystemIDs.insert(registrationID)
+        let fileSystem: LibSSH2RemoteFileSystem
+        do {
+            fileSystem = try await transport.openFileSystem { [weak self] _ in
+                await self?.removeFileSystem(id: registrationID)
+            }
+        } catch {
+            openingFileSystemIDs.remove(registrationID)
+            throw error
         }
-        fileSystems[fileSystem.id] = fileSystem
+        guard openingFileSystemIDs.remove(registrationID) != nil else {
+            await fileSystem.close()
+            throw capabilityClosedDuringOpenError(capability: "file access")
+        }
+        guard state == .ready else {
+            await fileSystem.close()
+            throw sessionNotReadyError(capability: "file access")
+        }
+        fileSystems[registrationID] = fileSystem
+        return fileSystem
+    }
+
+    public func administratorFileSystem() async throws -> any RemoteFileSystemProtocol {
+        guard state == .ready, let transport = transport as? LibSSH2Transport else {
+            throw RemoteOperationError(
+                category: .session,
+                code: "administrator_file_system_capability_unavailable",
+                safeDiagnosticMessage: "Remote session does not provide administrator file access"
+            )
+        }
+
+        let resolver = try AdministratorSFTPServerResolver()
+        let executor = LibSSH2CommandExecutor(transport: transport)
+        let serverPath = try await resolver.resolve(using: executor)
+        guard state == .ready else {
+            throw sessionNotReadyError(capability: "administrator file access")
+        }
+
+        let registrationID = UUID()
+        openingFileSystemIDs.insert(registrationID)
+        let fileSystem: ExecSFTPRemoteFileSystem
+        do {
+            fileSystem = try await ExecSFTPRemoteFileSystem.open(
+                transport: transport,
+                serverPath: serverPath
+            ) { [weak self] _ in
+                await self?.removeFileSystem(id: registrationID)
+            }
+        } catch {
+            openingFileSystemIDs.remove(registrationID)
+            throw error
+        }
+        guard openingFileSystemIDs.remove(registrationID) != nil else {
+            await fileSystem.close()
+            throw capabilityClosedDuringOpenError(capability: "administrator file access")
+        }
+        guard state == .ready else {
+            await fileSystem.close()
+            throw sessionNotReadyError(capability: "administrator file access")
+        }
+        fileSystems[registrationID] = fileSystem
         return fileSystem
     }
 
@@ -106,7 +165,24 @@ public actor RemoteSession: RemoteSessionProtocol {
     }
 
     private func removeFileSystem(id: UUID) {
+        openingFileSystemIDs.remove(id)
         fileSystems.removeValue(forKey: id)
+    }
+
+    private func sessionNotReadyError(capability: String) -> RemoteOperationError {
+        RemoteOperationError(
+            category: .session,
+            code: "session_not_ready",
+            safeDiagnosticMessage: "Remote session is not ready for \(capability)"
+        )
+    }
+
+    private func capabilityClosedDuringOpenError(capability: String) -> RemoteOperationError {
+        RemoteOperationError(
+            category: .fileSystem,
+            code: "file_system_closed_during_open",
+            safeDiagnosticMessage: "Remote \(capability) closed while it was opening"
+        )
     }
 }
 
