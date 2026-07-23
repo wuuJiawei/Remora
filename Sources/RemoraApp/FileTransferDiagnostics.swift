@@ -24,8 +24,4 @@ enum FileTransferDiagnostics {
             }
         }
     }
-
-    static func failureMessage(for error: Error) -> String {
-        "\(error.localizedDescription) — See log: \(displayPath)"
-    }
 }

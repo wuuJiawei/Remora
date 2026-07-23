@@ -12,8 +12,7 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         let viewModel: FileTransferViewModel
         let directorySyncBridge: TerminalDirectorySyncBridge
         let controller: FileManagerWorkspaceWindowController
-        let runtimeObserver: AnyCancellable
-        let commandSessionTask: Task<Void, Never>
+        let nativeSessionTask: Task<Void, Never>
 
         init(
             id: UUID,
@@ -22,8 +21,7 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             viewModel: FileTransferViewModel,
             directorySyncBridge: TerminalDirectorySyncBridge,
             controller: FileManagerWorkspaceWindowController,
-            runtimeObserver: AnyCancellable,
-            commandSessionTask: Task<Void, Never>
+            nativeSessionTask: Task<Void, Never>
         ) {
             self.id = id
             self.host = host
@@ -31,8 +29,7 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             self.viewModel = viewModel
             self.directorySyncBridge = directorySyncBridge
             self.controller = controller
-            self.runtimeObserver = runtimeObserver
-            self.commandSessionTask = commandSessionTask
+            self.nativeSessionTask = nativeSessionTask
         }
     }
 
@@ -49,15 +46,15 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         let cascadeIndex = windows.count
         let runtimeID = ObjectIdentifier(runtime)
         let viewModel = FileTransferViewModel()
-        viewModel.isRemoteAdministratorMode = host.remoteCommandPrivilege == .sudoNonInteractive
+        viewModel.setRemoteAdministratorMode(host.remoteCommandPrivilege == .sudoNonInteractive)
         LogManager.info(
             .fileManager,
             "administrator mode initialized enabled=\(viewModel.isRemoteAdministratorMode) privilege=\(host.remoteCommandPrivilege.rawValue)"
         )
         let directorySyncBridge = TerminalDirectorySyncBridge()
-        bind(viewModel: viewModel, directorySyncBridge: directorySyncBridge, runtime: runtime, fallbackHost: host)
+        directorySyncBridge.bind(fileTransfer: viewModel, runtime: runtime)
 
-        var commandSessionTask: Task<Void, Never>?
+        var nativeSessionTask: Task<Void, Never>?
         let controller = FileManagerWorkspaceWindowController(
             host: host,
             runtime: runtime,
@@ -88,28 +85,22 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
                 let hostID = runtime.reconnectableSSHHost?.id ?? host.id
                 hostCatalog.reorderQuickPaths(hostID: hostID, orderedQuickPathIDs: orderedIDs)
             },
-            onRefreshRemote: { runtime in
-                Self.refreshOrReconnect(viewModel: viewModel, runtime: runtime)
+            onRefreshRemote: { _ in
+                viewModel.performContextAction(.refresh)
             },
-            onAdministratorModeChanged: { [weak self, weak viewModel, weak directorySyncBridge] isEnabled in
-                guard let self, let viewModel, let directorySyncBridge else { return }
+            onAdministratorModeChanged: { [weak viewModel] isEnabled in
+                guard let viewModel else { return }
                 LogManager.info(
                     .fileManager,
                     "administrator mode change requested from=\(viewModel.isRemoteAdministratorMode) to=\(isEnabled)"
                 )
-                viewModel.isRemoteAdministratorMode = isEnabled
-                self.bind(
-                    viewModel: viewModel,
-                    directorySyncBridge: directorySyncBridge,
-                    runtime: runtime,
-                    fallbackHost: host
-                )
+                viewModel.setRemoteAdministratorMode(isEnabled)
             },
             onOpenDownloadSettings: onOpenDownloadSettings,
             onClose: { [weak self, weak viewModel] in
-                commandSessionTask?.cancel()
+                nativeSessionTask?.cancel()
                 if let viewModel {
-                    Task { await viewModel.releaseNativeCommandSession() }
+                    Task { await viewModel.releaseNativeSession() }
                 }
                 self?.windows.removeValue(forKey: windowID)
             }
@@ -118,34 +109,27 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         applyAppearanceMode(to: controller.window)
         positionWindowNearPrimaryWindow(controller.window, cascadeIndex: cascadeIndex)
 
-        let runtimeObserver = Publishers.CombineLatest3(
-            runtime.$connectionMode,
-            runtime.$connectionState,
-            runtime.$connectedSSHHost
-        )
-        .receive(on: RunLoop.main)
-        .sink { [weak self, weak viewModel, weak directorySyncBridge] _, _, _ in
-            guard let self, let viewModel, let directorySyncBridge else { return }
-            self.bind(
-                viewModel: viewModel,
-                directorySyncBridge: directorySyncBridge,
-                runtime: runtime,
-                fallbackHost: host
-            )
-        }
-
         let acquisitionTask = Task { [weak viewModel] in
             guard let viewModel else { return }
             do {
                 let lease = try await runtime.acquireRemoteSessionLease()
                 do {
                     let session = try await lease.session()
+                    let identity = await session.identitySnapshot()
                     let executor = try await session.commandExecutor()
+                    let fileSystem = try await session.fileSystem()
                     guard !Task.isCancelled else {
+                        await fileSystem.close()
                         await lease.release()
                         return
                     }
-                    viewModel.attachNativeCommandSession(lease: lease, executor: executor)
+                    viewModel.attachNativeSession(
+                        lease: lease,
+                        executor: executor,
+                        fileSystem: fileSystem,
+                        bindingKey: "native:\(identity.sessionID.uuidString)",
+                        initialRemoteDirectory: runtime.workingDirectory ?? "/"
+                    )
                 } catch {
                     await lease.release()
                     throw error
@@ -153,10 +137,10 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             } catch is CancellationError {
                 return
             } catch {
-                viewModel.failNativeCommandSessionAttachment(error)
+                viewModel.failNativeSessionAttachment(error)
             }
         }
-        commandSessionTask = acquisitionTask
+        nativeSessionTask = acquisitionTask
 
         windows[windowID] = WindowRecord(
             id: windowID,
@@ -165,80 +149,13 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             viewModel: viewModel,
             directorySyncBridge: directorySyncBridge,
             controller: controller,
-            runtimeObserver: runtimeObserver,
-            commandSessionTask: acquisitionTask
+            nativeSessionTask: acquisitionTask
         )
 
         LogManager.info(.fileManager, "show window id=\(windowID.uuidString)")
         controller.showWindow(nil)
         controller.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func bind(
-        viewModel: FileTransferViewModel,
-        directorySyncBridge: TerminalDirectorySyncBridge,
-        runtime: TerminalRuntime,
-        fallbackHost: RemoraCore.Host
-    ) {
-        LogManager.info(
-            .fileManager,
-            "bind runtimeMode=\(runtime.connectionMode.rawValue) state=\(runtime.connectionState) workingDir=\(runtime.workingDirectory ?? "/")"
-        )
-        let binding = makeBinding(
-            from: runtime,
-            fallbackHost: fallbackHost,
-            administratorMode: viewModel.isRemoteAdministratorMode
-        )
-        viewModel.bindSFTPClient(
-            binding.client,
-            bindingKey: binding.bindingKey,
-            initialRemoteDirectory: binding.initialRemoteDirectory
-        )
-        directorySyncBridge.bind(fileTransfer: viewModel, runtime: runtime)
-    }
-
-    private static func refreshOrReconnect(
-        viewModel: FileTransferViewModel,
-        runtime: TerminalRuntime
-    ) {
-        let decision = SSHRefreshActionDecision.resolve(
-            connectionState: runtime.connectionState,
-            hasReconnectableHost: runtime.reconnectableSSHHost != nil
-        )
-
-        switch decision {
-        case .refresh:
-            viewModel.performContextAction(.refresh)
-        case .reconnect:
-            runtime.reconnectSSHSession()
-        }
-    }
-
-    private func makeBinding(
-        from runtime: TerminalRuntime,
-        fallbackHost: RemoraCore.Host,
-        administratorMode: Bool
-    ) -> FileManagerRuntimeBinding {
-        if runtime.connectionMode == .ssh, let host = runtime.connectedSSHHost {
-            let privilege: RemoteCommandPrivilege = administratorMode ? .sudoNonInteractive : .currentUser
-            LogManager.info(
-                .fileManager,
-                "create remote client privilege=\(privilege.rawValue) runtimeState=\(runtime.connectionState)"
-            )
-            return FileManagerRuntimeBinding(
-                client: SystemSFTPClient(host: host, remoteCommandPrivilege: privilege),
-                bindingKey: Self.bindingKey(runtime: runtime, host: host, privilege: privilege),
-                initialRemoteDirectory: runtime.workingDirectory ?? "/"
-            )
-        }
-
-        let disconnectedHost = runtime.reconnectableSSHHost ?? fallbackHost
-        return FileManagerRuntimeBinding(
-            client: DisconnectedSFTPClient(),
-            bindingKey: Self.disconnectedBindingKey(runtime: runtime, host: disconnectedHost),
-            initialRemoteDirectory: runtime.workingDirectory ?? "/"
-        )
     }
 
     private func applyAppearanceMode(to window: NSWindow?) {
@@ -294,35 +211,6 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         window.setFrame(targetFrame, display: true)
     }
 
-    private struct FileManagerRuntimeBinding {
-        let client: SFTPClientProtocol
-        let bindingKey: String
-        let initialRemoteDirectory: String
-    }
-
-    private static func bindingKey(
-        runtime: TerminalRuntime,
-        host: RemoraCore.Host,
-        privilege: RemoteCommandPrivilege
-    ) -> String {
-        "runtime:\(ObjectIdentifier(runtime))|ssh:\(sftpHostSignature(for: host))|privilege:\(privilege.rawValue)"
-    }
-
-    private static func disconnectedBindingKey(runtime: TerminalRuntime, host: RemoraCore.Host) -> String {
-        "runtime:\(ObjectIdentifier(runtime))|disconnected:\(host.id.uuidString)"
-    }
-
-    private static func sftpHostSignature(for host: RemoraCore.Host) -> String {
-        [
-            host.id.uuidString,
-            host.address,
-            "\(host.port)",
-            host.username,
-            host.auth.method.rawValue,
-            host.auth.keyReference ?? "",
-            host.auth.passwordReference ?? "",
-        ].joined(separator: "|")
-    }
 }
 
 @MainActor
@@ -639,6 +527,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                 currentPath: viewModel.remoteDirectoryPath,
                 entries: viewModel.remoteEntries,
                 isLoading: viewModel.isRemoteLoading,
+                errorMessage: viewModel.remoteLoadErrorMessage,
                 searchQuery: query,
                 transferProgress: viewModel.overallTransferProgress
             )
@@ -782,6 +671,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     currentPath: path,
                     entries: viewModel.remoteEntries,
                     isLoading: viewModel.isRemoteLoading,
+                    errorMessage: viewModel.remoteLoadErrorMessage,
                     searchQuery: self?.splitController.currentSearchQuery ?? "",
                     transferProgress: viewModel.overallTransferProgress
                 )
@@ -789,9 +679,9 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             .store(in: &toolbarCancellables)
 
         viewModel.$remoteEntries
-            .combineLatest(viewModel.$isRemoteLoading)
+            .combineLatest(viewModel.$isRemoteLoading, viewModel.$remoteLoadErrorMessage)
             .receive(on: RunLoop.main)
-            .sink { [weak self, weak viewModel] entries, isLoading in
+            .sink { [weak self, weak viewModel] entries, isLoading, errorMessage in
                 guard let self, let viewModel else { return }
                 self.splitController.updateSidebarDirectorySnapshot(
                     path: viewModel.remoteDirectoryPath,
@@ -801,9 +691,19 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     currentPath: viewModel.remoteDirectoryPath,
                     entries: entries,
                     isLoading: isLoading,
+                    errorMessage: errorMessage,
                     searchQuery: self.splitController.currentSearchQuery,
                     transferProgress: viewModel.overallTransferProgress
                 )
+            }
+            .store(in: &toolbarCancellables)
+
+        viewModel.$remoteLoadErrorMessage
+            .compactMap { $0 }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] message in
+                self?.toastController.show(message: message)
             }
             .store(in: &toolbarCancellables)
 

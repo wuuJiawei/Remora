@@ -532,6 +532,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
         currentPath: String,
         entries: [RemoteFileEntry],
         isLoading: Bool,
+        errorMessage: String?,
         searchQuery: String,
         transferProgress: Double? = nil
     ) {
@@ -543,6 +544,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
             currentPath: currentPath,
             entries: entries,
             isLoading: isLoading,
+            errorMessage: errorMessage,
             searchQuery: searchQuery,
             transferProgress: transferProgress
         )
@@ -1604,6 +1606,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     private var currentPath = "/"
     private var entries: [RemoteFileEntry] = []
     private var isLoading = false
+    private var errorMessage: String?
     private var sortColumn: Column = .name
     private var sortAscending = true
     private let defaults = UserDefaults.standard
@@ -1740,6 +1743,8 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         emptyLabel.alignment = .center
         emptyLabel.textColor = .secondaryLabelColor
         emptyLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        emptyLabel.lineBreakMode = .byWordWrapping
+        emptyLabel.maximumNumberOfLines = 3
 
         loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
         loadingIndicator.style = .spinning
@@ -1758,6 +1763,8 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
 
             emptyLabel.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            emptyLabel.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 40),
+            emptyLabel.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -40),
 
             loadingIndicator.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             loadingIndicator.bottomAnchor.constraint(equalTo: emptyLabel.topAnchor, constant: -12),
@@ -1771,6 +1778,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         currentPath: String,
         entries: [RemoteFileEntry],
         isLoading: Bool,
+        errorMessage: String?,
         searchQuery: String,
         transferProgress: Double? = nil
     ) {
@@ -1781,6 +1789,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         self.currentPath = currentPath
         self.entries = entries
         self.isLoading = isLoading
+        self.errorMessage = errorMessage
         self.searchQuery = searchQuery
         tableView.reloadData()
         updateEmptyState()
@@ -1924,6 +1933,14 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         }
 
         loadingIndicator.stopAnimation(nil)
+        if filteredEntries.isEmpty,
+           let errorMessage,
+           !errorMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            emptyLabel.stringValue = errorMessage
+            emptyLabel.isHidden = false
+            return
+        }
         if filteredEntries.isEmpty {
             let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             emptyLabel.stringValue = trimmed.isEmpty

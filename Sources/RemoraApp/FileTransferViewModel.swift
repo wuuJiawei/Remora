@@ -232,7 +232,7 @@ struct LocalFileEntry: Identifiable, Hashable {
 
 @MainActor
 final class FileTransferViewModel: ObservableObject {
-    @Published var isRemoteAdministratorMode = false
+    @Published private(set) var isRemoteAdministratorMode = false
     static let maxInlineEditableTextDocumentBytes = 2 * 1024 * 1024
     static let defaultRemoteLogTailLineCount = 399
     static let maxRemoteLogTailLineCount = 5000
@@ -270,9 +270,10 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var remoteSearchResults: [RemoteSearchResult] = []
     @Published private(set) var remoteSearchStatus = RemoteSearchStatus()
 
-    private var sftpClient: SFTPClientProtocol
+    private var remoteFileOperations: RemoteFileSystemOperations?
+    private var nativeFileSystem: (any RemoteFileSystemProtocol)?
     private var remoteCommandExecutor: (any RemoteCommandExecutorProtocol)?
-    private var remoteCommandSessionLease: (any RemoteSessionLeaseProtocol)?
+    private var remoteSessionLease: (any RemoteSessionLeaseProtocol)?
     private let transferCenter: TransferCenter
     private var transferTasks: [UUID: Task<Void, Never>] = [:]
     private var remoteSearchTask: Task<Void, Never>?
@@ -287,20 +288,21 @@ final class FileTransferViewModel: ObservableObject {
     private var remoteBindingStates: [String: RemoteBindingState] = [:]
     private var remoteArchiveToolchainCache: [String: RemoteArchiveToolchain] = [:]
     private var currentRemoteConnectionID = "__default"
-    // Increments on every bindSFTPClient call. Async remote-load tasks must match
+    // Increments on every remote filesystem binding change. Async remote-load tasks must match
     // the latest generation before mutating published state, preventing stale
     // results from old session bindings from overwriting the current UI.
-    private var sftpBindingGeneration: Int = 0
+    private var remoteFileBindingGeneration: Int = 0
     private var downloadDirectoryChangeCancellable: AnyCancellable?
     private let logger = Logger(subsystem: "io.lighting-tech.remora", category: "file-transfer")
 
     init(
-        sftpClient: SFTPClientProtocol = DisconnectedSFTPClient(),
+        remoteFileSystem: (any RemoteFileSystemProtocol)? = nil,
         localDirectoryURL: URL = FileTransferViewModel.configuredLocalDirectoryURL(),
         remoteDirectoryPath: String = "/",
         maxConcurrentTransfers: Int = 2
     ) {
-        self.sftpClient = sftpClient
+        self.nativeFileSystem = remoteFileSystem
+        self.remoteFileOperations = remoteFileSystem.map(RemoteFileSystemOperations.init(fileSystem:))
         self.localDirectoryURL = Self.resolveWritableLocalDirectory(from: localDirectoryURL)
         self.remoteDirectoryPath = Self.normalizeStaticRemoteDirectoryPath(remoteDirectoryPath)
         self.transferCenter = TransferCenter(maxConcurrentTransfers: maxConcurrentTransfers)
@@ -319,43 +321,102 @@ final class FileTransferViewModel: ObservableObject {
         }
 
         refreshLocalEntries()
-        Task {
-            await refreshRemoteEntries()
+        if remoteFileSystem != nil {
+            Task {
+                await refreshRemoteEntries()
+            }
         }
     }
 
-    func attachNativeCommandSession(
+    func attachNativeSession(
         lease: any RemoteSessionLeaseProtocol,
-        executor: any RemoteCommandExecutorProtocol
+        executor: any RemoteCommandExecutorProtocol,
+        fileSystem: any RemoteFileSystemProtocol,
+        bindingKey: String,
+        initialRemoteDirectory: String
     ) {
-        let previousLease = remoteCommandSessionLease
-        remoteCommandSessionLease = lease
+        let previousLease = remoteSessionLease
+        let previousFileSystem = nativeFileSystem
+        remoteSessionLease = lease
         remoteCommandExecutor = executor
-        LogManager.info(.fileManager, "native command session attached lease=\(lease.id.uuidString)")
+        nativeFileSystem = fileSystem
+        bindRemoteFileSystem(
+            fileSystem,
+            bindingKey: bindingKey,
+            initialRemoteDirectory: initialRemoteDirectory
+        )
+        LogManager.info(
+            .fileManager,
+            "native file session attached lease=\(lease.id.uuidString) binding=\(bindingKey) administrator=\(isRemoteAdministratorMode)"
+        )
         if let previousLease, previousLease.id != lease.id {
             Task {
+                await previousFileSystem?.close()
                 await previousLease.release()
             }
         }
     }
 
-    func failNativeCommandSessionAttachment(_ error: Error) {
+    func failNativeSessionAttachment(_ error: Error) {
+        remoteFileBindingGeneration += 1
+        remoteFileOperations = nil
+        nativeFileSystem = nil
         remoteCommandExecutor = nil
+        isRemoteLoading = false
+        remoteLoadErrorMessage = remoteFileDisplayMessage(for: error)
         LogManager.error(
             .fileManager,
-            "native command session attachment failed detail=\(error.localizedDescription)"
+            "native file session attachment failed detail=\(error.localizedDescription)"
         )
     }
 
-    func releaseNativeCommandSession() async {
-        let lease = remoteCommandSessionLease
-        remoteCommandSessionLease = nil
+    func releaseNativeSession() async {
+        cancelTrackedTransfers(clearQueue: false)
+        cancelRemoteSearch(resetState: false)
+        remoteFileBindingGeneration += 1
+        let fileSystem = nativeFileSystem
+        let lease = remoteSessionLease
+        remoteFileOperations = nil
+        nativeFileSystem = nil
+        remoteSessionLease = nil
         remoteCommandExecutor = nil
+        isRemoteLoading = false
+        await fileSystem?.close()
         await lease?.release()
         LogManager.info(
             .fileManager,
-            "native command session released lease=\(lease?.id.uuidString ?? "none")"
+            "native file session released lease=\(lease?.id.uuidString ?? "none")"
         )
+    }
+
+    func setRemoteAdministratorMode(_ isEnabled: Bool) {
+        guard isRemoteAdministratorMode != isEnabled else { return }
+        isRemoteAdministratorMode = isEnabled
+        remoteFileBindingGeneration += 1
+        let bindingGeneration = remoteFileBindingGeneration
+        cancelRemoteSearch(resetState: false)
+        cancelTrackedTransfers(clearQueue: false)
+        remoteRefreshInFlightPaths.removeAll()
+        isRemoteLoading = false
+
+        if isEnabled {
+            remoteFileOperations = nil
+            remoteLoadErrorMessage = tr("Administrator file access is not available in this version. Disable administrator mode to use the file manager.")
+            LogManager.info(.fileManager, "native file operations suspended administrator=true")
+            return
+        }
+
+        remoteFileOperations = nativeFileSystem.map(RemoteFileSystemOperations.init(fileSystem:))
+        guard remoteFileOperations != nil else {
+            remoteLoadErrorMessage = tr("Remote file session is unavailable.")
+            LogManager.info(.fileManager, "native file operations unavailable administrator=false filesystem=none")
+            return
+        }
+        remoteLoadErrorMessage = nil
+        LogManager.info(.fileManager, "native file operations resumed administrator=false")
+        Task {
+            await refreshRemoteEntries(bindingGeneration: bindingGeneration)
+        }
     }
 
     private static func configuredLocalDirectoryURL(
@@ -396,17 +457,60 @@ final class FileTransferViewModel: ObservableObject {
         refreshLocalEntries()
     }
 
-    func bindSFTPClient(
-        _ client: SFTPClientProtocol,
+    private func requiredRemoteFileOperations() throws -> RemoteFileSystemOperations {
+        guard let remoteFileOperations else {
+            let isAdministratorUnavailable = isRemoteAdministratorMode && nativeFileSystem != nil
+            throw RemoteOperationError(
+                category: isAdministratorUnavailable ? .privilege : .fileSystem,
+                code: isAdministratorUnavailable
+                    ? "administrator_file_system_unavailable"
+                    : "file_system_session_unavailable",
+                safeDiagnosticMessage: isAdministratorUnavailable
+                    ? tr("Administrator file access is not available in this version. Disable administrator mode to use the file manager.")
+                    : tr("Remote file session is unavailable.")
+            )
+        }
+        return remoteFileOperations
+    }
+
+    private func remoteFileDisplayMessage(for error: Error) -> String {
+        guard let fileSystemError = error as? RemoteFileSystemOperationError else {
+            return error.localizedDescription
+        }
+        switch fileSystemError.status {
+        case .notFound:
+            return tr("The remote path was not found.")
+        case .permissionDenied:
+            return tr("Permission was denied for this remote file operation.")
+        case .alreadyExists:
+            return tr("An item already exists at the remote destination.")
+        case .invalidPath:
+            return tr("The remote path is invalid.")
+        case .unsupported:
+            return tr("The server does not support this file operation.")
+        case .malformedResponse:
+            return tr("The server returned an invalid file response.")
+        case .connectionLost:
+            return tr("The remote file session was disconnected.")
+        case .unknown:
+            return tr("The remote file operation failed.")
+        }
+    }
+
+    func bindRemoteFileSystem(
+        _ fileSystem: any RemoteFileSystemProtocol,
         bindingKey: String = "__default",
         initialRemoteDirectory: String? = nil
     ) {
         let normalizedBindingKey = normalizedRemoteBindingKey(bindingKey)
-        sftpBindingGeneration += 1
-        let bindingGeneration = sftpBindingGeneration
+        remoteFileBindingGeneration += 1
+        let bindingGeneration = remoteFileBindingGeneration
         remoteBindingStates[activeRemoteBindingKey] = makeCurrentRemoteBindingState()
 
-        sftpClient = client
+        nativeFileSystem = fileSystem
+        remoteFileOperations = isRemoteAdministratorMode
+            ? nil
+            : RemoteFileSystemOperations(fileSystem: fileSystem)
         activeRemoteBindingKey = normalizedBindingKey
         currentRemoteConnectionID = normalizedBindingKey == "__default"
             ? "\(normalizedBindingKey)#\(bindingGeneration)"
@@ -418,6 +522,12 @@ final class FileTransferViewModel: ObservableObject {
         remoteRefreshInFlightPaths.removeAll()
         remoteArchiveToolchainCache.removeValue(forKey: normalizedBindingKey)
         isRemoteLoading = false
+
+        if isRemoteAdministratorMode {
+            remoteEntries = []
+            remoteLoadErrorMessage = tr("Administrator file access is not available in this version. Disable administrator mode to use the file manager.")
+            return
+        }
 
         if let saved = remoteBindingStates[normalizedBindingKey] {
             applyRemoteBindingState(saved)
@@ -446,7 +556,7 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     func refreshAll() {
-        let bindingGeneration = sftpBindingGeneration
+        let bindingGeneration = remoteFileBindingGeneration
         refreshLocalEntries()
         Task {
             await refreshRemoteEntries(bindingGeneration: bindingGeneration)
@@ -571,7 +681,7 @@ final class FileTransferViewModel: ObservableObject {
             path: path,
             preferCachedFirst: false,
             deduplicateInFlight: false,
-            bindingGeneration: bindingGeneration ?? sftpBindingGeneration
+            bindingGeneration: bindingGeneration ?? remoteFileBindingGeneration
         )
     }
 
@@ -687,7 +797,7 @@ final class FileTransferViewModel: ObservableObject {
             return cached.entries
         }
 
-        let fetched = try await sftpClient.list(path: normalizedPath)
+        let fetched = try await requiredRemoteFileOperations().list(path: normalizedPath)
         let sorted = sortRemoteEntries(fetched)
         let cacheEntry = CachedRemoteDirectory(entries: sorted, fetchedAt: Date())
 
@@ -746,6 +856,7 @@ final class FileTransferViewModel: ObservableObject {
             owner: attributes.owner,
             group: attributes.group,
             isDirectory: attributes.isDirectory,
+            isSymbolicLink: attributes.isSymbolicLink,
             modifiedAt: attributes.modifiedAt
         )
         enqueueDownload(remoteEntry: entry)
@@ -842,7 +953,7 @@ final class FileTransferViewModel: ObservableObject {
 
         Task {
             do {
-                try await sftpClient.upload(data: Data(), to: targetPath)
+                try await requiredRemoteFileOperations().createEmptyFile(path: targetPath)
             } catch {
                 return
             }
@@ -862,7 +973,7 @@ final class FileTransferViewModel: ObservableObject {
 
         Task {
             do {
-                try await sftpClient.mkdir(path: targetPath)
+                try await requiredRemoteFileOperations().createDirectory(path: targetPath)
             } catch {
                 return
             }
@@ -880,7 +991,7 @@ final class FileTransferViewModel: ObservableObject {
         Task {
             for path in normalizedPaths {
                 do {
-                    try await sftpClient.remove(path: path)
+                    try await requiredRemoteFileOperations().removeRecursively(path: path)
                 } catch {
                     continue
                 }
@@ -914,7 +1025,11 @@ final class FileTransferViewModel: ObservableObject {
                 continue
             }
             do {
-                try await sftpClient.move(from: source, to: targetPath)
+                try await requiredRemoteFileOperations().rename(
+                    from: source,
+                    to: targetPath,
+                    overwrite: conflictStrategy == .overwrite
+                )
                 movedCount += 1
             } catch {
                 continue
@@ -931,9 +1046,9 @@ final class FileTransferViewModel: ObservableObject {
 
         Task {
             do {
-                let attributes = try await sftpClient.stat(path: normalizedPath)
+                let attributes = try await requiredRemoteFileOperations().attributes(path: normalizedPath)
                 let destination = try await nextClonePath(for: normalizedPath, isDirectory: attributes.isDirectory)
-                try await sftpClient.copy(from: normalizedPath, to: destination)
+                try await requiredRemoteFileOperations().copyRecursively(from: normalizedPath, to: destination)
             } catch {
                 return
             }
@@ -953,7 +1068,7 @@ final class FileTransferViewModel: ObservableObject {
 
         Task {
             do {
-                try await sftpClient.rename(from: source, to: destination)
+                try await requiredRemoteFileOperations().rename(from: source, to: destination, overwrite: false)
             } catch {
                 return
             }
@@ -1005,9 +1120,13 @@ final class FileTransferViewModel: ObservableObject {
                 do {
                     switch clipboard.mode {
                     case .copy:
-                        try await sftpClient.copy(from: item.path, to: targetPath)
+                        try await requiredRemoteFileOperations().copyRecursively(from: item.path, to: targetPath)
                     case .cut:
-                        try await sftpClient.move(from: item.path, to: targetPath)
+                        try await requiredRemoteFileOperations().rename(
+                            from: item.path,
+                            to: targetPath,
+                            overwrite: conflictStrategy == .overwrite
+                        )
                     }
                 } catch {
                     continue
@@ -1044,9 +1163,13 @@ final class FileTransferViewModel: ObservableObject {
             do {
                 switch clipboard.mode {
                 case .copy:
-                    try await sftpClient.copy(from: item.path, to: targetPath)
+                    try await requiredRemoteFileOperations().copyRecursively(from: item.path, to: targetPath)
                 case .cut:
-                    try await sftpClient.move(from: item.path, to: targetPath)
+                    try await requiredRemoteFileOperations().rename(
+                        from: item.path,
+                        to: targetPath,
+                        overwrite: conflictStrategy == .overwrite
+                    )
                 }
                 pastedCount += 1
             } catch {
@@ -1134,7 +1257,7 @@ final class FileTransferViewModel: ObservableObject {
 
         let modifiedAt: Date?
         if knownSize == nil || options.knownModifiedAt == nil {
-            let attributes = try await sftpClient.stat(path: normalizedPath)
+            let attributes = try await requiredRemoteFileOperations().attributes(path: normalizedPath)
             if attributes.size > maxAllowedBytes {
                 throw RemoteTextDocumentError.fileTooLarge(
                     actualBytes: attributes.size,
@@ -1148,7 +1271,7 @@ final class FileTransferViewModel: ObservableObject {
 
         let tempURL = Self.makeTemporaryTextDocumentURL()
         defer { try? FileManager.default.removeItem(at: tempURL) }
-        try await sftpClient.download(path: normalizedPath, to: tempURL, progress: nil)
+        try await requiredRemoteFileOperations().download(path: normalizedPath, to: tempURL, progress: nil)
 
         let payload = try Data(contentsOf: tempURL, options: [.mappedIfSafe])
         if payload.count > maxBytes {
@@ -1191,25 +1314,33 @@ final class FileTransferViewModel: ObservableObject {
         expectedModifiedAt: Date?
     ) async throws -> Date? {
         let normalizedPath = normalizeRemoteDirectoryPath(path)
-        let latestAttributes = try? await sftpClient.stat(path: normalizedPath)
+        let latestAttributes = try? await requiredRemoteFileOperations().attributes(path: normalizedPath)
 
         if let expectedModifiedAt, let latest = latestAttributes?.modifiedAt, latest > expectedModifiedAt {
-            throw SFTPClientError.unsupportedOperation("file-modified-conflict")
+            throw RemoteOperationError(
+                category: .fileSystem,
+                code: "file_modified_conflict",
+                safeDiagnosticMessage: "The remote file changed after it was opened"
+            )
         }
 
         guard let data = text.data(using: .utf8) else {
-            throw SFTPClientError.unsupportedOperation("unsupported-text-encoding")
+            throw RemoteOperationError(
+                category: .fileSystem,
+                code: "unsupported_text_encoding",
+                safeDiagnosticMessage: "The document cannot be encoded as UTF-8"
+            )
         }
 
-        try await sftpClient.upload(data: data, to: normalizedPath)
+        try await requiredRemoteFileOperations().upload(data: data, to: normalizedPath)
         invalidateRemoteDirectoryCache()
         await refreshRemoteEntries()
-        let savedAttributes = try? await sftpClient.stat(path: normalizedPath)
+        let savedAttributes = try? await requiredRemoteFileOperations().attributes(path: normalizedPath)
         return savedAttributes?.modifiedAt
     }
 
     func loadRemoteAttributes(path: String) async throws -> RemoteFileAttributes {
-        try await sftpClient.stat(path: normalizeRemoteDirectoryPath(path))
+        try await requiredRemoteFileOperations().attributes(path: normalizeRemoteDirectoryPath(path))
     }
 
     func saveRemoteAttributes(path: String, attributes: RemoteFileAttributes, recursively: Bool = false) async throws {
@@ -1217,14 +1348,14 @@ final class FileTransferViewModel: ObservableObject {
         if recursively {
             try await saveRemoteAttributesRecursively(path: normalizedPath, template: attributes)
         } else {
-            try await sftpClient.setAttributes(path: normalizedPath, attributes: attributes)
+            try await requiredRemoteFileOperations().setAttributes(path: normalizedPath, attributes: attributes)
         }
         invalidateRemoteDirectoryCache()
         await refreshRemoteEntries()
     }
 
     private func saveRemoteAttributesRecursively(path: String, template: RemoteFileAttributes) async throws {
-        let currentAttributes = try await sftpClient.stat(path: path)
+        let currentAttributes = try await requiredRemoteFileOperations().attributes(path: path)
         let appliedAttributes = RemoteFileAttributes(
             permissions: template.permissions,
             owner: template.owner,
@@ -1233,10 +1364,10 @@ final class FileTransferViewModel: ObservableObject {
             modifiedAt: currentAttributes.modifiedAt,
             isDirectory: currentAttributes.isDirectory
         )
-        try await sftpClient.setAttributes(path: path, attributes: appliedAttributes)
+        try await requiredRemoteFileOperations().setAttributes(path: path, attributes: appliedAttributes)
 
         guard currentAttributes.isDirectory else { return }
-        let children = try await sftpClient.list(path: path)
+        let children = try await requiredRemoteFileOperations().list(path: path)
         for child in children {
             try await saveRemoteAttributesRecursively(
                 path: normalizeRemoteDirectoryPath(child.path),
@@ -1485,7 +1616,7 @@ final class FileTransferViewModel: ObservableObject {
 
             let entries: [RemoteFileEntry]
             do {
-                entries = try await sftpClient.list(path: normalizedDirectoryPath)
+                entries = try await requiredRemoteFileOperations().list(path: normalizedDirectoryPath)
             } catch {
                 continue
             }
@@ -1653,7 +1784,7 @@ final class FileTransferViewModel: ObservableObject {
             switch item.direction {
             case .upload:
                 let sourceURL = URL(fileURLWithPath: item.sourcePath)
-                try await sftpClient.upload(
+                try await requiredRemoteFileOperations().upload(
                     fileURL: sourceURL,
                     to: item.destinationPath,
                     progress: { [weak self] snapshot in
@@ -1665,7 +1796,10 @@ final class FileTransferViewModel: ObservableObject {
 
             case .download:
                 let destinationURL = URL(fileURLWithPath: item.destinationPath)
-                let attributes = try await sftpClient.stat(path: item.sourcePath)
+                let attributes = try await requiredRemoteFileOperations().attributes(
+                    path: item.sourcePath,
+                    followSymbolicLinks: false
+                )
                 if attributes.isDirectory {
                     FileTransferDiagnostics.append(
                         "materialize directory root remote=\(item.sourcePath) local=\(destinationURL.path)"
@@ -1678,11 +1812,12 @@ final class FileTransferViewModel: ObservableObject {
                         owner: attributes.owner,
                         group: attributes.group,
                         isDirectory: true,
+                        isSymbolicLink: attributes.isSymbolicLink,
                         modifiedAt: attributes.modifiedAt
                     )
                     try await downloadDirectoryTransfer(entry, to: destinationURL, itemID: itemID)
                 } else {
-                    try await sftpClient.download(
+                    try await requiredRemoteFileOperations().download(
                         path: item.sourcePath,
                         to: destinationURL,
                         progress: { [weak self] snapshot in
@@ -1732,7 +1867,11 @@ final class FileTransferViewModel: ObservableObject {
             if let failedIdx = transferQueue.firstIndex(where: { $0.id == itemID }) {
                 transferQueue[failedIdx].status = .failed
                 clearTransferSpeedState(itemID: itemID)
-                transferQueue[failedIdx].message = FileTransferDiagnostics.failureMessage(for: error)
+                transferQueue[failedIdx].message = String(
+                    format: tr("%@ — See log: %@"),
+                    remoteFileDisplayMessage(for: error),
+                    FileTransferDiagnostics.displayPath
+                )
                 let failedItem = transferQueue[failedIdx]
                 FileTransferDiagnostics.append(
                     "transfer failed direction=\(failedItem.direction.rawValue) source=\(failedItem.sourcePath) destination=\(failedItem.destinationPath) reason=\(error.localizedDescription)"
@@ -1820,7 +1959,7 @@ final class FileTransferViewModel: ObservableObject {
             return DirectoryDownloadPlanNode(entry: entry, children: [], totalFileBytes: max(entry.size, 0))
         }
 
-        let children = try await sftpClient.list(path: entry.path)
+        let children = try await requiredRemoteFileOperations().list(path: entry.path)
         var plannedChildren: [DirectoryDownloadPlanNode] = []
         plannedChildren.reserveCapacity(children.count)
         var totalBytes: Int64 = 0
@@ -1867,7 +2006,7 @@ final class FileTransferViewModel: ObservableObject {
         )
         try FileManager.default.createDirectory(at: localURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let completedBytesBeforeFile = completedBytes
-        try await sftpClient.download(
+        try await requiredRemoteFileOperations().download(
             path: node.entry.path,
             to: localURL,
             progress: { [weak self] snapshot in
@@ -1894,7 +2033,7 @@ final class FileTransferViewModel: ObservableObject {
         if normalizedParent != normalizedPath {
             try await ensureRemoteDirectoryExists(normalizedParent)
         }
-        try await sftpClient.mkdir(path: normalizedPath)
+        try await requiredRemoteFileOperations().createDirectory(path: normalizedPath)
     }
 
     private func enqueueUploadFile(localURL: URL, destinationPath: String) {
@@ -2075,7 +2214,7 @@ final class FileTransferViewModel: ObservableObject {
 
     private func remotePathExists(_ path: String) async -> Bool {
         do {
-            _ = try await sftpClient.stat(path: path)
+            _ = try await requiredRemoteFileOperations().attributes(path: path)
             return true
         } catch {
             return false
@@ -2202,7 +2341,7 @@ final class FileTransferViewModel: ObservableObject {
         deduplicateInFlight: Bool,
         bindingGeneration: Int? = nil
     ) async {
-        let bindingGeneration = bindingGeneration ?? sftpBindingGeneration
+        let bindingGeneration = bindingGeneration ?? remoteFileBindingGeneration
         // Drop stale async work from previous bindings.
         guard isActiveBindingGeneration(bindingGeneration) else { return }
         let path = normalizeRemoteDirectoryPath(rawPath)
@@ -2237,7 +2376,7 @@ final class FileTransferViewModel: ObservableObject {
         }
 
         do {
-            let entries = try await sftpClient.list(path: path)
+            let entries = try await requiredRemoteFileOperations().list(path: path)
             guard isActiveBindingGeneration(bindingGeneration) else { return }
             let sorted = sortRemoteEntries(entries)
             remoteDirectoryCache[path] = CachedRemoteDirectory(entries: sorted, fetchedAt: Date())
@@ -2247,17 +2386,21 @@ final class FileTransferViewModel: ObservableObject {
             }
         } catch {
             guard isActiveBindingGeneration(bindingGeneration) else { return }
+            LogManager.error(
+                .fileManager,
+                "remote directory refresh failed binding=\(activeRemoteBindingKey) path=\(path) cached=\(remoteDirectoryCache[path] != nil) detail=\(error.localizedDescription)"
+            )
             if let cached = remoteDirectoryCache[path], !cached.entries.isEmpty {
                 if remoteDirectoryPath == path {
                     remoteEntries = cached.entries
-                    remoteLoadErrorMessage = nil
+                    remoteLoadErrorMessage = remoteFileDisplayMessage(for: error)
                 }
                 return
             }
 
             if remoteDirectoryPath == path {
                 remoteEntries = []
-                remoteLoadErrorMessage = error.localizedDescription
+                remoteLoadErrorMessage = remoteFileDisplayMessage(for: error)
             }
         }
     }
@@ -2488,7 +2631,7 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     private func isActiveBindingGeneration(_ bindingGeneration: Int) -> Bool {
-        bindingGeneration == sftpBindingGeneration
+        bindingGeneration == remoteFileBindingGeneration
     }
 
     private static func makeTemporaryTextDocumentURL() -> URL {
@@ -2520,7 +2663,11 @@ final class FileTransferViewModel: ObservableObject {
                 )
             }
 
-            throw SFTPClientError.unsupportedOperation("edit-binary-file")
+            throw RemoteOperationError(
+                category: .fileSystem,
+                code: "edit_binary_file",
+                safeDiagnosticMessage: "The remote file is not a supported text document"
+            )
         }.value
     }
 
