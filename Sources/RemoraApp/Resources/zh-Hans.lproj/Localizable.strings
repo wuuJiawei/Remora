@@ -546,6 +546,8 @@
 "Asset" = "资产";
 "Target" = "目标";
 "Interactive asset menu" = "交互式资产菜单";
+"Authentication Required" = "需要认证";
+"Response" = "响应";
 "Select a JumpServer asset and account before using Docker, files, or server metrics." = "请先选择 JumpServer 资产和账号，再使用 Docker、文件或服务器指标。";
 "Save password in local config file?" = "要将密码保存到本地配置文件吗？";
 "Save to ~/.config/remora" = "保存到 ~/.config/remora";

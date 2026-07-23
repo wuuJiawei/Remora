@@ -72,6 +72,17 @@ struct TerminalPaneView: View {
         )
     }
 
+    private var keyboardInteractivePromptBinding: Binding<KeyboardInteractiveChallenge?> {
+        Binding(
+            get: { runtime.keyboardInteractiveChallenge },
+            set: { challenge in
+                if challenge == nil, runtime.keyboardInteractiveChallenge != nil {
+                    runtime.dismissKeyboardInteractivePrompt()
+                }
+            }
+        )
+    }
+
     private var activeAuthPrompt: AuthPromptKind? {
         if runtime.hostKeyPromptMessage != nil { return .hostKey }
         if runtime.otpPromptMessage != nil { return .otp }
@@ -343,6 +354,18 @@ struct TerminalPaneView: View {
                 EmptyView()
             }
         }
+        .sheet(item: keyboardInteractivePromptBinding) { challenge in
+            KeyboardInteractiveResponseSheet(
+                challenge: challenge,
+                onCancel: {
+                    runtime.dismissKeyboardInteractivePrompt()
+                },
+                onSubmit: { responses in
+                    _ = runtime.respondToKeyboardInteractivePrompt(responses: responses)
+                }
+            )
+            .id(challenge.id)
+        }
     }
 
     private var statusColor: Color {
@@ -583,6 +606,83 @@ struct TerminalPaneView: View {
                 .accessibilityIdentifier("terminal-close-pane")
             }
         }
+    }
+}
+
+private struct KeyboardInteractiveResponseSheet: View {
+    let challenge: KeyboardInteractiveChallenge
+    let onCancel: () -> Void
+    let onSubmit: ([String]) -> Void
+    @State private var responses: [String]
+
+    init(
+        challenge: KeyboardInteractiveChallenge,
+        onCancel: @escaping () -> Void,
+        onSubmit: @escaping ([String]) -> Void
+    ) {
+        self.challenge = challenge
+        self.onCancel = onCancel
+        self.onSubmit = onSubmit
+        _responses = State(initialValue: Array(repeating: "", count: challenge.prompts.count))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(challenge.name.isEmpty ? tr("Authentication Required") : challenge.name)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(VisualStyle.textPrimary)
+
+            if !challenge.instruction.isEmpty {
+                Text(challenge.instruction)
+                    .font(.system(size: 12))
+                    .foregroundStyle(VisualStyle.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(challenge.prompts.indices, id: \.self) { index in
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(challenge.prompts[index].text)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(VisualStyle.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if challenge.prompts[index].echo {
+                            TextField(tr("Response"), text: responseBinding(at: index))
+                        } else {
+                            SecureField(tr("Response"), text: responseBinding(at: index))
+                        }
+                    }
+                }
+            }
+            .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Spacer()
+                Button(tr("Cancel"), role: .cancel, action: onCancel)
+                Button(tr("Continue")) {
+                    onSubmit(responses)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(responses.count != challenge.prompts.count)
+            }
+        }
+        .padding(18)
+        .frame(width: 440)
+        .interactiveDismissDisabled()
+    }
+
+    private func responseBinding(at index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard responses.indices.contains(index) else { return "" }
+                return responses[index]
+            },
+            set: { value in
+                guard responses.indices.contains(index) else { return }
+                responses[index] = value
+            }
+        )
     }
 }
 

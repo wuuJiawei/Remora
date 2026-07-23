@@ -7,6 +7,7 @@ enum SSHAuthStage: String, Equatable, Sendable {
     case password
     case otp
     case passphrase
+    case keyboardInteractive
 }
 
 enum ConnectionMode: String, CaseIterable, Identifiable, Sendable {
@@ -35,6 +36,7 @@ final class TerminalRuntime: ObservableObject {
     @Published var hostKeyPromptMessage: String?
     @Published var otpPromptMessage: String?
     @Published var passwordPromptMessage: String?
+    @Published private(set) var keyboardInteractiveChallenge: KeyboardInteractiveChallenge?
     @Published private(set) var isPrivateKeyPassphrasePrompt = false
     @Published private(set) var workingDirectory: String?
     @Published private(set) var connectedSSHHost: RemoraCore.Host?
@@ -401,6 +403,7 @@ final class TerminalRuntime: ObservableObject {
                 responses: [trimmed]
             )
             pendingNativeKeyboardChallengeID = nil
+            keyboardInteractiveChallenge = nil
             otpPromptMessage = nil
             activeSSHAuthStage = nil
             connectionState = "Waiting (authentication)"
@@ -418,6 +421,7 @@ final class TerminalRuntime: ObservableObject {
         LogManager.info(.ssh, "auth prompt cancelled stage=otp disconnecting=true")
         nativeInteractionBroker.cancelPending()
         pendingNativeKeyboardChallengeID = nil
+        keyboardInteractiveChallenge = nil
         otpPromptMessage = nil
         disconnect()
     }
@@ -440,6 +444,7 @@ final class TerminalRuntime: ObservableObject {
                 responses: [password]
             )
             pendingNativeKeyboardChallengeID = nil
+            keyboardInteractiveChallenge = nil
             passwordPromptMessage = nil
             activeSSHAuthStage = nil
             connectionState = "Waiting (authentication)"
@@ -459,9 +464,49 @@ final class TerminalRuntime: ObservableObject {
             nativeInteractionBroker.cancelPending()
             pendingNativeCredentialChallengeID = nil
             pendingNativeKeyboardChallengeID = nil
+            keyboardInteractiveChallenge = nil
             isPrivateKeyPassphrasePrompt = false
         }
         passwordPromptMessage = nil
+    }
+
+    @discardableResult
+    func respondToKeyboardInteractivePrompt(responses: [String]) -> Bool {
+        guard let challenge = keyboardInteractiveChallenge,
+              challenge.prompts.count == responses.count else {
+            return false
+        }
+        guard nativeInteractionBroker.respondToKeyboardInteractive(
+            id: challenge.id,
+            responses: responses
+        ) else {
+            LogManager.error(
+                .ssh,
+                "auth prompt response rejected stage=keyboardInteractive challenge=\(challenge.id.uuidString) disconnecting=true"
+            )
+            pendingNativeKeyboardChallengeID = nil
+            keyboardInteractiveChallenge = nil
+            disconnect()
+            return false
+        }
+        LogManager.info(
+            .ssh,
+            "auth prompt response stage=keyboardInteractive challenge=\(challenge.id.uuidString) responses=\(responses.count)"
+        )
+        pendingNativeKeyboardChallengeID = nil
+        keyboardInteractiveChallenge = nil
+        activeSSHAuthStage = nil
+        connectionState = "Waiting (authentication)"
+        return true
+    }
+
+    func dismissKeyboardInteractivePrompt() {
+        guard keyboardInteractiveChallenge != nil else { return }
+        LogManager.info(.ssh, "auth prompt cancelled stage=keyboardInteractive disconnecting=true")
+        nativeInteractionBroker.cancelPending()
+        pendingNativeKeyboardChallengeID = nil
+        keyboardInteractiveChallenge = nil
+        disconnect()
     }
 
     // PTY Debug Logging
@@ -741,6 +786,7 @@ final class TerminalRuntime: ObservableObject {
                         hostKeyPromptMessage = nil
                         otpPromptMessage = nil
                         passwordPromptMessage = nil
+                        keyboardInteractiveChallenge = nil
                         activeSSHAuthStage = nil
                         awaitingSSHAuthResponse = false
                     case .failed(let reason):
@@ -757,6 +803,7 @@ final class TerminalRuntime: ObservableObject {
                         hostKeyPromptMessage = nil
                         otpPromptMessage = nil
                         passwordPromptMessage = nil
+                        keyboardInteractiveChallenge = nil
                         activeSSHAuthStage = nil
                         awaitingSSHAuthResponse = false
                     }
@@ -962,6 +1009,7 @@ final class TerminalRuntime: ObservableObject {
         hostKeyPromptMessage = nil
         otpPromptMessage = nil
         passwordPromptMessage = nil
+        keyboardInteractiveChallenge = nil
         isPrivateKeyPassphrasePrompt = false
         pendingWorkingDirectoryProbeTask?.cancel()
         pendingWorkingDirectoryProbeTask = nil
@@ -1013,22 +1061,7 @@ final class TerminalRuntime: ObservableObject {
                         "native interaction requested stage=\(challenge.kind.rawValue) challenge=\(challenge.id.uuidString)"
                     )
                 case .keyboardInteractive(let challenge):
-                    pendingNativeKeyboardChallengeID = challenge.id
-                    let promptText = challenge.prompts.map(\.text).joined(separator: " ").lowercased()
-                    if promptText.contains("otp") || promptText.contains("code") || promptText.contains("token") {
-                        activeSSHAuthStage = .otp
-                        connectionState = "Waiting (otp)"
-                        otpPromptMessage = activeSSHHostAddress ?? ""
-                    } else {
-                        activeSSHAuthStage = .password
-                        connectionState = "Waiting (password)"
-                        passwordPromptMessage = activeSSHHostAddress ?? ""
-                        isPrivateKeyPassphrasePrompt = false
-                    }
-                    LogManager.info(
-                        .ssh,
-                        "native interaction requested stage=keyboardInteractive challenge=\(challenge.id.uuidString) prompts=\(challenge.prompts.count)"
-                    )
+                    handleNativeKeyboardInteractiveChallenge(challenge)
                 }
             }
         }
@@ -1141,6 +1174,7 @@ final class TerminalRuntime: ObservableObject {
         hostKeyPromptMessage = nil
         otpPromptMessage = nil
         passwordPromptMessage = nil
+        keyboardInteractiveChallenge = nil
     }
 
     private func appendTranscript(_ data: Data) {
@@ -1368,7 +1402,7 @@ final class TerminalRuntime: ObservableObject {
 
     private func shouldSuppressTerminalFeed(for stage: SSHAuthStage?) -> Bool {
         switch stage {
-        case .password, .otp:
+        case .password, .otp, .keyboardInteractive:
             true
         case .hostKey, .passphrase, nil:
             false
@@ -1444,6 +1478,8 @@ final class TerminalRuntime: ObservableObject {
                 }
             case .passphrase:
                 connectionState = "Waiting (passphrase)"
+            case .keyboardInteractive:
+                connectionState = "Waiting (authentication)"
             }
         } else if activeSSHAuthStage != nil, !responseText.isEmpty, !isAuthenticationFailure {
             LogManager.info(
@@ -1455,6 +1491,7 @@ final class TerminalRuntime: ObservableObject {
             hostKeyPromptMessage = nil
             otpPromptMessage = nil
             passwordPromptMessage = nil
+            keyboardInteractiveChallenge = nil
             awaitingSSHAuthResponse = false
             connectionState = "Connected (\(connectionMode.rawValue))"
         } else if awaitingSSHAuthResponse, !responseText.isEmpty, !isAuthenticationFailure {
@@ -1469,6 +1506,40 @@ final class TerminalRuntime: ObservableObject {
         } else {
             sshAuthProbeTail = probeText
         }
+    }
+
+    func handleNativeKeyboardInteractiveChallenge(
+        _ challenge: KeyboardInteractiveChallenge
+    ) {
+        pendingNativeKeyboardChallengeID = challenge.id
+        hostKeyPromptMessage = nil
+        otpPromptMessage = nil
+        passwordPromptMessage = nil
+        isPrivateKeyPassphrasePrompt = false
+
+        if challenge.prompts.count > 1 {
+            activeSSHAuthStage = .keyboardInteractive
+            connectionState = "Waiting (authentication)"
+            keyboardInteractiveChallenge = challenge
+        } else {
+            keyboardInteractiveChallenge = nil
+            let promptText = challenge.prompts.map(\.text).joined(separator: " ").lowercased()
+            if promptText.contains("otp") || promptText.contains("code") || promptText.contains("token") {
+                activeSSHAuthStage = .otp
+                connectionState = "Waiting (otp)"
+                otpPromptMessage = activeSSHHostAddress ?? ""
+            } else {
+                activeSSHAuthStage = .password
+                connectionState = "Waiting (password)"
+                passwordPromptMessage = activeSSHHostAddress ?? ""
+            }
+        }
+
+        let echoCount = challenge.prompts.filter(\.echo).count
+        LogManager.info(
+            .ssh,
+            "native interaction requested stage=keyboardInteractive challenge=\(challenge.id.uuidString) prompts=\(challenge.prompts.count) echoPrompts=\(echoCount)"
+        )
     }
 
     static func detectSSHAuthStage(in lowercasedText: String) -> SSHAuthStage? {
