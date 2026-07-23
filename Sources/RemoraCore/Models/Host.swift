@@ -101,6 +101,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
     public var quickCommands: [HostQuickCommand]
     public var quickPaths: [HostQuickPath]
     public var portForwardPresets: [HostPortForwardPreset]
+    public var connectionRoute: HostConnectionRouteConfiguration
 
     public init(
         id: UUID = UUID(),
@@ -119,7 +120,8 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         policies: HostPolicies = .init(),
         quickCommands: [HostQuickCommand] = [],
         quickPaths: [HostQuickPath] = [],
-        portForwardPresets: [HostPortForwardPreset] = []
+        portForwardPresets: [HostPortForwardPreset] = [],
+        connectionRoute: HostConnectionRouteConfiguration = .direct
     ) {
         self.id = id
         self.name = name
@@ -138,6 +140,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         self.quickCommands = quickCommands
         self.quickPaths = quickPaths
         self.portForwardPresets = portForwardPresets
+        self.connectionRoute = connectionRoute
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -158,6 +161,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         case quickCommands
         case quickPaths
         case portForwardPresets
+        case connectionRoute
     }
 
     public init(from decoder: Decoder) throws {
@@ -182,6 +186,10 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         quickCommands = try container.decodeIfPresent([HostQuickCommand].self, forKey: .quickCommands) ?? []
         quickPaths = try container.decodeIfPresent([HostQuickPath].self, forKey: .quickPaths) ?? []
         portForwardPresets = try container.decodeIfPresent([HostPortForwardPreset].self, forKey: .portForwardPresets) ?? []
+        connectionRoute = try container.decodeIfPresent(
+            HostConnectionRouteConfiguration.self,
+            forKey: .connectionRoute
+        ) ?? .direct
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -203,6 +211,7 @@ public struct Host: Codable, Equatable, Identifiable, Sendable {
         try container.encode(quickCommands, forKey: .quickCommands)
         try container.encode(quickPaths, forKey: .quickPaths)
         try container.encode(portForwardPresets, forKey: .portForwardPresets)
+        try container.encode(connectionRoute, forKey: .connectionRoute)
     }
 }
 

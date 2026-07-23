@@ -6,6 +6,11 @@ public enum RemoteConnectionProtocol: String, Codable, CaseIterable, Identifiabl
     public var id: String { rawValue }
 }
 
+public enum RemoteTargetBindingState: String, Codable, Hashable, Sendable {
+    case bound
+    case unbound
+}
+
 public struct RemoteEndpoint: Codable, Hashable, Sendable {
     public let hostname: String
     public let port: Int
@@ -24,6 +29,7 @@ public struct RemoteTargetIdentity: Codable, Hashable, Sendable {
     public let accountID: String?
     public let accountUsername: String
     public let connectionProtocol: RemoteConnectionProtocol
+    public let bindingState: RemoteTargetBindingState
 
     public init(
         savedHostID: UUID,
@@ -32,7 +38,8 @@ public struct RemoteTargetIdentity: Codable, Hashable, Sendable {
         assetDisplayName: String,
         accountID: String? = nil,
         accountUsername: String,
-        connectionProtocol: RemoteConnectionProtocol = .ssh
+        connectionProtocol: RemoteConnectionProtocol = .ssh,
+        bindingState: RemoteTargetBindingState = .bound
     ) {
         self.savedHostID = savedHostID
         self.routeProviderID = routeProviderID
@@ -41,6 +48,7 @@ public struct RemoteTargetIdentity: Codable, Hashable, Sendable {
         self.accountID = accountID
         self.accountUsername = accountUsername
         self.connectionProtocol = connectionProtocol
+        self.bindingState = bindingState
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
@@ -50,6 +58,7 @@ public struct RemoteTargetIdentity: Codable, Hashable, Sendable {
             && lhs.accountID == rhs.accountID
             && lhs.accountUsername == rhs.accountUsername
             && lhs.connectionProtocol == rhs.connectionProtocol
+            && lhs.bindingState == rhs.bindingState
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -59,6 +68,7 @@ public struct RemoteTargetIdentity: Codable, Hashable, Sendable {
         hasher.combine(accountID)
         hasher.combine(accountUsername)
         hasher.combine(connectionProtocol)
+        hasher.combine(bindingState)
     }
 }
 
