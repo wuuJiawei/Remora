@@ -469,15 +469,15 @@ Tests/RemoraAppTests/TransferCenterTests.swift
   symbolic-link primitives behind `RemoteFileSystem`.
 - [x] Bound native file-handle reads/writes to 64 KiB and return partial-write counts
   for caller-driven backpressure.
-- [ ] Define symlink behavior and avoid following links during recursive delete/copy
+- [x] Define symlink behavior and avoid following links during recursive delete/copy
   unless explicitly requested.
-- [ ] Use temporary upload path plus rename for workflows that promise atomic save.
-- [ ] Inject `RemoteFileSystem` into file window/view model.
-- [ ] Make the file window own a lease independent from terminal and Docker.
-- [ ] Keep last successful directory snapshot when refresh fails; show typed error.
-- [ ] Migrate editor, log viewer, properties, permissions, archive directory picker,
+- [x] Use temporary upload path plus rename for workflows that promise atomic save.
+- [x] Inject `RemoteFileSystem` into file window/view model.
+- [x] Make the file window own a lease independent from terminal and Docker.
+- [x] Keep last successful directory snapshot when refresh fails; show typed error.
+- [x] Migrate editor, log viewer, properties, permissions, archive directory picker,
   transfers, drag/drop, and directory sync.
-- [ ] Remove full-memory transfer defaults from production transfer paths.
+- [x] Remove full-memory transfer defaults from production transfer paths.
 
 ### Partial implementation status
 
@@ -488,9 +488,23 @@ Tests/RemoraAppTests/TransferCenterTests.swift
 - `LibSSH2RemoteFileSystem` serializes all libssh2 calls through the transport executor,
   uses socket-readiness waits for nonblocking operations, and closes file handles before
   the SFTP subsystem and transport.
-- `RemoteSession.fileSystem()` is implemented and tracks filesystem lifetime. App file
-  consumers still use `SFTPClientProtocol`; the Phase 5 consumer migration is pending.
-- `swift build` passes. No real SFTP server or test suite was run at the user's request.
+- `RemoteFileSystemOperations` owns symlink-safe recursion, 64 KiB streaming, partial-write
+  backpressure, and same-directory temporary-file replacement for upload/copy workflows.
+- The file window acquires one independent lease and obtains its command executor and native
+  filesystem from the same `RemoteSession`. Closing the terminal tab no longer rebinds the
+  file window to a disconnected client; closing the file window closes only its filesystem
+  and releases only its own lease.
+- `FileTransferViewModel` and all file-window consumers use the native filesystem boundary.
+  Normal file mode no longer references `SystemSFTPClient`, `DisconnectedSFTPClient`, or
+  `SFTPClientProtocol`.
+- Administrator file mode is explicitly unavailable until Phase 6 instead of falling back to
+  shell/OpenSSH behavior. Normal file mode can be resumed without replacing the native lease.
+- Directory refresh preserves the last successful snapshot and surfaces localized typed SFTP
+  errors in the native empty state and toast while retaining detailed file logs.
+- Existing focused test fixtures still inject `SFTPClientProtocol`; migrate them to reusable
+  `RemoteFileSystem` test doubles before declaring the Phase 5 test gate green.
+- `swift build` passes. Focused tests and real direct/JumpServer SFTP validation remain pending
+  because the user owns runtime verification and requested that Codex not run tests.
 
 ### Filesystem test matrix
 
