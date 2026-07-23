@@ -558,18 +558,33 @@ Tests/RemoraCoreTests/ExecSFTPRemoteFileSystemTests.swift
 
 ### Tasks
 
-- [ ] Implement packet framing with maximum packet length before allocation.
-- [ ] Implement v3 INIT/VERSION, request IDs, STATUS, HANDLE, DATA, NAME, ATTRS, and
+- [x] Implement packet framing with maximum packet length before allocation.
+- [x] Implement v3 INIT/VERSION, request IDs, STATUS, HANDLE, DATA, NAME, ATTRS, and
   required mutation packets.
-- [ ] Parse attributes with overflow and truncation checks.
-- [ ] Cap outstanding requests and reorder responses by request ID.
-- [ ] Discover `sftp-server` only from absolute allowlisted/configured paths.
-- [ ] Start `sudo -n -- <path>` without a shell when possible.
-- [ ] Validate initial VERSION before exposing filesystem capability.
+- [x] Parse attributes with overflow and truncation checks.
+- [x] Cap outstanding requests and reorder responses by request ID.
+- [x] Discover `sftp-server` only from absolute allowlisted/configured paths.
+- [x] Start `sudo -n -- <path>` without a shell when possible.
+- [x] Validate initial VERSION before exposing filesystem capability.
 - [ ] Run the same RemoteFileSystem contract suite as normal SFTP.
-- [ ] Connect administrator toggle to filesystem capability replacement, not a new SSH
+- [x] Connect administrator toggle to filesystem capability replacement, not a new SSH
   connection.
-- [ ] Localize privilege-required and unsupported-server messages.
+- [x] Localize privilege-required and unsupported-server messages.
+
+### Implementation verification status
+
+- The wire codec enforces a 1 MiB packet limit from the four-byte header, bounds strings,
+  NAME entries, and extended attributes, and rejects truncated data at end of stream.
+- The request multiplexer caps in-flight work at 64, matches out-of-order responses by ID,
+  rejects unknown/duplicate IDs, and safely discards one late response for a cancelled request.
+- Administrator mode resolves only normalized absolute allowlisted server paths, starts one
+  long-lived `sudo -n -- <path>` exec channel, and validates SFTP v3 before registration.
+- Normal and administrator filesystems are owned by the same session lease. Switching modes
+  preserves independent directory/cache state and closes the administrator channel when normal
+  mode resumes.
+- Codec, multiplexer, resolver, exec-filesystem, and App toggle contract tests compile with
+  `swift build --build-tests`. Tests and real direct-host/JumpServer validation were not run at
+  the user's request, so the shared contract-suite exit item remains open for user acceptance.
 
 ### Security/fuzz verification
 
