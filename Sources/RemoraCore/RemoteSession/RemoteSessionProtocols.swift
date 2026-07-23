@@ -33,6 +33,7 @@ public protocol RemoteSessionProtocol: AnyObject, Sendable {
     func identitySnapshot() async -> RemoteSessionIdentitySnapshot
     func openShell(pty: PTYSize) async throws -> any RemoteShellChannelProtocol
     func commandExecutor() async throws -> any RemoteCommandExecutorProtocol
+    func fileSystem() async throws -> any RemoteFileSystemProtocol
     func close() async
 }
 

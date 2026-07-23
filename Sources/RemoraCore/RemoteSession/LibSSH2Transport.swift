@@ -239,6 +239,41 @@ public actor LibSSH2Transport {
         )
     }
 
+    func openFileSystem(
+        onClose: @escaping @Sendable (UUID) async -> Void
+    ) async throws -> LibSSH2RemoteFileSystem {
+        guard state == .ready, let runtime else {
+            throw RemoteOperationError(
+                category: .session,
+                code: "transport_not_ready",
+                safeDiagnosticMessage: "Native SSH transport is not ready"
+            )
+        }
+        emit(.ready, operation: "sftp_allocate", message: "allocating native SFTP subsystem")
+        let handle = try await runtime.perform {
+            try runtime.context.createSFTP()
+        }
+        do {
+            try await runtime.run(phase: .ready, operation: "sftp_start") {
+                try handle.start()
+            }
+            return LibSSH2RemoteFileSystem(
+                runtime: runtime,
+                sessionHandle: handle,
+                onClose: onClose
+            )
+        } catch {
+            _ = try? await runtime.run(
+                phase: .closing,
+                operation: "sftp_start_cleanup",
+                allowClosing: true
+            ) {
+                try handle.close()
+            }
+            throw error
+        }
+    }
+
     public func close() async {
         guard state != .closing, state != .closed else { return }
         state = .closing

@@ -95,6 +95,7 @@
 		4CF2F43248235BFD173E627CD40CA92F /* x25519.c in Sources */ = {isa = PBXBuildFile; fileRef = 46BEAC1C5E7D03BF6DB2B46A8C4B21CA /* x25519.c */; };
 		4EBEC41C6ED6941EDA98D5B03C0790A0 /* psa_crypto_cipher.c in Sources */ = {isa = PBXBuildFile; fileRef = 05BA7236F2BE4A26955BB1EF40A3C551 /* psa_crypto_cipher.c */; };
 		50E496FD9025CECE167CD8BB92A2DEBB /* cipher_wrap.c in Sources */ = {isa = PBXBuildFile; fileRef = 3B12D810632ECF12D80F95965F1341E4 /* cipher_wrap.c */; };
+		51001EB58F55BD294112FAF994D1860B /* LibSSH2RemoteFileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53EAA9687B5C92B8B1BD99FF0A65CF7 /* LibSSH2RemoteFileSystem.swift */; };
 		510FC85F4A970F6792EF9EFE7C8379C7 /* SessionMetricsTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58053EE62897DBF249DE56265B1F7F7 /* SessionMetricsTooltip.swift */; };
 		51395989A0B7657FE0BC1DB40F7CA451 /* oid.c in Sources */ = {isa = PBXBuildFile; fileRef = 45CC1D13368E89F0BDA7A5DBC3B828D5 /* oid.c */; };
 		5194FC5CBF6A50751E8BE924788F860A /* lmots.c in Sources */ = {isa = PBXBuildFile; fileRef = DBE58750EF2360742E83CE7A4CB2C75D /* lmots.c */; };
@@ -121,6 +122,7 @@
 		60BF1BC2D99A507D372342544DF21E12 /* RemoraEditorWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD265B43A71078ADA85D53569F8FD250 /* RemoraEditorWebView.swift */; };
 		60D06AB32B99C53BE09236989C6C49D1 /* DockerContainerNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1DE1A779018DBE0646381C22D74B814 /* DockerContainerNode.swift */; };
 		610CAB907AD3AA49CB9FB911F63E724A /* HostConnectionImportSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716232388216534BFCD37104C5B52041 /* HostConnectionImportSource.swift */; };
+		6200890E97DC99C23C243B10171E94FE /* NativeSFTPHandles.swift in Sources */ = {isa = PBXBuildFile; fileRef = C114E030D9BC089EC45582D38952AF98 /* NativeSFTPHandles.swift */; };
 		620794392634FB76E09A5355A0850959 /* DisconnectedSFTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94AF2CDEB625D7F441E647330488F657 /* DisconnectedSFTPClient.swift */; };
 		626F19AA60171F43C6597B999A23905D /* psa_crypto_ffdh.c in Sources */ = {isa = PBXBuildFile; fileRef = DA182E2AB087833AC8A5652E477CD53C /* psa_crypto_ffdh.c */; };
 		62818697290AACBFB3BA3B2E6EAF12BF /* Hacl_Curve25519_joined.c in Sources */ = {isa = PBXBuildFile; fileRef = 5C5346B4DF89F835CC00DB8F799FD36E /* Hacl_Curve25519_joined.c */; };
@@ -589,6 +591,7 @@
 		BD2C2500A307DB67006D95FD14150BDF /* TerminalAIModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAIModels.swift; sourceTree = "<group>"; };
 		BF7B3167BD53AD1645F7D5A37F35AD50 /* DockerContainerListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerContainerListView.swift; sourceTree = "<group>"; };
 		C011661DDC84FB3F1FBF3660DD9A9753 /* ExtensionScript.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExtensionScript.swift; path = Extensions/ExtensionScript.swift; sourceTree = "<group>"; };
+		C114E030D9BC089EC45582D38952AF98 /* NativeSFTPHandles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeSFTPHandles.swift; path = RemoteFileSystem/NativeSFTPHandles.swift; sourceTree = "<group>"; };
 		C23499887955E6E0D598497EDFC6C100 /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
 		C44C6CF23B4B374889A9FEBF13BD7DE4 /* RemoteLogViewerSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteLogViewerSheet.swift; sourceTree = "<group>"; };
 		C46A67EFB21CDBA9FEC5ABFDB326FD02 /* RemoteSessionState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteSessionState.swift; path = RemoteSession/RemoteSessionState.swift; sourceTree = "<group>"; };
@@ -635,6 +638,7 @@
 		E299BF63E7BF71AC022B660DF271638B /* psa_crypto_client.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto_client.c; path = library/psa_crypto_client.c; sourceTree = "<group>"; };
 		E2CFBE7B34F24FC6DB3252BE2F2ADC9F /* RemoteFilePropertiesSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteFilePropertiesSheet.swift; sourceTree = "<group>"; };
 		E3C0EB5C17E78F61970D7782D01B7778 /* sha256.c */ = {isa = PBXFileReference; includeInIndex = 1; name = sha256.c; path = library/sha256.c; sourceTree = "<group>"; };
+		E53EAA9687B5C92B8B1BD99FF0A65CF7 /* LibSSH2RemoteFileSystem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LibSSH2RemoteFileSystem.swift; path = RemoteFileSystem/LibSSH2RemoteFileSystem.swift; sourceTree = "<group>"; };
 		E5776D4AD1C1DDEB337FACEB7700A1C2 /* AISettingsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AISettingsStore.swift; sourceTree = "<group>"; };
 		E704AE268A780B03329CCCF5B6E935A0 /* RemoteTargetIdentity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteTargetIdentity.swift; path = RemoteSession/RemoteTargetIdentity.swift; sourceTree = "<group>"; };
 		E9132C7FC2185B4225BA29DF152D2CB9 /* bignum_mod_raw.c */ = {isa = PBXFileReference; includeInIndex = 1; name = bignum_mod_raw.c; path = library/bignum_mod_raw.c; sourceTree = "<group>"; };
@@ -1087,6 +1091,8 @@
 				CBDCD6849A280A567B90AB442C68E4A5 /* LibSSH2CommandExecutor.swift */,
 				7830E9AD1D4BBCBEBEA73854A392660B /* RemoteCommandExecutor.swift */,
 				31501BE238A33AF6C86FC807BBFCD07D /* RemoteCommandModels.swift */,
+				E53EAA9687B5C92B8B1BD99FF0A65CF7 /* LibSSH2RemoteFileSystem.swift */,
+				C114E030D9BC089EC45582D38952AF98 /* NativeSFTPHandles.swift */,
 				725450DCAB03A4CB0F8FD2E2971D02BD /* RemoteFileSystem.swift */,
 				500735EBEDFAC042599808661236DB43 /* RemoteFileSystemModels.swift */,
 				1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */,
@@ -1568,6 +1574,8 @@
 				202D5910BEB5B353F89379FC411DDE3D /* LibSSH2CommandExecutor.swift in Sources */,
 				881C3241D5744DD57A696F0B58A5C643 /* RemoteCommandExecutor.swift in Sources */,
 				9FE4A91749456836DFF87C4F5FC4FA98 /* RemoteCommandModels.swift in Sources */,
+				51001EB58F55BD294112FAF994D1860B /* LibSSH2RemoteFileSystem.swift in Sources */,
+				6200890E97DC99C23C243B10171E94FE /* NativeSFTPHandles.swift in Sources */,
 				200E6B7316C0EE09D3DAFAF91E8090C0 /* RemoteFileSystem.swift in Sources */,
 				E17D2567F60F947C24AEEF9CAB77EFCB /* RemoteFileSystemModels.swift in Sources */,
 				AA2763D3E2F5AACE9FD97A27A62696AB /* AuthenticationCoordinator.swift in Sources */,

@@ -23,4 +23,5 @@ public protocol RemoteFileSystemProtocol: AnyObject, Sendable {
     func setAttributes(path: String, attributes: RemoteFileAttributes) async throws
     func readSymbolicLink(path: String) async throws -> String
     func createSymbolicLink(path: String, target: String) async throws
+    func close() async
 }

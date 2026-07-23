@@ -18,6 +18,7 @@ public actor RemoteSession: RemoteSessionProtocol {
     private let transport: any RemoteSessionTransportProtocol
     private var state: RemoteSessionState
     private var channels: [UUID: ManagedRemoteShellChannel] = [:]
+    private var fileSystems: [UUID: LibSSH2RemoteFileSystem] = [:]
 
     public init(
         id: UUID = UUID(),
@@ -63,6 +64,21 @@ public actor RemoteSession: RemoteSessionProtocol {
         return LibSSH2CommandExecutor(transport: transport)
     }
 
+    public func fileSystem() async throws -> any RemoteFileSystemProtocol {
+        guard state == .ready, let transport = transport as? LibSSH2Transport else {
+            throw RemoteOperationError(
+                category: .session,
+                code: "file_system_capability_unavailable",
+                safeDiagnosticMessage: "Remote session does not provide native file access"
+            )
+        }
+        let fileSystem = try await transport.openFileSystem { [weak self] fileSystemID in
+            await self?.removeFileSystem(id: fileSystemID)
+        }
+        fileSystems[fileSystem.id] = fileSystem
+        return fileSystem
+    }
+
     public func close() async {
         guard state.phase != .closing, state.phase != .closed else { return }
         state = .closing
@@ -71,6 +87,11 @@ public actor RemoteSession: RemoteSessionProtocol {
         channels.removeAll(keepingCapacity: false)
         for channel in activeChannels {
             await channel.close()
+        }
+        let activeFileSystems = Array(fileSystems.values)
+        fileSystems.removeAll(keepingCapacity: false)
+        for fileSystem in activeFileSystems {
+            await fileSystem.close()
         }
         await transport.close()
         state = .closed
@@ -82,6 +103,10 @@ public actor RemoteSession: RemoteSessionProtocol {
 
     private func removeChannel(id: UUID) {
         channels.removeValue(forKey: id)
+    }
+
+    private func removeFileSystem(id: UUID) {
+        fileSystems.removeValue(forKey: id)
     }
 }
 

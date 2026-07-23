@@ -464,9 +464,11 @@ Tests/RemoraAppTests/TransferCenterTests.swift
 
 ### Tasks
 
-- [ ] Map SFTP v3 status/attributes to final filesystem models.
-- [ ] Implement streaming list/stat/read/write/rename/mkdir/remove/set-attributes.
-- [ ] Use bounded chunks and backpressure for upload/download.
+- [x] Map SFTP v3 status/attributes to final filesystem models.
+- [x] Implement native list/stat/read/write/rename/mkdir/remove/set-attributes and
+  symbolic-link primitives behind `RemoteFileSystem`.
+- [x] Bound native file-handle reads/writes to 64 KiB and return partial-write counts
+  for caller-driven backpressure.
 - [ ] Define symlink behavior and avoid following links during recursive delete/copy
   unless explicitly requested.
 - [ ] Use temporary upload path plus rename for workflows that promise atomic save.
@@ -476,6 +478,19 @@ Tests/RemoraAppTests/TransferCenterTests.swift
 - [ ] Migrate editor, log viewer, properties, permissions, archive directory picker,
   transfers, drag/drop, and directory sync.
 - [ ] Remove full-memory transfer defaults from production transfer paths.
+
+### Partial implementation status
+
+- Native ABI v3 exposes opaque SFTP subsystem and file/directory handles without leaking
+  libssh2 pointers into Swift APIs.
+- SFTP status codes map to typed filesystem errors, and attribute updates deliberately do
+  not send the display-only file size as `SETSTAT`, avoiding accidental truncation.
+- `LibSSH2RemoteFileSystem` serializes all libssh2 calls through the transport executor,
+  uses socket-readiness waits for nonblocking operations, and closes file handles before
+  the SFTP subsystem and transport.
+- `RemoteSession.fileSystem()` is implemented and tracks filesystem lifetime. App file
+  consumers still use `SFTPClientProtocol`; the Phase 5 consumer migration is pending.
+- `swift build` passes. No real SFTP server or test suite was run at the user's request.
 
 ### Filesystem test matrix
 

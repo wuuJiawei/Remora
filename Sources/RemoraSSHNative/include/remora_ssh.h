@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define REMORA_SSH_NATIVE_ABI_VERSION 2
+#define REMORA_SSH_NATIVE_ABI_VERSION 3
 #define REMORA_SSH_ERROR_MESSAGE_CAPACITY 256
 #define REMORA_SSH_MAX_KEYBOARD_PROMPTS 16
 #define REMORA_SSH_MAX_KEYBOARD_RESPONSE_BYTES 4096
@@ -17,6 +17,8 @@ extern "C" {
 
 typedef struct remora_ssh_context remora_ssh_context;
 typedef struct remora_ssh_channel remora_ssh_channel;
+typedef struct remora_ssh_sftp remora_ssh_sftp;
+typedef struct remora_ssh_sftp_handle remora_ssh_sftp_handle;
 
 typedef enum remora_ssh_error_code {
     REMORA_SSH_ERROR_NONE = 0,
@@ -30,7 +32,8 @@ typedef enum remora_ssh_error_code {
     REMORA_SSH_ERROR_AUTHENTICATION_FAILED = 8,
     REMORA_SSH_ERROR_HOST_KEY_UNAVAILABLE = 9,
     REMORA_SSH_ERROR_CHALLENGE_CANCELLED = 10,
-    REMORA_SSH_ERROR_CHANNEL_CLOSED = 11
+    REMORA_SSH_ERROR_CHANNEL_CLOSED = 11,
+    REMORA_SSH_ERROR_SFTP_FAILURE = 12
 } remora_ssh_error_code;
 
 typedef enum remora_ssh_block_direction {
@@ -64,6 +67,28 @@ typedef struct remora_ssh_host_key {
     remora_ssh_host_key_algorithm algorithm;
     uint8_t sha256[REMORA_SSH_HOST_KEY_SHA256_LENGTH];
 } remora_ssh_host_key;
+
+typedef struct remora_ssh_sftp_attributes {
+    uint32_t flags;
+    uint64_t size;
+    uint32_t uid;
+    uint32_t gid;
+    uint32_t permissions;
+    uint32_t access_time;
+    uint32_t modification_time;
+} remora_ssh_sftp_attributes;
+
+#define REMORA_SFTP_ATTRIBUTE_SIZE (1u << 0)
+#define REMORA_SFTP_ATTRIBUTE_UID_GID (1u << 1)
+#define REMORA_SFTP_ATTRIBUTE_PERMISSIONS (1u << 2)
+#define REMORA_SFTP_ATTRIBUTE_TIMES (1u << 3)
+
+#define REMORA_SFTP_OPEN_READ (1u << 0)
+#define REMORA_SFTP_OPEN_WRITE (1u << 1)
+#define REMORA_SFTP_OPEN_APPEND (1u << 2)
+#define REMORA_SFTP_OPEN_CREATE (1u << 3)
+#define REMORA_SFTP_OPEN_TRUNCATE (1u << 4)
+#define REMORA_SFTP_OPEN_EXCLUSIVE (1u << 5)
 
 typedef struct remora_ssh_keyboard_prompt {
     const uint8_t *bytes;
@@ -214,6 +239,134 @@ remora_ssh_error_code remora_ssh_channel_close(
 
 void remora_ssh_channel_destroy(remora_ssh_channel **channel);
 bool remora_ssh_channel_is_valid(const remora_ssh_channel *channel);
+
+remora_ssh_error_code remora_ssh_sftp_create(
+    remora_ssh_context *context,
+    remora_ssh_sftp **out_sftp,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_start(
+    remora_ssh_sftp *sftp,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_shutdown(
+    remora_ssh_sftp *sftp,
+    remora_ssh_error *out_error
+);
+
+void remora_ssh_sftp_destroy(remora_ssh_sftp **sftp);
+bool remora_ssh_sftp_is_valid(const remora_ssh_sftp *sftp);
+
+remora_ssh_error_code remora_ssh_sftp_open_file(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    uint32_t flags,
+    uint32_t mode,
+    remora_ssh_sftp_handle **out_handle,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_open_directory(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    remora_ssh_sftp_handle **out_handle,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_handle_read(
+    remora_ssh_sftp_handle *handle,
+    uint8_t *buffer,
+    size_t buffer_capacity,
+    size_t *out_length,
+    bool *out_eof,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_handle_write(
+    remora_ssh_sftp_handle *handle,
+    const uint8_t *bytes,
+    size_t length,
+    size_t *out_written,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_handle_read_directory(
+    remora_ssh_sftp_handle *handle,
+    uint8_t *name_buffer,
+    size_t name_buffer_capacity,
+    size_t *out_name_length,
+    remora_ssh_sftp_attributes *out_attributes,
+    bool *out_eof,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_handle_close(
+    remora_ssh_sftp_handle *handle,
+    remora_ssh_error *out_error
+);
+
+void remora_ssh_sftp_handle_destroy(remora_ssh_sftp_handle **handle);
+bool remora_ssh_sftp_handle_is_valid(const remora_ssh_sftp_handle *handle);
+
+remora_ssh_error_code remora_ssh_sftp_stat(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    bool follow_symbolic_links,
+    remora_ssh_sftp_attributes *out_attributes,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_set_attributes(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    const remora_ssh_sftp_attributes *attributes,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_create_directory(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    uint32_t mode,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_remove_file(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_remove_directory(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_rename(
+    remora_ssh_sftp *sftp,
+    const char *source_path,
+    const char *destination_path,
+    bool overwrite,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_read_symbolic_link(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    uint8_t *buffer,
+    size_t buffer_capacity,
+    size_t *out_length,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_sftp_create_symbolic_link(
+    remora_ssh_sftp *sftp,
+    const char *path,
+    const char *target,
+    remora_ssh_error *out_error
+);
 
 #ifdef __cplusplus
 }

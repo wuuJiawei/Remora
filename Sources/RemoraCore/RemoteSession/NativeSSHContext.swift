@@ -7,7 +7,7 @@ enum NativeSSHContextError: Error, Equatable {
 }
 
 final class NativeSSHContext: @unchecked Sendable {
-    static let expectedABIVersion: UInt32 = 2
+    static let expectedABIVersion: UInt32 = 3
     static var nativeABIVersion: UInt32 { remora_ssh_native_abi_version() }
     static var backendVersion: String { String(cString: remora_ssh_backend_version()) }
     static var cryptoBackend: String { String(cString: remora_ssh_crypto_backend()) }
@@ -234,6 +234,22 @@ final class NativeSSHContext: @unchecked Sendable {
             )
         }
         return NativeSSHChannelHandle(handle: channelHandle, context: self)
+    }
+
+    func createSFTP() throws -> NativeSFTPSessionHandle {
+        let handle = try requiredHandle()
+        var sftpHandle: OpaquePointer?
+        var nativeError = remora_ssh_error()
+        let result = remora_ssh_sftp_create(handle, &sftpHandle, &nativeError)
+        guard result == REMORA_SSH_ERROR_NONE, let sftpHandle else {
+            throw operationError(
+                result,
+                error: &nativeError,
+                category: .fileSystem,
+                code: "sftp_allocation_failed"
+            )
+        }
+        return NativeSFTPSessionHandle(handle: sftpHandle, context: self)
     }
 
     func blockDirections() -> NativeSocketDirections {
