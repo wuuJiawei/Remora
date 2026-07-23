@@ -130,7 +130,10 @@ extension ContentView {
 
     @MainActor
     func buildHostFromEditorDraft() async -> RemoraCore.Host? {
-        guard let port = hostEditorDraft.port else { return nil }
+        guard let port = hostEditorDraft.port,
+              let connectionRoute = hostEditorDraft.connectionRoute else {
+            return nil
+        }
 
         let existingHost: RemoraCore.Host?
         switch hostEditorMode {
@@ -146,7 +149,7 @@ extension ContentView {
             name: hostEditorDraft.name,
             address: hostEditorDraft.address,
             port: port,
-            username: hostEditorDraft.username,
+            username: hostEditorDraft.connectionUsername,
             group: hostEditorDraft.groupName,
             tags: ["new"],
             auth: HostAuth(method: .agent)
@@ -155,8 +158,9 @@ extension ContentView {
         host.name = hostEditorDraft.name
         host.address = hostEditorDraft.address
         host.port = port
-        host.username = hostEditorDraft.username
+        host.username = hostEditorDraft.connectionUsername
         host.group = hostEditorDraft.groupName
+        host.connectionRoute = connectionRoute
         host.remoteCommandPrivilege = hostEditorDraft.useSudoForAdministrativeOperations
             ? .sudoNonInteractive
             : .currentUser
@@ -757,13 +761,25 @@ extension ContentView {
 
     func copyConnectionInfoToPasteboard(_ host: RemoraCore.Host, includePassword: Bool) {
         Task {
-            let text = await HostConnectionClipboardBuilder.connectionInfoText(
-                for: host,
-                includePassword: includePassword
-            )
-            await MainActor.run {
-                copyToPasteboard(text)
+            do {
+                let text = try await HostConnectionClipboardBuilder.connectionInfoText(
+                    for: host,
+                    includePassword: includePassword
+                )
+                await MainActor.run {
+                    copyToPasteboard(text)
+                }
+            } catch {
+                LogManager.error(.ssh, "copy connection info failed hostID=\(host.id.uuidString) error=\(error)")
             }
+        }
+    }
+
+    func copySSHCommand(_ host: RemoraCore.Host) {
+        do {
+            copyToPasteboard(try HostConnectionClipboardBuilder.sshCommand(for: host))
+        } catch {
+            LogManager.error(.ssh, "copy SSH command failed hostID=\(host.id.uuidString) error=\(error)")
         }
     }
 

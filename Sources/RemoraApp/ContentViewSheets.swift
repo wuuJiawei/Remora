@@ -454,6 +454,22 @@ enum SidebarHostAuthMethod: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum SidebarHostRouteMode: String, CaseIterable, Identifiable {
+    case direct
+    case jumpServer
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .direct:
+            return tr("Direct")
+        case .jumpServer:
+            return tr("JumpServer")
+        }
+    }
+}
+
 enum SidebarHostGroupFieldOptions {
     static func merged(existing: [String], staged: [String]) -> [String] {
         var merged: [String] = []
@@ -496,6 +512,15 @@ struct SidebarHostEditorDraft {
     var password: String
     var savePassword: Bool
     var useSudoForAdministrativeOperations: Bool
+    var routeMode: SidebarHostRouteMode
+    var jumpServerPlatformUsername: String
+    var jumpServerUsesInteractiveMenu: Bool
+    var jumpServerProtocol: RemoteConnectionProtocol
+    var jumpServerAssetTarget: String
+    var jumpServerAssetID: String
+    var jumpServerAssetDisplayName: String
+    var jumpServerAccountUsername: String
+    var jumpServerAccountID: String
 
     init(preferredGroup: String = "") {
         self.connectionName = ""
@@ -508,6 +533,15 @@ struct SidebarHostEditorDraft {
         self.password = ""
         self.savePassword = false
         self.useSudoForAdministrativeOperations = false
+        self.routeMode = .direct
+        self.jumpServerPlatformUsername = ""
+        self.jumpServerUsesInteractiveMenu = false
+        self.jumpServerProtocol = .ssh
+        self.jumpServerAssetTarget = ""
+        self.jumpServerAssetID = ""
+        self.jumpServerAssetDisplayName = ""
+        self.jumpServerAccountUsername = ""
+        self.jumpServerAccountID = ""
     }
 
     init(host: RemoraCore.Host) {
@@ -520,6 +554,30 @@ struct SidebarHostEditorDraft {
         self.password = ""
         self.savePassword = host.auth.passwordReference != nil
         self.useSudoForAdministrativeOperations = host.remoteCommandPrivilege == .sudoNonInteractive
+        self.routeMode = .direct
+        self.jumpServerPlatformUsername = ""
+        self.jumpServerUsesInteractiveMenu = false
+        self.jumpServerProtocol = .ssh
+        self.jumpServerAssetTarget = ""
+        self.jumpServerAssetID = ""
+        self.jumpServerAssetDisplayName = ""
+        self.jumpServerAccountUsername = ""
+        self.jumpServerAccountID = ""
+
+        if case .gateway(let gateway) = host.connectionRoute,
+           gateway.providerID == JumpServerGatewayProvider.identifier {
+            self.routeMode = .jumpServer
+            self.jumpServerPlatformUsername = gateway.platformUsername
+            self.jumpServerUsesInteractiveMenu = gateway.target == nil
+            if let target = gateway.target {
+                self.jumpServerProtocol = target.connectionProtocol
+                self.jumpServerAssetTarget = target.assetTarget
+                self.jumpServerAssetID = target.assetID ?? ""
+                self.jumpServerAssetDisplayName = target.assetDisplayName
+                self.jumpServerAccountUsername = target.accountUsername
+                self.jumpServerAccountID = target.accountID ?? ""
+            }
+        }
 
         switch host.auth.method {
         case .agent:
@@ -527,6 +585,9 @@ struct SidebarHostEditorDraft {
         case .privateKey:
             self.authMethod = .privateKey
         case .password:
+            self.authMethod = .password
+        }
+        if routeMode == .jumpServer {
             self.authMethod = .password
         }
     }
@@ -549,6 +610,15 @@ struct SidebarHostEditorDraft {
         return trimmed.isEmpty ? "root" : trimmed
     }
 
+    var connectionUsername: String {
+        switch routeMode {
+        case .direct:
+            return username
+        case .jumpServer:
+            return normalized(jumpServerPlatformUsername)
+        }
+    }
+
     var groupName: String {
         let trimmed = groupText.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? HostCatalogStore.ungroupedGroupIdentifier : trimmed
@@ -564,11 +634,61 @@ struct SidebarHostEditorDraft {
     }
 
     var canSave: Bool {
-        !address.isEmpty && port != nil
+        !address.isEmpty
+            && port != nil
+            && connectionRoute != nil
+            && (routeMode == .direct || authMethod == .password)
     }
 
     var canTestConnection: Bool {
         !address.isEmpty && port != nil
+    }
+
+    var connectionRoute: HostConnectionRouteConfiguration? {
+        switch routeMode {
+        case .direct:
+            return .direct
+        case .jumpServer:
+            let target: GatewayTargetConfiguration?
+            if jumpServerUsesInteractiveMenu {
+                target = nil
+            } else {
+                let assetTarget = normalized(jumpServerAssetTarget)
+                let assetDisplayName = normalized(jumpServerAssetDisplayName)
+                let accountUsername = normalized(jumpServerAccountUsername)
+                guard !assetTarget.isEmpty,
+                      !assetDisplayName.isEmpty,
+                      !accountUsername.isEmpty else {
+                    return nil
+                }
+                target = GatewayTargetConfiguration(
+                    assetID: optionalNormalized(jumpServerAssetID),
+                    assetTarget: assetTarget,
+                    assetDisplayName: assetDisplayName,
+                    accountID: optionalNormalized(jumpServerAccountID),
+                    accountUsername: accountUsername,
+                    connectionProtocol: jumpServerProtocol
+                )
+            }
+            let configuration = GatewayHostRouteConfiguration(
+                providerID: JumpServerGatewayProvider.identifier,
+                platformUsername: normalized(jumpServerPlatformUsername),
+                target: target
+            )
+            guard (try? JumpServerGatewayProvider().directLoginUsername(configuration: configuration)) != nil else {
+                return nil
+            }
+            return .gateway(configuration)
+        }
+    }
+
+    private func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func optionalNormalized(_ value: String) -> String? {
+        let value = normalized(value)
+        return value.isEmpty ? nil : value
     }
 }
 
@@ -785,12 +905,61 @@ struct SidebarHostEditorSheet: View {
 
             Group {
                 TextField(tr("Connection name"), text: $draft.connectionName)
+
+                Picker(tr("Connection route"), selection: $draft.routeMode) {
+                    ForEach(SidebarHostRouteMode.allCases) { routeMode in
+                        Text(routeMode.title).tag(routeMode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("host-editor-route")
+
                 TextField(tr("Host"), text: $draft.hostAddress)
 
                 HStack(spacing: 10) {
                     TextField(tr("Port"), text: $draft.portText)
                         .frame(width: 90)
-                    TextField(tr("Username"), text: $draft.usernameText)
+                    if draft.routeMode == .direct {
+                        TextField(tr("Username"), text: $draft.usernameText)
+                    }
+                }
+
+                if draft.routeMode == .jumpServer {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
+                            TextField(
+                                tr("Platform username"),
+                                text: $draft.jumpServerPlatformUsername
+                            )
+                            Picker(tr("Protocol"), selection: $draft.jumpServerProtocol) {
+                                ForEach(RemoteConnectionProtocol.allCases) { connectionProtocol in
+                                    Text(connectionProtocol.rawValue.uppercased()).tag(connectionProtocol)
+                                }
+                            }
+                            .frame(width: 110)
+                        }
+
+                        Toggle(
+                            tr("Use interactive asset menu"),
+                            isOn: $draft.jumpServerUsesInteractiveMenu
+                        )
+                        .toggleStyle(.checkbox)
+
+                        if !draft.jumpServerUsesInteractiveMenu {
+                            HStack(spacing: 10) {
+                                TextField(tr("Asset target"), text: $draft.jumpServerAssetTarget)
+                                TextField(tr("Asset display name"), text: $draft.jumpServerAssetDisplayName)
+                            }
+                            HStack(spacing: 10) {
+                                TextField(tr("Asset ID (optional)"), text: $draft.jumpServerAssetID)
+                                TextField(tr("Account ID (optional)"), text: $draft.jumpServerAccountID)
+                            }
+                            TextField(
+                                tr("Asset account username"),
+                                text: $draft.jumpServerAccountUsername
+                            )
+                        }
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -825,6 +994,7 @@ struct SidebarHostEditorSheet: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .disabled(draft.routeMode == .jumpServer)
                 .accessibilityIdentifier("host-editor-auth")
 
                 if draft.authMethod == .privateKey {
@@ -863,7 +1033,7 @@ struct SidebarHostEditorSheet: View {
                         .help(isPasswordVisible ? tr("Hide password") : tr("Show password"))
                     }
                     Toggle(
-                        tr("Save password in ~/.config/remora"),
+                        tr("Save password in Keychain"),
                         isOn: $draft.savePassword
                     )
                     .toggleStyle(.checkbox)
@@ -911,11 +1081,18 @@ struct SidebarHostEditorSheet: View {
             }
         }
         .padding(16)
-        .frame(width: 420)
+        .frame(width: 480)
         .onChange(of: draft.authMethod) {
             if draft.authMethod != .password {
                 isPasswordVisible = false
             }
+        }
+        .onChange(of: draft.routeMode) {
+            guard draft.routeMode == .jumpServer else { return }
+            if draft.jumpServerPlatformUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                draft.jumpServerPlatformUsername = draft.username
+            }
+            draft.authMethod = .password
         }
     }
 

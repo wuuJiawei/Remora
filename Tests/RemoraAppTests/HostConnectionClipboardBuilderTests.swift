@@ -5,7 +5,7 @@ import RemoraCore
 
 struct HostConnectionClipboardBuilderTests {
     @Test
-    func buildsPasswordConnectionInfoWithoutPasswordValue() async {
+    func buildsPasswordConnectionInfoWithoutPasswordValue() async throws {
         let credentialStore = CredentialStore(storage: .isolatedMemory())
         await credentialStore.setSecret("super-secret", for: "pw-1")
 
@@ -18,7 +18,7 @@ struct HostConnectionClipboardBuilderTests {
             auth: HostAuth(method: .password, passwordReference: "pw-1")
         )
 
-        let text = await HostConnectionClipboardBuilder.connectionInfoText(
+        let text = try await HostConnectionClipboardBuilder.connectionInfoText(
             for: host,
             includePassword: false,
             credentialStore: credentialStore
@@ -39,7 +39,7 @@ struct HostConnectionClipboardBuilderTests {
     }
 
     @Test
-    func buildsPasswordConnectionInfoWithPasswordValueWhenExplicitlyIncluded() async {
+    func buildsPasswordConnectionInfoWithPasswordValueWhenExplicitlyIncluded() async throws {
         let credentialStore = CredentialStore(storage: .isolatedMemory())
         await credentialStore.setSecret("super-secret", for: "pw-1")
 
@@ -52,7 +52,7 @@ struct HostConnectionClipboardBuilderTests {
             auth: HostAuth(method: .password, passwordReference: "pw-1")
         )
 
-        let text = await HostConnectionClipboardBuilder.connectionInfoText(
+        let text = try await HostConnectionClipboardBuilder.connectionInfoText(
             for: host,
             includePassword: true,
             credentialStore: credentialStore
@@ -63,7 +63,7 @@ struct HostConnectionClipboardBuilderTests {
     }
 
     @Test
-    func buildsPrivateKeyConnectionInfoWithKeyPath() async {
+    func buildsPrivateKeyConnectionInfoWithKeyPath() async throws {
         let host = Host(
             name: "staging",
             address: "10.0.0.20",
@@ -73,7 +73,7 @@ struct HostConnectionClipboardBuilderTests {
             auth: HostAuth(method: .privateKey, keyReference: "/Users/demo/.ssh/id_ed25519")
         )
 
-        let text = await HostConnectionClipboardBuilder.connectionInfoText(for: host)
+        let text = try await HostConnectionClipboardBuilder.connectionInfoText(for: host)
         let authLine = tr("Auth") + ": " + tr("Private Key")
         let keyPathLine = tr("Private Key Path") + ": /Users/demo/.ssh/id_ed25519"
         #expect(text.contains(authLine))
@@ -81,7 +81,7 @@ struct HostConnectionClipboardBuilderTests {
     }
 
     @Test
-    func buildsAgentConnectionInfoWithAgentHint() async {
+    func buildsAgentConnectionInfoWithAgentHint() async throws {
         let host = Host(
             name: "jump",
             address: "10.0.0.30",
@@ -91,7 +91,7 @@ struct HostConnectionClipboardBuilderTests {
             auth: HostAuth(method: .agent)
         )
 
-        let text = await HostConnectionClipboardBuilder.connectionInfoText(for: host)
+        let text = try await HostConnectionClipboardBuilder.connectionInfoText(for: host)
         let authLine = tr("Auth") + ": " + tr("SSH Agent")
         let credentialLine = tr("Credential") + ": " + tr("Managed by local SSH agent")
         #expect(text.contains(authLine))
@@ -99,7 +99,7 @@ struct HostConnectionClipboardBuilderTests {
     }
 
     @Test
-    func buildsSSHCommandWithShellSafeQuoting() {
+    func buildsSSHCommandWithShellSafeQuoting() throws {
         let host = Host(
             name: "demo",
             address: "example.com; touch /tmp/pwned",
@@ -108,7 +108,53 @@ struct HostConnectionClipboardBuilderTests {
             auth: HostAuth(method: .agent)
         )
 
-        let command = HostConnectionClipboardBuilder.sshCommand(for: host)
+        let command = try HostConnectionClipboardBuilder.sshCommand(for: host)
         #expect(command == "ssh -p 2200 'o'\\''reilly@example.com; touch /tmp/pwned'")
+    }
+
+    @Test
+    func buildsJumpServerCommandWithProviderTransportUsername() throws {
+        let host = Host(
+            name: "database via jump",
+            address: "jump.example.test",
+            port: 2222,
+            username: "platform-user",
+            auth: HostAuth(method: .password),
+            connectionRoute: .gateway(
+                GatewayHostRouteConfiguration(
+                    providerID: JumpServerGatewayProvider.identifier,
+                    platformUsername: "platform-user",
+                    target: GatewayTargetConfiguration(
+                        assetTarget: "10.0.0.8",
+                        assetDisplayName: "Database",
+                        accountUsername: "root"
+                    )
+                )
+            )
+        )
+
+        let command = try HostConnectionClipboardBuilder.sshCommand(for: host)
+
+        #expect(command == "ssh -p 2222 'platform-user@ssh@root@10.0.0.8@jump.example.test'")
+    }
+
+    @Test
+    func rejectsInvalidJumpServerCommandInsteadOfFallingBack() {
+        let host = Host(
+            name: "invalid jump",
+            address: "jump.example.test",
+            username: "platform-user",
+            auth: HostAuth(method: .password),
+            connectionRoute: .gateway(
+                GatewayHostRouteConfiguration(
+                    providerID: JumpServerGatewayProvider.identifier,
+                    platformUsername: "invalid@platform"
+                )
+            )
+        )
+
+        #expect(throws: RemoteOperationError.self) {
+            _ = try HostConnectionClipboardBuilder.sshCommand(for: host)
+        }
     }
 }

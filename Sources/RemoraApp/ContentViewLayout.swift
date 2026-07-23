@@ -312,7 +312,7 @@ extension ContentView {
                             copyToPasteboard(host.address)
                         },
                         onCopySSHCommand: {
-                            copyToPasteboard(HostConnectionClipboardBuilder.sshCommand(for: host))
+                            copySSHCommand(host)
                         },
                         onManageQuickCommands: {
                             beginManageQuickCommands(for: host.id)
@@ -436,7 +436,7 @@ extension ContentView {
                 copyToPasteboard(host.address)
             },
             onCopySSHCommand: { host in
-                copyToPasteboard(HostConnectionClipboardBuilder.sshCommand(for: host))
+                copySSHCommand(host)
             },
             onManageQuickCommands: { hostID in
                 beginManageQuickCommands(for: hostID)
