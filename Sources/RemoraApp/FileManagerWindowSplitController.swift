@@ -628,7 +628,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     private var scrollView: NSScrollView!
     private var quickPathDropTargetID: UUID?
     private var isSelectingProgrammatically = false
-    private let rootDirectoryNode = DirectoryNode(path: "/")
+    private let rootDirectoryNode = DirectoryNode(path: "/", displayName: "/")
     private var directoryNodeCache: [String: DirectoryNode] = [:]
     private var directoryLoadTasks: [String: Task<Result<[RemoteFileEntry], Error>, Never>] = [:]
     private var selectionSyncTask: Task<Void, Never>?
@@ -770,15 +770,18 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         outlineView.expandItem(Section.quickPaths.rawValue)
         outlineView.expandItem(Section.folders.rawValue)
         restoreExpandedNodes()
-        ensureRootChildrenLoadedIfNeeded()
-        syncSelectionToSelectedPath()
+        _ = selectPreferredMatchingRow()
     }
 
     func updateSelection(selectedPath: String) {
         self.selectedPath = Self.normalizePath(selectedPath)
         LogManager.debug(.fileManager, "sidebar updateSelection selectedPath=\(self.selectedPath)")
         refreshRowColors()
-        syncSelectionToSelectedPath()
+        if !selectPreferredMatchingRow() {
+            isSelectingProgrammatically = true
+            outlineView.deselectAll(nil)
+            isSelectingProgrammatically = false
+        }
     }
 
     func reloadQuickPaths() {
@@ -806,7 +809,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
             case .quickPaths:
                 return 1 + quickPathsProvider().count
             case .folders:
-                return rootDirectoryNode.children.count
+                return 1
             }
         }
         if let directory = item as? DirectoryNode {
@@ -830,7 +833,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
             case .quickPaths:
                 return index == 0 ? SidebarItemID.root : quickPathsProvider()[index - 1]
             case .folders:
-                return rootDirectoryNode.children[index]
+                return rootDirectoryNode
             }
         }
         if let directory = item as? DirectoryNode {
@@ -987,14 +990,6 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         }
     }
 
-    private func ensureRootChildrenLoadedIfNeeded() {
-        let rootPath = rootDirectoryNode.path
-        Task { [weak self] in
-            guard let self else { return }
-            _ = await self.loadChildrenIfNeeded(forPath: rootPath, reason: "rootBootstrap")
-        }
-    }
-
     private func syncSelectionToSelectedPath() {
         selectionSyncTask?.cancel()
         if selectPreferredMatchingRow() {
@@ -1018,19 +1013,6 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
             let item = outlineView.item(atRow: row)
             if let directory = item as? DirectoryNode, directory.path == selectedPath {
                 LogManager.debug(.fileManager, "sidebar selectPreferred directory row=\(row) path=\(directory.path)")
-                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                return true
-            }
-        }
-        for row in 0..<rowCount {
-            let item = outlineView.item(atRow: row)
-            if let quickPath = item as? HostQuickPath, quickPath.path == selectedPath {
-                LogManager.debug(.fileManager, "sidebar selectPreferred quickPath row=\(row) path=\(quickPath.path)")
-                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                return true
-            }
-            if item as? String == SidebarItemID.root, selectedPath == "/" {
-                LogManager.debug(.fileManager, "sidebar selectPreferred root row=\(row)")
                 outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
                 return true
             }
@@ -1187,7 +1169,8 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         node.childrenState = .loaded
 
         if normalizedPath == rootDirectoryNode.path {
-            outlineView.reloadItem(Section.folders.rawValue, reloadChildren: true)
+            outlineView.reloadItem(rootDirectoryNode, reloadChildren: true)
+            programmaticExpandIfNeeded(rootDirectoryNode, reason: "rootSnapshot")
         } else {
             outlineView.reloadItem(node, reloadChildren: true)
         }
