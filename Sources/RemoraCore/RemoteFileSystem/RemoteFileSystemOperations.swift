@@ -86,30 +86,39 @@ public actor RemoteFileSystemOperations {
         let directory = localURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let temporaryURL = directory.appendingPathComponent(".remora-download-\(UUID().uuidString)")
-        FileManager.default.createFile(atPath: temporaryURL.path, contents: nil)
-        let localHandle = try FileHandle(forWritingTo: temporaryURL)
-        let remoteHandle = try await fileSystem.openFile(path: path, options: .read, attributes: nil)
+        guard FileManager.default.createFile(atPath: temporaryURL.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        var localHandle: FileHandle?
+        var remoteHandle: (any RemoteFileHandleProtocol)?
         var transferred: Int64 = 0
 
         do {
+            localHandle = try FileHandle(forWritingTo: temporaryURL)
+            remoteHandle = try await fileSystem.openFile(path: path, options: .read, attributes: nil)
             while true {
                 try Task.checkCancellation()
+                guard let remoteHandle else {
+                    throw RemoteFileSystemOperationError(status: .connectionLost, path: path)
+                }
                 let chunk = try await remoteHandle.read(maximumBytes: Self.chunkSize)
                 if chunk.isEmpty { break }
-                try localHandle.write(contentsOf: chunk)
+                try localHandle?.write(contentsOf: chunk)
                 transferred += Int64(chunk.count)
                 progress?(.init(bytesTransferred: transferred, totalBytes: expectedSize))
             }
-            try localHandle.close()
-            await remoteHandle.close()
+            try localHandle?.close()
+            localHandle = nil
+            await remoteHandle?.close()
+            remoteHandle = nil
             if FileManager.default.fileExists(atPath: localURL.path) {
                 try FileManager.default.removeItem(at: localURL)
             }
             try FileManager.default.moveItem(at: temporaryURL, to: localURL)
             progress?(.init(bytesTransferred: transferred, totalBytes: expectedSize ?? transferred))
         } catch {
-            try? localHandle.close()
-            await remoteHandle.close()
+            try? localHandle?.close()
+            await remoteHandle?.close()
             try? FileManager.default.removeItem(at: temporaryURL)
             throw error
         }
@@ -135,30 +144,37 @@ public actor RemoteFileSystemOperations {
         let totalSize = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize.map(Int64.init)
         progress?(.init(bytesTransferred: 0, totalBytes: totalSize))
         let temporaryPath = Self.temporarySiblingPath(for: path)
-        let remoteHandle = try await fileSystem.openFile(
-            path: temporaryPath,
-            options: [.write, .create, .truncate, .exclusive],
-            attributes: nil
-        )
-        let localHandle = try FileHandle(forReadingFrom: fileURL)
+        var remoteHandle: (any RemoteFileHandleProtocol)?
+        var localHandle: FileHandle?
         var transferred: Int64 = 0
 
         do {
+            remoteHandle = try await fileSystem.openFile(
+                path: temporaryPath,
+                options: [.write, .create, .truncate, .exclusive],
+                attributes: nil
+            )
+            localHandle = try FileHandle(forReadingFrom: fileURL)
             while true {
                 try Task.checkCancellation()
-                let chunk = try localHandle.read(upToCount: Self.chunkSize) ?? Data()
+                let chunk = try localHandle?.read(upToCount: Self.chunkSize) ?? Data()
                 if chunk.isEmpty { break }
+                guard let remoteHandle else {
+                    throw RemoteFileSystemOperationError(status: .connectionLost, path: path)
+                }
                 try await writeAll(chunk, to: remoteHandle)
                 transferred += Int64(chunk.count)
                 progress?(.init(bytesTransferred: transferred, totalBytes: totalSize))
             }
-            try localHandle.close()
-            await remoteHandle.close()
+            try localHandle?.close()
+            localHandle = nil
+            await remoteHandle?.close()
+            remoteHandle = nil
             try await fileSystem.rename(from: temporaryPath, to: path, overwrite: true)
             progress?(.init(bytesTransferred: transferred, totalBytes: totalSize ?? transferred))
         } catch {
-            try? localHandle.close()
-            await remoteHandle.close()
+            try? localHandle?.close()
+            await remoteHandle?.close()
             try? await fileSystem.removeFile(path: temporaryPath)
             throw error
         }
@@ -170,26 +186,33 @@ public actor RemoteFileSystemOperations {
         attributes: RemoteFileAttributes
     ) async throws {
         let temporaryPath = Self.temporarySiblingPath(for: destination)
-        let sourceHandle = try await fileSystem.openFile(path: source, options: .read, attributes: nil)
-        let destinationHandle = try await fileSystem.openFile(
-            path: temporaryPath,
-            options: [.write, .create, .truncate, .exclusive],
-            attributes: attributes
-        )
+        var sourceHandle: (any RemoteFileHandleProtocol)?
+        var destinationHandle: (any RemoteFileHandleProtocol)?
         do {
+            sourceHandle = try await fileSystem.openFile(path: source, options: .read, attributes: nil)
+            destinationHandle = try await fileSystem.openFile(
+                path: temporaryPath,
+                options: [.write, .create, .truncate, .exclusive],
+                attributes: attributes
+            )
             while true {
                 try Task.checkCancellation()
+                guard let sourceHandle, let destinationHandle else {
+                    throw RemoteFileSystemOperationError(status: .connectionLost, path: source)
+                }
                 let chunk = try await sourceHandle.read(maximumBytes: Self.chunkSize)
                 if chunk.isEmpty { break }
                 try await writeAll(chunk, to: destinationHandle)
             }
-            await sourceHandle.close()
-            await destinationHandle.close()
+            await sourceHandle?.close()
+            sourceHandle = nil
+            await destinationHandle?.close()
+            destinationHandle = nil
             try await fileSystem.rename(from: temporaryPath, to: destination, overwrite: true)
             try await fileSystem.setAttributes(path: destination, attributes: attributes)
         } catch {
-            await sourceHandle.close()
-            await destinationHandle.close()
+            await sourceHandle?.close()
+            await destinationHandle?.close()
             try? await fileSystem.removeFile(path: temporaryPath)
             throw error
         }
