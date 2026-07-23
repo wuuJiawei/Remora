@@ -459,6 +459,8 @@ Sources/RemoraApp/RemoteFilePropertiesViewModel.swift
 Sources/RemoraApp/RemotePermissionsEditorViewModel.swift
 Tests/RemoraCoreTests/LibSSH2RemoteFileSystemTests.swift
 Tests/RemoraAppTests/FileTransferViewModelTests.swift
+Tests/RemoraAppTests/MockRemoteFileSystem.swift
+Tests/RemoraAppTests/MockRemoteCommandExecutor.swift
 Tests/RemoraAppTests/TransferCenterTests.swift
 ```
 
@@ -478,6 +480,8 @@ Tests/RemoraAppTests/TransferCenterTests.swift
 - [x] Migrate editor, log viewer, properties, permissions, archive directory picker,
   transfers, drag/drop, and directory sync.
 - [x] Remove full-memory transfer defaults from production transfer paths.
+- [x] Migrate focused App test fixtures from `SFTPClientProtocol` to reusable native
+  filesystem and command executor doubles.
 
 ### Partial implementation status
 
@@ -489,7 +493,8 @@ Tests/RemoraAppTests/TransferCenterTests.swift
   uses socket-readiness waits for nonblocking operations, and closes file handles before
   the SFTP subsystem and transport.
 - `RemoteFileSystemOperations` owns symlink-safe recursion, 64 KiB streaming, partial-write
-  backpressure, and same-directory temporary-file replacement for upload/copy workflows.
+  backpressure, per-partial-write upload progress, and same-directory temporary-file
+  replacement for upload/copy workflows.
 - The file window acquires one independent lease and obtains its command executor and native
   filesystem from the same `RemoteSession`. Closing the terminal tab no longer rebinds the
   file window to a disconnected client; closing the file window closes only its filesystem
@@ -501,10 +506,12 @@ Tests/RemoraAppTests/TransferCenterTests.swift
   shell/OpenSSH behavior. Normal file mode can be resumed without replacing the native lease.
 - Directory refresh preserves the last successful snapshot and surfaces localized typed SFTP
   errors in the native empty state and toast while retaining detailed file logs.
-- Existing focused test fixtures still inject `SFTPClientProtocol`; migrate them to reusable
-  `RemoteFileSystem` test doubles before declaring the Phase 5 test gate green.
-- `swift build` passes. Focused tests and real direct/JumpServer SFTP validation remain pending
-  because the user owns runtime verification and requested that Codex not run tests.
+- Focused App test fixtures now inject reusable `MockRemoteFileSystem` and
+  `MockRemoteCommandExecutor` doubles. App tests no longer reference `SFTPClientProtocol`,
+  `MockSFTPClient`, or the removed SFTP binding API.
+- `swift build` and `swift build --build-tests` pass, so production and test targets compile
+  and link. Tests were not executed; focused behavior checks and real direct/JumpServer SFTP
+  validation remain pending because the user owns runtime verification.
 
 ### Filesystem test matrix
 
