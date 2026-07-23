@@ -678,10 +678,6 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             .receive(on: RunLoop.main)
             .sink { [weak self, weak viewModel] entries, isLoading, errorMessage in
                 guard let self, let viewModel else { return }
-                self.splitController.updateSidebarDirectorySnapshot(
-                    path: viewModel.remoteDirectoryPath,
-                    entries: entries
-                )
                 self.splitController.reloadDetail(
                     currentPath: viewModel.remoteDirectoryPath,
                     entries: entries,
@@ -689,6 +685,17 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     errorMessage: errorMessage,
                     searchQuery: self.splitController.currentSearchQuery,
                     transferProgress: viewModel.overallTransferProgress
+                )
+            }
+            .store(in: &toolbarCancellables)
+
+        viewModel.$loadedRemoteDirectorySnapshot
+            .compactMap { $0 }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] snapshot in
+                self?.splitController.updateSidebarDirectorySnapshot(
+                    path: snapshot.path,
+                    entries: snapshot.entries
                 )
             }
             .store(in: &toolbarCancellables)

@@ -230,6 +230,11 @@ struct LocalFileEntry: Identifiable, Hashable {
     }
 }
 
+struct LoadedRemoteDirectorySnapshot {
+    let path: String
+    let entries: [RemoteFileEntry]
+}
+
 @MainActor
 final class FileTransferViewModel: ObservableObject {
     @Published private(set) var isRemoteAdministratorMode = false
@@ -250,6 +255,7 @@ final class FileTransferViewModel: ObservableObject {
         var remoteDirectoryCache: [String: CachedRemoteDirectory]
         var remoteEntries: [RemoteFileEntry]
         var remoteLoadErrorMessage: String?
+        var loadedRemoteDirectorySnapshot: LoadedRemoteDirectorySnapshot?
     }
 
     @Published var localDirectoryURL: URL
@@ -263,6 +269,7 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var localEntries: [LocalFileEntry] = []
     @Published private(set) var remoteEntries: [RemoteFileEntry] = []
     @Published private(set) var remoteLoadErrorMessage: String?
+    @Published private(set) var loadedRemoteDirectorySnapshot: LoadedRemoteDirectorySnapshot?
     @Published private(set) var archiveOperationProgress: Double?
     @Published private(set) var archiveOperationStatusText: String?
     @Published private(set) var transferQueue: [TransferItem] = []
@@ -381,6 +388,7 @@ final class FileTransferViewModel: ObservableObject {
         let administratorFileSystem = administratorFileSystem
         self.administratorFileSystem = nil
         remoteCommandExecutor = nil
+        loadedRemoteDirectorySnapshot = nil
         isRemoteLoading = false
         remoteLoadErrorMessage = remoteFileDisplayMessage(for: error)
         Task { await administratorFileSystem?.close() }
@@ -404,6 +412,7 @@ final class FileTransferViewModel: ObservableObject {
         self.administratorFileSystem = nil
         remoteSessionLease = nil
         remoteCommandExecutor = nil
+        loadedRemoteDirectorySnapshot = nil
         isRemoteLoading = false
         await fileSystem?.close()
         await administratorFileSystem?.close()
@@ -569,6 +578,7 @@ final class FileTransferViewModel: ObservableObject {
         nextTransferBatchSeed = 0
         remoteRefreshInFlightPaths.removeAll()
         remoteArchiveToolchainCache.removeValue(forKey: normalizedBindingKey)
+        loadedRemoteDirectorySnapshot = nil
         isRemoteLoading = false
 
         if let saved = remoteBindingStates[normalizedBindingKey] {
@@ -658,6 +668,7 @@ final class FileTransferViewModel: ObservableObject {
         cancelTrackedTransfers(clearQueue: false)
         remoteRefreshInFlightPaths.removeAll()
         remoteFileOperations = nil
+        loadedRemoteDirectorySnapshot = nil
         isRemoteLoading = false
     }
 
@@ -2454,6 +2465,7 @@ final class FileTransferViewModel: ObservableObject {
 
         if preferCachedFirst, let cached = remoteDirectoryCache[path] {
             guard isActiveBindingGeneration(bindingGeneration) else { return }
+            publishLoadedRemoteDirectorySnapshot(path: path, entries: cached.entries)
             if remoteDirectoryPath == path {
                 remoteEntries = cached.entries
                 remoteLoadErrorMessage = nil
@@ -2486,6 +2498,7 @@ final class FileTransferViewModel: ObservableObject {
             guard isActiveBindingGeneration(bindingGeneration) else { return }
             let sorted = sortRemoteEntries(entries)
             remoteDirectoryCache[path] = CachedRemoteDirectory(entries: sorted, fetchedAt: Date())
+            publishLoadedRemoteDirectorySnapshot(path: path, entries: sorted)
             if remoteDirectoryPath == path {
                 remoteEntries = sorted
                 remoteLoadErrorMessage = nil
@@ -2497,6 +2510,7 @@ final class FileTransferViewModel: ObservableObject {
                 "remote directory refresh failed binding=\(activeRemoteBindingKey) path=\(path) cached=\(remoteDirectoryCache[path] != nil) detail=\(error.localizedDescription)"
             )
             if let cached = remoteDirectoryCache[path], !cached.entries.isEmpty {
+                publishLoadedRemoteDirectorySnapshot(path: path, entries: cached.entries)
                 if remoteDirectoryPath == path {
                     remoteEntries = cached.entries
                     remoteLoadErrorMessage = remoteFileDisplayMessage(for: error)
@@ -2518,6 +2532,14 @@ final class FileTransferViewModel: ObservableObject {
             }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
+    }
+
+    private func publishLoadedRemoteDirectorySnapshot(path: String, entries: [RemoteFileEntry]) {
+        loadedRemoteDirectorySnapshot = LoadedRemoteDirectorySnapshot(path: path, entries: entries)
+        LogManager.debug(
+            .fileManager,
+            "remote directory snapshot loaded path=\(path) entries=\(entries.count) binding=\(activeRemoteBindingKey)"
+        )
     }
 
     private func invalidateRemoteDirectoryCache() {
@@ -2711,7 +2733,8 @@ final class FileTransferViewModel: ObservableObject {
             remoteDirectoryHistoryIndex: remoteDirectoryHistoryIndex,
             remoteDirectoryCache: remoteDirectoryCache,
             remoteEntries: remoteEntries,
-            remoteLoadErrorMessage: remoteLoadErrorMessage
+            remoteLoadErrorMessage: remoteLoadErrorMessage,
+            loadedRemoteDirectorySnapshot: loadedRemoteDirectorySnapshot
         )
     }
 
@@ -2727,6 +2750,7 @@ final class FileTransferViewModel: ObservableObject {
         remoteDirectoryCache = state.remoteDirectoryCache
         remoteEntries = state.remoteEntries
         remoteLoadErrorMessage = state.remoteLoadErrorMessage
+        loadedRemoteDirectorySnapshot = state.loadedRemoteDirectorySnapshot
         updateRemoteNavigationAvailability()
         updateRemoteLoadingState()
     }

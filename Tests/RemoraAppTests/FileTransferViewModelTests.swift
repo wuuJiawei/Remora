@@ -6,6 +6,23 @@ import Testing
 @MainActor
 struct FileTransferViewModelTests {
     @Test
+    func loadedDirectorySnapshotDistinguishesUnloadedFromEmptyDirectory() async throws {
+        let vm = FileTransferViewModel(remoteFileSystem: nil)
+        #expect(vm.loadedRemoteDirectorySnapshot == nil)
+
+        vm.bindRemoteFileSystem(
+            MockRemoteFileSystem(includeDefaultFixtures: false),
+            initialRemoteDirectory: "/"
+        )
+
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.loadedRemoteDirectorySnapshot != nil
+        }
+        #expect(vm.loadedRemoteDirectorySnapshot?.path == "/")
+        #expect(vm.loadedRemoteDirectorySnapshot?.entries.isEmpty == true)
+    }
+
+    @Test
     func uploadThenDownloadRoundTrip() async throws {
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("remora-tests-\(UUID().uuidString)")
