@@ -19,6 +19,10 @@ struct SessionTabBarItem: View {
         runtime.connectionMode == .ssh
     }
 
+    private var targetCapabilitiesAvailable: Bool {
+        runtime.reconnectableSSHHost?.connectionRoute.isTargetBound == true
+    }
+
     private var hostDisplayTitle: String {
         guard let host = runtime.connectedSSHHost else { return title }
         return "\(host.username)@\(host.address):\(host.port)"
@@ -51,8 +55,12 @@ struct SessionTabBarItem: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(runtime.connectedSSHHost == nil)
-                .help(tr("Open server status window"))
+                .disabled(runtime.connectedSSHHost == nil || !targetCapabilitiesAvailable)
+                .help(
+                    targetCapabilitiesAvailable
+                        ? tr("Open server status window")
+                        : tr("Select a JumpServer asset and account before using Docker, files, or server metrics.")
+                )
                 .anchorPreference(
                     key: SessionMetricsButtonAnchorPreferenceKey.self,
                     value: .bounds,
@@ -109,7 +117,7 @@ struct SessionTabBarItem: View {
     }
 
     private func reportMetricsHoverIfNeeded() {
-        guard isMetricsPopoverPresented, shouldShowMetrics else {
+        guard isMetricsPopoverPresented, shouldShowMetrics, targetCapabilitiesAvailable else {
             return
         }
 

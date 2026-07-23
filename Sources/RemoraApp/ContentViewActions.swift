@@ -867,7 +867,8 @@ extension ContentView {
         let connectedBindings: [ServerMetricsSessionBinding] = workspace.tabs.compactMap { tab in
             guard let runtime = runtimeForTab(tab),
                   runtime.connectionState.hasPrefix(TerminalRuntime.connectedPrefix),
-                  let host = runtime.connectedSSHHost
+                  let host = runtime.connectedSSHHost,
+                  host.connectionRoute.isTargetBound
             else {
                 return nil
             }
@@ -876,7 +877,7 @@ extension ContentView {
         let activeSessionID: UUID? = {
             guard let runtime = workspace.activePane?.runtime,
                   runtime.connectionState.hasPrefix(TerminalRuntime.connectedPrefix),
-                  runtime.connectedSSHHost != nil
+                  runtime.connectedSSHHost?.connectionRoute.isTargetBound == true
             else {
                 return nil
             }
@@ -912,6 +913,7 @@ extension ContentView {
     }
 
     func openServerStatusWindow(for host: RemoraCore.Host, runtime: TerminalRuntime) {
+        guard requireBoundTarget(for: host, capability: "server_metrics") else { return }
         serverStatusWindowManager.present(
             host: host,
             runtime: runtime,
@@ -920,6 +922,7 @@ extension ContentView {
     }
 
     func openFileManagerWorkspace(for host: RemoraCore.Host, runtime: TerminalRuntime) {
+        guard requireBoundTarget(for: host, capability: "files") else { return }
         LogManager.info(
             .fileManager,
             "open workspace host=\(host.name) address=\(host.address) runtimeState=\(runtime.connectionState)"
@@ -936,6 +939,7 @@ extension ContentView {
     }
 
     func openDockerWorkspace(for host: RemoraCore.Host, runtime: TerminalRuntime) {
+        guard requireBoundTarget(for: host, capability: "docker") else { return }
         dockerWorkspaceWindowManager.present(
             host: host,
             runtime: runtime,
@@ -948,7 +952,8 @@ extension ContentView {
     }
 
     func openDockerContainerShell(on host: RemoraCore.Host, container: DockerContainer) {
-        guard container.isRunning else {
+        guard requireBoundTarget(for: host, capability: "docker_shell"),
+              container.isRunning else {
             return
         }
 
@@ -978,6 +983,20 @@ extension ContentView {
                 }
             }
         }
+    }
+
+    private func requireBoundTarget(
+        for host: RemoraCore.Host,
+        capability: String
+    ) -> Bool {
+        guard host.connectionRoute.isTargetBound else {
+            LogManager.info(
+                .ssh,
+                "capability rejected category=route code=target_not_resolved capability=\(capability) hostID=\(host.id.uuidString)"
+            )
+            return false
+        }
+        return true
     }
 
 }

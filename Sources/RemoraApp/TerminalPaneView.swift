@@ -31,6 +31,14 @@ struct TerminalPaneView: View {
     @State private var passwordInput: String = ""
     @State private var hoveredToolbarItem: String?
 
+    private var targetCapabilitiesAvailable: Bool {
+        runtime.reconnectableSSHHost?.connectionRoute.isTargetBound == true
+    }
+
+    private var targetCapabilityHelp: String {
+        tr("Select a JumpServer asset and account before using Docker, files, or server metrics.")
+    }
+
     private var hostKeyPromptBinding: Binding<Bool> {
         Binding(
             get: { runtime.hostKeyPromptMessage != nil },
@@ -479,9 +487,11 @@ struct TerminalPaneView: View {
                         .terminalToolbarIcon()
                 }
                 .buttonStyle(TerminalToolbarIconButtonStyle(isHovering: hoveredToolbarItem == "files"))
+                .disabled(!targetCapabilitiesAvailable)
                 .onHover { hoveredToolbarItem = $0 ? "files" : (hoveredToolbarItem == "files" ? nil : hoveredToolbarItem) }
                 .accessibilityLabel(tr("Open File Manager Workspace"))
                 .accessibilityIdentifier("terminal-open-file-manager-workspace")
+                .help(targetCapabilitiesAvailable ? tr("Open File Manager Workspace") : targetCapabilityHelp)
 
                 Button {
                     onSelect()
@@ -490,9 +500,11 @@ struct TerminalPaneView: View {
                     dockerToolbarIcon
                 }
                 .buttonStyle(TerminalToolbarIconButtonStyle(isHovering: hoveredToolbarItem == "docker"))
+                .disabled(!targetCapabilitiesAvailable)
                 .onHover { hoveredToolbarItem = $0 ? "docker" : (hoveredToolbarItem == "docker" ? nil : hoveredToolbarItem) }
                 .accessibilityLabel(tr("Open Docker Workspace"))
                 .accessibilityIdentifier("terminal-open-docker-workspace")
+                .help(targetCapabilitiesAvailable ? tr("Open Docker Workspace") : targetCapabilityHelp)
 
                 Menu {
                     if quickCommands.isEmpty {

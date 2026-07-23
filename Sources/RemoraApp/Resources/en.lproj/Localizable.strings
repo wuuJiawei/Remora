@@ -550,6 +550,7 @@
 "Asset" = "Asset";
 "Target" = "Target";
 "Interactive asset menu" = "Interactive asset menu";
+"Select a JumpServer asset and account before using Docker, files, or server metrics." = "Select a JumpServer asset and account before using Docker, files, or server metrics.";
 "Save password in local config file?" = "Save password in local config file?";
 "Save to ~/.config/remora" = "Save to ~/.config/remora";
 "Saved to" = "Saved to";
