@@ -794,6 +794,9 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
             return
         }
         applyDirectorySnapshot(path: Self.normalizePath(path), entries: entries)
+        if Self.normalizePath(path) == selectedPath {
+            syncSelectionToSelectedPath()
+        }
     }
 
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
@@ -993,7 +996,9 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     }
 
     private func syncSelectionToSelectedPath() {
+        selectionSyncTask?.cancel()
         if selectPreferredMatchingRow() {
+            selectionSyncTask = nil
             return
         }
 
@@ -1115,6 +1120,17 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         guard !Task.isCancelled else { return node.children }
         if directoryLoadTasks[normalizedPath] != nil {
             directoryLoadTasks[normalizedPath] = nil
+        }
+
+        if node.childrenState == .loaded {
+            LogManager.debug(
+                .fileManager,
+                "sidebar loadChildren joined result already applied path=\(normalizedPath) reason=\(reason)"
+            )
+            if expandAfterLoad {
+                programmaticExpandIfNeeded(node, reason: reason)
+            }
+            return node.children
         }
 
         guard case let .success(entries) = result else {

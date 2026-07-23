@@ -265,13 +265,8 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                 quickPathsProvider(runtime)
             },
             directoryChildrenProvider: { path in
-                do {
-                    return try await viewModel.listRemoteDirectory(path: path, preferCachedFirst: true)
-                        .filter(\.isDirectory)
-                } catch {
-                    LogManager.error(.fileManager, "sidebar list failed path=\(path) error=\(error.localizedDescription)")
-                    return []
-                }
+                try await viewModel.listRemoteDirectory(path: path, preferCachedFirst: true)
+                    .filter(\.isDirectory)
             },
             onSelectRoot: {
                 viewModel.navigateRemote(to: "/")
