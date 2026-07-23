@@ -365,6 +365,8 @@ Sources/RemoraApp/DockerCommandService.swift
 Sources/RemoraApp/DockerPanelViewModel.swift
 Sources/RemoraApp/DockerWorkspaceWindow.swift
 Sources/RemoraApp/ServerMetricsCenter.swift
+Sources/RemoraApp/FileTransferViewModel.swift
+Sources/RemoraApp/FileManagerWorkspaceWindow.swift
 Sources/RemoraApp/RemoteArchiveSupport.swift
 Sources/RemoraApp/QuickCommandExecution.swift
 Sources/RemoraApp/ExtensionScriptRunnerViewModel.swift
@@ -384,12 +386,18 @@ Tests/RemoraAppTests/RemoteArchiveSupportTests.swift
 - [x] Inject a session-scoped executor into Docker; remove SFTP construction.
 - [x] Preserve Docker command parsing but classify executable/daemon/permission/parse
   failures separately.
-- [ ] Inject executor into metrics and delete per-host `SystemSFTPClient` cache.
-- [ ] Mark metrics `.readOnly`; mark Docker mutations and archive actions `.never`.
-- [ ] Migrate quick commands/extensions with `.never` default.
+- [x] Inject executor into metrics and delete per-host `SystemSFTPClient` cache.
+- [x] Mark metrics, archive inspection, and remote search `.readOnly`; mark Docker
+  mutations, archive mutations/install, and log follow `.never`.
+- [x] Keep quick commands on the current interactive native shell. They are terminal
+  input, not background exec requests, so replay policy does not apply.
+- [x] Confirm extension scripts are intentionally local plugin processes that receive
+  host metadata. They do not execute through SSH and require no remote-command migration.
 - [x] Make Docker window hold its own session lease and release it on close.
+- [x] Make file-window remote tools use a session-scoped executor and an independent
+  lease; keep file I/O on the Phase 5 SFTP boundary until it is replaced atomically.
 
-### Partial implementation status
+### Implementation status
 
 - The native shim and Swift transport now expose nonblocking exec channels with
   separate stdout/stderr, stdin EOF, timeout, cancellation, exit status, and bounded
@@ -397,8 +405,17 @@ Tests/RemoraAppTests/RemoteArchiveSupportTests.swift
 - Docker read and mutation paths, including live logs, use a session-scoped executor.
   The Docker window owns an independent lease, so terminal closure does not release the
   Docker session.
-- Metrics, archive, quick-command, and extension consumers remain pending. Phase 4 is
-  therefore not complete and its exit condition is not green.
+- Metrics are keyed by native session identity, use a retained lease/executor, and no
+  longer create per-host `SystemSFTPClient` instances. Password-authenticated sessions
+  are no longer excluded.
+- Archive, archive capability/install, remote search, log tail, and log follow paths use
+  the file window's native command executor. No RemoraApp consumer calls the shell-command
+  methods on `SFTPClientProtocol`.
+- Quick commands retain interactive terminal semantics, and extension scripts retain
+  their documented local-plugin semantics; neither is misclassified as remote exec.
+- `swift build` and static command-consumer searches pass. Runtime regression tests,
+  real-server validation, and disconnect-before-output retry remain pending, so the
+  Phase 4 runtime exit gate is not green.
 
 ### Required regression tests
 
@@ -412,9 +429,10 @@ Tests/RemoraAppTests/RemoteArchiveSupportTests.swift
 
 ### Exit condition
 
-- Docker, metrics, archive, quick command, and extension paths no longer call command
+- Docker, metrics, archive, remote search, and remote log paths no longer call command
   methods on `SFTPClientProtocol`.
-- No consumer in this phase constructs `SystemSFTPClient`.
+- No consumer constructs `SystemSFTPClient` for command execution. The file window still
+  constructs it only for Phase 5 file I/O until native SFTP replaces that binding.
 - Docker and terminal remain usable after either independent window closes.
 
 ### Commit
