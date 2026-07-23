@@ -138,6 +138,7 @@ public actor LibSSH2Transport {
             )
             try await authenticate(
                 configuration.authentication,
+                advertisedMethods: advertisedMethods,
                 username: configuration.username,
                 runtime: runtime,
                 context: context,
@@ -294,6 +295,7 @@ public actor LibSSH2Transport {
 
     private func authenticate(
         _ authentication: NativeSSHAuthentication,
+        advertisedMethods: Set<NativeSSHAuthenticationMethod>,
         username: String,
         runtime: NativeSSHRuntime,
         context: NativeSSHContext,
@@ -320,6 +322,20 @@ public actor LibSSH2Transport {
             ) {
                 try context.authenticateKeyboardInteractive(username: username, bridge: coordinator.bridge)
             }
+        case .passwordOrKeyboardInteractive(let password, let coordinator):
+            if advertisedMethods.contains(.keyboardInteractive) {
+                try await runtime.run(
+                    phase: .authenticating,
+                    operation: "keyboard_interactive_auth",
+                    timeout: timeout
+                ) {
+                    try context.authenticateKeyboardInteractive(username: username, bridge: coordinator.bridge)
+                }
+            } else {
+                try await runtime.run(phase: .authenticating, operation: "password_auth", timeout: timeout) {
+                    try context.authenticatePassword(username: username, password: password)
+                }
+            }
         }
     }
 
@@ -327,8 +343,15 @@ public actor LibSSH2Transport {
         authentication: NativeSSHAuthentication,
         advertisedMethods: Set<NativeSSHAuthenticationMethod>
     ) throws {
-        let requiredMethod = authentication.advertisedMethod
-        guard advertisedMethods.contains(requiredMethod) else {
+        let isAvailable: Bool
+        switch authentication {
+        case .passwordOrKeyboardInteractive:
+            isAvailable = advertisedMethods.contains(.keyboardInteractive)
+                || advertisedMethods.contains(.password)
+        default:
+            isAvailable = advertisedMethods.contains(authentication.advertisedMethod)
+        }
+        guard isAvailable else {
             throw RemoteOperationError(
                 category: .authentication,
                 code: "authentication_method_unavailable",
@@ -697,6 +720,7 @@ private extension NativeSSHAuthentication {
         case .password: .password
         case .privateKey, .agent: .publicKey
         case .keyboardInteractive: .keyboardInteractive
+        case .passwordOrKeyboardInteractive: .keyboardInteractive
         }
     }
 
@@ -706,11 +730,15 @@ private extension NativeSSHAuthentication {
         case .privateKey: "private_key_auth"
         case .agent: "agent_auth"
         case .keyboardInteractive: "keyboard_interactive_auth"
+        case .passwordOrKeyboardInteractive: "jumpserver_auth"
         }
     }
 
     var coordinator: AuthenticationCoordinator? {
         if case .keyboardInteractive(let coordinator) = self {
+            return coordinator
+        }
+        if case .passwordOrKeyboardInteractive(_, let coordinator) = self {
             return coordinator
         }
         return nil

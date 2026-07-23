@@ -29,28 +29,32 @@ public struct NativeDirectSessionConnector: Sendable {
     private let credentialStore: CredentialStore
     private let hostKeyStoreProvider: PersistentHostKeyStoreProvider
     private let interactionBroker: NativeSessionInteractionBroker
+    private let routeResolver: HostConnectionRouteResolver
     private let diagnosticHandler: DiagnosticHandler?
 
     public init(
         credentialStore: CredentialStore = CredentialStore(),
         hostKeyStoreProvider: PersistentHostKeyStoreProvider = .shared,
         interactionBroker: NativeSessionInteractionBroker,
+        routeResolver: HostConnectionRouteResolver = HostConnectionRouteResolver(),
         diagnosticHandler: DiagnosticHandler? = nil
     ) {
         self.credentialStore = credentialStore
         self.hostKeyStoreProvider = hostKeyStoreProvider
         self.interactionBroker = interactionBroker
+        self.routeResolver = routeResolver
         self.diagnosticHandler = diagnosticHandler
     }
 
-    public func request(for host: Host) -> RemoteSessionAcquisitionRequest {
-        let key = Self.sessionKey(for: host)
+    public func request(for host: Host) throws -> RemoteSessionAcquisitionRequest {
+        let resolvedRoute = try routeResolver.resolve(host: host)
+        let key = Self.sessionKey(for: host, resolvedRoute: resolvedRoute)
         return RemoteSessionAcquisitionRequest(key: key) {
             let store = try await hostKeyStoreProvider.store()
             let verifier = HostKeyVerifier(store: store) { request in
                 await interactionBroker.requestHostKeyDecision(for: request)
             }
-            let authentication = try await authentication(for: host)
+            let authentication = try await authentication(for: host, route: resolvedRoute.route)
             let transport = LibSSH2Transport(hostKeyVerifier: verifier)
 
             if let diagnosticHandler {
@@ -78,7 +82,34 @@ public struct NativeDirectSessionConnector: Sendable {
         }
     }
 
-    private func authentication(for host: Host) async throws -> NativeSSHAuthentication {
+    private func authentication(
+        for host: Host,
+        route: ConnectionRoute
+    ) async throws -> NativeSSHAuthentication {
+        if case .gateway(let gatewayRoute) = route,
+           gatewayRoute.providerID == JumpServerGatewayProvider.identifier
+        {
+            guard host.auth.method == .password else {
+                throw RemoteOperationError(
+                    category: .authentication,
+                    code: "jumpserver_authentication_unsupported",
+                    safeDiagnosticMessage: "JumpServer routes currently require password authentication"
+                )
+            }
+            let password = try await password(for: host)
+            let coordinator = AuthenticationCoordinator { prompts in
+                guard prompts.count == 1,
+                      !prompts[0].echo,
+                      prompts[0].text.localizedCaseInsensitiveContains("password")
+                else {
+                    return nil
+                }
+                return [password]
+            }
+            interactionBroker.observeKeyboardInteractive(coordinator)
+            return .passwordOrKeyboardInteractive(password: password, coordinator: coordinator)
+        }
+
         switch host.auth.method {
         case .agent:
             return .agent
@@ -104,25 +135,32 @@ public struct NativeDirectSessionConnector: Sendable {
                 )
             )
         case .password:
-            if let reference = normalized(host.auth.passwordReference),
-               let password = await credentialStore.secret(for: reference),
-               !password.isEmpty
-            {
-                return .password(password)
-            }
-            let password = try await interactionBroker.requestCredential(kind: .password)
-            guard !password.isEmpty else {
-                throw RemoteOperationError(
-                    category: .authentication,
-                    code: "password_empty",
-                    safeDiagnosticMessage: "Password authentication requires a non-empty password"
-                )
-            }
-            return .password(password)
+            return .password(try await password(for: host))
         }
     }
 
-    private static func sessionKey(for host: Host) -> RemoteSessionKey {
+    private func password(for host: Host) async throws -> String {
+        if let reference = normalized(host.auth.passwordReference),
+           let password = await credentialStore.secret(for: reference),
+           !password.isEmpty
+        {
+            return password
+        }
+        let password = try await interactionBroker.requestCredential(kind: .password)
+        guard !password.isEmpty else {
+            throw RemoteOperationError(
+                category: .authentication,
+                code: "password_empty",
+                safeDiagnosticMessage: "Password authentication requires a non-empty password"
+            )
+        }
+        return password
+    }
+
+    private static func sessionKey(
+        for host: Host,
+        resolvedRoute: ResolvedHostConnectionRoute
+    ) -> RemoteSessionKey {
         let credentialReference: String? = switch host.auth.method {
         case .agent:
             nil
@@ -132,22 +170,10 @@ public struct NativeDirectSessionConnector: Sendable {
             normalized(host.auth.passwordReference)
         }
         return RemoteSessionKey(
-            route: .direct(
-                DirectConnectionRoute(
-                    endpoint: RemoteEndpoint(hostname: host.address, port: host.port),
-                    username: host.username
-                )
-            ),
-            target: RemoteTargetIdentity(
-                savedHostID: host.id,
-                routeProviderID: "direct",
-                assetID: host.id.uuidString,
-                assetDisplayName: host.name,
-                accountID: host.username,
-                accountUsername: host.username
-            ),
+            route: resolvedRoute.route,
+            target: resolvedRoute.target,
             authenticationIdentity: RemoteAuthenticationIdentity(
-                username: host.username,
+                username: resolvedRoute.route.transportUsername,
                 method: host.auth.method,
                 credentialReference: credentialReference
             ),

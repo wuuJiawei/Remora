@@ -34,10 +34,18 @@ public struct KeyboardInteractiveChallenge: Equatable, Identifiable, Sendable {
 }
 
 public final class AuthenticationCoordinator: @unchecked Sendable {
+    public typealias AutomaticResponseProvider = @Sendable ([KeyboardInteractivePrompt]) -> [String]?
+
     let bridge: KeyboardInteractiveBridge
 
-    public init(challengeTimeout: Duration = .seconds(300)) {
-        bridge = KeyboardInteractiveBridge(challengeTimeout: challengeTimeout)
+    public init(
+        challengeTimeout: Duration = .seconds(300),
+        automaticResponseProvider: AutomaticResponseProvider? = nil
+    ) {
+        bridge = KeyboardInteractiveBridge(
+            challengeTimeout: challengeTimeout,
+            automaticResponseProvider: automaticResponseProvider
+        )
     }
 
     public func challenges() -> AsyncStream<KeyboardInteractiveChallenge> {
@@ -60,17 +68,22 @@ final class KeyboardInteractiveBridge: @unchecked Sendable {
     private let continuation: AsyncStream<KeyboardInteractiveChallenge>.Continuation
     private let condition = NSCondition()
     private let challengeTimeout: TimeInterval
+    private let automaticResponseProvider: AuthenticationCoordinator.AutomaticResponseProvider?
     private var pendingChallenge: KeyboardInteractiveChallenge?
     private var pendingResponses: [String]?
     private var isCancelled = false
 
-    init(challengeTimeout: Duration) {
+    init(
+        challengeTimeout: Duration,
+        automaticResponseProvider: AuthenticationCoordinator.AutomaticResponseProvider?
+    ) {
         let stream = AsyncStream<KeyboardInteractiveChallenge>.makeStream(
             bufferingPolicy: .bufferingNewest(8)
         )
         challenges = stream.stream
         continuation = stream.continuation
         self.challengeTimeout = challengeTimeout.timeInterval
+        self.automaticResponseProvider = automaticResponseProvider
     }
 
     deinit {
@@ -83,6 +96,9 @@ final class KeyboardInteractiveBridge: @unchecked Sendable {
         prompts: [KeyboardInteractivePrompt]
     ) -> [String]? {
         guard !prompts.isEmpty else { return [] }
+        if let responses = automaticResponseProvider?(prompts), responses.count == prompts.count {
+            return responses
+        }
         let deadline = Date().addingTimeInterval(challengeTimeout)
         let challenge = KeyboardInteractiveChallenge(
             name: name,

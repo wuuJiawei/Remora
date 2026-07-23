@@ -126,7 +126,7 @@ final class TerminalRuntime: ObservableObject {
                 )
             }
             self.sshSessionManager = SessionManager(remoteSessionHub: remoteSessionHub) { host in
-                connector.request(for: host)
+                try connector.request(for: host)
             }
         }
         self.remoteShellIntegrationInstaller = remoteShellIntegrationInstaller

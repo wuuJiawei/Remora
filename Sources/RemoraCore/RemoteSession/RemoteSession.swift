@@ -55,6 +55,7 @@ public actor RemoteSession: RemoteSessionProtocol {
     }
 
     public func commandExecutor() throws -> any RemoteCommandExecutorProtocol {
+        try requireBoundTarget(capability: "remote commands")
         guard state == .ready, let transport = transport as? LibSSH2Transport else {
             throw RemoteOperationError(
                 category: .session,
@@ -66,6 +67,7 @@ public actor RemoteSession: RemoteSessionProtocol {
     }
 
     public func fileSystem() async throws -> any RemoteFileSystemProtocol {
+        try requireBoundTarget(capability: "file access")
         guard state == .ready, let transport = transport as? LibSSH2Transport else {
             throw RemoteOperationError(
                 category: .session,
@@ -97,6 +99,7 @@ public actor RemoteSession: RemoteSessionProtocol {
     }
 
     public func administratorFileSystem() async throws -> any RemoteFileSystemProtocol {
+        try requireBoundTarget(capability: "administrator file access")
         guard state == .ready, let transport = transport as? LibSSH2Transport else {
             throw RemoteOperationError(
                 category: .session,
@@ -183,6 +186,16 @@ public actor RemoteSession: RemoteSessionProtocol {
             code: "file_system_closed_during_open",
             safeDiagnosticMessage: "Remote \(capability) closed while it was opening"
         )
+    }
+
+    private func requireBoundTarget(capability: String) throws {
+        guard key.target.bindingState == .bound else {
+            throw RemoteOperationError(
+                category: .route,
+                code: "target_not_resolved",
+                safeDiagnosticMessage: "Select a gateway asset and account before using \(capability)"
+            )
+        }
     }
 }
 

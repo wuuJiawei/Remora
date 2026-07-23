@@ -17,6 +17,7 @@ public enum NativeSSHAuthentication: Sendable {
     case privateKey(NativeSSHPrivateKey)
     case agent
     case keyboardInteractive(AuthenticationCoordinator)
+    case passwordOrKeyboardInteractive(password: String, coordinator: AuthenticationCoordinator)
 }
 
 public struct NativeSSHConnectionConfiguration: Sendable {
