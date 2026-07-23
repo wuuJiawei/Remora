@@ -232,6 +232,7 @@ public actor LibSSH2RemoteFileSystem: RemoteFileSystemProtocol {
             owner: attributes.owner,
             group: attributes.group,
             isDirectory: attributes.isDirectory,
+            isSymbolicLink: attributes.isSymbolicLink,
             modifiedAt: attributes.modifiedAt
         )
     }
@@ -250,7 +251,8 @@ public actor LibSSH2RemoteFileSystem: RemoteFileSystemProtocol {
             modifiedAt: hasTimes
                 ? Date(timeIntervalSince1970: TimeInterval(attributes.modificationTime))
                 : Date(timeIntervalSince1970: 0),
-            isDirectory: hasPermissions && (mode & 0o170000) == 0o040000
+            isDirectory: hasPermissions && (mode & 0o170000) == 0o040000,
+            isSymbolicLink: hasPermissions && (mode & 0o170000) == 0o120000
         )
     }
 

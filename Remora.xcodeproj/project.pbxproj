@@ -72,6 +72,7 @@
 		324A1F4256F16AEEB6111D4FF5A53085 /* RemoteCompressSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E51CC3706D576F2FDCEA427184A778A /* RemoteCompressSheet.swift */; };
 		34F77434126D8A6BC2E33E8C9E29FA28 /* ZmodemTransferCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FDFA8BB683F3D6B831ED162FA4E60AD /* ZmodemTransferCoordinator.swift */; };
 		3673547097E90C6A64ECFA996D88DDA2 /* VisualStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63ECCC185F496F6D6341BE0C0819296 /* VisualStyle.swift */; };
+		36BF1899D108AA823208411D02987F20 /* RemoteFileSystemOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274D3DDFDBA8B2F005F26BDE2DB39DA6 /* RemoteFileSystemOperations.swift */; };
 		3C3F8AEB9950BF5C5A4D7206A97F280E /* rsa_alt_helpers.c in Sources */ = {isa = PBXBuildFile; fileRef = CD951262EDEBE29FCF4667145C124335 /* rsa_alt_helpers.c */; };
 		3D13CAE19D06D346938C935AA50E182F /* sha256.c in Sources */ = {isa = PBXBuildFile; fileRef = E3C0EB5C17E78F61970D7782D01B7778 /* sha256.c */; };
 		3D9E01D210E21C75699DAF6BF014C6E7 /* psa_its_file.c in Sources */ = {isa = PBXBuildFile; fileRef = 2051DE64E645665B2B1DEC757A5053FF /* psa_its_file.c */; };
@@ -414,6 +415,7 @@
 		25D24F1A6F44C8DEDB1C7A60A9809292 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/QuartzCore.framework; sourceTree = DEVELOPER_DIR; };
 		25ECA675FC73A01C934AC4F2D08B1BFF /* FileManagerContextMenuPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileManagerContextMenuPolicy.swift; sourceTree = "<group>"; };
 		26450997EF07DFEBC8FBCA0C6D2A3B76 /* ServerMetricsPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerMetricsPanel.swift; sourceTree = "<group>"; };
+		274D3DDFDBA8B2F005F26BDE2DB39DA6 /* RemoteFileSystemOperations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RemoteFileSystemOperations.swift; path = RemoteFileSystem/RemoteFileSystemOperations.swift; sourceTree = "<group>"; };
 		278E676B44C5CA174D88564A81DDA708 /* block_cipher.c */ = {isa = PBXFileReference; includeInIndex = 1; name = block_cipher.c; path = library/block_cipher.c; sourceTree = "<group>"; };
 		29839883C298D6FDA60AADEEB2E1CFAA /* pem.c */ = {isa = PBXFileReference; includeInIndex = 1; name = pem.c; path = library/pem.c; sourceTree = "<group>"; };
 		2A84EA2682C7E0471F2B379D61EF0BD4 /* camellia.c */ = {isa = PBXFileReference; includeInIndex = 1; name = camellia.c; path = library/camellia.c; sourceTree = "<group>"; };
@@ -1095,6 +1097,7 @@
 				C114E030D9BC089EC45582D38952AF98 /* NativeSFTPHandles.swift */,
 				725450DCAB03A4CB0F8FD2E2971D02BD /* RemoteFileSystem.swift */,
 				500735EBEDFAC042599808661236DB43 /* RemoteFileSystemModels.swift */,
+				274D3DDFDBA8B2F005F26BDE2DB39DA6 /* RemoteFileSystemOperations.swift */,
 				1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */,
 				617B0B1F9CDD8082ABAEEDE48559E7E3 /* HostKeyVerifier.swift */,
 				EA50B1C63DDE6C75C7EB8B88F6F0049B /* LibSSH2Transport.swift */,
@@ -1578,6 +1581,7 @@
 				6200890E97DC99C23C243B10171E94FE /* NativeSFTPHandles.swift in Sources */,
 				200E6B7316C0EE09D3DAFAF91E8090C0 /* RemoteFileSystem.swift in Sources */,
 				E17D2567F60F947C24AEEF9CAB77EFCB /* RemoteFileSystemModels.swift in Sources */,
+				36BF1899D108AA823208411D02987F20 /* RemoteFileSystemOperations.swift in Sources */,
 				AA2763D3E2F5AACE9FD97A27A62696AB /* AuthenticationCoordinator.swift in Sources */,
 				6E175EB588AADDF260433FD1EE8F4005 /* HostKeyVerifier.swift in Sources */,
 				101D1AD9128CF4CD4105C90A58B7C7A4 /* LibSSH2Transport.swift in Sources */,

@@ -33,6 +33,7 @@ public struct RemoteFileAttributes: Equatable, Sendable {
     public var size: Int64
     public var modifiedAt: Date
     public var isDirectory: Bool
+    public var isSymbolicLink: Bool
 
     public init(
         permissions: UInt16? = nil,
@@ -40,7 +41,8 @@ public struct RemoteFileAttributes: Equatable, Sendable {
         group: String? = nil,
         size: Int64,
         modifiedAt: Date = Date(),
-        isDirectory: Bool
+        isDirectory: Bool,
+        isSymbolicLink: Bool = false
     ) {
         self.permissions = permissions
         self.owner = owner
@@ -48,5 +50,6 @@ public struct RemoteFileAttributes: Equatable, Sendable {
         self.size = size
         self.modifiedAt = modifiedAt
         self.isDirectory = isDirectory
+        self.isSymbolicLink = isSymbolicLink
     }
 }

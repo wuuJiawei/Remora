@@ -132,6 +132,7 @@ public struct RemoteFileEntry: Equatable, Sendable {
     public var owner: String?
     public var group: String?
     public var isDirectory: Bool
+    public var isSymbolicLink: Bool
     public var modifiedAt: Date
 
     public init(
@@ -142,6 +143,7 @@ public struct RemoteFileEntry: Equatable, Sendable {
         owner: String? = nil,
         group: String? = nil,
         isDirectory: Bool,
+        isSymbolicLink: Bool = false,
         modifiedAt: Date = Date()
     ) {
         self.name = name
@@ -151,6 +153,7 @@ public struct RemoteFileEntry: Equatable, Sendable {
         self.owner = owner
         self.group = group
         self.isDirectory = isDirectory
+        self.isSymbolicLink = isSymbolicLink
         self.modifiedAt = modifiedAt
     }
 }
