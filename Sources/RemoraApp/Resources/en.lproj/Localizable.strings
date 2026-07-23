@@ -844,7 +844,10 @@
 "Administrator mode enabled" = "Administrator mode enabled";
 "Administrator mode disabled" = "Administrator mode disabled";
 "Wait for active transfers to finish before changing administrator mode." = "Wait for active transfers to finish before changing administrator mode.";
-"Administrator file access is not available in this version. Disable administrator mode to use the file manager." = "Administrator file access is not available in this version. Disable administrator mode to use the file manager.";
+"Administrator file access requires passwordless sudo on the remote host." = "Administrator file access requires passwordless sudo on the remote host.";
+"Administrator file session is unavailable." = "Administrator file session is unavailable.";
+"Connecting to administrator file service…" = "Connecting to administrator file service…";
+"No supported SFTP server executable was found on the remote host." = "No supported SFTP server executable was found on the remote host.";
 "Remote file session is unavailable." = "Remote file session is unavailable.";
 "The remote path was not found." = "The remote path was not found.";
 "Permission was denied for this remote file operation." = "Permission was denied for this remote file operation.";

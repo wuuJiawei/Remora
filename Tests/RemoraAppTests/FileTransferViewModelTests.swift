@@ -1070,6 +1070,56 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func administratorModeReusesSessionAndRestoresNormalBindingState() async throws {
+        let normalFileSystem = MockRemoteFileSystem()
+        let administratorFileSystem = MockRemoteFileSystem()
+        let executor = MockRemoteCommandExecutor(responses: [:])
+        let session = AdministratorFileTestSession(
+            normalFileSystem: normalFileSystem,
+            administratorFileSystem: administratorFileSystem,
+            executor: executor
+        )
+        let lease = AdministratorFileTestLease(session: session)
+        let vm = FileTransferViewModel(remoteDirectoryPath: "/")
+
+        vm.attachNativeSession(
+            lease: lease,
+            executor: executor,
+            fileSystem: normalFileSystem,
+            bindingKey: "session-a",
+            initialRemoteDirectory: "/"
+        )
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.remoteEntries.contains(where: { $0.path == "/README.txt" })
+        }
+        vm.navigateRemote(to: "/logs")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            vm.remoteDirectoryPath == "/logs"
+                && vm.remoteEntries.contains(where: { $0.path == "/logs/app.log" })
+        }
+
+        vm.setRemoteAdministratorMode(true)
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            await session.administratorFileSystemRequestCount == 1
+                && vm.remoteLoadErrorMessage == nil
+                && vm.remoteEntries.contains(where: { $0.path == "/logs/app.log" })
+        }
+        #expect(await lease.sessionRequestCount == 1)
+
+        vm.setRemoteAdministratorMode(false)
+        #expect(vm.remoteDirectoryPath == "/logs")
+        #expect(vm.remoteEntries.contains(where: { $0.path == "/logs/app.log" }))
+        try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
+            await administratorFileSystem.isClosedForTesting()
+        }
+
+        await vm.refreshRemoteEntries()
+        #expect(vm.remoteEntries.contains(where: { $0.path == "/logs/app.log" }))
+        await vm.releaseNativeSession()
+        #expect(await lease.releaseCount == 1)
+    }
+
+    @Test
     func openRemoteUsesEntryAbsolutePathWithoutDuplicatingParent() async {
         let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/home")
         let absoluteEntry = RemoteFileEntry(
@@ -1208,4 +1258,94 @@ struct FileTransferViewModelTests {
         }
         throw NSError(domain: "FileTransferViewModelTests", code: 3, userInfo: [NSLocalizedDescriptionKey: "timeout waiting condition"])
     }
+}
+
+private actor AdministratorFileTestLease: RemoteSessionLeaseProtocol {
+    nonisolated let id = UUID()
+    private let remoteSession: any RemoteSessionProtocol
+    private(set) var sessionRequestCount = 0
+    private(set) var releaseCount = 0
+
+    init(session: any RemoteSessionProtocol) {
+        remoteSession = session
+    }
+
+    func session() async throws -> any RemoteSessionProtocol {
+        sessionRequestCount += 1
+        return remoteSession
+    }
+
+    func release() async {
+        releaseCount += 1
+    }
+}
+
+private actor AdministratorFileTestSession: RemoteSessionProtocol {
+    nonisolated let id = UUID()
+    private let normalFileSystem: any RemoteFileSystemProtocol
+    private let rootFileSystem: any RemoteFileSystemProtocol
+    private let executor: any RemoteCommandExecutorProtocol
+    private(set) var administratorFileSystemRequestCount = 0
+
+    init(
+        normalFileSystem: any RemoteFileSystemProtocol,
+        administratorFileSystem: any RemoteFileSystemProtocol,
+        executor: any RemoteCommandExecutorProtocol
+    ) {
+        self.normalFileSystem = normalFileSystem
+        rootFileSystem = administratorFileSystem
+        self.executor = executor
+    }
+
+    func identitySnapshot() async -> RemoteSessionIdentitySnapshot {
+        let hostID = UUID()
+        return RemoteSessionIdentitySnapshot(
+            sessionID: id,
+            key: RemoteSessionKey(
+                route: .direct(
+                    DirectConnectionRoute(
+                        endpoint: RemoteEndpoint(hostname: "fixture.test"),
+                        username: "tester"
+                    )
+                ),
+                target: RemoteTargetIdentity(
+                    savedHostID: hostID,
+                    routeProviderID: "direct",
+                    assetID: hostID.uuidString,
+                    assetDisplayName: "Fixture",
+                    accountUsername: "tester"
+                ),
+                authenticationIdentity: RemoteAuthenticationIdentity(
+                    username: "tester",
+                    method: .password
+                ),
+                hostKeyPolicyID: "fixture"
+            ),
+            state: .ready
+        )
+    }
+
+    func openShell(pty: PTYSize) async throws -> any RemoteShellChannelProtocol {
+        _ = pty
+        throw RemoteOperationError(
+            category: .channel,
+            code: "fixture_shell_unavailable",
+            safeDiagnosticMessage: "Fixture does not provide a shell"
+        )
+    }
+
+    func commandExecutor() async throws -> any RemoteCommandExecutorProtocol {
+        executor
+    }
+
+    func fileSystem() async throws -> any RemoteFileSystemProtocol {
+        normalFileSystem
+    }
+
+    func administratorFileSystem() async throws -> any RemoteFileSystemProtocol {
+        administratorFileSystemRequestCount += 1
+        return rootFileSystem
+    }
+
+    func close() async { }
 }

@@ -351,6 +351,10 @@ actor MockRemoteFileSystem: RemoteFileSystemProtocol {
         closed = true
     }
 
+    func isClosedForTesting() -> Bool {
+        closed
+    }
+
     func seedFile(data: Data, at path: String, attributes: RemoteFileAttributes? = nil) throws {
         let target = normalize(path)
         try ensureFixtureParents(for: target)

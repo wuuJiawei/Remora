@@ -272,8 +272,10 @@ final class FileTransferViewModel: ObservableObject {
 
     private var remoteFileOperations: RemoteFileSystemOperations?
     private var nativeFileSystem: (any RemoteFileSystemProtocol)?
+    private var administratorFileSystem: (any RemoteFileSystemProtocol)?
     private var remoteCommandExecutor: (any RemoteCommandExecutorProtocol)?
     private var remoteSessionLease: (any RemoteSessionLeaseProtocol)?
+    private var administratorFileSystemTask: Task<Void, Never>?
     private let transferCenter: TransferCenter
     private var transferTasks: [UUID: Task<Void, Never>] = [:]
     private var remoteSearchTask: Task<Void, Never>?
@@ -285,6 +287,7 @@ final class FileTransferViewModel: ObservableObject {
     private var remoteDirectoryHistory: [String] = []
     private var remoteDirectoryHistoryIndex: Int = 0
     private var activeRemoteBindingKey = "__default"
+    private var normalRemoteBindingKey = "__default"
     private var remoteBindingStates: [String: RemoteBindingState] = [:]
     private var remoteArchiveToolchainCache: [String: RemoteArchiveToolchain] = [:]
     private var currentRemoteConnectionID = "__default"
@@ -339,14 +342,23 @@ final class FileTransferViewModel: ObservableObject {
     ) {
         let previousLease = remoteSessionLease
         let previousFileSystem = nativeFileSystem
+        let previousAdministratorFileSystem = administratorFileSystem
+        administratorFileSystemTask?.cancel()
+        administratorFileSystemTask = nil
         remoteSessionLease = lease
         remoteCommandExecutor = executor
         nativeFileSystem = fileSystem
-        bindRemoteFileSystem(
-            fileSystem,
-            bindingKey: bindingKey,
-            initialRemoteDirectory: initialRemoteDirectory
-        )
+        administratorFileSystem = nil
+        normalRemoteBindingKey = normalizedRemoteBindingKey(bindingKey)
+        if isRemoteAdministratorMode {
+            beginAdministratorFileSystemActivation(initialRemoteDirectory: initialRemoteDirectory)
+        } else {
+            activateRemoteFileSystem(
+                fileSystem,
+                bindingKey: normalRemoteBindingKey,
+                initialRemoteDirectory: initialRemoteDirectory
+            )
+        }
         LogManager.info(
             .fileManager,
             "native file session attached lease=\(lease.id.uuidString) binding=\(bindingKey) administrator=\(isRemoteAdministratorMode)"
@@ -354,6 +366,7 @@ final class FileTransferViewModel: ObservableObject {
         if let previousLease, previousLease.id != lease.id {
             Task {
                 await previousFileSystem?.close()
+                await previousAdministratorFileSystem?.close()
                 await previousLease.release()
             }
         }
@@ -361,11 +374,16 @@ final class FileTransferViewModel: ObservableObject {
 
     func failNativeSessionAttachment(_ error: Error) {
         remoteFileBindingGeneration += 1
+        administratorFileSystemTask?.cancel()
+        administratorFileSystemTask = nil
         remoteFileOperations = nil
         nativeFileSystem = nil
+        let administratorFileSystem = administratorFileSystem
+        self.administratorFileSystem = nil
         remoteCommandExecutor = nil
         isRemoteLoading = false
         remoteLoadErrorMessage = remoteFileDisplayMessage(for: error)
+        Task { await administratorFileSystem?.close() }
         LogManager.error(
             .fileManager,
             "native file session attachment failed detail=\(error.localizedDescription)"
@@ -376,14 +394,19 @@ final class FileTransferViewModel: ObservableObject {
         cancelTrackedTransfers(clearQueue: false)
         cancelRemoteSearch(resetState: false)
         remoteFileBindingGeneration += 1
+        administratorFileSystemTask?.cancel()
+        administratorFileSystemTask = nil
         let fileSystem = nativeFileSystem
+        let administratorFileSystem = administratorFileSystem
         let lease = remoteSessionLease
         remoteFileOperations = nil
         nativeFileSystem = nil
+        self.administratorFileSystem = nil
         remoteSessionLease = nil
         remoteCommandExecutor = nil
         isRemoteLoading = false
         await fileSystem?.close()
+        await administratorFileSystem?.close()
         await lease?.release()
         LogManager.info(
             .fileManager,
@@ -394,31 +417,28 @@ final class FileTransferViewModel: ObservableObject {
     func setRemoteAdministratorMode(_ isEnabled: Bool) {
         guard isRemoteAdministratorMode != isEnabled else { return }
         isRemoteAdministratorMode = isEnabled
-        remoteFileBindingGeneration += 1
-        let bindingGeneration = remoteFileBindingGeneration
-        cancelRemoteSearch(resetState: false)
-        cancelTrackedTransfers(clearQueue: false)
-        remoteRefreshInFlightPaths.removeAll()
-        isRemoteLoading = false
-
         if isEnabled {
-            remoteFileOperations = nil
-            remoteLoadErrorMessage = tr("Administrator file access is not available in this version. Disable administrator mode to use the file manager.")
-            LogManager.info(.fileManager, "native file operations suspended administrator=true")
+            beginAdministratorFileSystemActivation(initialRemoteDirectory: remoteDirectoryPath)
             return
         }
 
-        remoteFileOperations = nativeFileSystem.map(RemoteFileSystemOperations.init(fileSystem:))
-        guard remoteFileOperations != nil else {
+        administratorFileSystemTask?.cancel()
+        administratorFileSystemTask = nil
+        let previousAdministratorFileSystem = administratorFileSystem
+        administratorFileSystem = nil
+        guard let nativeFileSystem else {
+            suspendRemoteFileOperations()
             remoteLoadErrorMessage = tr("Remote file session is unavailable.")
             LogManager.info(.fileManager, "native file operations unavailable administrator=false filesystem=none")
             return
         }
-        remoteLoadErrorMessage = nil
+        activateRemoteFileSystem(
+            nativeFileSystem,
+            bindingKey: normalRemoteBindingKey,
+            initialRemoteDirectory: remoteDirectoryPath
+        )
         LogManager.info(.fileManager, "native file operations resumed administrator=false")
-        Task {
-            await refreshRemoteEntries(bindingGeneration: bindingGeneration)
-        }
+        Task { await previousAdministratorFileSystem?.close() }
     }
 
     private static func configuredLocalDirectoryURL(
@@ -461,14 +481,13 @@ final class FileTransferViewModel: ObservableObject {
 
     private func requiredRemoteFileOperations() throws -> RemoteFileSystemOperations {
         guard let remoteFileOperations else {
-            let isAdministratorUnavailable = isRemoteAdministratorMode && nativeFileSystem != nil
             throw RemoteOperationError(
-                category: isAdministratorUnavailable ? .privilege : .fileSystem,
-                code: isAdministratorUnavailable
+                category: isRemoteAdministratorMode ? .privilege : .fileSystem,
+                code: isRemoteAdministratorMode
                     ? "administrator_file_system_unavailable"
                     : "file_system_session_unavailable",
-                safeDiagnosticMessage: isAdministratorUnavailable
-                    ? tr("Administrator file access is not available in this version. Disable administrator mode to use the file manager.")
+                safeDiagnosticMessage: isRemoteAdministratorMode
+                    ? (remoteLoadErrorMessage ?? tr("Administrator file session is unavailable."))
                     : tr("Remote file session is unavailable.")
             )
         }
@@ -476,6 +495,19 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     private func remoteFileDisplayMessage(for error: Error) -> String {
+        if let operationError = error as? RemoteOperationError {
+            switch operationError.code {
+            case "administrator_sftp_server_unavailable":
+                return tr("No supported SFTP server executable was found on the remote host.")
+            case "administrator_sftp_start_failed", "administrator_sftp_handshake_timeout":
+                return tr("Administrator file access requires passwordless sudo on the remote host.")
+            default:
+                if operationError.category == .privilege {
+                    return tr("Administrator file access requires passwordless sudo on the remote host.")
+                }
+                return operationError.localizedDescription
+            }
+        }
         guard let fileSystemError = error as? RemoteFileSystemOperationError else {
             return error.localizedDescription
         }
@@ -504,15 +536,29 @@ final class FileTransferViewModel: ObservableObject {
         bindingKey: String = "__default",
         initialRemoteDirectory: String? = nil
     ) {
+        nativeFileSystem = fileSystem
+        normalRemoteBindingKey = normalizedRemoteBindingKey(bindingKey)
+        activateRemoteFileSystem(
+            fileSystem,
+            bindingKey: normalRemoteBindingKey,
+            initialRemoteDirectory: initialRemoteDirectory
+        )
+    }
+
+    private func activateRemoteFileSystem(
+        _ fileSystem: any RemoteFileSystemProtocol,
+        bindingKey: String,
+        initialRemoteDirectory: String?,
+        saveCurrentState: Bool = true
+    ) {
         let normalizedBindingKey = normalizedRemoteBindingKey(bindingKey)
         remoteFileBindingGeneration += 1
         let bindingGeneration = remoteFileBindingGeneration
-        remoteBindingStates[activeRemoteBindingKey] = makeCurrentRemoteBindingState()
+        if saveCurrentState {
+            remoteBindingStates[activeRemoteBindingKey] = makeCurrentRemoteBindingState()
+        }
 
-        nativeFileSystem = fileSystem
-        remoteFileOperations = isRemoteAdministratorMode
-            ? nil
-            : RemoteFileSystemOperations(fileSystem: fileSystem)
+        remoteFileOperations = RemoteFileSystemOperations(fileSystem: fileSystem)
         activeRemoteBindingKey = normalizedBindingKey
         currentRemoteConnectionID = normalizedBindingKey == "__default"
             ? "\(normalizedBindingKey)#\(bindingGeneration)"
@@ -524,12 +570,6 @@ final class FileTransferViewModel: ObservableObject {
         remoteRefreshInFlightPaths.removeAll()
         remoteArchiveToolchainCache.removeValue(forKey: normalizedBindingKey)
         isRemoteLoading = false
-
-        if isRemoteAdministratorMode {
-            remoteEntries = []
-            remoteLoadErrorMessage = tr("Administrator file access is not available in this version. Disable administrator mode to use the file manager.")
-            return
-        }
 
         if let saved = remoteBindingStates[normalizedBindingKey] {
             applyRemoteBindingState(saved)
@@ -555,6 +595,70 @@ final class FileTransferViewModel: ObservableObject {
         Task {
             await refreshRemoteEntries(bindingGeneration: bindingGeneration)
         }
+    }
+
+    private func beginAdministratorFileSystemActivation(initialRemoteDirectory: String) {
+        administratorFileSystemTask?.cancel()
+        administratorFileSystemTask = nil
+        suspendRemoteFileOperations()
+        remoteEntries = []
+        remoteLoadErrorMessage = tr("Connecting to administrator file service…")
+        let activationGeneration = remoteFileBindingGeneration
+
+        guard let remoteSessionLease else {
+            remoteLoadErrorMessage = tr("Remote file session is unavailable.")
+            return
+        }
+
+        administratorFileSystemTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let session = try await remoteSessionLease.session()
+                let fileSystem = try await session.administratorFileSystem()
+                guard !Task.isCancelled,
+                      self.isRemoteAdministratorMode,
+                      self.remoteFileBindingGeneration == activationGeneration
+                else {
+                    await fileSystem.close()
+                    return
+                }
+                let previousFileSystem = self.administratorFileSystem
+                self.administratorFileSystem = fileSystem
+                self.activateRemoteFileSystem(
+                    fileSystem,
+                    bindingKey: self.normalRemoteBindingKey + ":administrator",
+                    initialRemoteDirectory: initialRemoteDirectory,
+                    saveCurrentState: false
+                )
+                self.administratorFileSystemTask = nil
+                LogManager.info(.fileManager, "administrator file system activated")
+                if let previousFileSystem {
+                    await previousFileSystem.close()
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard self.isRemoteAdministratorMode,
+                      self.remoteFileBindingGeneration == activationGeneration
+                else { return }
+                self.administratorFileSystemTask = nil
+                self.remoteLoadErrorMessage = self.remoteFileDisplayMessage(for: error)
+                LogManager.error(
+                    .fileManager,
+                    "administrator file system activation failed detail=\(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    private func suspendRemoteFileOperations() {
+        remoteBindingStates[activeRemoteBindingKey] = makeCurrentRemoteBindingState()
+        remoteFileBindingGeneration += 1
+        cancelRemoteSearch(resetState: false)
+        cancelTrackedTransfers(clearQueue: false)
+        remoteRefreshInFlightPaths.removeAll()
+        remoteFileOperations = nil
+        isRemoteLoading = false
     }
 
     func refreshAll() {
