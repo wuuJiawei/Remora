@@ -16,7 +16,7 @@ struct FileTransferViewModelTests {
         try Data("hello-remora".utf8).write(to: localFile)
 
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 2
@@ -57,7 +57,7 @@ struct FileTransferViewModelTests {
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -83,15 +83,15 @@ struct FileTransferViewModelTests {
     }
 
     @Test
-    func downloadsUseDirectFileOutputPath() async throws {
+    func downloadsUseBoundedRemoteFileHandleReads() async throws {
         let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("remora-direct-download-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let client = DirectDownloadOnlySFTPClient()
+        let client = MockRemoteFileSystem()
         let vm = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -108,8 +108,8 @@ struct FileTransferViewModelTests {
             vm.transferQueue.contains(where: { $0.direction == .download && $0.status == .success })
         }
 
-        let usedDirectPath = await client.usedDirectDownloadPath()
-        #expect(usedDirectPath)
+        #expect(await client.readPaths().contains("/README.txt"))
+        #expect(await client.maximumRequestedReadSize() <= 64 * 1_024)
     }
 
     @Test
@@ -120,7 +120,7 @@ struct FileTransferViewModelTests {
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -155,18 +155,18 @@ struct FileTransferViewModelTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let baseClient = MockSFTPClient()
-        try await baseClient.mkdir(path: "/lighting")
-        try await baseClient.mkdir(path: "/lighting/docs")
-        try await baseClient.mkdir(path: "/lighting/docs/specs")
-        try await baseClient.mkdir(path: "/lighting/assets")
-        try await baseClient.upload(data: Data("root-file".utf8), to: "/lighting/README.md")
-        try await baseClient.upload(data: Data("spec-body".utf8), to: "/lighting/docs/specs/plan.md")
-        try await baseClient.upload(data: Data("asset-body".utf8), to: "/lighting/assets/logo.txt")
-
-        let guardedClient = StatBudgetSFTPClient(base: baseClient, allowedStatCalls: 1)
+        let guardedClient = MockRemoteFileSystem(
+            configuration: .init(allowedAttributeCalls: 1)
+        )
+        try await guardedClient.seedDirectory(at: "/lighting")
+        try await guardedClient.seedDirectory(at: "/lighting/docs")
+        try await guardedClient.seedDirectory(at: "/lighting/docs/specs")
+        try await guardedClient.seedDirectory(at: "/lighting/assets")
+        try await guardedClient.seedFile(data: Data("root-file".utf8), at: "/lighting/README.md")
+        try await guardedClient.seedFile(data: Data("spec-body".utf8), at: "/lighting/docs/specs/plan.md")
+        try await guardedClient.seedFile(data: Data("asset-body".utf8), at: "/lighting/assets/logo.txt")
         let vm = FileTransferViewModel(
-            sftpClient: guardedClient,
+            remoteFileSystem: guardedClient,
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -200,9 +200,14 @@ struct FileTransferViewModelTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let client = SlowDownloadSFTPClient(chunkDelay: .milliseconds(80), chunkCount: 20)
+        let client = MockRemoteFileSystem(
+            configuration: .init(
+                readDelay: .milliseconds(80),
+                maximumReadChunkSize: 1
+            )
+        )
         let vm = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -246,7 +251,12 @@ struct FileTransferViewModelTests {
         try Data(repeating: 0x41, count: 32 * 1024).write(to: localFile)
 
         let vm = FileTransferViewModel(
-            sftpClient: SlowUploadSFTPClient(chunkDelay: .milliseconds(80), chunkCount: 14),
+            remoteFileSystem: MockRemoteFileSystem(
+                configuration: .init(
+                    writeDelay: .milliseconds(80),
+                    maximumWriteChunkSize: 2 * 1024
+                )
+            ),
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -280,9 +290,14 @@ struct FileTransferViewModelTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let client = SlowDownloadSFTPClient(chunkDelay: .milliseconds(80), chunkCount: 20)
+        let client = MockRemoteFileSystem(
+            configuration: .init(
+                readDelay: .milliseconds(80),
+                maximumReadChunkSize: 1
+            )
+        )
         let vm = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -299,7 +314,7 @@ struct FileTransferViewModelTests {
             vm.transferQueue.contains(where: { $0.sourcePath == "/README.txt" && $0.status == .running })
         }
         try await waitUntil(timeoutLoops: 400, intervalMS: 25) {
-            let startedPaths = await client.startedDownloadPaths()
+            let startedPaths = await client.readPaths()
             return startedPaths.contains("/README.txt")
         }
 
@@ -314,11 +329,11 @@ struct FileTransferViewModelTests {
             vm.transferQueue.contains(where: { $0.id == runningItem.id && $0.status == .stopped })
         }
         try await waitUntil(timeoutLoops: 400, intervalMS: 25) {
-            let cancelledPaths = await client.cancelledDownloadPaths()
+            let cancelledPaths = await client.cancelledReads()
             return cancelledPaths.contains("/README.txt")
         }
 
-        let cancelledPaths = await client.cancelledDownloadPaths()
+        let cancelledPaths = await client.cancelledReads()
         #expect(cancelledPaths.contains("/README.txt"))
         #expect(FileManager.default.fileExists(atPath: runningItem.destinationPath) == false)
     }
@@ -330,9 +345,11 @@ struct FileTransferViewModelTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let client = SlowDownloadSFTPClient()
+        let client = MockRemoteFileSystem(
+            configuration: .init(readDelay: .milliseconds(40), maximumReadChunkSize: 1)
+        )
         let vm = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -359,12 +376,12 @@ struct FileTransferViewModelTests {
             vm.transferQueue.count == 2 && vm.transferQueue.allSatisfy { $0.status == .stopped }
         }
         try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
-            let cancelledPaths = await client.cancelledDownloadPaths()
+            let cancelledPaths = await client.cancelledReads()
             return cancelledPaths.count == 1
         }
 
-        let startedPaths = await client.startedDownloadPaths()
-        let cancelledPaths = await client.cancelledDownloadPaths()
+        let startedPaths = await client.readPaths()
+        let cancelledPaths = await client.cancelledReads()
         #expect(startedPaths.count == 1)
         #expect(cancelledPaths.count == 1)
     }
@@ -376,9 +393,11 @@ struct FileTransferViewModelTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let client = SlowDownloadSFTPClient()
+        let client = MockRemoteFileSystem(
+            configuration: .init(readDelay: .milliseconds(40), maximumReadChunkSize: 1)
+        )
         let vm = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -412,9 +431,11 @@ struct FileTransferViewModelTests {
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
-        let client = SlowDownloadSFTPClient()
+        let client = MockRemoteFileSystem(
+            configuration: .init(readDelay: .milliseconds(40), maximumReadChunkSize: 1)
+        )
         let vm = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 1
@@ -443,8 +464,10 @@ struct FileTransferViewModelTests {
 
     @Test
     func moveAndDeleteRemoteEntries() async throws {
+        let fileSystem = MockRemoteFileSystem()
+        try await fileSystem.seedDirectory(at: "/docs")
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: fileSystem,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 2
         )
@@ -489,7 +512,7 @@ struct FileTransferViewModelTests {
         try Data("nested".utf8).write(to: nestedFile)
 
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
 
@@ -528,7 +551,7 @@ struct FileTransferViewModelTests {
         try Data("seed-data".utf8).write(to: seededLocalFile)
 
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             localDirectoryURL: tempRoot,
             remoteDirectoryPath: "/",
             maxConcurrentTransfers: 2
@@ -579,7 +602,7 @@ struct FileTransferViewModelTests {
         try Data("existing".utf8).write(to: existingReadme)
 
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             localDirectoryURL: tempRoot
         )
         vm.conflictStrategy = .rename
@@ -610,7 +633,7 @@ struct FileTransferViewModelTests {
         try Data("existing".utf8).write(to: existingReadme)
 
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             localDirectoryURL: tempRoot
         )
         vm.conflictStrategy = .skip
@@ -641,7 +664,7 @@ struct FileTransferViewModelTests {
     @Test
     func createRemoteFileAppearsInCurrentDirectory() async throws {
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
         await vm.refreshRemoteEntries()
@@ -657,7 +680,7 @@ struct FileTransferViewModelTests {
     @Test
     func createRemoteDirectoryAppearsInCurrentDirectory() async throws {
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
         await vm.refreshRemoteEntries()
@@ -673,7 +696,7 @@ struct FileTransferViewModelTests {
     @Test
     func contextActionsSupportRenameCopyPasteAndDelete() async throws {
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
         await vm.refreshRemoteEntries()
@@ -704,7 +727,7 @@ struct FileTransferViewModelTests {
     @Test
     func textDocumentRoundTripSupportsLoadAndSave() async throws {
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
 
@@ -725,10 +748,10 @@ struct FileTransferViewModelTests {
     }
 
     @Test
-    func textDocumentLoadUsesDirectFileDownloadWhenMetadataIsKnown() async throws {
-        let client = DirectDownloadOnlySFTPClient()
+    func textDocumentLoadSkipsStatWhenMetadataIsKnown() async throws {
+        let client = MockRemoteFileSystem()
         let vm = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             remoteDirectoryPath: "/"
         )
         let knownModifiedAt = Date(timeIntervalSince1970: 1_729_000_000)
@@ -743,19 +766,21 @@ struct FileTransferViewModelTests {
 
         #expect(loaded.text == "Remora mock SFTP")
         #expect(loaded.modifiedAt == knownModifiedAt)
-        #expect(await client.usedDirectDownloadPath())
-        #expect(await client.statCallCount() == 0)
+        #expect(await client.readPaths().contains("/README.txt"))
+        #expect(await client.attributeCallCount() == 0)
     }
 
     @Test
     func logTailReturnsOnlyRequestedTrailingLines() async throws {
-        let client = MockSFTPClient()
-        try await client.upload(
+        let client = MockRemoteFileSystem()
+        try await client.seedFile(
             data: Data("line-1\nline-2\nline-3\nline-4\nline-5".utf8),
-            to: "/logs/app.log"
+            at: "/logs/app.log"
         )
+        let executor = MockRemoteCommandExecutor(fileSystem: client)
         let vm = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
+            remoteCommandExecutor: executor,
             remoteDirectoryPath: "/logs"
         )
 
@@ -765,9 +790,13 @@ struct FileTransferViewModelTests {
 
     @Test
     func largeTextDocumentIsRejectedBeforeDownloadToProtectMemory() async throws {
-        let largeClient = LargeTextFileGuardSFTPClient()
+        let largeSize = Int64(FileTransferViewModel.maxInlineEditableTextDocumentBytes) + 1
+        let largeClient = MockRemoteFileSystem(
+            configuration: .init(reportedSizes: ["/huge.log": largeSize])
+        )
+        try await largeClient.seedFile(data: Data(), at: "/huge.log")
         let vm = FileTransferViewModel(
-            sftpClient: largeClient,
+            remoteFileSystem: largeClient,
             remoteDirectoryPath: "/"
         )
 
@@ -786,14 +815,13 @@ struct FileTransferViewModelTests {
             return
         }
 
-        let downloadCalls = await largeClient.downloadCallCount()
-        #expect(downloadCalls == 0)
+        #expect(await largeClient.readOpenCallCount() == 0)
     }
 
     @Test
     func remotePropertiesRoundTripSupportsLoadAndSave() async throws {
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
 
@@ -812,7 +840,7 @@ struct FileTransferViewModelTests {
     @Test
     func recursiveRemoteAttributeSaveUpdatesNestedEntries() async throws {
         let vm = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/logs"
         )
 
@@ -839,7 +867,12 @@ struct FileTransferViewModelTests {
 
     @Test
     func compressRemoteEntriesUploadsArchiveBackToCurrentDirectory() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let fileSystem = MockRemoteFileSystem()
+        let vm = FileTransferViewModel(
+            remoteFileSystem: fileSystem,
+            remoteCommandExecutor: MockRemoteCommandExecutor(fileSystem: fileSystem),
+            remoteDirectoryPath: "/"
+        )
 
         try await vm.compressRemoteEntries(
             paths: ["/logs"],
@@ -854,7 +887,12 @@ struct FileTransferViewModelTests {
 
     @Test
     func extractRemoteArchiveUploadsExpandedContentToDestinationDirectory() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let fileSystem = MockRemoteFileSystem()
+        let vm = FileTransferViewModel(
+            remoteFileSystem: fileSystem,
+            remoteCommandExecutor: MockRemoteCommandExecutor(fileSystem: fileSystem),
+            remoteDirectoryPath: "/"
+        )
 
         try await vm.compressRemoteEntries(
             paths: ["/logs"],
@@ -873,7 +911,12 @@ struct FileTransferViewModelTests {
 
     @Test
     func extractRemoteArchiveCreatesMissingDestinationDirectory() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let fileSystem = MockRemoteFileSystem()
+        let vm = FileTransferViewModel(
+            remoteFileSystem: fileSystem,
+            remoteCommandExecutor: MockRemoteCommandExecutor(fileSystem: fileSystem),
+            remoteDirectoryPath: "/"
+        )
 
         try await vm.compressRemoteEntries(
             paths: ["/logs"],
@@ -892,7 +935,12 @@ struct FileTransferViewModelTests {
 
     @Test
     func archiveProgressStateClearsAfterCompressionCompletes() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let fileSystem = MockRemoteFileSystem()
+        let vm = FileTransferViewModel(
+            remoteFileSystem: fileSystem,
+            remoteCommandExecutor: MockRemoteCommandExecutor(fileSystem: fileSystem),
+            remoteDirectoryPath: "/"
+        )
 
         #expect(vm.archiveOperationProgress == nil)
         #expect(vm.archiveOperationStatusText == nil)
@@ -909,7 +957,7 @@ struct FileTransferViewModelTests {
 
     @Test
     func currentDirectorySearchMatchesOnlyCurrentListing() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         await vm.refreshRemoteEntries()
 
         vm.performRemoteSearch(query: "read", scope: .currentDirectory, rootPath: "/")
@@ -922,8 +970,10 @@ struct FileTransferViewModelTests {
 
     @Test
     func recursiveSearchFindsNestedMatchesAndPublishesProgress() async throws {
-        let client = CountingMockSFTPClient(listDelayMS: 120)
-        let vm = FileTransferViewModel(sftpClient: client, remoteDirectoryPath: "/")
+        let client = MockRemoteFileSystem(
+            configuration: .init(listDelay: .milliseconds(120))
+        )
+        let vm = FileTransferViewModel(remoteFileSystem: client, remoteDirectoryPath: "/")
         await vm.refreshRemoteEntries()
 
         vm.performRemoteSearch(query: "app", scope: .currentDirectoryRecursive, rootPath: "/")
@@ -943,8 +993,10 @@ struct FileTransferViewModelTests {
 
     @Test
     func entireServerSearchAlwaysUsesRootPath() async throws {
-        let client = CountingMockSFTPClient(listDelayMS: 40)
-        let vm = FileTransferViewModel(sftpClient: client, remoteDirectoryPath: "/logs")
+        let client = MockRemoteFileSystem(
+            configuration: .init(listDelay: .milliseconds(40))
+        )
+        let vm = FileTransferViewModel(remoteFileSystem: client, remoteDirectoryPath: "/logs")
         await vm.refreshRemoteEntries()
 
         vm.performRemoteSearch(query: "read", scope: .entireServer, rootPath: "/logs")
@@ -959,8 +1011,8 @@ struct FileTransferViewModelTests {
     }
 
     @Test
-    func bindSFTPClientSwitchesRemoteSourceAndResetsTransientState() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+    func bindRemoteFileSystemSwitchesRemoteSourceAndResetsTransientState() async throws {
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         await vm.refreshRemoteEntries()
         #expect(vm.remoteEntries.contains(where: { $0.path == "/README.txt" }))
 
@@ -969,11 +1021,11 @@ struct FileTransferViewModelTests {
         #expect(vm.remoteClipboard != nil)
         #expect(!vm.transferQueue.isEmpty)
 
-        let nextClient = MockSFTPClient()
-        try await nextClient.remove(path: "/README.txt")
-        try await nextClient.upload(data: Data("next".utf8), to: "/next.txt")
+        let nextClient = MockRemoteFileSystem()
+        try await nextClient.removeFile(path: "/README.txt")
+        try await nextClient.seedFile(data: Data("next".utf8), at: "/next.txt")
 
-        vm.bindSFTPClient(nextClient, initialRemoteDirectory: "/")
+        vm.bindRemoteFileSystem(nextClient, initialRemoteDirectory: "/")
 
         try await waitUntil(timeoutLoops: 40, intervalMS: 50) {
             await vm.refreshRemoteEntries()
@@ -988,12 +1040,12 @@ struct FileTransferViewModelTests {
     }
 
     @Test
-    func bindSFTPClientRestoresRemoteStatePerBindingKey() async throws {
-        let clientA = CountingMockSFTPClient(listDelayMS: 0)
-        let clientB = MockSFTPClient()
-        let vm = FileTransferViewModel(sftpClient: DisconnectedSFTPClient(), remoteDirectoryPath: "/")
+    func bindRemoteFileSystemRestoresRemoteStatePerBindingKey() async throws {
+        let clientA = MockRemoteFileSystem()
+        let clientB = MockRemoteFileSystem()
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
 
-        vm.bindSFTPClient(clientA, bindingKey: "session-a", initialRemoteDirectory: "/")
+        vm.bindRemoteFileSystem(clientA, bindingKey: "session-a", initialRemoteDirectory: "/")
         try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
             vm.remoteEntries.contains(where: { $0.path == "/README.txt" })
         }
@@ -1004,12 +1056,12 @@ struct FileTransferViewModelTests {
         }
         let callsBeforeSwitch = await clientA.listCallCount()
 
-        vm.bindSFTPClient(clientB, bindingKey: "session-b", initialRemoteDirectory: "/")
+        vm.bindRemoteFileSystem(clientB, bindingKey: "session-b", initialRemoteDirectory: "/")
         try await waitUntil(timeoutLoops: 40, intervalMS: 25) {
             vm.remoteDirectoryPath == "/" && vm.remoteEntries.contains(where: { $0.path == "/README.txt" })
         }
 
-        vm.bindSFTPClient(clientA, bindingKey: "session-a", initialRemoteDirectory: "/")
+        vm.bindRemoteFileSystem(clientA, bindingKey: "session-a", initialRemoteDirectory: "/")
         #expect(vm.remoteDirectoryPath == "/logs")
         #expect(vm.remoteEntries.contains(where: { $0.path == "/logs/app.log" }))
 
@@ -1019,7 +1071,7 @@ struct FileTransferViewModelTests {
 
     @Test
     func openRemoteUsesEntryAbsolutePathWithoutDuplicatingParent() async {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/home")
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/home")
         let absoluteEntry = RemoteFileEntry(
             name: "/home/lighting",
             path: "/home/lighting",
@@ -1034,8 +1086,10 @@ struct FileTransferViewModelTests {
 
     @Test
     func repeatedNavigateToSameDirectoryDeduplicatesInFlightListRequests() async throws {
-        let countingClient = CountingMockSFTPClient(listDelayMS: 180)
-        let vm = FileTransferViewModel(sftpClient: countingClient, remoteDirectoryPath: "/")
+        let countingClient = MockRemoteFileSystem(
+            configuration: .init(listDelay: .milliseconds(180))
+        )
+        let vm = FileTransferViewModel(remoteFileSystem: countingClient, remoteDirectoryPath: "/")
 
         await vm.refreshRemoteEntries()
         let baseline = await countingClient.listCallCount()
@@ -1055,8 +1109,10 @@ struct FileTransferViewModelTests {
 
     @Test
     func navigateBackToRecentlyLoadedDirectoryUsesCache() async throws {
-        let countingClient = CountingMockSFTPClient(listDelayMS: 120)
-        let vm = FileTransferViewModel(sftpClient: countingClient, remoteDirectoryPath: "/")
+        let countingClient = MockRemoteFileSystem(
+            configuration: .init(listDelay: .milliseconds(120))
+        )
+        let vm = FileTransferViewModel(remoteFileSystem: countingClient, remoteDirectoryPath: "/")
 
         await vm.refreshRemoteEntries()
         let baseline = await countingClient.listCallCount()
@@ -1076,7 +1132,7 @@ struct FileTransferViewModelTests {
 
     @Test
     func remoteNavigationBackAndForwardFollowHistory() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         await vm.refreshRemoteEntries()
 
         vm.navigateRemote(to: "/logs")
@@ -1109,8 +1165,10 @@ struct FileTransferViewModelTests {
 
     @Test
     func remoteLoadingStateTurnsOnDuringDirectoryFetch() async throws {
-        let countingClient = CountingMockSFTPClient(listDelayMS: 220)
-        let vm = FileTransferViewModel(sftpClient: countingClient, remoteDirectoryPath: "/")
+        let countingClient = MockRemoteFileSystem(
+            configuration: .init(listDelay: .milliseconds(220))
+        )
+        let vm = FileTransferViewModel(remoteFileSystem: countingClient, remoteDirectoryPath: "/")
 
         await vm.refreshRemoteEntries()
         vm.navigateRemote(to: "/logs")
@@ -1149,392 +1207,5 @@ struct FileTransferViewModelTests {
             try await Task.sleep(for: .milliseconds(intervalMS))
         }
         throw NSError(domain: "FileTransferViewModelTests", code: 3, userInfo: [NSLocalizedDescriptionKey: "timeout waiting condition"])
-    }
-}
-
-private actor StatBudgetSFTPClient: SFTPClientProtocol {
-    private let base: MockSFTPClient
-    private let allowedStatCalls: Int
-    private var statCalls = 0
-
-    init(base: MockSFTPClient, allowedStatCalls: Int) {
-        self.base = base
-        self.allowedStatCalls = allowedStatCalls
-    }
-
-    func list(path: String) async throws -> [RemoteFileEntry] { try await base.list(path: path) }
-    func download(path: String) async throws -> Data { try await base.download(path: path) }
-    func download(path: String, progress: TransferProgressHandler?) async throws -> Data { try await base.download(path: path, progress: progress) }
-    func download(path: String, to localFileURL: URL, progress: TransferProgressHandler?) async throws { try await base.download(path: path, to: localFileURL, progress: progress) }
-    func executeRemoteShellCommand(_ command: String, timeout: TimeInterval?) async throws -> String { try await base.executeRemoteShellCommand(command, timeout: timeout) }
-    func streamRemoteShellCommand(_ command: String) async throws -> AsyncThrowingStream<String, Error> { try await base.streamRemoteShellCommand(command) }
-    func upload(data: Data, to path: String) async throws { try await base.upload(data: data, to: path) }
-    func upload(data: Data, to path: String, progress: TransferProgressHandler?) async throws { try await base.upload(data: data, to: path, progress: progress) }
-    func upload(fileURL: URL, to path: String, progress: TransferProgressHandler?) async throws { try await base.upload(fileURL: fileURL, to: path, progress: progress) }
-    func rename(from: String, to: String) async throws { try await base.rename(from: from, to: to) }
-    func move(from: String, to: String) async throws { try await base.move(from: from, to: to) }
-    func copy(from: String, to: String) async throws { try await base.copy(from: from, to: to) }
-    func mkdir(path: String) async throws { try await base.mkdir(path: path) }
-    func remove(path: String) async throws { try await base.remove(path: path) }
-    func setAttributes(path: String, attributes: RemoteFileAttributes) async throws { try await base.setAttributes(path: path, attributes: attributes) }
-
-    func stat(path: String) async throws -> RemoteFileAttributes {
-        statCalls += 1
-        if statCalls > allowedStatCalls {
-            throw NSError(domain: "Remora.Test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Connection failed"])
-        }
-        return try await base.stat(path: path)
-    }
-}
-
-private actor SlowDownloadSFTPClient: SFTPClientProtocol {
-    private let base = MockSFTPClient()
-    private let chunkDelay: Duration
-    private let chunkCount: Int
-    private var startedPaths: [String] = []
-    private var cancelledPaths: [String] = []
-
-    init(chunkDelay: Duration = .milliseconds(40), chunkCount: Int = 12) {
-        self.chunkDelay = chunkDelay
-        self.chunkCount = max(2, chunkCount)
-    }
-
-    func startedDownloadPaths() -> [String] {
-        startedPaths
-    }
-
-    func cancelledDownloadPaths() -> [String] {
-        cancelledPaths
-    }
-
-    func list(path: String) async throws -> [RemoteFileEntry] { try await base.list(path: path) }
-
-    func download(path: String) async throws -> Data {
-        let data = try await base.download(path: path)
-        try await simulateSlowTransfer(path: path, totalBytes: Int64(data.count), progress: nil)
-        return data
-    }
-
-    func download(path: String, progress: TransferProgressHandler?) async throws -> Data {
-        let data = try await base.download(path: path)
-        try await simulateSlowTransfer(path: path, totalBytes: Int64(data.count), progress: progress)
-        return data
-    }
-
-    func download(path: String, to localFileURL: URL, progress: TransferProgressHandler?) async throws {
-        let data = try await base.download(path: path)
-        try await simulateSlowTransfer(path: path, totalBytes: Int64(data.count), progress: progress)
-        try FileManager.default.createDirectory(
-            at: localFileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try data.write(to: localFileURL, options: .atomic)
-    }
-
-    func executeRemoteShellCommand(_ command: String, timeout: TimeInterval?) async throws -> String { try await base.executeRemoteShellCommand(command, timeout: timeout) }
-    func streamRemoteShellCommand(_ command: String) async throws -> AsyncThrowingStream<String, Error> { try await base.streamRemoteShellCommand(command) }
-    func upload(data: Data, to path: String) async throws { try await base.upload(data: data, to: path) }
-    func upload(data: Data, to path: String, progress: TransferProgressHandler?) async throws { try await base.upload(data: data, to: path, progress: progress) }
-    func upload(fileURL: URL, to path: String, progress: TransferProgressHandler?) async throws { try await base.upload(fileURL: fileURL, to: path, progress: progress) }
-    func rename(from: String, to: String) async throws { try await base.rename(from: from, to: to) }
-    func move(from: String, to: String) async throws { try await base.move(from: from, to: to) }
-    func copy(from: String, to: String) async throws { try await base.copy(from: from, to: to) }
-    func mkdir(path: String) async throws { try await base.mkdir(path: path) }
-    func remove(path: String) async throws { try await base.remove(path: path) }
-    func stat(path: String) async throws -> RemoteFileAttributes { try await base.stat(path: path) }
-    func setAttributes(path: String, attributes: RemoteFileAttributes) async throws { try await base.setAttributes(path: path, attributes: attributes) }
-
-    private func simulateSlowTransfer(
-        path: String,
-        totalBytes: Int64,
-        progress: TransferProgressHandler?
-    ) async throws {
-        startedPaths.append(path)
-        progress?(.init(bytesTransferred: 0, totalBytes: totalBytes))
-
-        do {
-            for step in 1 ... chunkCount {
-                try Task.checkCancellation()
-                try await Task.sleep(for: chunkDelay)
-                try Task.checkCancellation()
-                let fraction = Double(step) / Double(chunkCount)
-                let bytesTransferred = Int64((Double(totalBytes) * fraction).rounded(.down))
-                progress?(.init(bytesTransferred: min(bytesTransferred, totalBytes), totalBytes: totalBytes))
-            }
-        } catch {
-            if error is CancellationError {
-                cancelledPaths.append(path)
-            }
-            throw error
-        }
-    }
-}
-
-private actor SlowUploadSFTPClient: SFTPClientProtocol {
-    private let base = MockSFTPClient()
-    private let chunkDelay: Duration
-    private let chunkCount: Int
-
-    init(chunkDelay: Duration = .milliseconds(40), chunkCount: Int = 12) {
-        self.chunkDelay = chunkDelay
-        self.chunkCount = max(2, chunkCount)
-    }
-
-    func list(path: String) async throws -> [RemoteFileEntry] { try await base.list(path: path) }
-    func download(path: String) async throws -> Data { try await base.download(path: path) }
-    func download(path: String, progress: TransferProgressHandler?) async throws -> Data { try await base.download(path: path, progress: progress) }
-    func download(path: String, to localFileURL: URL, progress: TransferProgressHandler?) async throws { try await base.download(path: path, to: localFileURL, progress: progress) }
-    func executeRemoteShellCommand(_ command: String, timeout: TimeInterval?) async throws -> String { try await base.executeRemoteShellCommand(command, timeout: timeout) }
-    func streamRemoteShellCommand(_ command: String) async throws -> AsyncThrowingStream<String, Error> { try await base.streamRemoteShellCommand(command) }
-    func rename(from: String, to: String) async throws { try await base.rename(from: from, to: to) }
-    func move(from: String, to: String) async throws { try await base.move(from: from, to: to) }
-    func copy(from: String, to: String) async throws { try await base.copy(from: from, to: to) }
-    func mkdir(path: String) async throws { try await base.mkdir(path: path) }
-    func remove(path: String) async throws { try await base.remove(path: path) }
-    func stat(path: String) async throws -> RemoteFileAttributes { try await base.stat(path: path) }
-    func setAttributes(path: String, attributes: RemoteFileAttributes) async throws { try await base.setAttributes(path: path, attributes: attributes) }
-
-    func upload(data: Data, to path: String) async throws {
-        try await simulateSlowUpload(totalBytes: Int64(data.count), progress: nil)
-        try await base.upload(data: data, to: path)
-    }
-
-    func upload(data: Data, to path: String, progress: TransferProgressHandler?) async throws {
-        try await simulateSlowUpload(totalBytes: Int64(data.count), progress: progress)
-        try await base.upload(data: data, to: path)
-    }
-
-    func upload(fileURL: URL, to path: String, progress: TransferProgressHandler?) async throws {
-        let data = try Data(contentsOf: fileURL)
-        try await simulateSlowUpload(totalBytes: Int64(data.count), progress: progress)
-        try await base.upload(fileURL: fileURL, to: path, progress: nil)
-    }
-
-    private func simulateSlowUpload(totalBytes: Int64, progress: TransferProgressHandler?) async throws {
-        progress?(.init(bytesTransferred: 0, totalBytes: totalBytes))
-        for step in 1 ... chunkCount {
-            try Task.checkCancellation()
-            try await Task.sleep(for: chunkDelay)
-            let fraction = Double(step) / Double(chunkCount)
-            let bytesTransferred = Int64((Double(totalBytes) * fraction).rounded(.down))
-            progress?(.init(bytesTransferred: min(bytesTransferred, totalBytes), totalBytes: totalBytes))
-        }
-    }
-}
-
-actor CountingMockSFTPClient: SFTPClientProtocol {
-    private let base = MockSFTPClient()
-    private let listDelayNS: UInt64
-    private var listCalls: Int = 0
-
-    init(listDelayMS: UInt64) {
-        self.listDelayNS = listDelayMS * 1_000_000
-    }
-
-    func listCallCount() -> Int {
-        listCalls
-    }
-
-    func list(path: String) async throws -> [RemoteFileEntry] {
-        listCalls += 1
-        if listDelayNS > 0 {
-            try await Task.sleep(nanoseconds: listDelayNS)
-        }
-        return try await base.list(path: path)
-    }
-
-    func download(path: String) async throws -> Data {
-        try await base.download(path: path)
-    }
-
-    func download(path: String, progress: TransferProgressHandler?) async throws -> Data {
-        try await base.download(path: path, progress: progress)
-    }
-
-    func upload(data: Data, to path: String) async throws {
-        try await base.upload(data: data, to: path)
-    }
-
-    func upload(data: Data, to path: String, progress: TransferProgressHandler?) async throws {
-        try await base.upload(data: data, to: path, progress: progress)
-    }
-
-    func upload(fileURL: URL, to path: String, progress: TransferProgressHandler?) async throws {
-        try await base.upload(fileURL: fileURL, to: path, progress: progress)
-    }
-
-    func rename(from: String, to: String) async throws {
-        try await base.rename(from: from, to: to)
-    }
-
-    func move(from: String, to: String) async throws {
-        try await base.move(from: from, to: to)
-    }
-
-    func copy(from: String, to: String) async throws {
-        try await base.copy(from: from, to: to)
-    }
-
-    func mkdir(path: String) async throws {
-        try await base.mkdir(path: path)
-    }
-
-    func remove(path: String) async throws {
-        try await base.remove(path: path)
-    }
-
-    func stat(path: String) async throws -> RemoteFileAttributes {
-        try await base.stat(path: path)
-    }
-
-    func setAttributes(path: String, attributes: RemoteFileAttributes) async throws {
-        try await base.setAttributes(path: path, attributes: attributes)
-    }
-}
-
-actor DirectDownloadOnlySFTPClient: SFTPClientProtocol {
-    private let base = MockSFTPClient()
-    private var didUseDirectDownloadPath = false
-    private var statCalls = 0
-
-    func usedDirectDownloadPath() -> Bool {
-        didUseDirectDownloadPath
-    }
-
-    func statCallCount() -> Int {
-        statCalls
-    }
-
-    func list(path: String) async throws -> [RemoteFileEntry] {
-        try await base.list(path: path)
-    }
-
-    func download(path: String) async throws -> Data {
-        throw SFTPClientError.unsupportedOperation("download-data-path-should-not-be-used")
-    }
-
-    func download(path: String, progress: TransferProgressHandler?) async throws -> Data {
-        _ = progress
-        throw SFTPClientError.unsupportedOperation("download-data-path-should-not-be-used")
-    }
-
-    func download(path: String, to localFileURL: URL, progress: TransferProgressHandler?) async throws {
-        didUseDirectDownloadPath = true
-        try await base.download(path: path, to: localFileURL, progress: progress)
-    }
-
-    func upload(data: Data, to path: String) async throws {
-        try await base.upload(data: data, to: path)
-    }
-
-    func upload(data: Data, to path: String, progress: TransferProgressHandler?) async throws {
-        try await base.upload(data: data, to: path, progress: progress)
-    }
-
-    func upload(fileURL: URL, to path: String, progress: TransferProgressHandler?) async throws {
-        try await base.upload(fileURL: fileURL, to: path, progress: progress)
-    }
-
-    func rename(from: String, to: String) async throws {
-        try await base.rename(from: from, to: to)
-    }
-
-    func move(from: String, to: String) async throws {
-        try await base.move(from: from, to: to)
-    }
-
-    func copy(from: String, to: String) async throws {
-        try await base.copy(from: from, to: to)
-    }
-
-    func mkdir(path: String) async throws {
-        try await base.mkdir(path: path)
-    }
-
-    func remove(path: String) async throws {
-        try await base.remove(path: path)
-    }
-
-    func stat(path: String) async throws -> RemoteFileAttributes {
-        statCalls += 1
-        return try await base.stat(path: path)
-    }
-
-    func setAttributes(path: String, attributes: RemoteFileAttributes) async throws {
-        try await base.setAttributes(path: path, attributes: attributes)
-    }
-}
-
-actor LargeTextFileGuardSFTPClient: SFTPClientProtocol {
-    private let base = MockSFTPClient()
-    private var downloadCalls = 0
-    private let largeSize = Int64(2 * 1024 * 1024) + 1
-
-    func downloadCallCount() -> Int {
-        downloadCalls
-    }
-
-    func list(path: String) async throws -> [RemoteFileEntry] {
-        try await base.list(path: path)
-    }
-
-    func download(path: String) async throws -> Data {
-        downloadCalls += 1
-        return try await base.download(path: path)
-    }
-
-    func download(path: String, progress: TransferProgressHandler?) async throws -> Data {
-        downloadCalls += 1
-        return try await base.download(path: path, progress: progress)
-    }
-
-    func upload(data: Data, to path: String) async throws {
-        try await base.upload(data: data, to: path)
-    }
-
-    func upload(data: Data, to path: String, progress: TransferProgressHandler?) async throws {
-        try await base.upload(data: data, to: path, progress: progress)
-    }
-
-    func upload(fileURL: URL, to path: String, progress: TransferProgressHandler?) async throws {
-        try await base.upload(fileURL: fileURL, to: path, progress: progress)
-    }
-
-    func rename(from: String, to: String) async throws {
-        try await base.rename(from: from, to: to)
-    }
-
-    func move(from: String, to: String) async throws {
-        try await base.move(from: from, to: to)
-    }
-
-    func copy(from: String, to: String) async throws {
-        try await base.copy(from: from, to: to)
-    }
-
-    func mkdir(path: String) async throws {
-        try await base.mkdir(path: path)
-    }
-
-    func remove(path: String) async throws {
-        try await base.remove(path: path)
-    }
-
-    func stat(path: String) async throws -> RemoteFileAttributes {
-        if path == "/huge.log" {
-            return RemoteFileAttributes(
-                permissions: 0o644,
-                owner: "root",
-                group: "wheel",
-                size: largeSize,
-                modifiedAt: Date(),
-                isDirectory: false
-            )
-        }
-        return try await base.stat(path: path)
-    }
-
-    func setAttributes(path: String, attributes: RemoteFileAttributes) async throws {
-        try await base.setAttributes(path: path, attributes: attributes)
     }
 }

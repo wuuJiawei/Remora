@@ -8,7 +8,7 @@ struct RemoteTextEditorViewModelTests {
     @MainActor
     func editorLoadsAndSavesTextThroughViewModel() async throws {
         let fileTransfer = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
         let viewModel = RemoteTextEditorViewModel(
@@ -29,7 +29,7 @@ struct RemoteTextEditorViewModelTests {
     @MainActor
     func editorSaveCompletesAfterBeginSavingTransition() async throws {
         let fileTransfer = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
         let viewModel = RemoteTextEditorViewModel(
@@ -52,7 +52,7 @@ struct RemoteTextEditorViewModelTests {
     @MainActor
     func editorCanQueueDownloadForCurrentFile() async throws {
         let fileTransfer = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
         let viewModel = RemoteTextEditorViewModel(
@@ -72,7 +72,7 @@ struct RemoteTextEditorViewModelTests {
     @MainActor
     func editorUsesStandardModeForSmallFiles() async throws {
         let fileTransfer = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
         let viewModel = RemoteTextEditorViewModel(
@@ -94,10 +94,10 @@ struct RemoteTextEditorViewModelTests {
     @Test
     @MainActor
     func editorUsesLargeEditableModeForMediumFiles() async throws {
-        let client = MockSFTPClient()
-        try await client.upload(data: Data(repeating: 0x61, count: 5 * 1024 * 1024), to: "/large.txt")
+        let client = MockRemoteFileSystem()
+        try await client.seedFile(data: Data(repeating: 0x61, count: 5 * 1024 * 1024), at: "/large.txt")
         let fileTransfer = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             remoteDirectoryPath: "/"
         )
         let viewModel = RemoteTextEditorViewModel(
@@ -119,10 +119,10 @@ struct RemoteTextEditorViewModelTests {
     @Test
     @MainActor
     func editorUsesReadOnlyPreviewModeForLargeFiles() async throws {
-        let client = MockSFTPClient()
-        try await client.upload(data: Data(repeating: 0x61, count: 15 * 1024 * 1024), to: "/preview.txt")
+        let client = MockRemoteFileSystem()
+        try await client.seedFile(data: Data(repeating: 0x61, count: 15 * 1024 * 1024), at: "/preview.txt")
         let fileTransfer = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
             remoteDirectoryPath: "/"
         )
         let viewModel = RemoteTextEditorViewModel(
@@ -145,7 +145,7 @@ struct RemoteTextEditorViewModelTests {
     @MainActor
     func editorRejectsVeryLargeFiles() async throws {
         let fileTransfer = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/"
         )
         let hugeSize = Int64(35 * 1024 * 1024)

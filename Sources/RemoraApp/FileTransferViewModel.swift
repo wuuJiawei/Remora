@@ -297,12 +297,14 @@ final class FileTransferViewModel: ObservableObject {
 
     init(
         remoteFileSystem: (any RemoteFileSystemProtocol)? = nil,
+        remoteCommandExecutor: (any RemoteCommandExecutorProtocol)? = nil,
         localDirectoryURL: URL = FileTransferViewModel.configuredLocalDirectoryURL(),
         remoteDirectoryPath: String = "/",
         maxConcurrentTransfers: Int = 2
     ) {
         self.nativeFileSystem = remoteFileSystem
         self.remoteFileOperations = remoteFileSystem.map(RemoteFileSystemOperations.init(fileSystem:))
+        self.remoteCommandExecutor = remoteCommandExecutor
         self.localDirectoryURL = Self.resolveWritableLocalDirectory(from: localDirectoryURL)
         self.remoteDirectoryPath = Self.normalizeStaticRemoteDirectoryPath(remoteDirectoryPath)
         self.transferCenter = TransferCenter(maxConcurrentTransfers: maxConcurrentTransfers)

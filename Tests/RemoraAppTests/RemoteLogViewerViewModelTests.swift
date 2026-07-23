@@ -7,13 +7,14 @@ struct RemoteLogViewerViewModelTests {
     @Test
     @MainActor
     func followModeRefreshesWhenRemoteLogChanges() async throws {
-        let client = MockSFTPClient()
-        try await client.upload(
+        let client = MockRemoteFileSystem()
+        try await client.seedFile(
             data: Data("boot\nready".utf8),
-            to: "/logs/app.log"
+            at: "/logs/app.log"
         )
         let fileTransfer = FileTransferViewModel(
-            sftpClient: client,
+            remoteFileSystem: client,
+            remoteCommandExecutor: MockRemoteCommandExecutor(fileSystem: client),
             remoteDirectoryPath: "/logs"
         )
         let viewModel = RemoteLogViewerViewModel(
@@ -31,9 +32,9 @@ struct RemoteLogViewerViewModelTests {
         }
         #expect(viewModel.text == "boot\nready")
 
-        try await client.upload(
+        try await client.seedFile(
             data: Data("boot\nready\nworker-started".utf8),
-            to: "/logs/app.log"
+            at: "/logs/app.log"
         )
 
         for _ in 0 ..< 20 {
@@ -51,7 +52,7 @@ struct RemoteLogViewerViewModelTests {
     @MainActor
     func liveViewerCanQueueDownloadForCurrentFile() async throws {
         let fileTransfer = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/logs"
         )
         let viewModel = RemoteLogViewerViewModel(

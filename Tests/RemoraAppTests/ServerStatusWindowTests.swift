@@ -33,7 +33,7 @@ struct ServerStatusWindowTests {
         let initialHeight = serverStatusWindowContentHeight()
 
         let didEnterLoadingState = await waitUntil(timeout: 2) {
-            metricsCenter.state(for: host)?.isLoading == true
+            metricsCenter.state(for: runtime)?.isLoading == true
         }
 
         let loadingHeight = serverStatusWindowContentHeight()

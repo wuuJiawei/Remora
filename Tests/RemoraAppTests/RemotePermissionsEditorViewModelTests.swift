@@ -42,7 +42,7 @@ struct RemotePermissionsEditorViewModelTests {
     @Test
     func recursiveSaveAppliesPermissionsOwnerAndGroupToChildren() async throws {
         let fileTransfer = FileTransferViewModel(
-            sftpClient: MockSFTPClient(),
+            remoteFileSystem: MockRemoteFileSystem(),
             remoteDirectoryPath: "/logs"
         )
         let initial = try await fileTransfer.loadRemoteAttributes(path: "/logs")

@@ -78,8 +78,9 @@ struct RemoteArchiveSupportTests {
     }
 
     @Test
-    func mockSFTPClientExecutesRemoteArchiveRoundTrip() async throws {
-        let client = MockSFTPClient()
+    func nativeCommandExecutorPerformsRemoteArchiveRoundTrip() async throws {
+        let fileSystem = MockRemoteFileSystem()
+        let executor = MockRemoteCommandExecutor(fileSystem: fileSystem)
         let toolchain = RemoteArchiveToolchain(
             tarAvailable: true,
             zipAvailable: true,
@@ -96,9 +97,14 @@ struct RemoteArchiveSupportTests {
             format: .tarGz,
             toolchain: toolchain
         )
-        _ = try await client.executeRemoteShellCommand(compressCommand, timeout: 30)
+        _ = try await executor.execute(
+            RemoteCommandRequest(executable: .shell(compressCommand))
+        )
 
-        let archive = try await client.stat(path: "/logs-backup.tar.gz")
+        let archive = try await fileSystem.attributes(
+            path: "/logs-backup.tar.gz",
+            followSymbolicLinks: true
+        )
         #expect(archive.isDirectory == false)
 
         let listCommand = try RemoteArchiveCommandBuilder.listArchiveEntriesScript(
@@ -106,7 +112,10 @@ struct RemoteArchiveSupportTests {
             format: .tarGz,
             toolchain: toolchain
         )
-        let listed = try await client.executeRemoteShellCommand(listCommand, timeout: 30)
+        let listResult = try await executor.execute(
+            RemoteCommandRequest(executable: .shell(listCommand))
+        )
+        let listed = String(decoding: listResult.standardOutput, as: UTF8.self)
         #expect(listed.contains("logs/app.log"))
 
         let extractCommand = try RemoteArchiveCommandBuilder.extractArchiveScript(
@@ -115,17 +124,22 @@ struct RemoteArchiveSupportTests {
             format: .tarGz,
             toolchain: toolchain
         )
-        _ = try await client.executeRemoteShellCommand(extractCommand, timeout: 30)
+        _ = try await executor.execute(
+            RemoteCommandRequest(executable: .shell(extractCommand))
+        )
 
-        let restored = try await client.stat(path: "/restored/logs/app.log")
+        let restored = try await fileSystem.attributes(
+            path: "/restored/logs/app.log",
+            followSymbolicLinks: true
+        )
         #expect(restored.isDirectory == false)
     }
 
     @MainActor
     @Test
     func remoteClipboardTracksConnectionMetadata() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/logs")
-        vm.bindSFTPClient(MockSFTPClient(), bindingKey: "host-a", initialRemoteDirectory: "/logs")
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/logs")
+        vm.bindRemoteFileSystem(MockRemoteFileSystem(), bindingKey: "host-a", initialRemoteDirectory: "/logs")
         vm.copyRemoteEntries(paths: ["/logs/app.log"], mode: .copy)
 
         let clipboard = try #require(vm.remoteClipboard)
@@ -137,10 +151,10 @@ struct RemoteArchiveSupportTests {
     @MainActor
     @Test
     func pasteIsBlockedAcrossConnections() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
-        vm.bindSFTPClient(MockSFTPClient(), bindingKey: "host-a", initialRemoteDirectory: "/")
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
+        vm.bindRemoteFileSystem(MockRemoteFileSystem(), bindingKey: "host-a", initialRemoteDirectory: "/")
         vm.copyRemoteEntries(paths: ["/logs/app.log"], mode: .copy)
-        vm.bindSFTPClient(MockSFTPClient(), bindingKey: "host-b", initialRemoteDirectory: "/")
+        vm.bindRemoteFileSystem(MockRemoteFileSystem(), bindingKey: "host-b", initialRemoteDirectory: "/")
 
         let result = await vm.pasteRemoteEntriesResult(into: "/")
         #expect(result == .blockedCrossConnection)
@@ -149,7 +163,7 @@ struct RemoteArchiveSupportTests {
     @MainActor
     @Test
     func cloneNamingUsesCopySuffixAndPreservesCompoundExtension() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let next = try await vm.nextClonePathForTests("/archive.tar.gz", isDirectory: false)
         #expect(next == "/archive copy.tar.gz")
     }
@@ -157,15 +171,15 @@ struct RemoteArchiveSupportTests {
     @MainActor
     @Test
     func pasteKeepsClipboardForCopyButClearsForCut() async throws {
-        let copyVM = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
-        copyVM.bindSFTPClient(MockSFTPClient(), bindingKey: "host-a", initialRemoteDirectory: "/")
+        let copyVM = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
+        copyVM.bindRemoteFileSystem(MockRemoteFileSystem(), bindingKey: "host-a", initialRemoteDirectory: "/")
         copyVM.copyRemoteEntries(paths: ["/README.txt"], mode: .copy)
         let copyResult = await copyVM.pasteRemoteEntriesResult(into: "/logs")
         #expect(copyResult == .success(destinationDirectory: "/logs", pastedCount: 1, clearsClipboard: false))
         #expect(copyVM.remoteClipboard != nil)
 
-        let cutVM = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
-        cutVM.bindSFTPClient(MockSFTPClient(), bindingKey: "host-a", initialRemoteDirectory: "/")
+        let cutVM = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
+        cutVM.bindRemoteFileSystem(MockRemoteFileSystem(), bindingKey: "host-a", initialRemoteDirectory: "/")
         cutVM.copyRemoteEntries(paths: ["/README.txt"], mode: .cut)
         let cutResult = await cutVM.pasteRemoteEntriesResult(into: "/logs")
         #expect(cutResult == .success(destinationDirectory: "/logs", pastedCount: 1, clearsClipboard: true))
@@ -175,7 +189,7 @@ struct RemoteArchiveSupportTests {
     @MainActor
     @Test
     func moveRemoteEntriesResultReturnsMovedCount() async throws {
-        let vm = FileTransferViewModel(sftpClient: MockSFTPClient(), remoteDirectoryPath: "/")
+        let vm = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let movedCount = await vm.moveRemoteEntriesResult(paths: ["/README.txt"], toDirectory: "/logs")
         #expect(movedCount == 1)
         await vm.refreshRemoteEntries()

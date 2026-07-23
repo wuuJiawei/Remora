@@ -4,68 +4,6 @@ import RemoraCore
 @testable import RemoraApp
 
 struct DockerCommandServiceTests {
-    actor StubSFTPClient: SFTPClientProtocol {
-        enum StubError: Error {
-            case failure(String)
-        }
-
-        var responses: [String: Result<String, Error>]
-
-        init(responses: [String: Result<String, Error>]) {
-            self.responses = responses
-        }
-
-        func list(path: String) async throws -> [RemoteFileEntry] {
-            _ = path
-            return []
-        }
-
-        func download(path: String) async throws -> Data {
-            _ = path
-            return Data()
-        }
-
-        func download(path: String, to localFileURL: URL, progress: TransferProgressHandler?) async throws {
-            _ = path
-            _ = localFileURL
-            _ = progress
-        }
-
-        func executeRemoteShellCommand(_ command: String, timeout: TimeInterval?) async throws -> String {
-            _ = timeout
-            guard let result = responses[command] else {
-                throw StubError.failure("missing response for \(command)")
-            }
-            return try result.get()
-        }
-
-        func streamRemoteShellCommand(_ command: String) async throws -> AsyncThrowingStream<String, Error> {
-            let value = try await executeRemoteShellCommand(command, timeout: nil)
-            return AsyncThrowingStream { continuation in
-                continuation.yield(value)
-                continuation.finish()
-            }
-        }
-
-        func upload(data: Data, to path: String) async throws {
-            _ = data
-            _ = path
-        }
-
-        func rename(from: String, to: String) async throws {
-            _ = from
-            _ = to
-        }
-
-        func mkdir(path: String) async throws {
-            _ = path
-        }
-
-        func remove(path: String) async throws {
-            _ = path
-        }
-    }
-
     private func makeTarget(
         responses: [String: Result<String, Error>]
     ) -> DockerCommandService.ShellTarget {
@@ -77,7 +15,7 @@ struct DockerCommandServiceTests {
         )
         return DockerCommandService.ShellTarget(
             host: host,
-            client: StubSFTPClient(responses: responses)
+            executor: MockRemoteCommandExecutor(responses: responses)
         )
     }
 
