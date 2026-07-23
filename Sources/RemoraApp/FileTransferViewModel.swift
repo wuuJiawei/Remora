@@ -271,6 +271,8 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var remoteSearchStatus = RemoteSearchStatus()
 
     private var sftpClient: SFTPClientProtocol
+    private var remoteCommandExecutor: (any RemoteCommandExecutorProtocol)?
+    private var remoteCommandSessionLease: (any RemoteSessionLeaseProtocol)?
     private let transferCenter: TransferCenter
     private var transferTasks: [UUID: Task<Void, Never>] = [:]
     private var remoteSearchTask: Task<Void, Never>?
@@ -320,6 +322,40 @@ final class FileTransferViewModel: ObservableObject {
         Task {
             await refreshRemoteEntries()
         }
+    }
+
+    func attachNativeCommandSession(
+        lease: any RemoteSessionLeaseProtocol,
+        executor: any RemoteCommandExecutorProtocol
+    ) {
+        let previousLease = remoteCommandSessionLease
+        remoteCommandSessionLease = lease
+        remoteCommandExecutor = executor
+        LogManager.info(.fileManager, "native command session attached lease=\(lease.id.uuidString)")
+        if let previousLease, previousLease.id != lease.id {
+            Task {
+                await previousLease.release()
+            }
+        }
+    }
+
+    func failNativeCommandSessionAttachment(_ error: Error) {
+        remoteCommandExecutor = nil
+        LogManager.error(
+            .fileManager,
+            "native command session attachment failed detail=\(error.localizedDescription)"
+        )
+    }
+
+    func releaseNativeCommandSession() async {
+        let lease = remoteCommandSessionLease
+        remoteCommandSessionLease = nil
+        remoteCommandExecutor = nil
+        await lease?.release()
+        LogManager.info(
+            .fileManager,
+            "native command session released lease=\(lease?.id.uuidString ?? "none")"
+        )
     }
 
     private static func configuredLocalDirectoryURL(
@@ -746,7 +782,7 @@ final class FileTransferViewModel: ObservableObject {
             toolchain: toolchain
         )
         updateArchiveProgress(status: tr("Running compression on remote server…"), progress: 0.8)
-        _ = try await sftpClient.executeRemoteShellCommand(command, timeout: 60)
+        _ = try await executeRemoteCommand(command, timeout: 60, replayPolicy: .never)
         invalidateRemoteDirectoryCache()
         await refreshRemoteEntries(path: destination, preferCachedFirst: false, deduplicateInFlight: false)
         updateArchiveProgress(status: tr("Finalizing…"), progress: 1.0)
@@ -769,7 +805,11 @@ final class FileTransferViewModel: ObservableObject {
             format: format,
             toolchain: toolchain
         )
-        let listOutput = try await sftpClient.executeRemoteShellCommand(listCommand, timeout: 30)
+        let listOutput = try await executeRemoteCommand(
+            listCommand,
+            timeout: 30,
+            replayPolicy: .readOnly
+        )
         let entries = RemoteArchiveCommandBuilder.parseListedEntries(
             output: listOutput,
             archivePath: normalizedArchivePath,
@@ -785,7 +825,7 @@ final class FileTransferViewModel: ObservableObject {
             format: format,
             toolchain: toolchain
         )
-        _ = try await sftpClient.executeRemoteShellCommand(extractCommand, timeout: 90)
+        _ = try await executeRemoteCommand(extractCommand, timeout: 90, replayPolicy: .never)
         invalidateRemoteDirectoryCache()
         await refreshRemoteEntries(path: destination, preferCachedFirst: false, deduplicateInFlight: false)
         updateArchiveProgress(status: tr("Finalizing…"), progress: 1.0)
@@ -1132,7 +1172,7 @@ final class FileTransferViewModel: ObservableObject {
         let normalizedPath = normalizeRemoteDirectoryPath(path)
         let clampedLineCount = min(max(lineCount, 1), Self.maxRemoteLogTailLineCount)
         let command = "LC_ALL=C tail -n \(clampedLineCount) \(Self.quoteShellArgument(normalizedPath))"
-        return try await sftpClient.executeRemoteShellCommand(command, timeout: 15)
+        return try await executeRemoteCommand(command, timeout: 15, replayPolicy: .readOnly)
     }
 
     func streamRemoteLogTail(
@@ -1142,7 +1182,7 @@ final class FileTransferViewModel: ObservableObject {
         let normalizedPath = normalizeRemoteDirectoryPath(path)
         let clampedLineCount = min(max(lineCount, 1), Self.maxRemoteLogTailLineCount)
         let command = "LC_ALL=C tail -n \(clampedLineCount) -f \(Self.quoteShellArgument(normalizedPath))"
-        return try await sftpClient.streamRemoteShellCommand(command)
+        return try await streamRemoteCommand(command)
     }
 
     func saveTextDocument(
@@ -1392,8 +1432,9 @@ final class FileTransferViewModel: ObservableObject {
         generation: Int,
         onVisit: (String, Bool) -> Void
     ) async throws -> Bool {
-        let stream = try await sftpClient.streamRemoteShellCommand(
-            Self.makeRemoteSearchShellCommand(rootPath: rootPath)
+        let stream = try await streamRemoteCommand(
+            Self.makeRemoteSearchShellCommand(rootPath: rootPath),
+            replayPolicy: .readOnly
         )
 
         var didReceiveEvent = false
@@ -2240,9 +2281,10 @@ final class FileTransferViewModel: ObservableObject {
         if !forceRefresh, let cached = remoteArchiveToolchainCache[activeRemoteBindingKey] {
             return cached
         }
-        let output = try await sftpClient.executeRemoteShellCommand(
+        let output = try await executeRemoteCommand(
             RemoteArchiveCommandBuilder.capabilityProbeScript(),
-            timeout: 12
+            timeout: 12,
+            replayPolicy: .readOnly
         )
         let toolchain = RemoteArchiveCommandBuilder.parseCapabilityProbeOutput(output)
         remoteArchiveToolchainCache[activeRemoteBindingKey] = toolchain
@@ -2254,7 +2296,111 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     func executeArchiveInstallCommand(_ command: String) async throws -> String {
-        try await sftpClient.executeRemoteShellCommand(command, timeout: 120)
+        try await executeRemoteCommand(command, timeout: 120, replayPolicy: .never)
+    }
+
+    private func executeRemoteCommand(
+        _ command: String,
+        timeout: TimeInterval,
+        replayPolicy: CommandReplayPolicy
+    ) async throws -> String {
+        guard let remoteCommandExecutor else {
+            throw RemoteOperationError(
+                category: .session,
+                code: "file_command_session_unavailable",
+                safeDiagnosticMessage: "The file window does not have an active native command session"
+            )
+        }
+        let privilege: RemoteCommandPrivilege = isRemoteAdministratorMode
+            ? .sudoNonInteractive
+            : .currentUser
+        let result = try await remoteCommandExecutor.execute(
+            RemoteCommandRequest(
+                executable: .shell(command),
+                privilege: privilege,
+                replayPolicy: replayPolicy,
+                timeout: .seconds(timeout)
+            )
+        )
+        guard result.exitStatus == 0 else {
+            let stderr = String(decoding: result.standardError, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let stdout = String(decoding: result.standardOutput, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let diagnostic = stderr.isEmpty ? stdout : stderr
+            throw RemoteOperationError(
+                category: privilege == .sudoNonInteractive ? .privilege : .command,
+                code: privilege == .sudoNonInteractive
+                    ? "file_privilege_command_failed"
+                    : "file_command_exit_nonzero",
+                safeDiagnosticMessage: diagnostic.isEmpty
+                    ? "Remote command exited with status \(result.exitStatus)"
+                    : diagnostic,
+                backendCode: Int(result.exitStatus)
+            )
+        }
+        guard !result.standardOutputWasTruncated, !result.standardErrorWasTruncated else {
+            throw RemoteOperationError(
+                category: .command,
+                code: "file_command_output_truncated",
+                safeDiagnosticMessage: "Remote command output exceeded the collection limit"
+            )
+        }
+        return String(decoding: result.standardOutput, as: UTF8.self)
+    }
+
+    private func streamRemoteCommand(
+        _ command: String,
+        replayPolicy: CommandReplayPolicy = .never
+    ) async throws -> AsyncThrowingStream<String, Error> {
+        guard let remoteCommandExecutor else {
+            throw RemoteOperationError(
+                category: .session,
+                code: "file_command_session_unavailable",
+                safeDiagnosticMessage: "The file window does not have an active native command session"
+            )
+        }
+        let privilege: RemoteCommandPrivilege = isRemoteAdministratorMode
+            ? .sudoNonInteractive
+            : .currentUser
+        let execution = try await remoteCommandExecutor.start(
+            RemoteCommandRequest(
+                executable: .shell(command),
+                privilege: privilege,
+                replayPolicy: replayPolicy
+            )
+        )
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let events = await execution.events()
+                    for try await event in events {
+                        switch event {
+                        case .standardOutput(let data), .standardError(let data):
+                            if !data.isEmpty {
+                                continuation.yield(String(decoding: data, as: UTF8.self))
+                            }
+                        case .exitStatus(let status):
+                            if status != 0 {
+                                throw RemoteOperationError(
+                                    category: privilege == .sudoNonInteractive ? .privilege : .command,
+                                    code: "file_log_command_exit_nonzero",
+                                    safeDiagnosticMessage: "Remote log command exited with status \(status)",
+                                    backendCode: Int(status)
+                                )
+                            }
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+                Task { await execution.cancel() }
+            }
+        }
     }
 
     private func setRemoteDirectory(path: String, recordHistory: Bool, resetHistory: Bool) {

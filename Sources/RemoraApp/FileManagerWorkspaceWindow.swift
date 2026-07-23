@@ -13,6 +13,7 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         let directorySyncBridge: TerminalDirectorySyncBridge
         let controller: FileManagerWorkspaceWindowController
         let runtimeObserver: AnyCancellable
+        let commandSessionTask: Task<Void, Never>
 
         init(
             id: UUID,
@@ -21,7 +22,8 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             viewModel: FileTransferViewModel,
             directorySyncBridge: TerminalDirectorySyncBridge,
             controller: FileManagerWorkspaceWindowController,
-            runtimeObserver: AnyCancellable
+            runtimeObserver: AnyCancellable,
+            commandSessionTask: Task<Void, Never>
         ) {
             self.id = id
             self.host = host
@@ -30,6 +32,7 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             self.directorySyncBridge = directorySyncBridge
             self.controller = controller
             self.runtimeObserver = runtimeObserver
+            self.commandSessionTask = commandSessionTask
         }
     }
 
@@ -54,6 +57,7 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
         let directorySyncBridge = TerminalDirectorySyncBridge()
         bind(viewModel: viewModel, directorySyncBridge: directorySyncBridge, runtime: runtime, fallbackHost: host)
 
+        var commandSessionTask: Task<Void, Never>?
         let controller = FileManagerWorkspaceWindowController(
             host: host,
             runtime: runtime,
@@ -102,7 +106,11 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
                 )
             },
             onOpenDownloadSettings: onOpenDownloadSettings,
-            onClose: { [weak self] in
+            onClose: { [weak self, weak viewModel] in
+                commandSessionTask?.cancel()
+                if let viewModel {
+                    Task { await viewModel.releaseNativeCommandSession() }
+                }
                 self?.windows.removeValue(forKey: windowID)
             }
         )
@@ -126,6 +134,30 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             )
         }
 
+        let acquisitionTask = Task { [weak viewModel] in
+            guard let viewModel else { return }
+            do {
+                let lease = try await runtime.acquireRemoteSessionLease()
+                do {
+                    let session = try await lease.session()
+                    let executor = try await session.commandExecutor()
+                    guard !Task.isCancelled else {
+                        await lease.release()
+                        return
+                    }
+                    viewModel.attachNativeCommandSession(lease: lease, executor: executor)
+                } catch {
+                    await lease.release()
+                    throw error
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                viewModel.failNativeCommandSessionAttachment(error)
+            }
+        }
+        commandSessionTask = acquisitionTask
+
         windows[windowID] = WindowRecord(
             id: windowID,
             host: host,
@@ -133,7 +165,8 @@ final class FileManagerWorkspaceWindowManager: ObservableObject {
             viewModel: viewModel,
             directorySyncBridge: directorySyncBridge,
             controller: controller,
-            runtimeObserver: runtimeObserver
+            runtimeObserver: runtimeObserver,
+            commandSessionTask: acquisitionTask
         )
 
         LogManager.info(.fileManager, "show window id=\(windowID.uuidString)")
