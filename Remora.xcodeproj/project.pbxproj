@@ -83,6 +83,7 @@
 		3EE8FEB4337A6EE36646EDF71BB9AB49 /* scp.c in Sources */ = {isa = PBXBuildFile; fileRef = 74DB4E44DEE64EB40ECB1C7F67280BDB /* scp.c */; };
 		3EF853013EED2F831DD12755975F6293 /* version_features.c in Sources */ = {isa = PBXBuildFile; fileRef = 86CDA161CFAB1C5398F76F7FA01675C9 /* version_features.c */; };
 		3F4FAB62E60E999C206290F8DE1030E0 /* FileTransferViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC41150691770D66ED19E090D7675FE0 /* FileTransferViewModel.swift */; };
+		3F6D22EF6B589DFE37A19B2DF8707B25 /* JumpServerGatewayProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB05A4C6B3557BFFAE7B4563D2CD685 /* JumpServerGatewayProvider.swift */; };
 		405CD51B63D8ED69F1B759D0495591FD /* SFTPCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = F46A93B201DD87E3458D4B1CB8F23074 /* SFTPCodec.swift */; };
 		446D74121D9FA4D5E988FC8F20C69048 /* sftp.c in Sources */ = {isa = PBXBuildFile; fileRef = 8D0363F689159694643899822A2A0DDD /* sftp.c */; };
 		44BD76AB0480D7A0FC6B3FDB87998459 /* global.c in Sources */ = {isa = PBXBuildFile; fileRef = F5214B78C5C4D74DF12F1824AD9F32E9 /* global.c */; };
@@ -229,6 +230,7 @@
 		A6B40817D3DCFA9D5F2926EFF3F01808 /* FocusableCodeMirrorWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAEECDC46CF100F6825D1C6251B973DB /* FocusableCodeMirrorWebView.swift */; };
 		A7BEF4499D8D3F1BF3681DDE523234DF /* hkdf.c in Sources */ = {isa = PBXBuildFile; fileRef = 10D73E97BE3A98F65E925A72237EE75A /* hkdf.c */; };
 		A87D0297717330115C8DDE96A0F78CE4 /* bcrypt_pbkdf.c in Sources */ = {isa = PBXBuildFile; fileRef = 24E53B82829EDA3D2E0F823D924B96F9 /* bcrypt_pbkdf.c */; };
+		A976FACD48748BA434F167127F32A9EC /* GatewayProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F858FE1C3943B83C83C70AD50C5FF35D /* GatewayProvider.swift */; };
 		AA2763D3E2F5AACE9FD97A27A62696AB /* AuthenticationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */; };
 		AB35D7F60B7055A089C5044DDFABF66F /* RemoraJSONFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C827F4577893BD91176AF0DECC3F75B5 /* RemoraJSONFileStore.swift */; };
 		AB501F0F26759353E1B8BAB974BC8F8F /* TerminalAIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD2C2500A307DB67006D95FD14150BDF /* TerminalAIModels.swift */; };
@@ -402,6 +404,7 @@
 		19583DCE6320CB7D8C5020BFDBFC1D6B /* ZmodemDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ZmodemDetector.swift; path = ZModem/ZmodemDetector.swift; sourceTree = "<group>"; };
 		1960A6671E0F33463EB5CE76E98D2575 /* DockerComposeRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerComposeRowView.swift; sourceTree = "<group>"; };
 		1A3312D648F79C111B5511C3293F9ABC /* AuthenticationCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthenticationCoordinator.swift; path = RemoteSession/AuthenticationCoordinator.swift; sourceTree = "<group>"; };
+		1AB05A4C6B3557BFFAE7B4563D2CD685 /* JumpServerGatewayProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = JumpServerGatewayProvider.swift; path = Gateway/JumpServerGatewayProvider.swift; sourceTree = "<group>"; };
 		1AC39C573D2A00E0291BB92F09AEC3E0 /* sha3.c */ = {isa = PBXFileReference; includeInIndex = 1; name = sha3.c; path = library/sha3.c; sourceTree = "<group>"; };
 		1D744EAC8CC1CB96E442104054561CF3 /* DockerCommandService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerCommandService.swift; sourceTree = "<group>"; };
 		1D8F2D2388EE496D0249FD2141B399DC /* ccm.c */ = {isa = PBXFileReference; includeInIndex = 1; name = ccm.c; path = library/ccm.c; sourceTree = "<group>"; };
@@ -671,6 +674,7 @@
 		F61F49B393F79F8F295FB64E9D4B5503 /* SFTPProtocols.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SFTPProtocols.swift; path = Protocols/SFTPProtocols.swift; sourceTree = "<group>"; };
 		F620BE5904E4F07AE210733818F5EA92 /* libRemoraMbedCrypto.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libRemoraMbedCrypto.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		F7D53D469947739E5AFF35BFE4FEAF88 /* psa_crypto.c */ = {isa = PBXFileReference; includeInIndex = 1; name = psa_crypto.c; path = library/psa_crypto.c; sourceTree = "<group>"; };
+		F858FE1C3943B83C83C70AD50C5FF35D /* GatewayProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GatewayProvider.swift; path = Gateway/GatewayProvider.swift; sourceTree = "<group>"; };
 		F9C60DD857350827835FCCFC84767206 /* FileManagerDownloadsPopoverView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileManagerDownloadsPopoverView.swift; sourceTree = "<group>"; };
 		FAA293974103075A04AA5EB432338F5E /* ZmodemEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ZmodemEngine.swift; path = ZModem/ZmodemEngine.swift; sourceTree = "<group>"; };
 		FB2A5252DAE8AFF8A52F159B146340E3 /* DockerWorkspaceWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DockerWorkspaceWindow.swift; sourceTree = "<group>"; };
@@ -1092,6 +1096,8 @@
 				C011661DDC84FB3F1FBF3660DD9A9753 /* ExtensionScript.swift */,
 				0A276D14463E63E8B766937FF8CA400C /* ExtensionScriptRunner.swift */,
 				3B0464EC11E84AF813783E5415A0716D /* ExtensionScriptStore.swift */,
+				F858FE1C3943B83C83C70AD50C5FF35D /* GatewayProvider.swift */,
+				1AB05A4C6B3557BFFAE7B4563D2CD685 /* JumpServerGatewayProvider.swift */,
 				3758FB6DB22F10CE240D8F8A50415F3C /* RingByteBuffer.swift */,
 				60819E76DC32AAD47E67EDF3E4FD9065 /* PerformanceMetrics.swift */,
 				59C53F356C2DB1D02083C99FAA12FE70 /* Host.swift */,
@@ -1581,6 +1587,8 @@
 				2B9D4B3FCDD1986E2056652D69BFEA6C /* ExtensionScript.swift in Sources */,
 				96A5968A1E2F62D2C439EB5B32CC5B50 /* ExtensionScriptRunner.swift in Sources */,
 				CD0E33312DC008529E402C19CEAB4B41 /* ExtensionScriptStore.swift in Sources */,
+				A976FACD48748BA434F167127F32A9EC /* GatewayProvider.swift in Sources */,
+				3F6D22EF6B589DFE37A19B2DF8707B25 /* JumpServerGatewayProvider.swift in Sources */,
 				23CD77347C69E273567DC778D5A736FA /* RingByteBuffer.swift in Sources */,
 				98453649E4DDFEF44ADDD7BD39935BDE /* PerformanceMetrics.swift in Sources */,
 				C585C22B1A8E27FC68DBE0C8C19D477F /* Host.swift in Sources */,

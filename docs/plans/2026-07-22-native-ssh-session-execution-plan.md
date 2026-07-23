@@ -634,18 +634,39 @@ Tests/RemoraAppTests/HostConnectionExporterTests.swift
 
 ### Tasks
 
-- [ ] Add versioned direct/gateway route persistence without guessing existing hosts.
-- [ ] Define provider protocol and canonical target identity.
-- [ ] Implement JumpServer direct-login username generation and validation.
-- [ ] Require platform username, protocol, asset, and asset account before connect.
-- [ ] Add connection editor route/provider fields with native macOS controls.
-- [ ] Store secrets/tokens only as Keychain references.
-- [ ] Add optional provider asset lookup only if API authentication is explicitly
-  configured; do not scrape the interactive menu.
-- [ ] Represent manual interactive gateway sessions as unbound target sessions.
-- [ ] Disable dependent panels for unbound targets with a typed/localized reason.
-- [ ] Ensure shell, Docker, metrics, normal files, and admin files use the same canonical
+- [x] Add versioned direct/gateway route persistence without guessing existing hosts.
+- [x] Define provider protocol and canonical target identity.
+- [x] Implement JumpServer direct-login username generation and validation.
+- [x] Require platform username, protocol, asset, and asset account for bound target routes;
+  keep manual interactive routes explicitly unbound.
+- [x] Add connection editor route/provider fields with native macOS controls.
+- [x] Store secrets/tokens only as Keychain references.
+- [x] Do not add provider asset lookup because no explicit JumpServer API credential
+  configuration exists; do not scrape the interactive menu.
+- [x] Represent manual interactive gateway sessions as unbound target sessions.
+- [x] Disable dependent panels for unbound targets with a typed/localized reason.
+- [x] Ensure shell, Docker, metrics, normal files, and admin files use the same canonical
   target identity and leaseable session.
+
+### Implementation record (2026-07-23)
+
+- Existing host and export payloads without route metadata decode only as direct routes. Catalog,
+  export, and route schemas reject unknown versions; imports reject unknown gateway providers.
+- Bound JumpServer routes generate
+  `platform_username@ssh@account_username@asset_target`; `@`, control characters, missing fields,
+  unsupported protocols, and oversized components are rejected before transport creation.
+- Manual interactive routes retain shell access but expose an unbound target identity. Docker,
+  metrics, normal files, and administrator files are disabled in App UI and guarded by the Core
+  `route/target_not_resolved` error.
+- JumpServer authentication prefers keyboard-interactive and uses password only when the server
+  does not advertise keyboard-interactive. Single password/OTP prompts retain compact alerts;
+  multi-prompt rounds preserve prompt order and echo flags in a dedicated response sheet.
+- Saved credentials use the macOS Keychain. A successful one-time migration removes the legacy
+  plaintext `credentials.json`; migration failure retains the legacy file for recovery, while
+  later successful individual writes remove their legacy entries.
+- `swift build` and `swift build --build-tests` compile. Tests and real direct-host/JumpServer
+  validation were not run at the user's request, so the Phase 7 exit condition remains pending
+  user acceptance.
 
 ### JumpServer matrix
 
