@@ -8,8 +8,8 @@ import RemoraCore
 struct TerminalDirectorySyncBridgeTests {
     @Test
     func localRuntimeDoesNotDriveRemoteFileManagerDirectory() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -34,8 +34,8 @@ struct TerminalDirectorySyncBridgeTests {
 
     @Test
     func fileManagerDirectoryChangeDoesNotPushToRuntime() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -61,8 +61,8 @@ struct TerminalDirectorySyncBridgeTests {
 
     @Test
     func runtimeDirectoryChangePushesToFileManager() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -88,16 +88,13 @@ struct TerminalDirectorySyncBridgeTests {
     @Test
     func runtimeToFileManagerSyncDoesNotIssueExtraCdCommand() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
-                    recorder: recorder,
-                    initialDirectory: "/",
-                    workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
+        let factory = RecordingShellFactory(
+            recorder: recorder,
+            initialDirectory: "/",
+            workingDirectoryEventStyle: .osc7OnPrompt
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = SessionManager(localShellFactory: factory.makeShell)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -129,16 +126,13 @@ struct TerminalDirectorySyncBridgeTests {
     @Test
     func disabledSyncTogglePreventsRuntimeToFileManagerSyncInSSH() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
-                    recorder: recorder,
-                    initialDirectory: "/",
-                    workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
+        let factory = RecordingShellFactory(
+            recorder: recorder,
+            initialDirectory: "/",
+            workingDirectoryEventStyle: .osc7OnPrompt
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = SessionManager(localShellFactory: factory.makeShell)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -168,17 +162,14 @@ struct TerminalDirectorySyncBridgeTests {
     @Test
     func enablingSyncAfterBindingAlignsFileManagerToCurrentRuntimeDirectory() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
-                    recorder: recorder,
-                    initialDirectory: "/opt/service",
-                    pwdOutputStyle: .ansiWrapped,
-                    workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
+        let factory = RecordingShellFactory(
+            recorder: recorder,
+            initialDirectory: "/opt/service",
+            pwdOutputStyle: .ansiWrapped,
+            workingDirectoryEventStyle: .osc7OnPrompt
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = SessionManager(localShellFactory: factory.makeShell)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -213,17 +204,14 @@ struct TerminalDirectorySyncBridgeTests {
     @Test
     func enablingSyncDoesNotIssuePwdWhenRuntimeAlreadyKnowsDirectory() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
-                    recorder: recorder,
-                    initialDirectory: "/opt/service",
-                    pwdOutputStyle: .ansiWrapped,
-                    workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
+        let factory = RecordingShellFactory(
+            recorder: recorder,
+            initialDirectory: "/opt/service",
+            pwdOutputStyle: .ansiWrapped,
+            workingDirectoryEventStyle: .osc7OnPrompt
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = SessionManager(localShellFactory: factory.makeShell)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 
@@ -259,16 +247,13 @@ struct TerminalDirectorySyncBridgeTests {
     @Test
     func typedTerminalDirectoryChangePushesToFileManagerWhenSyncEnabled() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
-                    recorder: recorder,
-                    initialDirectory: "/srv/app",
-                    workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
+        let factory = RecordingShellFactory(
+            recorder: recorder,
+            initialDirectory: "/srv/app",
+            workingDirectoryEventStyle: .osc7OnPrompt
         )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = SessionManager(localShellFactory: factory.makeShell)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let fileTransfer = FileTransferViewModel(remoteFileSystem: MockRemoteFileSystem(), remoteDirectoryPath: "/")
         let bridge = TerminalDirectorySyncBridge()
 

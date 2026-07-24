@@ -6,28 +6,7 @@ enum LocalShellInterruptSignalTarget: Equatable {
     case process(pid_t)
 }
 
-public actor LocalShellClient: SSHTransportClientProtocol {
-    private var connectedHost: Host?
-
-    public init() {}
-
-    public func connect(to host: Host) async throws {
-        connectedHost = host
-    }
-
-    public func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
-        guard let host = connectedHost else {
-            throw SSHError.notConnected
-        }
-        return LocalShellSession(host: host, pty: pty)
-    }
-
-    public func disconnect() async {
-        connectedHost = nil
-    }
-}
-
-public final class LocalShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+public final class LocalShellSession: ShellSessionProtocol, @unchecked Sendable {
     public var onOutput: (@Sendable (Data) -> Void)?
     public var onStateChange: (@Sendable (ShellSessionState) -> Void)?
 

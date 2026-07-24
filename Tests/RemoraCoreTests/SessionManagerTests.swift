@@ -5,7 +5,7 @@ import Testing
 struct SessionManagerTests {
     @Test
     func startWriteAndStopSession() async throws {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let manager = makeMockSessionManager()
         let host = Host(
             name: "demo",
             address: "127.0.0.1",
@@ -27,7 +27,7 @@ struct SessionManagerTests {
 
     @Test
     func outputStreamEmitsInitialBanner() async throws {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let manager = makeMockSessionManager()
         let host = Host(
             name: "demo",
             address: "127.0.0.1",
@@ -47,7 +47,7 @@ struct SessionManagerTests {
 
     @Test
     func stateStreamEmitsRunningAndStopped() async throws {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let manager = makeMockSessionManager()
         let host = Host(
             name: "demo",
             address: "127.0.0.1",
@@ -69,7 +69,7 @@ struct SessionManagerTests {
 
     @Test
     func supportsConcurrentSessionsWithIsolatedOutputStreams() async throws {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let manager = makeMockSessionManager()
         let hostA = Host(
             name: "alpha",
             address: "10.0.0.1",
@@ -122,6 +122,12 @@ struct SessionManagerTests {
             group.cancelAll()
             return result
         }
+    }
+
+    private func makeMockSessionManager() -> SessionManager {
+        SessionManager(
+            localShellFactory: { host, pty in MockShellSession(host: host, pty: pty) }
+        )
     }
 
 }

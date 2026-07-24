@@ -1,5 +1,39 @@
 import Foundation
 
+public struct RemoteFileEntry: Equatable, Sendable {
+    public var name: String
+    public var path: String
+    public var size: Int64
+    public var permissions: UInt16?
+    public var owner: String?
+    public var group: String?
+    public var isDirectory: Bool
+    public var isSymbolicLink: Bool
+    public var modifiedAt: Date
+
+    public init(
+        name: String,
+        path: String,
+        size: Int64,
+        permissions: UInt16? = nil,
+        owner: String? = nil,
+        group: String? = nil,
+        isDirectory: Bool,
+        isSymbolicLink: Bool = false,
+        modifiedAt: Date = Date()
+    ) {
+        self.name = name
+        self.path = path
+        self.size = size
+        self.permissions = permissions
+        self.owner = owner
+        self.group = group
+        self.isDirectory = isDirectory
+        self.isSymbolicLink = isSymbolicLink
+        self.modifiedAt = modifiedAt
+    }
+}
+
 public struct RemoteFileOpenOptions: OptionSet, Hashable, Sendable {
     public let rawValue: UInt8
 

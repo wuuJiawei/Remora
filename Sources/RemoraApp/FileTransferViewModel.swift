@@ -278,8 +278,8 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var remoteSearchStatus = RemoteSearchStatus()
 
     private var remoteFileOperations: RemoteFileSystemOperations?
-    private var nativeFileSystem: (any RemoteFileSystemProtocol)?
-    private var administratorFileSystem: (any RemoteFileSystemProtocol)?
+    private var nativeFileSystem: (any RemoteFileSystem)?
+    private var administratorFileSystem: (any RemoteFileSystem)?
     private var remoteCommandExecutor: (any RemoteCommandExecutorProtocol)?
     private var remoteSessionLease: (any RemoteSessionLeaseProtocol)?
     private var administratorFileSystemTask: Task<Void, Never>?
@@ -306,7 +306,7 @@ final class FileTransferViewModel: ObservableObject {
     private let logger = Logger(subsystem: "io.lighting-tech.remora", category: "file-transfer")
 
     init(
-        remoteFileSystem: (any RemoteFileSystemProtocol)? = nil,
+        remoteFileSystem: (any RemoteFileSystem)? = nil,
         remoteCommandExecutor: (any RemoteCommandExecutorProtocol)? = nil,
         localDirectoryURL: URL = FileTransferViewModel.configuredLocalDirectoryURL(),
         remoteDirectoryPath: String = "/",
@@ -343,7 +343,7 @@ final class FileTransferViewModel: ObservableObject {
     func attachNativeSession(
         lease: any RemoteSessionLeaseProtocol,
         executor: any RemoteCommandExecutorProtocol,
-        fileSystem: any RemoteFileSystemProtocol,
+        fileSystem: any RemoteFileSystem,
         bindingKey: String,
         initialRemoteDirectory: String
     ) {
@@ -541,7 +541,7 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     func bindRemoteFileSystem(
-        _ fileSystem: any RemoteFileSystemProtocol,
+        _ fileSystem: any RemoteFileSystem,
         bindingKey: String = "__default",
         initialRemoteDirectory: String? = nil
     ) {
@@ -555,7 +555,7 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     private func activateRemoteFileSystem(
-        _ fileSystem: any RemoteFileSystemProtocol,
+        _ fileSystem: any RemoteFileSystem,
         bindingKey: String,
         initialRemoteDirectory: String?,
         saveCurrentState: Bool = true

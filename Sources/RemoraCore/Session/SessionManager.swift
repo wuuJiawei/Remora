@@ -1,16 +1,17 @@
 import Foundation
 
 public actor SessionManager: SessionManagerProtocol {
+    public typealias LocalShellFactory = @Sendable (Host, PTYSize) async throws -> any ShellSessionProtocol
     public typealias RemoteRequestBuilder = @Sendable (Host) async throws -> RemoteSessionAcquisitionRequest
 
     private enum Backend: Sendable {
-        case process(@Sendable () -> SSHTransportClientProtocol)
+        case local(LocalShellFactory)
         case remote(RemoteSessionHub, RemoteRequestBuilder)
     }
 
     private struct SessionContainer {
         let descriptor: TerminalSessionDescriptor
-        let shell: SSHTransportSessionProtocol
+        let shell: any ShellSessionProtocol
         let stream: AsyncStream<Data>
         let continuation: AsyncStream<Data>.Continuation
         let stateStream: AsyncStream<ShellSessionState>
@@ -20,8 +21,8 @@ public actor SessionManager: SessionManagerProtocol {
     private let backend: Backend
     private var sessions: [UUID: SessionContainer] = [:]
 
-    public init(sshClientFactory: @escaping @Sendable () -> SSHTransportClientProtocol) {
-        backend = .process(sshClientFactory)
+    public init(localShellFactory: @escaping LocalShellFactory) {
+        backend = .local(localShellFactory)
     }
 
     public init(
@@ -31,19 +32,12 @@ public actor SessionManager: SessionManagerProtocol {
         backend = .remote(remoteSessionHub, requestBuilder)
     }
 
-    public func usesNativeRemoteSessions() -> Bool {
-        if case .remote = backend { return true }
-        return false
-    }
-
     public func startSession(for host: Host, pty: PTYSize) async throws -> TerminalSessionDescriptor {
-        let shell: SSHTransportSessionProtocol
+        let shell: any ShellSessionProtocol
         let remoteIdentity: RemoteSessionIdentitySnapshot?
         switch backend {
-        case .process(let clientFactory):
-            let client = clientFactory()
-            try await client.connect(to: host)
-            shell = try await client.openShell(pty: pty)
+        case .local(let shellFactory):
+            shell = try await shellFactory(host, pty)
             remoteIdentity = nil
         case .remote(let hub, let requestBuilder):
             let request = try await requestBuilder(host)
@@ -99,7 +93,6 @@ public actor SessionManager: SessionManagerProtocol {
             id: descriptorID,
             host: host,
             createdAt: createdAt,
-            usesStoredPasswordDelivery: shell.usesStoredPasswordDelivery,
             remoteSessionIdentity: remoteIdentity
         )
 
@@ -179,11 +172,9 @@ public actor SessionManager: SessionManagerProtocol {
     }
 }
 
-private final class RemoteShellSessionAdapter: SSHTransportSessionProtocol, @unchecked Sendable {
+private final class RemoteShellSessionAdapter: ShellSessionProtocol, @unchecked Sendable {
     var onOutput: (@Sendable (Data) -> Void)?
     var onStateChange: (@Sendable (ShellSessionState) -> Void)?
-    let usesStoredPasswordDelivery = false
-
     private let channel: any RemoteShellChannelProtocol
     private let lease: any RemoteSessionLeaseProtocol
     private let lock = NSLock()

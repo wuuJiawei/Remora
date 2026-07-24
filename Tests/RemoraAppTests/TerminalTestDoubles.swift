@@ -1,6 +1,27 @@
 import Foundation
 import RemoraCore
 
+func makeMockSessionManager() -> SessionManager {
+    SessionManager(
+        localShellFactory: { host, pty in MockShellSession(host: host, pty: pty) }
+    )
+}
+
+func makeRecordingSessionManager(
+    recorder: TerminalCommandRecorder,
+    initialDirectory: String = "/",
+    pwdOutputStyle: RecordingShellFactory.PwdOutputStyle = .plain,
+    workingDirectoryEventStyle: RecordingShellFactory.WorkingDirectoryEventStyle = .none
+) -> SessionManager {
+    let factory = RecordingShellFactory(
+        recorder: recorder,
+        initialDirectory: initialDirectory,
+        pwdOutputStyle: pwdOutputStyle,
+        workingDirectoryEventStyle: workingDirectoryEventStyle
+    )
+    return SessionManager(localShellFactory: factory.makeShell)
+}
+
 actor TerminalCommandRecorder {
     private(set) var commands: [String] = []
     private(set) var rawWrites: [String] = []
@@ -25,7 +46,7 @@ actor TerminalCommandRecorder {
     }
 }
 
-actor RecordingSSHClient: SSHTransportClientProtocol {
+final class RecordingShellFactory: @unchecked Sendable {
     enum PwdOutputStyle: Sendable {
         case plain
         case ansiWrapped
@@ -41,7 +62,6 @@ actor RecordingSSHClient: SSHTransportClientProtocol {
     private let initialDirectory: String
     private let pwdOutputStyle: PwdOutputStyle
     private let workingDirectoryEventStyle: WorkingDirectoryEventStyle
-    private var connectedHost: RemoraCore.Host?
 
     init(
         recorder: TerminalCommandRecorder,
@@ -55,14 +75,7 @@ actor RecordingSSHClient: SSHTransportClientProtocol {
         self.workingDirectoryEventStyle = workingDirectoryEventStyle
     }
 
-    func connect(to host: RemoraCore.Host) async throws {
-        connectedHost = host
-    }
-
-    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
-        guard let host = connectedHost else {
-            throw SSHError.notConnected
-        }
+    func makeShell(host: RemoraCore.Host, pty: PTYSize) async throws -> any ShellSessionProtocol {
         return RecordingShellSession(
             host: host,
             pty: pty,
@@ -73,12 +86,9 @@ actor RecordingSSHClient: SSHTransportClientProtocol {
         )
     }
 
-    func disconnect() async {
-        connectedHost = nil
-    }
 }
 
-final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+final class RecordingShellSession: ShellSessionProtocol, @unchecked Sendable {
     var onOutput: (@Sendable (Data) -> Void)?
     var onStateChange: (@Sendable (ShellSessionState) -> Void)?
 
@@ -86,8 +96,8 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
     private var pty: PTYSize
     private let recorder: TerminalCommandRecorder
     private var currentDirectory: String
-    private let pwdOutputStyle: RecordingSSHClient.PwdOutputStyle
-    private let workingDirectoryEventStyle: RecordingSSHClient.WorkingDirectoryEventStyle
+    private let pwdOutputStyle: RecordingShellFactory.PwdOutputStyle
+    private let workingDirectoryEventStyle: RecordingShellFactory.WorkingDirectoryEventStyle
     private var commandBuffer = ""
     private var isRunning = false
     private var isBracketedPasteActive = false
@@ -97,8 +107,8 @@ final class RecordingShellSession: SSHTransportSessionProtocol, @unchecked Senda
         pty: PTYSize,
         recorder: TerminalCommandRecorder,
         initialDirectory: String,
-        pwdOutputStyle: RecordingSSHClient.PwdOutputStyle,
-        workingDirectoryEventStyle: RecordingSSHClient.WorkingDirectoryEventStyle
+        pwdOutputStyle: RecordingShellFactory.PwdOutputStyle,
+        workingDirectoryEventStyle: RecordingShellFactory.WorkingDirectoryEventStyle
     ) {
         self.host = host
         self.pty = pty

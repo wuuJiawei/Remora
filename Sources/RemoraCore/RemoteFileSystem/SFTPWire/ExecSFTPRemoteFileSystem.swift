@@ -1,6 +1,6 @@
 import Foundation
 
-public actor ExecSFTPRemoteFileSystem: RemoteFileSystemProtocol {
+public actor ExecSFTPRemoteFileSystem: RemoteFileSystem {
     public nonisolated let id = UUID()
 
     private enum ConnectionState {

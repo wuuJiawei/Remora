@@ -1,27 +1,6 @@
 import Foundation
 
-public actor MockSSHClient: SSHTransportClientProtocol {
-    private var connectedHost: Host?
-
-    public init() {}
-
-    public func connect(to host: Host) async throws {
-        connectedHost = host
-    }
-
-    public func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
-        guard let host = connectedHost else {
-            throw SSHError.notConnected
-        }
-        return MockShellSession(host: host, pty: pty)
-    }
-
-    public func disconnect() async {
-        connectedHost = nil
-    }
-}
-
-public final class MockShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+public final class MockShellSession: ShellSessionProtocol, @unchecked Sendable {
     public var onOutput: (@Sendable (Data) -> Void)?
     public var onStateChange: (@Sendable (ShellSessionState) -> Void)?
 

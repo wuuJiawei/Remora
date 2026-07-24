@@ -1299,14 +1299,14 @@ private actor AdministratorFileTestLease: RemoteSessionLeaseProtocol {
 
 private actor AdministratorFileTestSession: RemoteSessionProtocol {
     nonisolated let id = UUID()
-    private let normalFileSystem: any RemoteFileSystemProtocol
-    private let rootFileSystem: any RemoteFileSystemProtocol
+    private let normalFileSystem: any RemoteFileSystem
+    private let rootFileSystem: any RemoteFileSystem
     private let executor: any RemoteCommandExecutorProtocol
     private(set) var administratorFileSystemRequestCount = 0
 
     init(
-        normalFileSystem: any RemoteFileSystemProtocol,
-        administratorFileSystem: any RemoteFileSystemProtocol,
+        normalFileSystem: any RemoteFileSystem,
+        administratorFileSystem: any RemoteFileSystem,
         executor: any RemoteCommandExecutorProtocol
     ) {
         self.normalFileSystem = normalFileSystem
@@ -1355,11 +1355,11 @@ private actor AdministratorFileTestSession: RemoteSessionProtocol {
         executor
     }
 
-    func fileSystem() async throws -> any RemoteFileSystemProtocol {
+    func fileSystem() async throws -> any RemoteFileSystem {
         normalFileSystem
     }
 
-    func administratorFileSystem() async throws -> any RemoteFileSystemProtocol {
+    func administratorFileSystem() async throws -> any RemoteFileSystem {
         administratorFileSystemRequestCount += 1
         return rootFileSystem
     }

@@ -1,7 +1,7 @@
 import Foundation
 import RemoraCore
 
-actor MockRemoteFileSystem: RemoteFileSystemProtocol {
+actor MockRemoteFileSystem: RemoteFileSystem {
     struct Configuration: Sendable {
         var listDelay: Duration?
         var readDelay: Duration?

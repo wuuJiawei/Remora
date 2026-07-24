@@ -3,7 +3,7 @@ import Darwin
 import Testing
 @testable import RemoraCore
 
-struct LocalShellClientTests {
+struct LocalShellSessionTests {
     private actor OutputCollector {
         private var buffer = Data()
 
@@ -83,7 +83,6 @@ struct LocalShellClientTests {
 
     @Test
     func localShellUsesUTF8LocaleForChineseInputAndFilenames() async throws {
-        let client = LocalShellClient()
         let host = Host(
             name: "local",
             address: "127.0.0.1",
@@ -91,8 +90,7 @@ struct LocalShellClientTests {
             auth: HostAuth(method: .agent)
         )
 
-        try await client.connect(to: host)
-        let shell = try await client.openShell(pty: .init(columns: 120, rows: 30))
+        let shell = LocalShellSession(host: host, pty: .init(columns: 120, rows: 30))
         let output = OutputCollector()
         shell.onOutput = { data in
             Task {
@@ -104,7 +102,6 @@ struct LocalShellClientTests {
         defer {
             Task {
                 await shell.stop()
-                await client.disconnect()
             }
         }
 

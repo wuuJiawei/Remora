@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import RemoraCore
 
-struct MockSSHClientTests {
+struct MockShellSessionTests {
     @Test
     func mockShellSessionSupportsArrowEditing() async throws {
         let capture = OutputCapture()

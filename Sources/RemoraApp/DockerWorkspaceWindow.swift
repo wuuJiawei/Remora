@@ -160,8 +160,7 @@ final class DockerWorkspaceWindowManager: ObservableObject {
             runtimeID: ObjectIdentifier(runtime),
             connectionMode: runtime.connectionMode,
             connectionState: runtime.connectionState,
-            host: effectiveHost,
-            executionMode: .requireExistingSSHConnection
+            host: effectiveHost
         )
     }
 }

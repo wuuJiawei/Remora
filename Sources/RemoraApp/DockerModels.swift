@@ -1,11 +1,6 @@
 import Foundation
 import RemoraCore
 
-enum DockerConnectionExecutionMode: Equatable, Sendable {
-    case directHost
-    case requireExistingSSHConnection
-}
-
 enum DockerPanelSelection: String, CaseIterable, Identifiable, Sendable {
     case containers = "containers"
     case volumes = "volumes"
@@ -349,13 +344,11 @@ struct DockerRuntimeBinding: Equatable, Sendable {
     let connectionMode: ConnectionMode?
     let connectionState: String
     let host: RemoraCore.Host?
-    let executionMode: DockerConnectionExecutionMode
 
     static let disconnected = DockerRuntimeBinding(
         runtimeID: nil,
         connectionMode: nil,
         connectionState: "Disconnected",
-        host: nil,
-        executionMode: .directHost
+        host: nil
     )
 }

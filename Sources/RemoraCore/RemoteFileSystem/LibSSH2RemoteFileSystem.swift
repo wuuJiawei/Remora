@@ -1,6 +1,6 @@
 import Foundation
 
-public actor LibSSH2RemoteFileSystem: RemoteFileSystemProtocol {
+public actor LibSSH2RemoteFileSystem: RemoteFileSystem {
     public nonisolated let id = UUID()
 
     private static let transferChunkSize = 64 * 1_024

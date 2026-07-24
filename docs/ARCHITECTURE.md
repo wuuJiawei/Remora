@@ -18,11 +18,14 @@ flowchart LR
     App --> Runtime["TerminalRuntime / ViewModels"]
     Runtime --> Core["RemoraCore\nSSH / SFTP / Security / Models"]
     Runtime --> Terminal["RemoraTerminal\nSwiftTerm Adapter / Terminal View"]
-    Core --> SSH["SystemSSHClient / LocalShellClient"]
-    Core --> SFTP["SystemSFTPClient"]
+    Core --> Hub["RemoteSessionHub\nshared leases and lifecycle"]
+    Hub --> SSH["LibSSH2Transport\nshell / exec / direct-tcpip"]
+    Hub --> SFTP["RemoteFileSystem\nnative / administrator SFTP"]
+    Core --> Local["LocalShellSession"]
     Terminal --> UI["TerminalView / Renderer"]
-    SSH --> Host["Local shell or remote host"]
+    SSH --> Host["Remote host or JumpServer target"]
     SFTP --> Host
+    Local --> Shell["Local zsh PTY"]
     UI --> App
 ```
 
@@ -31,8 +34,11 @@ flowchart LR
 1. `RemoraApp` collects user intent from the SwiftUI workspace, settings, or file manager.
 2. View models and `TerminalRuntime` translate that intent into session and transfer
    actions.
-3. `RemoraCore` talks to the local shell, SSH, SFTP, file-backed config/credential storage, and host key trust helpers.
-4. `RemoraTerminal` bridges PTY/SSH data into SwiftTerm and exposes the terminal view back to the app UI.
+3. Remote terminal, command, file, metrics, Docker, and forwarding workflows acquire
+   leases from `RemoteSessionHub` and share one authenticated native SSH session.
+4. `RemoraCore` exposes typed shell, command, file-system, and forwarding capabilities;
+   authentication challenges and host-key decisions are handled before a session becomes usable.
+5. `RemoraTerminal` bridges shell channel data into SwiftTerm and exposes the terminal view back to the app UI.
 
 ## Boundary Rules
 

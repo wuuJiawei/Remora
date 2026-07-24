@@ -7,7 +7,7 @@ public protocol RemoteFileHandleProtocol: AnyObject, Sendable {
     func close() async
 }
 
-public protocol RemoteFileSystemProtocol: AnyObject, Sendable {
+public protocol RemoteFileSystem: AnyObject, Sendable {
     func capabilities() async -> RemoteFileSystemCapabilities
     func listDirectory(path: String) async throws -> [RemoteFileEntry]
     func attributes(path: String, followSymbolicLinks: Bool) async throws -> RemoteFileAttributes

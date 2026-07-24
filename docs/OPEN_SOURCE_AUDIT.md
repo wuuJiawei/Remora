@@ -1,6 +1,6 @@
 # Open Source Audit Notes
 
-Last updated: 2026-03-11
+Last updated: 2026-07-24
 
 This document records the repository-level checks completed before making the project
 public. It is not a replacement for manual product validation on real hosts.
@@ -15,16 +15,18 @@ public. It is not a replacement for manual product validation on real hosts.
 
 ### Diagnostics and log redaction
 
-- `SystemSFTPClient` redacts environment keys containing `PASS`, `TOKEN`, or `SECRET`
-  before writing diagnostics.
-- Diagnostics files are rotated and expired automatically after the retention window.
-- Targeted tests cover retention cleanup and sensitive environment redaction.
+- Remote transport diagnostics use typed operation codes and safe diagnostic messages;
+  passwords, private-key contents, and keyboard-interactive responses are not logged.
+- The native SSH/SFTP path does not pass credentials through process arguments,
+  environment variables, ASKPASS scripts, or `sshpass`.
 
 ### Host key trust and credential storage
 
-- SSH and SFTP launch arguments explicitly use `StrictHostKeyChecking=ask`.
+- Native SSH verifies the presented host key before authentication and exposes first-seen
+  or changed keys through typed user decisions.
 - `HostKeyStoreTests` covers first-seen, trusted, and changed-key states.
-- `TerminalRuntimeTests` covers the user-facing host key confirmation message.
+- Native session interaction tests cover host-key, password, passphrase, and
+  keyboard-interactive challenge delivery.
 - `CredentialStoreTests` covers file-backed read/write/remove behavior, persistence
   across instances, memory cache behavior, and plaintext `credentials.json`
   storage under the local config directory.

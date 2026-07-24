@@ -759,18 +759,33 @@ Repository search finds no production consumer creating OpenSSH/SystemSFTP trans
 
 ### Tasks
 
-- [ ] Delete files listed in Section 2.3.
-- [ ] Delete process-transport factories and developer transport switch.
-- [ ] Delete ControlMaster purpose/retry/cache tests.
-- [ ] Delete OpenSSH prompt/auth sniffing and compatibility profile code that no longer
+- [x] Delete files listed in Section 2.3.
+- [x] Delete process-transport factories and developer transport switch.
+- [x] Delete ControlMaster purpose/retry/cache tests.
+- [x] Delete OpenSSH prompt/auth sniffing and compatibility profile code that no longer
   maps to native negotiation.
-- [ ] Delete command methods and unsupported defaults from `SFTPClientProtocol`.
-- [ ] Rename the final file protocol to `RemoteFileSystem` everywhere and remove old
+- [x] Delete command methods and unsupported defaults from `SFTPClientProtocol`.
+- [x] Rename the final file protocol to `RemoteFileSystem` everywhere and remove old
   protocol aliases.
-- [ ] Delete disconnected clients that represent errors as empty success; replace with
+- [x] Delete disconnected clients that represent errors as empty success; replace with
   explicit unavailable state.
-- [ ] Remove obsolete logs, localization keys, settings, and docs.
-- [ ] Run dead-code search and repository-wide reference search.
+- [x] Remove obsolete logs, localization keys, settings, and docs.
+- [x] Run dead-code search and repository-wide reference search.
+
+### Implementation record (2026-07-24)
+
+- Deleted the OpenSSH process shell, System SFTP process client, ControlMaster reuse and
+  cleanup, compatibility profiles, disconnected/legacy SFTP clients, and their dedicated tests.
+- Replaced the SSH client/session compatibility layer with a neutral local
+  `ShellSessionProtocol` factory plus the native `RemoteSessionHub` backend. Remote terminal
+  authentication remains exclusively on typed native interaction challenges.
+- Removed terminal-output authentication prompt sniffing, stored-password prompt suppression,
+  process transport logging, and the Docker execution-mode branch with no enforceable semantics.
+- Renamed the final file capability to `RemoteFileSystem`; file workflows no longer own
+  command execution or whole-file compatibility defaults.
+- All required zero-reference searches returned no matches in `Sources` or `Tests`.
+  `swift build` and `swift build --build-tests` passed. Tests were not executed at the user's
+  request; runtime and packaging gates remain part of Phase 10.
 
 ### Required zero-reference checks
 

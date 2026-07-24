@@ -24,8 +24,8 @@ struct WorkspaceViewModelTests {
     private func makeWorkspace() -> WorkspaceViewModel {
         WorkspaceViewModel(
             paneFactory: {
-                let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-                let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+                let manager = makeMockSessionManager()
+                let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
                 return TerminalPaneModel(runtime: runtime)
             }
         )

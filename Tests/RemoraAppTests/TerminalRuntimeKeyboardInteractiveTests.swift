@@ -67,11 +67,10 @@ struct TerminalRuntimeKeyboardInteractiveTests {
     }
 
     private func makeRuntime() -> TerminalRuntime {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
+        let manager = makeMockSessionManager()
         return TerminalRuntime(
             localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
+            sshSessionManager: manager
         )
     }
 }

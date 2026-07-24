@@ -47,8 +47,8 @@ public protocol RemoteSessionProtocol: AnyObject, Sendable {
         sourcePort: Int
     ) async throws -> any RemoteForwardChannelProtocol
     func commandExecutor() async throws -> any RemoteCommandExecutorProtocol
-    func fileSystem() async throws -> any RemoteFileSystemProtocol
-    func administratorFileSystem() async throws -> any RemoteFileSystemProtocol
+    func fileSystem() async throws -> any RemoteFileSystem
+    func administratorFileSystem() async throws -> any RemoteFileSystem
     func close() async
 }
 

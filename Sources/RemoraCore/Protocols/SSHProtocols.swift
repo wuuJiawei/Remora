@@ -1,27 +1,13 @@
 import Foundation
 
-public protocol SSHTransportClientProtocol: Sendable {
-    func connect(to host: Host) async throws
-    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol
-    func disconnect() async
-}
-
-public protocol SSHTransportSessionProtocol: AnyObject, Sendable {
+public protocol ShellSessionProtocol: AnyObject, Sendable {
     var onOutput: (@Sendable (Data) -> Void)? { get set }
     var onStateChange: (@Sendable (ShellSessionState) -> Void)? { get set }
-    var usesStoredPasswordDelivery: Bool { get }
     func start() async throws
     func write(_ data: Data) async throws
     func resize(_ size: PTYSize) async throws
     func stop() async
 }
-
-public extension SSHTransportSessionProtocol {
-    var usesStoredPasswordDelivery: Bool { false }
-}
-
-public typealias SSHClientProtocol = SSHTransportClientProtocol
-public typealias SSHShellSessionProtocol = SSHTransportSessionProtocol
 
 public struct PTYSize: Equatable, Sendable {
     public var columns: Int
@@ -42,15 +28,12 @@ public enum ShellSessionState: Equatable, Sendable {
 
 public enum SSHError: Error, LocalizedError, Sendable {
     case notConnected
-    case authFailed
     case connectionFailed(String)
 
     public var errorDescription: String? {
         switch self {
         case .notConnected:
-            return "SSH client is not connected"
-        case .authFailed:
-            return "Authentication failed"
+            return "SSH session is not connected"
         case .connectionFailed(let reason):
             return "Connection failed: \(reason)"
         }

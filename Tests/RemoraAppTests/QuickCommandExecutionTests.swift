@@ -38,15 +38,11 @@ struct QuickCommandExecutionTests {
     @Test
     func executionRequestPastesMultilineCommandAsSingleBlockBeforeExecuting() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/srv/app")
-            }
-        )
+        let factory = RecordingShellFactory(recorder: recorder, initialDirectory: "/srv/app")
+        let manager = SessionManager(localShellFactory: factory.makeShell)
         let runtime = TerminalRuntime(
             localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
+            sshSessionManager: manager
         )
         let command = HostQuickCommand(
             name: "Deploy",

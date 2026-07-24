@@ -9,529 +9,9 @@ import RemoraTerminal
 @MainActor
 struct TerminalRuntimeTests {
     @Test
-    func connectingSSHWithTrackingEnabledRunsShellIntegrationInstallerBeforeSessionStart() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let installer = InstallerSpy()
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { host in
-                await installer.record(host: host)
-            }
-        )
-
-        runtime.setWorkingDirectoryTrackingEnabled(true)
-        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
-
-        let installed = await waitUntilAsync(timeout: 8.0) {
-            await installer.recordedHosts.contains(where: { $0.username == "deploy" && $0.address == "127.0.0.1" })
-        }
-        #expect(installed, "SSH cwd tracking should prepare remote shell integration before starting the interactive session.")
-        runtime.disconnect()
-    }
-
-    @Test
-    func connectingSSHWithTrackingEnabledPreservesInitialTranscriptBanner() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-
-        runtime.setWorkingDirectoryTrackingEnabled(true)
-        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
-
-        let bannerVisible = await waitUntil(timeout: 8.0) {
-            runtime.connectionState.contains("Connected (SSH)")
-                && runtime.transcriptSnapshot.contains("Connected to")
-                && runtime.transcriptSnapshot.contains("Type commands and press Enter.")
-        }
-        #expect(bannerVisible, "Silent shell integration setup must not swallow the initial SSH welcome transcript.")
-        runtime.disconnect()
-    }
-
-    @Test
-    func connectingSSHWithTrackingEnabledStillSupportsTopLikeForegroundPrograms() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-
-        runtime.setWorkingDirectoryTrackingEnabled(true)
-        runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
-
-        let connected = await waitUntil(timeout: 2.0) {
-            runtime.connectionState.contains("Connected (SSH)")
-        }
-        #expect(connected)
-        guard connected else { return }
-
-        runtime.runAssistantCommand("top")
-
-        let topVisible = await waitUntil(timeout: 2.0) {
-            runtime.transcriptSnapshot.contains("top -")
-                && runtime.transcriptSnapshot.contains("Press Ctrl+C to quit.")
-        }
-        #expect(topVisible, "Silent shell integration setup must not break foreground commands like top.")
-        runtime.disconnect()
-    }
-
-    @Test
-    func detectsSSHAuthenticationStagesFromPromptText() {
-        let hostKeyPrompt = "Are you sure you want to continue connecting (yes/no/[fingerprint])?"
-        let passwordPrompt = "deploy@example.com's password:"
-        let otpPrompt = "Verification code:"
-        let emailCodePrompt = "(deploy@example.com) [EMAIL Code]:"
-        let passphrasePrompt = "Enter passphrase for key '/Users/demo/.ssh/id_ed25519':"
-
-        #expect(TerminalRuntime.detectSSHAuthStage(in: hostKeyPrompt.lowercased()) == .hostKey)
-        #expect(TerminalRuntime.detectSSHAuthStage(in: passwordPrompt.lowercased()) == .password)
-        #expect(TerminalRuntime.detectSSHAuthStage(in: otpPrompt.lowercased()) == .otp)
-        #expect(TerminalRuntime.detectSSHAuthStage(in: emailCodePrompt.lowercased()) == .otp)
-        #expect(TerminalRuntime.detectSSHAuthStage(in: passphrasePrompt.lowercased()) == .passphrase)
-    }
-
-    @Test
-    func ignoresHistoricalPasswordPromptOnceShellPromptAppears() {
-        let transcript = """
-        root@14.238.1.250's password:
-        Last login: Tue Mar 31 12:05:25 2026 from 218.93.10.10
-        [root@localhost ~]# ls
-        """
-
-        #expect(TerminalRuntime.detectSSHAuthStage(in: transcript.lowercased()) == nil)
-    }
-
-    @Test
-    func hostKeyPromptMessageIncludesHostAndRelevantLines() {
-        let prompt = """
-        The authenticity of host '192.168.30.120 (192.168.30.120)' can't be established.
-        ED25519 key fingerprint is SHA256:example.
-        Are you sure you want to continue connecting (yes/no/[fingerprint])?
-        """
-
-        let message = TerminalRuntime.makeHostKeyPromptMessage(
-            from: prompt,
-            hostAddress: "192.168.30.120"
-        )
-
-        #expect(message.contains("Host: 192.168.30.120"))
-        #expect(message.contains("authenticity of host"))
-        #expect(message.contains("yes/no"))
-    }
-
-    @Test
-    func passwordPromptPublishesDialogStateAndSuppressesVisiblePromptEcho() async {
-        let manager = SessionManager(
-            sshClientFactory: {
-                AuthPromptSSHClient(promptSequence: [
-                    "deploy@example.com's password:"
-                ])
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
-        let view = TerminalView(rows: 4, columns: 80)
-        runtime.attach(view: view)
-
-        let host = Host(
-            name: "prod",
-            address: "example.com",
-            username: "deploy",
-            auth: HostAuth(method: .password)
-        )
-        runtime.connectSSH(host: host)
-
-        let prompted = await waitUntil(timeout: 2.0) {
-            runtime.passwordPromptMessage == "example.com"
-                && runtime.connectionState == "Waiting (password)"
-        }
-        #expect(prompted)
-        guard prompted else { return }
-
-        view.selectAll()
-        NSPasteboard.general.clearContents()
-        view.performTerminalAction(.copy)
-        let copied = NSPasteboard.general.string(forType: .string) ?? ""
-        #expect(copied.contains("password:") == false)
-        runtime.disconnect()
-    }
-
-    @Test
-    func validStoredPasswordSuppressesOnlyTheAutomaticPasswordPrompt() async {
-        let manager = SessionManager(
-            sshClientFactory: {
-                AuthPromptSSHClient(
-                    promptSequence: ["deploy@example.com's password:"],
-                    usesStoredPasswordDelivery: true
-                )
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-        let host = Host(
-            name: "prod",
-            address: "example.com",
-            username: "deploy",
-            auth: HostAuth(method: .password, passwordReference: "pw-ref")
-        )
-
-        runtime.connectSSH(host: host)
-
-        let promptProcessed = await waitUntil(timeout: 2.0) {
-            runtime.connectionState == "Waiting (password)"
-        }
-        #expect(promptProcessed)
-        #expect(runtime.passwordPromptMessage == nil)
-        runtime.disconnect()
-    }
-
-    @Test
-    func unavailableStoredPasswordAllowsManualPasswordEntry() async {
-        let manager = SessionManager(
-            sshClientFactory: {
-                AuthPromptSSHClient(promptSequence: ["deploy@example.com's password:"])
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-        let host = Host(
-            name: "prod",
-            address: "example.com",
-            username: "deploy",
-            auth: HostAuth(method: .password, passwordReference: "stale-ref")
-        )
-
-        runtime.connectSSH(host: host)
-
-        let prompted = await waitUntil(timeout: 2.0) {
-            runtime.passwordPromptMessage == "example.com"
-        }
-        #expect(prompted)
-        runtime.disconnect()
-    }
-
-    @Test
-    func rejectedStoredPasswordRestoresManualPasswordPrompt() async {
-        let manager = SessionManager(
-            sshClientFactory: {
-                AuthPromptSSHClient(
-                    promptSequence: [
-                        "deploy@example.com's password:",
-                        "\r\nPermission denied, please try again.\r\ndeploy@example.com's password:",
-                    ],
-                    delayBetweenPrompts: .milliseconds(20),
-                    usesStoredPasswordDelivery: true
-                )
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-        let host = Host(
-            name: "prod",
-            address: "example.com",
-            username: "deploy",
-            auth: HostAuth(method: .password, passwordReference: "pw-ref")
-        )
-
-        runtime.connectSSH(host: host)
-
-        let prompted = await waitUntil(timeout: 2.0) {
-            runtime.passwordPromptMessage == "example.com"
-        }
-        #expect(prompted, "A rejected saved password must not permanently hide manual password entry.")
-        runtime.disconnect()
-    }
-
-    @Test
-    func otpPromptPublishesDialogStateAndSuppressesVisiblePromptEcho() async {
-        let manager = SessionManager(
-            sshClientFactory: {
-                AuthPromptSSHClient(promptSequence: [
-                    "Verification code:"
-                ])
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
-        let view = TerminalView(rows: 4, columns: 80)
-        runtime.attach(view: view)
-
-        runtime.connectSSH(address: "otp.example.com", port: 22, username: "deploy", privateKeyPath: nil)
-
-        let prompted = await waitUntil(timeout: 2.0) {
-            runtime.otpPromptMessage == "otp.example.com"
-                && runtime.connectionState == "Waiting (otp)"
-        }
-        #expect(prompted)
-        guard prompted else { return }
-
-        view.selectAll()
-        NSPasteboard.general.clearContents()
-        view.performTerminalAction(.copy)
-        let copied = NSPasteboard.general.string(forType: .string) ?? ""
-        #expect(copied.contains("Verification code:") == false)
-        runtime.disconnect()
-    }
-
-    @Test
-    func jumpServerEmailCodePromptPublishesMandatoryOTPDialog() async {
-        let manager = SessionManager(
-            sshClientFactory: {
-                AuthPromptSSHClient(promptSequence: [
-                    "(deploy@jump.example.com) [EMAIL Code]:"
-                ])
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-        let view = TerminalView(rows: 4, columns: 80)
-        runtime.attach(view: view)
-
-        runtime.connectSSH(address: "jump.example.com", port: 2222, username: "deploy", privateKeyPath: nil)
-
-        let prompted = await waitUntil(timeout: 2.0) {
-            runtime.otpPromptMessage == "jump.example.com"
-                && runtime.connectionState == "Waiting (otp)"
-        }
-        #expect(prompted)
-        #expect(runtime.transcriptSnapshot.contains("EMAIL Code"))
-
-        view.selectAll()
-        NSPasteboard.general.clearContents()
-        view.performTerminalAction(.copy)
-        let copied = NSPasteboard.general.string(forType: .string) ?? ""
-        #expect(copied.contains("EMAIL Code") == false)
-
-        runtime.dismissOTPPrompt()
-        #expect(await waitUntil(timeout: 2.0) { runtime.connectionState == "Disconnected" })
-    }
-
-    @Test
-    func jumpServerEmailCodeSubmissionWaitsForSuccessBeforeConnecting() async {
-        let recorder = AuthenticationInputRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                InteractiveChallengeSSHClient(
-                    prompts: ["(deploy@jump.example.com) [EMAIL Code]:"],
-                    recorder: recorder,
-                    completionOutput: "\r\nWelcome to JumpServer\r\n"
-                )
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-        let host = Host(
-            name: "jumpserver",
-            address: "jump.example.com",
-            port: 2222,
-            username: "deploy",
-            auth: HostAuth(method: .password, passwordReference: "pw-ref")
-        )
-
-        runtime.connectSSH(host: host)
-        #expect(await waitUntil(timeout: 2.0) { runtime.connectionState == "Waiting (otp)" })
-
-        runtime.respondToOTPPrompt(code: " 123456 ")
-        #expect(runtime.connectionState == "Waiting (authentication)")
-        #expect(await waitUntil(timeout: 2.0) { runtime.connectionState == "Connected (SSH)" })
-        #expect(await recorder.writes == ["123456\n"])
-        runtime.disconnect()
-    }
-
-    @Test
-    func jumpServerAuthenticationFailureOutputDoesNotMarkSessionConnected() async {
-        let recorder = AuthenticationInputRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                InteractiveChallengeSSHClient(
-                    prompts: ["(deploy@jump.example.com) [EMAIL Code]:"],
-                    recorder: recorder,
-                    completionOutput: "\r\nPermission denied (keyboard-interactive).\r\n"
-                )
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-        let host = Host(
-            name: "jumpserver",
-            address: "jump.example.com",
-            port: 2222,
-            username: "deploy",
-            auth: HostAuth(method: .password, passwordReference: "pw-ref")
-        )
-
-        runtime.connectSSH(host: host)
-        #expect(await waitUntil(timeout: 2.0) { runtime.connectionState == "Waiting (otp)" })
-
-        runtime.respondToOTPPrompt(code: "000000")
-        try? await Task.sleep(for: .milliseconds(150))
-        #expect(runtime.connectionState == "Waiting (authentication)")
-        runtime.disconnect()
-    }
-
-    @Test
-    func passphrasePromptDoesNotReusePasswordOrOtpDialogState() async {
-        let manager = SessionManager(
-            sshClientFactory: {
-                AuthPromptSSHClient(promptSequence: [
-                    "Enter passphrase for key '/Users/demo/.ssh/id_ed25519':"
-                ])
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
-        let view = TerminalView(rows: 4, columns: 80)
-        runtime.attach(view: view)
-
-        runtime.connectSSH(address: "key.example.com", port: 22, username: "deploy", privateKeyPath: "/Users/demo/.ssh/id_ed25519")
-
-        let waiting = await waitUntil(timeout: 2.0) {
-            runtime.connectionState == "Waiting (passphrase)"
-        }
-        #expect(waiting)
-        guard waiting else { return }
-
-        #expect(runtime.passwordPromptMessage == nil)
-        #expect(runtime.otpPromptMessage == nil)
-
-        let rendered = await waitUntil(timeout: 2.0) {
-            view.selectAll()
-            NSPasteboard.general.clearContents()
-            view.performTerminalAction(.copy)
-            let copied = NSPasteboard.general.string(forType: .string) ?? ""
-            return copied.contains("passphrase for key")
-                || runtime.transcriptSnapshot.contains("passphrase for key")
-        }
-        #expect(rendered)
-        runtime.disconnect()
-    }
-
-    @Test
-    func splitOTPChunksAreRecognizedWithoutReceivingStoredPassword() async {
-        let recorder = AuthenticationInputRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                InteractiveChallengeSSHClient(
-                    prompts: ["Verification ", "code:"],
-                    recorder: recorder,
-                    advancesOnInput: false
-                )
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-        let host = Host(
-            name: "otp",
-            address: "otp.example.com",
-            username: "deploy",
-            auth: HostAuth(method: .password, passwordReference: "pw-ref")
-        )
-
-        runtime.connectSSH(host: host)
-
-        let prompted = await waitUntil(timeout: 2.0) {
-            runtime.otpPromptMessage == "otp.example.com"
-        }
-        #expect(prompted)
-        #expect(await recorder.writes.isEmpty)
-        runtime.disconnect()
-    }
-
-    @Test
-    func unknownKeyboardInteractiveChallengesRemainVisibleAndAcceptMultipleResponses() async {
-        let recorder = AuthenticationInputRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                InteractiveChallengeSSHClient(
-                    prompts: ["Choose gateway (1 or 2):", "Security answer:"],
-                    recorder: recorder
-                )
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-        let view = TerminalView(rows: 6, columns: 80)
-        runtime.attach(view: view)
-        runtime.connectSSH(address: "bastion.example.com", port: 22, username: "deploy", privateKeyPath: nil)
-
-        let firstVisible = await waitUntil(timeout: 2.0) {
-            runtime.transcriptSnapshot.contains("Choose gateway (1 or 2):")
-        }
-        #expect(firstVisible)
-        #expect(runtime.passwordPromptMessage == nil)
-        #expect(runtime.otpPromptMessage == nil)
-
-        runtime.sendText("2\n")
-        let secondVisible = await waitUntil(timeout: 2.0) {
-            runtime.transcriptSnapshot.contains("Security answer:")
-        }
-        #expect(secondVisible)
-        runtime.sendText("blue\n")
-
-        let responsesRecorded = await waitUntilAsync(timeout: 2.0) {
-            await recorder.writes == ["2\n", "blue\n"]
-        }
-        #expect(responsesRecorded)
-        #expect(!runtime.transcriptSnapshot.contains("blue"))
-        runtime.disconnect()
-    }
-
-    @Test
-    func ordinaryPostLoginQuestionsDoNotTriggerAuthenticationDialogs() async {
-        let manager = SessionManager(
-            sshClientFactory: {
-                AuthPromptSSHClient(promptSequence: ["Deployment status:\r\nContinue?\r\nmenu> "])
-            }
-        )
-        let runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { _ in }
-        )
-
-        runtime.connectSSH(address: "example.com", port: 22, username: "deploy", privateKeyPath: nil)
-
-        let visible = await waitUntil(timeout: 2.0) {
-            runtime.transcriptSnapshot.contains("Deployment status:")
-                && runtime.transcriptSnapshot.contains("Continue?")
-                && runtime.transcriptSnapshot.contains("menu>")
-        }
-        #expect(visible)
-        #expect(runtime.hostKeyPromptMessage == nil)
-        #expect(runtime.passwordPromptMessage == nil)
-        #expect(runtime.otpPromptMessage == nil)
-        runtime.disconnect()
-    }
-
-    @Test
     func connectLocalShellPublishesTranscript() async {
-        let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() }), remoteShellIntegrationInstaller: { _ in })
+        let localManager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: makeMockSessionManager())
         runtime.connectLocalShell()
 
         let hasTranscript = await waitUntil(timeout: 2.0) {
@@ -545,9 +25,9 @@ struct TerminalRuntimeTests {
 
     @Test
     func connectSSHUsesSSHSessionManagerPath() async {
-        let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let sshManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: sshManager, remoteShellIntegrationInstaller: { _ in })
+        let localManager = makeMockSessionManager()
+        let sshManager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: sshManager)
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
 
@@ -565,46 +45,9 @@ struct TerminalRuntimeTests {
     }
 
     @Test
-    func passwordSSHSkipsAutomaticShellIntegrationInstaller() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let recorder = InstallerStateRecorder()
-        let runtimeBox = RuntimeStateBox()
-        var runtime: TerminalRuntime!
-        runtime = TerminalRuntime(
-            localSessionManager: manager,
-            sshSessionManager: manager,
-            remoteShellIntegrationInstaller: { host in
-                let state = await MainActor.run {
-                    runtimeBox.runtime?.connectionState ?? ""
-                }
-                await recorder.record(host: host, state: state)
-            }
-        )
-        runtimeBox.runtime = runtime
-        let host = Host(
-            name: "prod",
-            address: "127.0.0.1",
-            username: "deploy",
-            auth: HostAuth(method: .password, passwordReference: "pw-ref")
-        )
-
-        runtime.connectSSH(host: host)
-
-        let connected = await waitUntil(timeout: 2.0) {
-            runtime.connectionState.contains("Connected (SSH)")
-        }
-        #expect(connected)
-        guard connected else { return }
-
-        try? await Task.sleep(for: .milliseconds(100))
-        #expect(await recorder.records.isEmpty)
-        runtime.disconnect()
-    }
-
-    @Test
     func connectSSHHostPreservesOriginalHostIdentity() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let host = Host(
             name: "prod-api",
             address: "47.100.100.215",
@@ -631,8 +74,8 @@ struct TerminalRuntimeTests {
 
     @Test
     func disconnectClearsConnectedSSHHost() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
         let connected = await waitUntil(timeout: 2.0) {
@@ -650,8 +93,8 @@ struct TerminalRuntimeTests {
 
     @Test
     func reconnectSSHSessionRestoresConnectionAfterDisconnect() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
         let firstConnected = await waitUntil(timeout: 2.0) {
@@ -678,9 +121,9 @@ struct TerminalRuntimeTests {
 
     @Test
     func terminalInputReconnectsSSHAfterRemoteStop() async {
-        let factory = AutoStoppingSSHClientFactory(state: .stopped, delay: .milliseconds(80))
-        let manager = SessionManager(sshClientFactory: { factory.makeClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let factory = AutoStoppingShellFactory(state: .stopped, delay: .milliseconds(80))
+        let manager = SessionManager(localShellFactory: factory.makeShell)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let view = TerminalView(rows: 4, columns: 80)
         runtime.attach(view: view)
 
@@ -699,7 +142,7 @@ struct TerminalRuntimeTests {
         let reconnected = await waitUntil(timeout: 2.0) {
             runtime.connectionState.contains("Connected (SSH)")
                 && runtime.connectedSSHHost?.address == "127.0.0.1"
-                && factory.clientCount >= 2
+                && factory.sessionCount >= 2
         }
         #expect(reconnected, "Pressing Enter in a remotely disconnected terminal should reconnect the SSH session.")
         runtime.disconnect()
@@ -707,9 +150,9 @@ struct TerminalRuntimeTests {
 
     @Test
     func terminalInputReconnectsSSHAfterRemoteFailure() async {
-        let factory = AutoStoppingSSHClientFactory(state: .failed("timed out"), delay: .milliseconds(80))
-        let manager = SessionManager(sshClientFactory: { factory.makeClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let factory = AutoStoppingShellFactory(state: .failed("timed out"), delay: .milliseconds(80))
+        let manager = SessionManager(localShellFactory: factory.makeShell)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let view = TerminalView(rows: 4, columns: 80)
         runtime.attach(view: view)
 
@@ -728,7 +171,7 @@ struct TerminalRuntimeTests {
         let reconnected = await waitUntil(timeout: 2.0) {
             runtime.connectionState.contains("Connected (SSH)")
                 && runtime.connectedSSHHost?.address == "127.0.0.1"
-                && factory.clientCount >= 2
+                && factory.sessionCount >= 2
         }
         #expect(reconnected, "Any terminal key after a failed SSH session should reconnect the last host.")
         runtime.disconnect()
@@ -736,9 +179,9 @@ struct TerminalRuntimeTests {
 
     @Test
     func terminalInputDoesNotReconnectAfterManualDisconnect() async {
-        let factory = AutoStoppingSSHClientFactory(state: .stopped, delay: nil)
-        let manager = SessionManager(sshClientFactory: { factory.makeClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let factory = AutoStoppingShellFactory(state: .stopped, delay: nil)
+        let manager = SessionManager(localShellFactory: factory.makeShell)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let view = TerminalView(rows: 4, columns: 80)
         runtime.attach(view: view)
 
@@ -761,14 +204,14 @@ struct TerminalRuntimeTests {
         view.send(source: view, data: ArraySlice(Data("\r".utf8)))
         try? await Task.sleep(for: .milliseconds(200))
 
-        #expect(factory.clientCount == 1, "Manual disconnect should remain explicit; terminal input must not reconnect it.")
+        #expect(factory.sessionCount == 1, "Manual disconnect should remain explicit; terminal input must not reconnect it.")
         #expect(runtime.connectionState == "Disconnected")
     }
 
     @Test
     func connectDisconnectAndReconnectLifecycle() async {
-        let localManager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: SessionManager(sshClientFactory: { MockSSHClient() }), remoteShellIntegrationInstaller: { _ in })
+        let localManager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: makeMockSessionManager())
 
         runtime.connectLocalShell()
         let firstConnected = await waitUntil(timeout: 2.0) {
@@ -793,8 +236,8 @@ struct TerminalRuntimeTests {
 
     @Test
     func changeDirectoryUpdatesWorkingDirectoryImmediately() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -816,16 +259,12 @@ struct TerminalRuntimeTests {
     @Test
     func workingDirectoryTrackingDoesNotProbeImmediatelyOnConnect() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
+        let manager = makeRecordingSessionManager(
                     recorder: recorder,
                     initialDirectory: "/srv/app",
                     workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+            )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
@@ -850,16 +289,12 @@ struct TerminalRuntimeTests {
     @Test
     func workingDirectoryTrackingDoesNotProbeAfterArbitraryCommandSubmission() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
+        let manager = makeRecordingSessionManager(
                     recorder: recorder,
                     initialDirectory: "/srv/app",
                     workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+            )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
@@ -890,16 +325,12 @@ struct TerminalRuntimeTests {
     @Test
     func workingDirectoryTrackingFollowsTypedDirectoryChangesViaShellIntegration() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
+        let manager = makeRecordingSessionManager(
                     recorder: recorder,
                     initialDirectory: "/srv/app",
                     workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+            )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
@@ -938,17 +369,13 @@ struct TerminalRuntimeTests {
     @Test
     func workingDirectoryTrackingHandlesOSC7DirectoryEvents() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
+        let manager = makeRecordingSessionManager(
                     recorder: recorder,
                     initialDirectory: "/var/www/app",
                     pwdOutputStyle: .ansiWrapped,
                     workingDirectoryEventStyle: .osc7OnPrompt
-                )
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+            )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.setWorkingDirectoryTrackingEnabled(true)
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "deploy", privateKeyPath: nil)
@@ -981,16 +408,12 @@ struct TerminalRuntimeTests {
     @Test
     func workingDirectoryTrackingHandlesSTTerminatedOSC7BeforePromptNoise() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(
+        let manager = makeRecordingSessionManager(
                     recorder: recorder,
                     initialDirectory: "/root",
                     workingDirectoryEventStyle: .osc7WithSTTerminatorAndPromptNoise
-                )
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+            )
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectSSH(address: "127.0.0.1", port: 22, username: "root", privateKeyPath: nil)
 
@@ -1011,12 +434,8 @@ struct TerminalRuntimeTests {
     @Test
     func repeatedSameResizeOnlyAppliesOnce() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeRecordingSessionManager(recorder: recorder)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -1044,12 +463,8 @@ struct TerminalRuntimeTests {
     @Test
     func rapidDifferentResizesAreDebouncedToLatestSize() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeRecordingSessionManager(recorder: recorder)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -1080,8 +495,8 @@ struct TerminalRuntimeTests {
 
     @Test
     func transcriptSnapshotStripsANSIEditingSequences() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -1115,10 +530,10 @@ struct TerminalRuntimeTests {
         runtime.disconnect()
     }
 
-        @Test
+    @Test
     func typedEchoReachesTerminalViewWithoutFrameScaleDelay() async {
-        let manager = SessionManager(sshClientFactory: { MockSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeMockSessionManager()
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let view = TerminalView(rows: 4, columns: 40)
         view.setFrameSize(NSSize(width: 480, height: 120))
         runtime.attach(view: view)
@@ -1150,12 +565,8 @@ struct TerminalRuntimeTests {
     @Test
     func insertAssistantCommandReplacesInputWithoutExecuting() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeRecordingSessionManager(recorder: recorder)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -1178,12 +589,8 @@ struct TerminalRuntimeTests {
     @Test
     func runAssistantCommandExecutesImmediately() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeRecordingSessionManager(recorder: recorder)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -1205,12 +612,8 @@ struct TerminalRuntimeTests {
     @Test
     func clearScreenExecutesClearCommandThroughRuntimePath() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeRecordingSessionManager(recorder: recorder)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -1232,12 +635,8 @@ struct TerminalRuntimeTests {
     @Test
     func zmodemActiveSessionBlocksUserInputWrites() async {
         let recorder = TerminalCommandRecorder()
-        let manager = SessionManager(
-            sshClientFactory: {
-                RecordingSSHClient(recorder: recorder, initialDirectory: "/")
-            }
-        )
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = makeRecordingSessionManager(recorder: recorder)
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
 
         runtime.connectLocalShell()
         let connected = await waitUntil(timeout: 2.0) {
@@ -1264,8 +663,8 @@ struct TerminalRuntimeTests {
 
     @Test
     func zmodemFinishedChunkStillDeliversTrailingPromptOutput() async {
-        let manager = SessionManager(sshClientFactory: { PromptAfterZmodemSSHClient() })
-        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager, remoteShellIntegrationInstaller: { _ in })
+        let manager = SessionManager(localShellFactory: { _, _ in PromptAfterZmodemShellSession() })
+        let runtime = TerminalRuntime(localSessionManager: manager, sshSessionManager: manager)
         let view = TerminalView(rows: 8, columns: 80)
         runtime.attach(view: view)
 
@@ -1321,214 +720,14 @@ struct TerminalRuntimeTests {
             + Double(components.attoseconds) / 1_000_000_000_000_000
     }
 }
-
-private actor InstallerSpy {
-    private(set) var recordedHosts: [RemoraCore.Host] = []
-
-    func record(host: RemoraCore.Host) {
-        recordedHosts.append(host)
-    }
-}
-
-private actor AuthPromptSSHClient: SSHTransportClientProtocol {
-    private let promptSequence: [String]
-    private let delayBetweenPrompts: Duration?
-    private let usesStoredPasswordDelivery: Bool
-    private var connectedHost: RemoraCore.Host?
-
-    init(
-        promptSequence: [String],
-        delayBetweenPrompts: Duration? = nil,
-        usesStoredPasswordDelivery: Bool = false
-    ) {
-        self.promptSequence = promptSequence
-        self.delayBetweenPrompts = delayBetweenPrompts
-        self.usesStoredPasswordDelivery = usesStoredPasswordDelivery
-    }
-
-    func connect(to host: RemoraCore.Host) async throws {
-        connectedHost = host
-    }
-
-    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
-        guard connectedHost != nil else {
-            throw SSHError.notConnected
-        }
-        return AuthPromptShellSession(
-            promptSequence: promptSequence,
-            delayBetweenPrompts: delayBetweenPrompts,
-            usesStoredPasswordDelivery: usesStoredPasswordDelivery
-        )
-    }
-
-    func disconnect() async {
-        connectedHost = nil
-    }
-}
-
-private final class AuthPromptShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
-    var onOutput: (@Sendable (Data) -> Void)?
-    var onStateChange: (@Sendable (ShellSessionState) -> Void)?
-
-    private let promptSequence: [String]
-    private let delayBetweenPrompts: Duration?
-    let usesStoredPasswordDelivery: Bool
-
-    init(
-        promptSequence: [String],
-        delayBetweenPrompts: Duration?,
-        usesStoredPasswordDelivery: Bool
-    ) {
-        self.promptSequence = promptSequence
-        self.delayBetweenPrompts = delayBetweenPrompts
-        self.usesStoredPasswordDelivery = usesStoredPasswordDelivery
-    }
-
-    func start() async throws {
-        onStateChange?(.running)
-        for (index, prompt) in promptSequence.enumerated() {
-            if index > 0, let delayBetweenPrompts {
-                try? await Task.sleep(for: delayBetweenPrompts)
-            }
-            onOutput?(Data(prompt.utf8))
-        }
-    }
-
-    func write(_ data: Data) async throws {}
-
-    func resize(_ size: PTYSize) async throws {}
-
-    func stop() async {
-        onStateChange?(.stopped)
-    }
-}
-
-private actor AuthenticationInputRecorder {
-    private(set) var writes: [String] = []
-
-    func append(_ data: Data) {
-        writes.append(String(decoding: data, as: UTF8.self))
-    }
-}
-
-private actor InteractiveChallengeSSHClient: SSHTransportClientProtocol {
-    private let prompts: [String]
-    private let recorder: AuthenticationInputRecorder
-    private let advancesOnInput: Bool
-    private let completionOutput: String?
-    private var connectedHost: RemoraCore.Host?
-
-    init(
-        prompts: [String],
-        recorder: AuthenticationInputRecorder,
-        advancesOnInput: Bool = true,
-        completionOutput: String? = nil
-    ) {
-        self.prompts = prompts
-        self.recorder = recorder
-        self.advancesOnInput = advancesOnInput
-        self.completionOutput = completionOutput
-    }
-
-    func connect(to host: RemoraCore.Host) async throws {
-        connectedHost = host
-    }
-
-    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
-        guard connectedHost != nil else { throw SSHError.notConnected }
-        return InteractiveChallengeShellSession(
-            prompts: prompts,
-            recorder: recorder,
-            advancesOnInput: advancesOnInput,
-            completionOutput: completionOutput
-        )
-    }
-
-    func disconnect() async {
-        connectedHost = nil
-    }
-}
-
-private final class InteractiveChallengeShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
-    var onOutput: (@Sendable (Data) -> Void)?
-    var onStateChange: (@Sendable (ShellSessionState) -> Void)?
-
-    private let prompts: [String]
-    private let recorder: AuthenticationInputRecorder
-    private let advancesOnInput: Bool
-    private let completionOutput: String?
-    private let lock = NSLock()
-    private var nextPromptIndex = 0
-    private var didEmitCompletion = false
-
-    init(
-        prompts: [String],
-        recorder: AuthenticationInputRecorder,
-        advancesOnInput: Bool,
-        completionOutput: String?
-    ) {
-        self.prompts = prompts
-        self.recorder = recorder
-        self.advancesOnInput = advancesOnInput
-        self.completionOutput = completionOutput
-    }
-
-    func start() async throws {
-        onStateChange?(.running)
-        emitNextPrompt()
-        if !advancesOnInput {
-            while emitNextPrompt() {}
-        }
-    }
-
-    func write(_ data: Data) async throws {
-        await recorder.append(data)
-        if advancesOnInput {
-            if !emitNextPrompt() {
-                emitCompletionOutputIfNeeded()
-            }
-        }
-    }
-
-    func resize(_ size: PTYSize) async throws {}
-
-    func stop() async {
-        onStateChange?(.stopped)
-    }
-
-    @discardableResult
-    private func emitNextPrompt() -> Bool {
-        let prompt: String? = lock.withLock {
-            guard prompts.indices.contains(nextPromptIndex) else { return nil }
-            defer { nextPromptIndex += 1 }
-            return prompts[nextPromptIndex]
-        }
-        guard let prompt else { return false }
-        onOutput?(Data(prompt.utf8))
-        return true
-    }
-
-    private func emitCompletionOutputIfNeeded() {
-        let output: String? = lock.withLock {
-            guard !didEmitCompletion else { return nil }
-            didEmitCompletion = true
-            return completionOutput
-        }
-        guard let output else { return }
-        onOutput?(Data(output.utf8))
-    }
-}
-
-private final class AutoStoppingSSHClientFactory: @unchecked Sendable {
+private final class AutoStoppingShellFactory: @unchecked Sendable {
     private let state: ShellSessionState
     private let delay: Duration?
     private let lock = NSLock()
-    private var storedClientCount = 0
+    private var storedSessionCount = 0
 
-    var clientCount: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return storedClientCount
+    var sessionCount: Int {
+        lock.withLock { storedSessionCount }
     }
 
     init(state: ShellSessionState, delay: Duration?) {
@@ -1536,41 +735,16 @@ private final class AutoStoppingSSHClientFactory: @unchecked Sendable {
         self.delay = delay
     }
 
-    func makeClient() -> SSHTransportClientProtocol {
-        lock.lock()
-        storedClientCount += 1
-        lock.unlock()
-        return AutoStoppingSSHClient(state: state, delay: delay)
-    }
-}
-
-private actor AutoStoppingSSHClient: SSHTransportClientProtocol {
-    private let state: ShellSessionState
-    private let delay: Duration?
-    private var connectedHost: RemoraCore.Host?
-
-    init(state: ShellSessionState, delay: Duration?) {
-        self.state = state
-        self.delay = delay
-    }
-
-    func connect(to host: RemoraCore.Host) async throws {
-        connectedHost = host
-    }
-
-    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
-        guard let host = connectedHost else {
-            throw SSHError.notConnected
+    func makeShell(host: RemoraCore.Host, pty: PTYSize) async throws -> any ShellSessionProtocol {
+        _ = pty
+        lock.withLock {
+            storedSessionCount += 1
         }
         return AutoStoppingShellSession(host: host, state: state, delay: delay)
     }
-
-    func disconnect() async {
-        connectedHost = nil
-    }
 }
 
-private final class AutoStoppingShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+private final class AutoStoppingShellSession: ShellSessionProtocol, @unchecked Sendable {
     var onOutput: (@Sendable (Data) -> Void)?
     var onStateChange: (@Sendable (ShellSessionState) -> Void)?
 
@@ -1615,26 +789,7 @@ private final class AutoStoppingShellSession: SSHTransportSessionProtocol, @unch
     }
 }
 
-private actor PromptAfterZmodemSSHClient: SSHTransportClientProtocol {
-    private var connectedHost: RemoraCore.Host?
-
-    func connect(to host: RemoraCore.Host) async throws {
-        connectedHost = host
-    }
-
-    func openShell(pty: PTYSize) async throws -> SSHTransportSessionProtocol {
-        guard connectedHost != nil else {
-            throw SSHError.notConnected
-        }
-        return PromptAfterZmodemShellSession()
-    }
-
-    func disconnect() async {
-        connectedHost = nil
-    }
-}
-
-private final class PromptAfterZmodemShellSession: SSHTransportSessionProtocol, @unchecked Sendable {
+private final class PromptAfterZmodemShellSession: ShellSessionProtocol, @unchecked Sendable {
     var onOutput: (@Sendable (Data) -> Void)?
     var onStateChange: (@Sendable (ShellSessionState) -> Void)?
 
@@ -1650,21 +805,4 @@ private final class PromptAfterZmodemShellSession: SSHTransportSessionProtocol, 
     func stop() async {
         onStateChange?(.stopped)
     }
-}
-
-private actor InstallerStateRecorder {
-    struct Record {
-        var host: RemoraCore.Host
-        var state: String
-    }
-
-    private(set) var records: [Record] = []
-
-    func record(host: RemoraCore.Host, state: String) {
-        records.append(.init(host: host, state: state))
-    }
-}
-
-private final class RuntimeStateBox: @unchecked Sendable {
-    weak var runtime: TerminalRuntime?
 }

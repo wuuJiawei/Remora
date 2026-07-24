@@ -40,7 +40,7 @@ public actor RemoteSession: RemoteSessionProtocol {
     private var state: RemoteSessionState
     private var channels: [UUID: ManagedRemoteShellChannel] = [:]
     private var forwardChannels: [UUID: ManagedRemoteForwardChannel] = [:]
-    private var fileSystems: [UUID: any RemoteFileSystemProtocol] = [:]
+    private var fileSystems: [UUID: any RemoteFileSystem] = [:]
     private var openingFileSystemIDs: Set<UUID> = []
 
     public init(
@@ -115,7 +115,7 @@ public actor RemoteSession: RemoteSessionProtocol {
         return managed
     }
 
-    public func fileSystem() async throws -> any RemoteFileSystemProtocol {
+    public func fileSystem() async throws -> any RemoteFileSystem {
         try requireBoundTarget(capability: "file access")
         guard state == .ready, let transport = transport as? LibSSH2Transport else {
             throw RemoteOperationError(
@@ -147,7 +147,7 @@ public actor RemoteSession: RemoteSessionProtocol {
         return fileSystem
     }
 
-    public func administratorFileSystem() async throws -> any RemoteFileSystemProtocol {
+    public func administratorFileSystem() async throws -> any RemoteFileSystem {
         try requireBoundTarget(capability: "administrator file access")
         guard state == .ready, let transport = transport as? LibSSH2Transport else {
             throw RemoteOperationError(

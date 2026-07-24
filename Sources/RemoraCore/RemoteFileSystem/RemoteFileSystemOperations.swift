@@ -3,9 +3,9 @@ import Foundation
 public actor RemoteFileSystemOperations {
     private static let chunkSize = 64 * 1_024
 
-    private let fileSystem: any RemoteFileSystemProtocol
+    private let fileSystem: any RemoteFileSystem
 
-    public init(fileSystem: any RemoteFileSystemProtocol) {
+    public init(fileSystem: any RemoteFileSystem) {
         self.fileSystem = fileSystem
     }
 

@@ -63,13 +63,12 @@ final class DockerPanelViewModel: ObservableObject {
         self.runtimeBinding = binding
         LogManager.info(
             .docker,
-            "updateRuntimeBinding runtimeChanged=\(previous.runtimeID != binding.runtimeID) mode=\(binding.connectionMode?.rawValue ?? "-") state=\(binding.connectionState) host=\(binding.host?.address ?? "-") executionMode=\(binding.executionMode) privilege=\(binding.host?.remoteCommandPrivilege.rawValue ?? "-")"
+            "updateRuntimeBinding runtimeChanged=\(previous.runtimeID != binding.runtimeID) mode=\(binding.connectionMode?.rawValue ?? "-") state=\(binding.connectionState) host=\(binding.host?.address ?? "-") privilege=\(binding.host?.remoteCommandPrivilege.rawValue ?? "-")"
         )
 
         if previous.runtimeID == binding.runtimeID,
            previous.connectionState == binding.connectionState,
-           previous.host == binding.host,
-           previous.executionMode == binding.executionMode
+           previous.host == binding.host
         {
             return
         }

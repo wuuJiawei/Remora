@@ -34,7 +34,9 @@ final class TerminalPaneModel: ObservableObject, Identifiable {
 
     private static func defaultRuntime() -> TerminalRuntime {
         if ProcessInfo.processInfo.environment["REMORA_RUN_UI_TESTS"] == "1" {
-            let mockManager = SessionManager(sshClientFactory: { MockSSHClient() })
+            let mockManager = SessionManager(
+                localShellFactory: { host, pty in MockShellSession(host: host, pty: pty) }
+            )
             return TerminalRuntime(localSessionManager: mockManager, sshSessionManager: mockManager)
         }
         return TerminalRuntime()
