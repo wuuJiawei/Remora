@@ -6,6 +6,76 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.19.0] - 2026-07-26
+
+### English
+
+#### Added
+
+- Added a bundled native SSH engine based on libssh2 1.11.1 and Mbed TLS 3.6.7 for terminal shells, remote commands, SFTP, and local port forwarding. Remora no longer requires Homebrew or a separately installed SSH/SFTP runtime.
+- Added first-class JumpServer routes with two explicit modes: an interactive asset menu for terminal-only access, and a bound asset/account route that opens the selected asset directly and enables Docker, files, administrator files, metrics, and forwarding.
+- Added multi-round keyboard-interactive authentication for JumpServer and other SSH servers, including password, OTP, email-code, MFA-code, and mixed prompt rounds with the correct echo behavior.
+- Added administrator file access over a native SFTP v3 stream launched through `sudo -n sftp-server`, so privileged file operations no longer depend on parsing shell command output.
+
+#### Changed
+
+- Unified terminal, Docker, file manager, administrator files, server metrics, remote tools, and port forwarding on one managed remote session. Each window now owns an independent lease, so closing the terminal, Docker window, or file window does not disconnect the others.
+- Replaced process-based OpenSSH, System SFTP, ControlMaster, `sshpass`, and `SSH_ASKPASS` paths with the native session architecture instead of retaining hidden compatibility fallbacks.
+- Moved Docker operations, archive handling, remote search, live logs, and metrics onto typed command channels with separate route, authentication, privilege, timeout, and parsing errors.
+- Moved normal file browsing and transfers onto native streaming SFTP operations with bounded packet sizes, explicit handle cleanup, and upload progress reported for every partial write.
+- Moved saved passwords into macOS Keychain. Existing plaintext credential data is removed only after a successful migration, preserving recovery if migration cannot complete.
+
+#### Fixed
+
+- Fixed JumpServer reconnect and staged-authentication flows that could lose the MFA prompt, repeat a saved password at the wrong stage, leave stale authentication dialogs, or prevent users from entering a later verification code.
+- Fixed the file manager opening with an empty sidebar by separating loading placeholders from loaded directory snapshots and always anchoring the complete remote tree at `/`.
+- Fixed Docker and file tools connecting to the JumpServer gateway instead of the selected asset. Unbound interactive sessions now reject target-specific tools with an explicit target-not-resolved state rather than showing empty data or misleading Docker permission errors.
+- Fixed file-manager terminal integration, noninteractive shell-integration output, update-download progress layout, native file-handle cleanup, partial-write progress, and port-forward lifecycle cleanup.
+
+#### Security
+
+- Added native host-key verification with persistent trusted fingerprints and explicit failure when a previously trusted host key changes.
+- Removed password, OTP, and host-key prompt detection from terminal transcript parsing; authentication now uses typed native challenges and avoids logging secret responses.
+
+#### Upgrade Notes
+
+- A JumpServer connection using **Use interactive asset menu** intentionally supports terminal access only. To enable Docker, files, administrator files, metrics, and forwarding, edit the connection, disable that option, and provide the JumpServer asset target and asset account username.
+- **Use sudo for administrative operations** requires noninteractive passwordless sudo on the remote host. Administrator file mode specifically requires `sudo -n` permission to launch the server's `sftp-server` executable.
+
+### 中文
+
+#### 新增
+
+- 新增基于 libssh2 1.11.1 和 Mbed TLS 3.6.7 的内置原生 SSH 引擎，统一支持终端 Shell、远程命令、SFTP 和本地端口转发。Remora 运行时不再依赖 Homebrew，也不需要用户额外安装 SSH/SFTP 组件。
+- 新增原生 JumpServer 连接路由，明确区分两种模式：交互式资产菜单仅用于终端访问；绑定资产和账号后可直接进入指定资产，并启用 Docker、文件、管理员文件、服务器监控和端口转发。
+- 新增多轮 keyboard-interactive 认证，支持 JumpServer 及其他 SSH 服务端的密码、OTP、邮箱验证码、MFA code，以及包含不同回显规则的混合提示。
+- 新增基于原生 SFTP v3 数据流的管理员文件访问，通过 `sudo -n sftp-server` 启动提权文件通道，特权文件操作不再依赖解析 Shell 命令输出。
+
+#### 变更
+
+- 将终端、Docker、文件管理器、管理员文件、服务器监控、远程工具和端口转发统一到同一个受管远程会话。每个窗口独立持有会话租约，关闭终端、Docker 窗口或文件窗口不会再连带断开其他窗口。
+- 删除基于进程的 OpenSSH、System SFTP、ControlMaster、`sshpass` 和 `SSH_ASKPASS` 链路，不保留隐藏的兼容兜底路径。
+- 将 Docker 操作、压缩包处理、远程搜索、实时日志和服务器监控迁移到类型化命令通道，连接路由、认证、权限、超时和解析错误现在会分别报告。
+- 将普通文件浏览和传输迁移到原生流式 SFTP，增加数据包大小上限、文件句柄显式清理，并按每次实际写入持续更新上传进度。
+- 将保存的密码迁移到 macOS 钥匙串。只有迁移成功后才会删除旧的明文凭据数据，迁移失败时会保留原数据用于恢复。
+
+#### 修复
+
+- 修复 JumpServer 重连和分阶段认证中的多项问题，包括 MFA 输入框丢失、保存密码在错误阶段重复提交、旧认证弹窗残留，以及后续验证码无法输入。
+- 修复文件管理器首次打开时左侧目录树空白的问题：加载占位状态与已加载目录快照现在完全分离，并始终从 `/` 根目录展示完整远程目录树。
+- 修复 Docker 和文件工具错误连接到 JumpServer 堡垒机本身的问题。未绑定资产的交互式会话现在会明确报告“目标未解析”，不会再显示空面板或误导性的 Docker 权限错误。
+- 修复文件管理器打开终端、非交互 Shell 集成输出、应用内更新下载进度布局、原生文件句柄清理、分段写入进度和端口转发生命周期清理等问题。
+
+#### 安全
+
+- 新增原生主机密钥校验和可信指纹持久化；已信任主机的密钥发生变化时会明确拒绝连接。
+- 删除从终端输出中识别密码、OTP 和主机密钥提示的逻辑；认证统一改为类型化原生挑战，并避免在日志中记录秘密响应。
+
+#### 升级说明
+
+- JumpServer 连接启用**使用交互式资产菜单**时，只提供终端访问，这是有意的安全限制。要使用 Docker、文件、管理员文件、服务器监控和端口转发，请编辑连接，关闭该选项，并填写 JumpServer 的资产连接地址和资产账号用户名。
+- **使用 sudo 执行管理员操作**要求远程服务器支持无交互免密 sudo。管理员文件模式还需要允许通过 `sudo -n` 启动服务器上的 `sftp-server` 可执行文件。
+
 ## [v0.18.0] - 2026-07-03
 
 ### English
