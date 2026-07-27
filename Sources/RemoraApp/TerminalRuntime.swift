@@ -195,10 +195,32 @@ final class TerminalRuntime: ObservableObject {
         guard !isReconnecting, let host = reconnectableSSHHost else { return }
         isReconnecting = true
         terminalInputReconnectEnabled = false
-        connectSSH(host: host)
+        connectSSH(host: host, invalidatingActiveRemoteSession: true)
     }
 
-    func connect(using config: TerminalConnectConfig) {
+    private func connectSSH(
+        host: RemoraCore.Host,
+        invalidatingActiveRemoteSession: Bool
+    ) {
+        connect(
+            using: TerminalConnectConfig(
+                mode: .ssh,
+                hostAddress: host.address,
+                hostPort: host.port,
+                username: host.username,
+                authMethod: host.auth.method,
+                keyReference: host.auth.keyReference,
+                passwordReference: host.auth.passwordReference,
+                sourceHost: host
+            ),
+            invalidatingActiveRemoteSession: invalidatingActiveRemoteSession
+        )
+    }
+
+    func connect(
+        using config: TerminalConnectConfig,
+        invalidatingActiveRemoteSession: Bool = false
+    ) {
         if config.mode == .ssh {
             LogManager.info(
                 .ssh,
@@ -206,7 +228,10 @@ final class TerminalRuntime: ObservableObject {
             )
         }
         Task {
-            await stopActiveSessionIfNeeded()
+            let remoteSessionToInvalidate = invalidatingActiveRemoteSession
+                ? remoteSessionIdentity
+                : nil
+            await stopActiveSessionIfNeeded(invalidatingRemoteSession: remoteSessionToInvalidate)
             await MainActor.run {
                 connectionMode = config.mode
                 connectionState = "Connecting"
@@ -881,7 +906,9 @@ final class TerminalRuntime: ObservableObject {
         }
     }
 
-    private func stopActiveSessionIfNeeded() async {
+    private func stopActiveSessionIfNeeded(
+        invalidatingRemoteSession identity: RemoteSessionIdentitySnapshot? = nil
+    ) async {
         nativeInteractionBroker.cancelPending()
         pendingNativeHostKeyChallengeID = nil
         pendingNativeCredentialChallengeID = nil
@@ -891,6 +918,9 @@ final class TerminalRuntime: ObservableObject {
         guard let currentSessionID = sessionID, let manager = activeSessionManager else { return }
 
         intentionallyStoppedSessionIDs.insert(currentSessionID)
+        if let identity {
+            await manager.invalidateRemoteSession(identity)
+        }
         await manager.stopSession(id: currentSessionID)
         sessionID = nil
         activeSessionManager = nil

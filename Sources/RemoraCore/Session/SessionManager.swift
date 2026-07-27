@@ -162,6 +162,11 @@ public actor SessionManager: SessionManagerProtocol {
         return try await hub.acquireExisting(key: identity.key)
     }
 
+    public func invalidateRemoteSession(_ identity: RemoteSessionIdentitySnapshot) async {
+        guard case .remote(let hub, _) = backend else { return }
+        await hub.invalidate(key: identity.key, sessionID: identity.sessionID)
+    }
+
     public func activeSessions() async -> [TerminalSessionDescriptor] {
         sessions.values.map(\.descriptor).sorted { $0.createdAt < $1.createdAt }
     }

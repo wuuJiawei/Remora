@@ -74,6 +74,45 @@ struct RemoteSessionHubTests {
         }
     }
 
+    @Test("Invalidating a shared session closes it despite outstanding leases")
+    func invalidationEvictsSharedSession() async throws {
+        let key = makeSessionKey()
+        let recorder = LifecycleRecorder()
+        let hub = RemoteSessionHub()
+        let firstLease = try await hub.acquire(key: key) {
+            await recorder.recordFactoryCall()
+            return RemoteSession(
+                key: key,
+                transport: RecordingSessionTransport(recorder: recorder)
+            )
+        }
+        let retainedLease = try await hub.acquireExisting(key: key)
+        let firstSession = try await firstLease.session()
+
+        await hub.invalidate(key: key, sessionID: firstSession.id)
+
+        #expect(await recorder.transportCloseCount == 1)
+        #expect(await hub.activeSessionCount() == 0)
+
+        let replacementLease = try await hub.acquire(key: key) {
+            await recorder.recordFactoryCall()
+            return RemoteSession(
+                key: key,
+                transport: RecordingSessionTransport(recorder: recorder)
+            )
+        }
+        let replacementSession = try await replacementLease.session()
+        #expect(replacementSession.id != firstSession.id)
+        #expect(await recorder.factoryCalls == 2)
+
+        await firstLease.release()
+        await retainedLease.release()
+        #expect(await hub.activeSessionCount() == 1)
+
+        await replacementLease.release()
+        #expect(await recorder.transportCloseCount == 2)
+    }
+
     @Test("Last lease closes forwarding channels before transport")
     func lastLeaseClosesForwardingChannelsBeforeTransport() async throws {
         let key = makeSessionKey()

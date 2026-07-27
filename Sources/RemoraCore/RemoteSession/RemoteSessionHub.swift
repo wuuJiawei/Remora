@@ -56,6 +56,19 @@ public actor RemoteSessionHub {
         do {
             let session = try await pending.task.value
             guard connectionTasks[key]?.id == pending.id else {
+                if let installed = entries[key] {
+                    if installed.session.id != session.id {
+                        await session.close()
+                        guard entries[key] != nil else {
+                            throw RemoteOperationError(
+                                category: .session,
+                                code: "session_acquisition_cancelled",
+                                safeDiagnosticMessage: "Remote session acquisition was cancelled"
+                            )
+                        }
+                    }
+                    return makeLease(for: key)
+                }
                 await session.close()
                 throw RemoteOperationError(
                     category: .session,
@@ -100,6 +113,12 @@ public actor RemoteSessionHub {
 
     public func activeLeaseCount(for key: RemoteSessionKey) -> Int {
         entries[key]?.leaseIDs.count ?? 0
+    }
+
+    public func invalidate(key: RemoteSessionKey, sessionID: UUID) async {
+        guard let entry = entries[key], entry.session.id == sessionID else { return }
+        entries.removeValue(forKey: key)
+        await entry.session.close()
     }
 
     public func closeAll() async {

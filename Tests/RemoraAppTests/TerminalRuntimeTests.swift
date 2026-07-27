@@ -120,6 +120,50 @@ struct TerminalRuntimeTests {
     }
 
     @Test
+    func reconnectSSHSessionReplacesRemoteSessionRetainedByAnotherLease() async throws {
+        let key = makeRemoteSessionKey()
+        let hub = RemoteSessionHub()
+        let recorder = ReconnectSessionRecorder()
+        let manager = SessionManager(remoteSessionHub: hub) { _ in
+            RemoteSessionAcquisitionRequest(key: key) {
+                await recorder.makeSession(key: key)
+            }
+        }
+        let runtime = TerminalRuntime(localSessionManager: makeMockSessionManager(), sshSessionManager: manager)
+        let host = Host(
+            id: key.target.savedHostID,
+            name: "timeout-host",
+            address: "223.105.46.190",
+            username: "root",
+            auth: HostAuth(method: .agent)
+        )
+
+        runtime.connectSSH(host: host)
+        let firstConnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+                && runtime.remoteSessionIdentity != nil
+        }
+        #expect(firstConnected)
+        guard firstConnected, let firstSessionID = runtime.remoteSessionIdentity?.sessionID else { return }
+
+        let retainedLease = try await runtime.acquireRemoteSessionLease()
+        #expect(await hub.activeLeaseCount(for: key) == 2)
+
+        runtime.reconnectSSHSession()
+        let reconnected = await waitUntil(timeout: 2.0) {
+            runtime.connectionState.contains("Connected (SSH)")
+                && runtime.remoteSessionIdentity?.sessionID != firstSessionID
+        }
+
+        #expect(reconnected, "Reconnect should replace a timed-out shared transport in one attempt.")
+        #expect(await recorder.sessionCount == 2)
+        #expect(await recorder.transportCloseCount == 1)
+
+        await retainedLease.release()
+        runtime.disconnect()
+    }
+
+    @Test
     func terminalInputReconnectsSSHAfterRemoteStop() async {
         let factory = AutoStoppingShellFactory(state: .stopped, delay: .milliseconds(80))
         let manager = SessionManager(localShellFactory: factory.makeShell)
@@ -719,7 +763,75 @@ struct TerminalRuntimeTests {
         return Double(components.seconds) * 1_000
             + Double(components.attoseconds) / 1_000_000_000_000_000
     }
+
+    private func makeRemoteSessionKey() -> RemoteSessionKey {
+        let hostID = UUID()
+        return RemoteSessionKey(
+            route: .direct(
+                DirectConnectionRoute(
+                    endpoint: RemoteEndpoint(hostname: "223.105.46.190"),
+                    username: "root"
+                )
+            ),
+            target: RemoteTargetIdentity(
+                savedHostID: hostID,
+                routeProviderID: "direct",
+                assetID: hostID.uuidString,
+                assetDisplayName: "timeout-host",
+                accountUsername: "root"
+            ),
+            authenticationIdentity: RemoteAuthenticationIdentity(
+                username: "root",
+                method: .agent
+            ),
+            hostKeyPolicyID: "default"
+        )
+    }
 }
+
+private actor ReconnectSessionRecorder {
+    private(set) var sessionCount = 0
+    private(set) var transportCloseCount = 0
+
+    func makeSession(key: RemoteSessionKey) -> RemoteSession {
+        sessionCount += 1
+        return RemoteSession(
+            key: key,
+            transport: ReconnectRecordingTransport(recorder: self)
+        )
+    }
+
+    func recordTransportClose() {
+        transportCloseCount += 1
+    }
+}
+
+private struct ReconnectRecordingTransport: RemoteSessionTransportProtocol {
+    let recorder: ReconnectSessionRecorder
+
+    func openShell(pty: PTYSize) async throws -> any RemoteShellChannelProtocol {
+        ReconnectRecordingShellChannel()
+    }
+
+    func close() async {
+        await recorder.recordTransportClose()
+    }
+}
+
+private actor ReconnectRecordingShellChannel: RemoteShellChannelProtocol {
+    nonisolated let id = UUID()
+
+    func start() async throws {}
+    func write(_ data: Data) async throws {}
+    func resize(_ size: PTYSize) async throws {}
+
+    func events() -> AsyncThrowingStream<RemoteShellEvent, Error> {
+        AsyncThrowingStream { _ in }
+    }
+
+    func close() async {}
+}
+
 private final class AutoStoppingShellFactory: @unchecked Sendable {
     private let state: ShellSessionState
     private let delay: Duration?
