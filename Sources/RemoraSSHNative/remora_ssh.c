@@ -1845,15 +1845,34 @@ remora_ssh_error_code remora_ssh_sftp_rename(
         remora_ssh_error_set(out_error, REMORA_SSH_ERROR_INVALID_ARGUMENT, 0, "SFTP rename paths are invalid");
         return REMORA_SSH_ERROR_INVALID_ARGUMENT;
     }
-    long flags = overwrite ? LIBSSH2_SFTP_RENAME_OVERWRITE : 0;
-    int result = libssh2_sftp_rename_ex(
-        sftp->sftp,
-        source_path,
-        (unsigned int)strlen(source_path),
-        destination_path,
-        (unsigned int)strlen(destination_path),
-        flags
-    );
+    int result;
+    if (overwrite) {
+        result = libssh2_sftp_posix_rename_ex(
+            sftp->sftp,
+            source_path,
+            strlen(source_path),
+            destination_path,
+            strlen(destination_path)
+        );
+        if (result == LIBSSH2_FX_OP_UNSUPPORTED) {
+            remora_ssh_error_set(
+                out_error,
+                REMORA_SSH_ERROR_SFTP_FAILURE,
+                LIBSSH2_FX_OP_UNSUPPORTED,
+                "SFTP server does not support atomic overwrite rename"
+            );
+            return REMORA_SSH_ERROR_SFTP_FAILURE;
+        }
+    } else {
+        result = libssh2_sftp_rename_ex(
+            sftp->sftp,
+            source_path,
+            (unsigned int)strlen(source_path),
+            destination_path,
+            (unsigned int)strlen(destination_path),
+            0
+        );
+    }
     return remora_ssh_map_sftp_result(sftp, result, "unable to rename remote path", out_error);
 }
 

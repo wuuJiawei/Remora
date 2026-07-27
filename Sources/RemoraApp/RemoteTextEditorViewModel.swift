@@ -164,7 +164,7 @@ final class RemoteTextEditorViewModel: ObservableObject {
                 )
             }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = fileTransfer.remoteFileDisplayMessage(for: error)
         }
     }
 
@@ -209,9 +209,10 @@ final class RemoteTextEditorViewModel: ObservableObject {
             )
             errorMessage = nil
         } catch {
-            saveStatus = .failed(error.localizedDescription)
+            let message = fileTransfer.remoteFileDisplayMessage(for: error)
+            saveStatus = .failed(message)
             EditorDebugLog.log("viewModel.save failed error=\(error.localizedDescription)")
-            errorMessage = error.localizedDescription
+            errorMessage = message
         }
     }
 
@@ -221,7 +222,7 @@ final class RemoteTextEditorViewModel: ObservableObject {
             errorMessage = nil
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = fileTransfer.remoteFileDisplayMessage(for: error)
             return false
         }
     }

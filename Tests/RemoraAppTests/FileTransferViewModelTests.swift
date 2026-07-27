@@ -765,6 +765,29 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func textDocumentSaveFallsBackWhenAtomicOverwriteIsUnsupported() async throws {
+        let client = MockRemoteFileSystem(
+            configuration: .init(supportsAtomicRename: false)
+        )
+        let vm = FileTransferViewModel(
+            remoteFileSystem: client,
+            remoteDirectoryPath: "/"
+        )
+        let loaded = try await vm.loadTextDocument(path: "/README.txt")
+
+        _ = try await vm.saveTextDocument(
+            path: "/README.txt",
+            text: "saved without atomic overwrite",
+            expectedModifiedAt: loaded.modifiedAt
+        )
+
+        let reloaded = try await vm.loadTextDocument(path: "/README.txt")
+        #expect(reloaded.text == "saved without atomic overwrite")
+        let rootEntries = try await client.listDirectory(path: "/")
+        #expect(!rootEntries.contains { $0.name.hasPrefix(".remora-upload-") })
+    }
+
+    @Test
     func textDocumentLoadSkipsStatWhenMetadataIsKnown() async throws {
         let client = MockRemoteFileSystem()
         let vm = FileTransferViewModel(

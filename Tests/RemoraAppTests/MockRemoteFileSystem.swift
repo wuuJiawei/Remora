@@ -11,6 +11,7 @@ actor MockRemoteFileSystem: RemoteFileSystem {
         var allowedAttributeCalls: Int?
         var failingReadPaths: Set<String> = []
         var reportedSizes: [String: Int64] = [:]
+        var supportsAtomicRename = true
     }
 
     private struct StoredFile: Sendable {
@@ -52,7 +53,7 @@ actor MockRemoteFileSystem: RemoteFileSystem {
     func capabilities() -> RemoteFileSystemCapabilities {
         RemoteFileSystemCapabilities(
             supportsSymbolicLinks: true,
-            supportsAtomicRename: true,
+            supportsAtomicRename: configuration.supportsAtomicRename,
             supportsAttributeUpdates: true
         )
     }
@@ -261,6 +262,9 @@ actor MockRemoteFileSystem: RemoteFileSystem {
 
     func rename(from sourcePath: String, to destinationPath: String, overwrite: Bool) throws {
         try ensureOpen(path: sourcePath)
+        if overwrite, !configuration.supportsAtomicRename {
+            throw operationError(.unsupported, path: sourcePath)
+        }
         let source = normalize(sourcePath)
         let destination = normalize(destinationPath)
         guard source != "/", destination != "/" else {

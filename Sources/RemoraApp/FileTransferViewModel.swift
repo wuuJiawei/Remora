@@ -503,7 +503,7 @@ final class FileTransferViewModel: ObservableObject {
         return remoteFileOperations
     }
 
-    private func remoteFileDisplayMessage(for error: Error) -> String {
+    func remoteFileDisplayMessage(for error: Error) -> String {
         if let operationError = error as? RemoteOperationError {
             switch operationError.code {
             case "administrator_sftp_server_unavailable":

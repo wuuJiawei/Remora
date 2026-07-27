@@ -171,7 +171,7 @@ public actor RemoteFileSystemOperations {
             localHandle = nil
             await remoteHandle?.close()
             remoteHandle = nil
-            try await fileSystem.rename(from: temporaryPath, to: path, overwrite: true)
+            try await replaceUploadedFile(at: temporaryPath, destination: path)
             progress?(.init(bytesTransferred: transferred, totalBytes: totalSize ?? transferred))
         } catch {
             try? localHandle?.close()
@@ -209,7 +209,7 @@ public actor RemoteFileSystemOperations {
             sourceHandle = nil
             await destinationHandle?.close()
             destinationHandle = nil
-            try await fileSystem.rename(from: temporaryPath, to: destination, overwrite: true)
+            try await replaceUploadedFile(at: temporaryPath, destination: destination)
             try await fileSystem.setAttributes(path: destination, attributes: attributes)
         } catch {
             await sourceHandle?.close()
@@ -233,6 +233,48 @@ public actor RemoteFileSystemOperations {
             offset += written
             onProgress?(written)
         }
+    }
+
+    private func replaceUploadedFile(at temporaryPath: String, destination: String) async throws {
+        do {
+            try await fileSystem.rename(from: temporaryPath, to: destination, overwrite: true)
+            return
+        } catch let error as RemoteFileSystemOperationError {
+            let capabilities = await fileSystem.capabilities()
+            guard !capabilities.supportsAtomicRename,
+                  error.status == .alreadyExists || error.status == .unsupported || error.status == .unknown
+            else {
+                throw error
+            }
+        }
+
+        let destinationAttributes: RemoteFileAttributes?
+        do {
+            destinationAttributes = try await fileSystem.attributes(
+                path: destination,
+                followSymbolicLinks: false
+            )
+        } catch let error as RemoteFileSystemOperationError where error.status == .notFound {
+            destinationAttributes = nil
+        }
+
+        guard destinationAttributes?.isDirectory != true else {
+            throw RemoteFileSystemOperationError(status: .invalidPath, path: destination)
+        }
+        guard destinationAttributes != nil else {
+            try await fileSystem.rename(from: temporaryPath, to: destination, overwrite: false)
+            return
+        }
+
+        let backupPath = Self.temporarySiblingPath(for: destination)
+        try await fileSystem.rename(from: destination, to: backupPath, overwrite: false)
+        do {
+            try await fileSystem.rename(from: temporaryPath, to: destination, overwrite: false)
+        } catch {
+            try? await fileSystem.rename(from: backupPath, to: destination, overwrite: false)
+            throw error
+        }
+        try? await fileSystem.removeFile(path: backupPath)
     }
 
     private static func temporarySiblingPath(for path: String) -> String {

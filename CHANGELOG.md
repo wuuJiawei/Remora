@@ -6,6 +6,20 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.19.1] - 2026-07-27
+
+### English
+
+#### Fixed
+
+- Fixed remote text editor saves on SFTP v3 servers by using atomic POSIX overwrite rename when available and a rollback-safe compatibility path otherwise. Save failures now also show localized file-operation messages instead of internal Swift error identifiers.
+
+### 中文
+
+#### 修复
+
+- 修复远程文本编辑器在 SFTP v3 服务器上无法覆盖保存已有文件的问题：服务器支持时使用 POSIX 原子覆盖重命名，否则使用带回滚保护的兼容替换流程；保存失败时也会显示本地化文件操作提示，不再暴露 Swift 内部错误编号。
+
 ## [v0.19.0] - 2026-07-26
 
 ### English
