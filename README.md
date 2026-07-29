@@ -116,10 +116,11 @@ swift run RemoraApp
 ./scripts/package_macos.sh --arch "$(uname -m)" --version 0.0.0-local --build-number 1
 ```
 
-输出文件位于 `dist/`，例如：
+输出文件位于 `dist/`，同时包含适合自动更新的 ZIP 和适合手动安装的 DMG，例如：
 
 ```bash
 dist/Remora-0.0.0-local-macos-arm64.zip
+dist/Remora-0.0.0-local-macos-arm64.dmg
 ```
 
 可选压力工具：

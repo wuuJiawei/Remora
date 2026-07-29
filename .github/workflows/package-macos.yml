@@ -69,7 +69,8 @@ jobs:
             --version "${VERSION#v}" \
             --build-number "${GITHUB_RUN_NUMBER}" \
             --output-dir dist \
-            --zip-name "Remora-${VERSION}-macos-${{ matrix.label }}.zip"
+            --zip-name "Remora-${VERSION}-macos-${{ matrix.label }}.zip" \
+            --dmg-name "Remora-${VERSION}-macos-${{ matrix.label }}.dmg"
 
       - name: Upload build artifact
         if: steps.ref_guard.outputs.tag_on_main == 'true'
@@ -79,6 +80,8 @@ jobs:
           path: |
             dist/Remora-*.zip
             dist/Remora-*.zip.sha256
+            dist/Remora-*.dmg
+            dist/Remora-*.dmg.sha256
           if-no-files-found: error
 
   release:
@@ -127,3 +130,5 @@ jobs:
           files: |
             dist/Remora-*.zip
             dist/Remora-*.zip.sha256
+            dist/Remora-*.dmg
+            dist/Remora-*.dmg.sha256

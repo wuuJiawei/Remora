@@ -115,10 +115,11 @@ Local packaging and GitHub Actions use the same command:
 ./scripts/package_macos.sh --arch "$(uname -m)" --version 0.0.0-local --build-number 1
 ```
 
-The packaged app is written to `dist/`, for example:
+The packaged app is written to `dist/` as both an updater-friendly ZIP and a user-installable DMG, for example:
 
 ```bash
 dist/Remora-0.0.0-local-macos-arm64.zip
+dist/Remora-0.0.0-local-macos-arm64.dmg
 ```
 
 Optional stress tool:
