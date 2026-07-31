@@ -214,6 +214,12 @@
 "Rename" = "重命名";
 "Copy" = "复制";
 "Clone" = "克隆";
+"Preparing clone…" = "正在准备克隆…";
+"Cloning %@…" = "正在克隆 %@…";
+"Cloning…" = "正在克隆…";
+"Delete “%@”?" = "确认删除“%@”吗？";
+"Delete %d selected items?" = "确认删除选中的 %d 个项目吗？";
+"All contained files and folders will also be deleted. This action cannot be undone." = "其中的所有文件和文件夹也会被删除。该操作无法撤销。";
 "Terminal" = "终端";
 "Cut" = "剪切";
 "Download Current" = "下载当前项";

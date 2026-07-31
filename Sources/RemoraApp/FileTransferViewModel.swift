@@ -272,6 +272,8 @@ final class FileTransferViewModel: ObservableObject {
     @Published private(set) var loadedRemoteDirectorySnapshot: LoadedRemoteDirectorySnapshot?
     @Published private(set) var archiveOperationProgress: Double?
     @Published private(set) var archiveOperationStatusText: String?
+    @Published private(set) var cloneOperationProgress: Double?
+    @Published private(set) var cloneOperationStatusText: String?
     @Published private(set) var transferQueue: [TransferItem] = []
     @Published private(set) var currentTransferBatchID: Int?
     @Published private(set) var remoteSearchResults: [RemoteSearchResult] = []
@@ -283,6 +285,8 @@ final class FileTransferViewModel: ObservableObject {
     private var remoteCommandExecutor: (any RemoteCommandExecutorProtocol)?
     private var remoteSessionLease: (any RemoteSessionLeaseProtocol)?
     private var administratorFileSystemTask: Task<Void, Never>?
+    private var cloneOperationTask: Task<Void, Never>?
+    private var cloneOperationID: UUID?
     private let transferCenter: TransferCenter
     private var transferTasks: [UUID: Task<Void, Never>] = [:]
     private var remoteSearchTask: Task<Void, Never>?
@@ -399,6 +403,7 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     func releaseNativeSession() async {
+        cancelCloneOperation()
         cancelTrackedTransfers(clearQueue: false)
         cancelRemoteSearch(resetState: false)
         remoteFileBindingGeneration += 1
@@ -560,6 +565,7 @@ final class FileTransferViewModel: ObservableObject {
         initialRemoteDirectory: String?,
         saveCurrentState: Bool = true
     ) {
+        cancelCloneOperation()
         let normalizedBindingKey = normalizedRemoteBindingKey(bindingKey)
         remoteFileBindingGeneration += 1
         let bindingGeneration = remoteFileBindingGeneration
@@ -662,6 +668,7 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     private func suspendRemoteFileOperations() {
+        cancelCloneOperation()
         remoteBindingStates[activeRemoteBindingKey] = makeCurrentRemoteBindingState()
         remoteFileBindingGeneration += 1
         cancelRemoteSearch(resetState: false)
@@ -1158,20 +1165,61 @@ final class FileTransferViewModel: ObservableObject {
     }
 
     func cloneRemoteEntry(path: String) {
-        let normalizedPath = normalizeRemoteDirectoryPath(path)
-        guard normalizedPath != "/" else { return }
+        cloneRemoteEntries(paths: [path])
+    }
 
-        Task {
-            do {
-                let attributes = try await requiredRemoteFileOperations().attributes(path: normalizedPath)
-                let destination = try await nextClonePath(for: normalizedPath, isDirectory: attributes.isDirectory)
-                try await requiredRemoteFileOperations().copyRecursively(from: normalizedPath, to: destination)
-            } catch {
-                return
+    func cloneRemoteEntries(paths: [String]) {
+        let normalizedPaths = Array(Set(paths.map(normalizeRemoteDirectoryPath).filter { $0 != "/" })).sorted()
+        guard !normalizedPaths.isEmpty, cloneOperationTask == nil else { return }
+
+        let operationID = UUID()
+        cloneOperationID = operationID
+        cloneOperationProgress = 0
+        cloneOperationStatusText = tr("Preparing clone…")
+        cloneOperationTask = Task { [weak self] in
+            guard let self else { return }
+            let itemCount = Double(normalizedPaths.count)
+            for (index, source) in normalizedPaths.enumerated() {
+                guard !Task.isCancelled else { break }
+                do {
+                    let operations = try requiredRemoteFileOperations()
+                    let attributes = try await operations.attributes(path: source)
+                    let destination = try await nextClonePath(for: source, isDirectory: attributes.isDirectory)
+                    cloneOperationStatusText = String(
+                        format: tr("Cloning %@…"),
+                        URL(fileURLWithPath: source).lastPathComponent
+                    )
+                    try await operations.copyRecursively(from: source, to: destination) { [weak self] progress in
+                        guard let fraction = progress.fractionCompleted else { return }
+                        Task { @MainActor [weak self] in
+                            guard let self, self.cloneOperationID == operationID else { return }
+                            let candidate = (Double(index) + fraction) / itemCount
+                            self.cloneOperationProgress = max(self.cloneOperationProgress ?? 0, candidate)
+                        }
+                    }
+                    cloneOperationProgress = Double(index + 1) / itemCount
+                } catch is CancellationError {
+                    break
+                } catch {
+                    continue
+                }
             }
+            guard cloneOperationID == operationID else { return }
             invalidateRemoteDirectoryCache()
             await refreshRemoteEntries()
+            cloneOperationTask = nil
+            cloneOperationID = nil
+            cloneOperationProgress = nil
+            cloneOperationStatusText = nil
         }
+    }
+
+    private func cancelCloneOperation() {
+        cloneOperationTask?.cancel()
+        cloneOperationTask = nil
+        cloneOperationID = nil
+        cloneOperationProgress = nil
+        cloneOperationStatusText = nil
     }
 
     func renameRemoteEntry(path: String, toName newName: String) {
@@ -1229,10 +1277,12 @@ final class FileTransferViewModel: ObservableObject {
         Task {
             for item in clipboard.items {
                 let baseTargetPath = normalizedRemotePath(base: destination, child: item.name)
+                guard baseTargetPath != item.path,
+                      !baseTargetPath.hasPrefix(item.path + "/")
+                else { continue }
                 guard let targetPath = await resolveRemoteConflictPath(for: baseTargetPath) else {
                     continue
                 }
-                guard targetPath != item.path else { continue }
 
                 do {
                     switch clipboard.mode {
@@ -1273,10 +1323,12 @@ final class FileTransferViewModel: ObservableObject {
         var pastedCount = 0
         for item in clipboard.items {
             let baseTargetPath = normalizedRemotePath(base: destination, child: item.name)
+            guard baseTargetPath != item.path,
+                  !baseTargetPath.hasPrefix(item.path + "/")
+            else { continue }
             guard let targetPath = await resolveRemoteConflictPath(for: baseTargetPath) else {
                 continue
             }
-            guard targetPath != item.path else { continue }
             do {
                 switch clipboard.mode {
                 case .copy:

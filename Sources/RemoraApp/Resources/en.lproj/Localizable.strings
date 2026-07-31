@@ -216,6 +216,12 @@
 "Rename" = "Rename";
 "Copy" = "Copy";
 "Clone" = "Clone";
+"Preparing clone…" = "Preparing clone…";
+"Cloning %@…" = "Cloning %@…";
+"Cloning…" = "Cloning…";
+"Delete “%@”?" = "Delete “%@”?";
+"Delete %d selected items?" = "Delete %d selected items?";
+"All contained files and folders will also be deleted. This action cannot be undone." = "All contained files and folders will also be deleted. This action cannot be undone.";
 "Terminal" = "Terminal";
 "Cut" = "Cut";
 "Download Current" = "Download Current";

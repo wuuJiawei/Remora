@@ -742,6 +742,55 @@ struct FileTransferViewModelTests {
     }
 
     @Test
+    func copyingDirectoryPastesAllNestedContents() async throws {
+        let client = MockRemoteFileSystem()
+        try await client.createDirectory(path: "/bundle", attributes: nil)
+        try await client.createDirectory(path: "/bundle/nested", attributes: nil)
+        let payload = Data("nested payload".utf8)
+        try await client.seedFile(data: payload, at: "/bundle/nested/value.txt")
+        let vm = FileTransferViewModel(remoteFileSystem: client, remoteDirectoryPath: "/")
+        await vm.refreshRemoteEntries()
+
+        vm.copyRemoteEntries(paths: ["/bundle"], mode: .copy)
+        #expect(await vm.pasteRemoteEntriesResult(into: "/logs") == .success(
+            destinationDirectory: "/logs",
+            pastedCount: 1,
+            clearsClipboard: false
+        ))
+        #expect(try await client.fileData(at: "/logs/bundle/nested/value.txt") == payload)
+        #expect(await vm.pasteRemoteEntriesResult(into: "/bundle/nested") == .success(
+            destinationDirectory: "/bundle/nested",
+            pastedCount: 0,
+            clearsClipboard: false
+        ))
+    }
+
+    @Test
+    func cloningDirectoryPublishesProgressAndCopiesNestedContents() async throws {
+        let client = MockRemoteFileSystem(configuration: .init(
+            readDelay: .milliseconds(15),
+            maximumReadChunkSize: 1_024
+        ))
+        try await client.createDirectory(path: "/tree", attributes: nil)
+        try await client.createDirectory(path: "/tree/nested", attributes: nil)
+        let payload = Data(repeating: 0x2A, count: 16 * 1_024)
+        try await client.seedFile(data: payload, at: "/tree/nested/value.bin")
+        let vm = FileTransferViewModel(remoteFileSystem: client, remoteDirectoryPath: "/")
+        await vm.refreshRemoteEntries()
+
+        vm.cloneRemoteEntry(path: "/tree")
+        try await waitUntil(timeoutLoops: 40, intervalMS: 10) {
+            guard let progress = vm.cloneOperationProgress else { return false }
+            return progress > 0 && progress < 1
+        }
+        try await waitUntil(timeoutLoops: 80, intervalMS: 20) {
+            vm.cloneOperationProgress == nil
+        }
+
+        #expect(try await client.fileData(at: "/tree copy/nested/value.bin") == payload)
+    }
+
+    @Test
     func textDocumentRoundTripSupportsLoadAndSave() async throws {
         let vm = FileTransferViewModel(
             remoteFileSystem: MockRemoteFileSystem(),

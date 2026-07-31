@@ -255,8 +255,9 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         var toolbarCopyPathHandler: ((String) -> Void)?
         var copyEntriesHandler: (([RemoteFileEntry]) -> Void)?
         var cutEntriesHandler: (([RemoteFileEntry]) -> Void)?
+        var deleteEntriesHandler: (([RemoteFileEntry]) -> Void)?
         var pasteEntriesHandler: ((String) -> Void)?
-        var cloneEntryHandler: ((RemoteFileEntry) -> Void)?
+        var cloneEntriesHandler: (([RemoteFileEntry]) -> Void)?
         var moveEntriesHandler: (([RemoteFileEntry]) -> Void)?
 
         self.splitController = FileManagerWindowSplitController(
@@ -353,7 +354,7 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                 }
             },
             onDeleteEntries: { entries in
-                viewModel.deleteRemoteEntries(paths: entries.map(\.path))
+                deleteEntriesHandler?(entries)
             },
             onDownloadEntries: { entries in
                 for entry in entries {
@@ -372,8 +373,8 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             onPasteIntoDirectory: { path in
                 pasteEntriesHandler?(path)
             },
-            onCloneEntry: { entry in
-                cloneEntryHandler?(entry)
+            onCloneEntry: { entries in
+                cloneEntriesHandler?(entries)
             },
             onMoveEntries: { entries in
                 moveEntriesHandler?(entries)
@@ -473,6 +474,9 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
             viewModel.copyRemoteEntries(paths: entries.map(\.path), mode: .cut)
             self?.toastController.show(message: String(format: tr("Cut %d item(s)."), entries.count))
         }
+        deleteEntriesHandler = { [weak self] entries in
+            self?.confirmDelete(entries: entries, viewModel: viewModel)
+        }
         pasteEntriesHandler = { [weak self] path in
             guard let self else { return }
             Task { @MainActor [weak self] in
@@ -489,9 +493,8 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                 }
             }
         }
-        cloneEntryHandler = { [weak self] entry in
-            viewModel.cloneRemoteEntry(path: entry.path)
-            self?.toastController.show(message: String(format: tr("%@ Copy"), entry.name))
+        cloneEntriesHandler = { entries in
+            viewModel.cloneRemoteEntries(paths: entries.map(\.path))
         }
         moveEntriesHandler = { [weak self] entries in
             guard let self else { return }
@@ -635,6 +638,23 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
         toastController.show(message: tr("Path copied to clipboard."))
     }
 
+    private func confirmDelete(entries: [RemoteFileEntry], viewModel: FileTransferViewModel) {
+        guard !entries.isEmpty, let window else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = entries.count == 1
+            ? String(format: tr("Delete “%@”?"), entries[0].name)
+            : String(format: tr("Delete %d selected items?"), entries.count)
+        alert.informativeText = tr("All contained files and folders will also be deleted. This action cannot be undone.")
+        alert.addButton(withTitle: tr("Delete"))
+        alert.addButton(withTitle: tr("Cancel"))
+        alert.buttons.first?.hasDestructiveAction = true
+        alert.beginSheetModal(for: window) { [weak viewModel] response in
+            guard response == .alertFirstButtonReturn, let viewModel else { return }
+            viewModel.deleteRemoteEntries(paths: entries.map(\.path))
+        }
+    }
+
     private func bindToolbar(viewModel: FileTransferViewModel) {
         viewModel.$isTerminalDirectorySyncEnabled
             .removeDuplicates()
@@ -720,6 +740,14 @@ final class FileManagerWorkspaceWindowController: NSWindowController, NSWindowDe
                     status: self.transferQueueStatus(for: viewModel)
                 )
                 self.refreshDownloadsPopover(viewModel: viewModel)
+            }
+            .store(in: &toolbarCancellables)
+
+        viewModel.$cloneOperationProgress
+            .combineLatest(viewModel.$cloneOperationStatusText)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] progress, statusText in
+                self?.splitController.updateCloneProgress(progress, statusText: statusText)
             }
             .store(in: &toolbarCancellables)
     }

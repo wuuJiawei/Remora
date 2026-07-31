@@ -3,6 +3,18 @@ import Foundation
 public actor RemoteFileSystemOperations {
     private static let chunkSize = 64 * 1_024
 
+    private struct CopyPlan {
+        var source: String
+        var destination: String
+        var attributes: RemoteFileAttributes
+        var symbolicLinkTarget: String?
+        var children: [CopyPlan]
+
+        var itemCount: Int64 {
+            1 + children.reduce(0) { $0 + $1.itemCount }
+        }
+    }
+
     private let fileSystem: any RemoteFileSystem
 
     public init(fileSystem: any RemoteFileSystem) {
@@ -52,7 +64,27 @@ public actor RemoteFileSystemOperations {
         }
     }
 
-    public func copyRecursively(from source: String, to destination: String) async throws {
+    public func copyRecursively(
+        from source: String,
+        to destination: String,
+        progress: TransferProgressHandler? = nil
+    ) async throws {
+        guard let progress else {
+            try await copyRecursivelyUntracked(from: source, to: destination)
+            return
+        }
+
+        let plan = try await makeCopyPlan(from: source, to: destination)
+        let totalItems = plan.itemCount
+        var copiedItems: Int64 = 0
+        progress(.init(bytesTransferred: 0, totalBytes: totalItems))
+        try await executeCopyPlan(plan) {
+            copiedItems += 1
+            progress(.init(bytesTransferred: copiedItems, totalBytes: totalItems))
+        }
+    }
+
+    private func copyRecursivelyUntracked(from source: String, to destination: String) async throws {
         let attributes = try await fileSystem.attributes(path: source, followSymbolicLinks: false)
         if attributes.isSymbolicLink {
             let target = try await fileSystem.readSymbolicLink(path: source)
@@ -64,7 +96,7 @@ public actor RemoteFileSystemOperations {
             let entries = try await fileSystem.listDirectory(path: source)
             for entry in entries {
                 try Task.checkCancellation()
-                try await copyRecursively(
+                try await copyRecursivelyUntracked(
                     from: entry.path,
                     to: Self.join(parent: destination, name: entry.name)
                 )
@@ -72,6 +104,63 @@ public actor RemoteFileSystemOperations {
             return
         }
         try await copyFileAtomically(from: source, to: destination, attributes: attributes)
+    }
+
+    private func makeCopyPlan(from source: String, to destination: String) async throws -> CopyPlan {
+        try Task.checkCancellation()
+        let attributes = try await fileSystem.attributes(path: source, followSymbolicLinks: false)
+        if attributes.isSymbolicLink {
+            return CopyPlan(
+                source: source,
+                destination: destination,
+                attributes: attributes,
+                symbolicLinkTarget: try await fileSystem.readSymbolicLink(path: source),
+                children: []
+            )
+        }
+        guard attributes.isDirectory else {
+            return CopyPlan(
+                source: source,
+                destination: destination,
+                attributes: attributes,
+                symbolicLinkTarget: nil,
+                children: []
+            )
+        }
+
+        var children: [CopyPlan] = []
+        for entry in try await fileSystem.listDirectory(path: source) {
+            children.append(try await makeCopyPlan(
+                from: entry.path,
+                to: Self.join(parent: destination, name: entry.name)
+            ))
+        }
+        return CopyPlan(
+            source: source,
+            destination: destination,
+            attributes: attributes,
+            symbolicLinkTarget: nil,
+            children: children
+        )
+    }
+
+    private func executeCopyPlan(_ plan: CopyPlan, didCopyItem: () -> Void) async throws {
+        try Task.checkCancellation()
+        if let target = plan.symbolicLinkTarget {
+            try await fileSystem.createSymbolicLink(path: plan.destination, target: target)
+        } else if plan.attributes.isDirectory {
+            try await fileSystem.createDirectory(path: plan.destination, attributes: plan.attributes)
+        } else {
+            try await copyFileAtomically(
+                from: plan.source,
+                to: plan.destination,
+                attributes: plan.attributes
+            )
+        }
+        didCopyItem()
+        for child in plan.children {
+            try await executeCopyPlan(child, didCopyItem: didCopyItem)
+        }
     }
 
     public func download(

@@ -432,7 +432,7 @@ final class FileManagerWindowSplitController: NSSplitViewController {
         onCutEntries: @escaping ([RemoteFileEntry]) -> Void,
         canPasteIntoDirectory: @escaping (String) -> Bool,
         onPasteIntoDirectory: @escaping (String) -> Void,
-        onCloneEntry: @escaping (RemoteFileEntry) -> Void,
+        onCloneEntry: @escaping ([RemoteFileEntry]) -> Void,
         onMoveEntries: @escaping ([RemoteFileEntry]) -> Void,
         onCopyPath: @escaping (String) -> Void,
         onOpenInTerminal: @escaping (String) -> Void,
@@ -558,6 +558,10 @@ final class FileManagerWindowSplitController: NSSplitViewController {
         detailController.searchQuery = query
     }
 
+    func updateCloneProgress(_ progress: Double?, statusText: String?) {
+        detailController.updateCloneProgress(progress, statusText: statusText)
+    }
+
     func setPropertyHandlers(
         onShowProperties: @escaping (RemoteFileEntry) -> Void,
         onEditPermissions: @escaping (RemoteFileEntry) -> Void
@@ -612,7 +616,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
     private let onCutEntries: ([RemoteFileEntry]) -> Void
     private let canPasteIntoDirectory: (String) -> Bool
     private let onPasteIntoDirectory: (String) -> Void
-    private let onCloneEntry: (RemoteFileEntry) -> Void
+    private let onCloneEntry: ([RemoteFileEntry]) -> Void
     private let onMoveEntries: ([RemoteFileEntry]) -> Void
     private let onCopyPath: (String) -> Void
     private let onOpenInTerminal: (String) -> Void
@@ -683,7 +687,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
         onCutEntries: @escaping ([RemoteFileEntry]) -> Void,
         canPasteIntoDirectory: @escaping (String) -> Bool,
         onPasteIntoDirectory: @escaping (String) -> Void,
-        onCloneEntry: @escaping (RemoteFileEntry) -> Void,
+        onCloneEntry: @escaping ([RemoteFileEntry]) -> Void,
         onMoveEntries: @escaping ([RemoteFileEntry]) -> Void,
         onCopyPath: @escaping (String) -> Void,
         onOpenInTerminal: @escaping (String) -> Void,
@@ -1451,7 +1455,7 @@ private final class FileManagerOutlineSidebarController: NSViewController, NSOut
 
     @objc private func handleCloneEntry() {
         guard let entry = selectedSidebarEntry(), !selectedSidebarIsRoot() else { return }
-        onCloneEntry(entry)
+        onCloneEntry([entry])
     }
 
     @objc private func handleMoveEntries() {
@@ -1585,7 +1589,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     private let onCutEntries: ([RemoteFileEntry]) -> Void
     private let canPasteIntoDirectory: (String) -> Bool
     private let onPasteIntoDirectory: (String) -> Void
-    private let onCloneEntry: (RemoteFileEntry) -> Void
+    private let onCloneEntry: ([RemoteFileEntry]) -> Void
     private let onMoveEntries: ([RemoteFileEntry]) -> Void
     private let onCopyPath: (String) -> Void
     private let onOpenInTerminal: (String) -> Void
@@ -1602,6 +1606,9 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     private var scrollView: NSScrollView!
     private let emptyLabel = NSTextField(labelWithString: "")
     private let loadingIndicator = NSProgressIndicator()
+    private let cloneProgressBar = NSVisualEffectView()
+    private let cloneProgressLabel = NSTextField(labelWithString: "")
+    private let cloneProgressIndicator = NSProgressIndicator()
     private var currentPath = "/"
     private var entries: [RemoteFileEntry] = []
     private var isLoading = false
@@ -1654,7 +1661,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         onCutEntries: @escaping ([RemoteFileEntry]) -> Void,
         canPasteIntoDirectory: @escaping (String) -> Bool,
         onPasteIntoDirectory: @escaping (String) -> Void,
-        onCloneEntry: @escaping (RemoteFileEntry) -> Void,
+        onCloneEntry: @escaping ([RemoteFileEntry]) -> Void,
         onMoveEntries: @escaping ([RemoteFileEntry]) -> Void,
         onCopyPath: @escaping (String) -> Void,
         onOpenInTerminal: @escaping (String) -> Void,
@@ -1699,6 +1706,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         }
         tableView.style = .fullWidth
         tableView.usesAlternatingRowBackgroundColors = true
+        tableView.allowsMultipleSelection = true
         tableView.rowSizeStyle = .default
         tableView.delegate = self
         tableView.dataSource = self
@@ -1750,9 +1758,27 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         loadingIndicator.controlSize = .small
         loadingIndicator.isDisplayedWhenStopped = false
 
+        cloneProgressBar.translatesAutoresizingMaskIntoConstraints = false
+        cloneProgressBar.material = .contentBackground
+        cloneProgressBar.blendingMode = .withinWindow
+        cloneProgressBar.state = .active
+        cloneProgressBar.isHidden = true
+        cloneProgressLabel.translatesAutoresizingMaskIntoConstraints = false
+        cloneProgressLabel.font = .systemFont(ofSize: 12)
+        cloneProgressLabel.textColor = .secondaryLabelColor
+        cloneProgressLabel.lineBreakMode = .byTruncatingMiddle
+        cloneProgressLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        cloneProgressIndicator.translatesAutoresizingMaskIntoConstraints = false
+        cloneProgressIndicator.style = .bar
+        cloneProgressIndicator.minValue = 0
+        cloneProgressIndicator.maxValue = 1
+        cloneProgressBar.addSubview(cloneProgressLabel)
+        cloneProgressBar.addSubview(cloneProgressIndicator)
+
         container.addSubview(scrollView)
         container.addSubview(emptyLabel)
         container.addSubview(loadingIndicator)
+        container.addSubview(cloneProgressBar)
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -1767,6 +1793,17 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
 
             loadingIndicator.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             loadingIndicator.bottomAnchor.constraint(equalTo: emptyLabel.topAnchor, constant: -12),
+
+            cloneProgressBar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            cloneProgressBar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            cloneProgressBar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            cloneProgressBar.heightAnchor.constraint(equalToConstant: 36),
+            cloneProgressLabel.leadingAnchor.constraint(equalTo: cloneProgressBar.leadingAnchor, constant: 12),
+            cloneProgressLabel.centerYAnchor.constraint(equalTo: cloneProgressBar.centerYAnchor),
+            cloneProgressIndicator.leadingAnchor.constraint(greaterThanOrEqualTo: cloneProgressLabel.trailingAnchor, constant: 12),
+            cloneProgressIndicator.trailingAnchor.constraint(equalTo: cloneProgressBar.trailingAnchor, constant: -12),
+            cloneProgressIndicator.centerYAnchor.constraint(equalTo: cloneProgressBar.centerYAnchor),
+            cloneProgressIndicator.widthAnchor.constraint(equalToConstant: 180),
         ])
 
         self.view = container
@@ -1792,6 +1829,16 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
         self.searchQuery = searchQuery
         tableView.reloadData()
         updateEmptyState()
+    }
+
+    func updateCloneProgress(_ progress: Double?, statusText: String?) {
+        guard let progress else {
+            cloneProgressBar.isHidden = true
+            return
+        }
+        cloneProgressLabel.stringValue = statusText ?? tr("Cloning…")
+        cloneProgressIndicator.doubleValue = min(max(progress, 0), 1)
+        cloneProgressBar.isHidden = false
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -1961,6 +2008,9 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     private func clickedOrSelectedEntries() -> [RemoteFileEntry] {
         let clickedRow = tableView.clickedRow
         if clickedRow >= 0, clickedRow < filteredEntries.count {
+            if tableView.selectedRowIndexes.contains(clickedRow) {
+                return selectedEntries()
+            }
             return [filteredEntries[clickedRow]]
         }
         return selectedEntries()
@@ -2079,8 +2129,9 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
     }
 
     @objc private func handleCloneEntry() {
-        guard let entry = clickedOrSelectedEntries().first else { return }
-        onCloneEntry(entry)
+        let entries = clickedOrSelectedEntries()
+        guard !entries.isEmpty else { return }
+        onCloneEntry(entries)
     }
 
     @objc private func handleMoveEntries() {
@@ -2154,7 +2205,7 @@ private final class FileManagerFinderDetailController: NSViewController, NSTable
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         let clickedRow = tableView.clickedRow
-        if clickedRow >= 0 {
+        if clickedRow >= 0, !tableView.selectedRowIndexes.contains(clickedRow) {
             tableView.selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
         }
         let selectedEntries = clickedOrSelectedEntries()
