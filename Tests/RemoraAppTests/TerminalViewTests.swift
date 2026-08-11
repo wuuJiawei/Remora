@@ -75,6 +75,31 @@ struct TerminalViewTests {
     }
 
     @Test
+    func outputCoalescingAppliesBoundedBackpressure() {
+        let view = TerminalView(rows: 6, columns: 40)
+        view.renderingConfiguration = TerminalRenderingConfiguration(
+            coalescesOutput: true,
+            outputFlushInterval: 60,
+            maxPendingOutputBytes: 3,
+            maxOutputBytesPerFlush: 2,
+            automaticallyEnableMetal: false
+        )
+
+        view.feed(data: Data("abcd".utf8))
+
+        #expect(view.pendingOutputByteCount == 3)
+        #expect(view.droppedOutputByteCount == 1)
+
+        view.flushPendingOutput()
+        #expect(view.pendingOutputByteCount == 0)
+
+        view.renderingConfiguration = TerminalRenderingConfiguration(
+            coalescesOutput: false,
+            automaticallyEnableMetal: false
+        )
+    }
+
+    @Test
     func clearScreenActionCallsHandler() {
         let view = TerminalView(rows: 6, columns: 40)
         var clearCalls = 0

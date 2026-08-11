@@ -7,6 +7,38 @@ description: Remora 版本更新历史
 
 ## [Unreleased]
 
+## [v0.19.2] - 2026-08-11
+
+### English
+
+#### Added
+
+- Added Finder-style multi-selection for remote files, including batch clone, move, delete, and download actions. Clone operations now show live progress and safely cancel when the remote session changes.
+- Added a designed drag-to-Applications DMG to every macOS release alongside the updater-friendly ZIP package, with SHA-256 checksums for both formats.
+
+#### Changed
+
+- Updated the terminal engine to the official SwiftTerm v1.18.0 release while keeping Remora's bounded output coalescing inside `RemoraTerminal`. This brings improved Unicode combining-character rendering and more reliable local-process exit delivery without returning to a private dependency fork.
+
+#### Fixed
+
+- Fixed SSH reconnect after a transport timeout by invalidating the stale shared remote session before opening the replacement connection, including cases where another window still holds a lease.
+
+### 中文
+
+#### 新增
+
+- 为远程文件增加 Finder 风格多选，支持批量克隆、移动、删除和下载；克隆过程现在会显示实时进度，并在远程会话切换时安全取消。
+- macOS 发布产物除自动更新使用的 ZIP 外，现在还会生成带拖拽到“应用程序”布局的设计版 DMG，并为两种格式同时提供 SHA-256 校验文件。
+
+#### 变更
+
+- 将终端引擎升级到官方 SwiftTerm v1.18.0，并把 Remora 的有界输出合并逻辑保留在 `RemoraTerminal` 内部。此次升级改进了 Unicode 组合字符渲染和本地进程退出事件可靠性，同时不再依赖私人 fork。
+
+#### 修复
+
+- 修复 SSH 传输超时后的重连问题：建立替代连接前会先使失效的共享远程会话退出，即使其他窗口仍持有该会话租约也能正确恢复。
+
 ## [v0.19.1] - 2026-07-27
 
 ### English

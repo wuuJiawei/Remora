@@ -576,8 +576,4 @@ public final class TerminalView: SwiftTerm.TerminalView, @preconcurrency SwiftTe
 
         mouseDragged(with: dragEvent)
     }
-
-    deinit {
-        outputCoalescer?.invalidate()
-    }
 }

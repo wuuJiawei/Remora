@@ -10,8 +10,8 @@ ROOT = Pathname.new(__dir__).join('..').realpath
 PROJECT_PATH = ROOT.join('Remora.xcodeproj')
 PACKAGE_RESOLVED_PATH = PROJECT_PATH.join('project.xcworkspace/xcshareddata/swiftpm/Package.resolved')
 DEPLOYMENT_TARGET = '14.0'
-SWIFTTERM_URL = 'https://github.com/wuuJiawei/SwiftTerm'
-SWIFTTERM_REVISION = '4f632d1c60be15ad70152b006cb8679fc81c764f'
+SWIFTTERM_URL = 'https://github.com/migueldeicaza/SwiftTerm'
+SWIFTTERM_REVISION = '7691f85b222a67a66b58499e1b2647443cf0dda7'
 NATIVE_SOURCE_MANIFEST = JSON.parse(ROOT.join('Vendor/NativeSSH/SOURCES.json').read)
 
 def stable_uuid_keys(project)

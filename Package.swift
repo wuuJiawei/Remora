@@ -26,7 +26,7 @@ let package = Package(
         .executable(name: "terminal-stress", targets: ["TerminalStressTool"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/wuuJiawei/SwiftTerm", revision: "4f632d1c60be15ad70152b006cb8679fc81c764f"),
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm", revision: "7691f85b222a67a66b58499e1b2647443cf0dda7"),
     ],
     targets: [
         .target(
