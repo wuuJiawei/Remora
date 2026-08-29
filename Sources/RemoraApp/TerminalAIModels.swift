@@ -55,23 +55,29 @@ struct TerminalAIServiceConfiguration: Equatable, Sendable {
 
 enum TerminalAIServiceError: LocalizedError {
     case invalidBaseURL
+    case invalidConfiguration(String)
     case invalidResponse
-    case httpError(Int)
+    case httpError(Int, String?)
     case missingContent
     case undecodablePayload
 
     var errorDescription: String? {
         switch self {
         case .invalidBaseURL:
-            return "The AI base URL is invalid."
+            return tr("The AI base URL is invalid.")
+        case .invalidConfiguration(let message):
+            return tr(message)
         case .invalidResponse:
-            return "The AI provider returned an invalid response."
-        case .httpError(let statusCode):
-            return "The AI provider request failed with HTTP \(statusCode)."
+            return tr("The AI provider returned an invalid response.")
+        case .httpError(let statusCode, let providerMessage):
+            if let providerMessage, !providerMessage.isEmpty {
+                return String(format: tr("The AI provider request failed with HTTP %d: %@"), statusCode, providerMessage)
+            }
+            return String(format: tr("The AI provider request failed with HTTP %d."), statusCode)
         case .missingContent:
-            return "The AI provider response did not include assistant content."
+            return tr("The AI provider response did not include assistant content.")
         case .undecodablePayload:
-            return "The AI provider response could not be decoded into Remora's assistant format."
+            return tr("The AI provider response could not be decoded into Remora's assistant format.")
         }
     }
 }

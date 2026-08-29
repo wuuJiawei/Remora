@@ -18,7 +18,7 @@ enum TerminalAIComposerSubmissionAction: Equatable {
         }
 
         if selector == #selector(NSResponder.insertNewline(_:)) {
-            return modifiers.contains(.shift) ? .insertLineBreak : .submit
+            return modifiers.contains(.shift) && !modifiers.contains(.command) ? .insertLineBreak : .submit
         }
 
         return .deferToSystem
@@ -56,7 +56,7 @@ struct TerminalAIComposerInputView: NSViewRepresentable {
         textView.isGrammarCheckingEnabled = false
         textView.smartInsertDeleteEnabled = false
         textView.font = .systemFont(ofSize: 13)
-        textView.textContainerInset = NSSize(width: 8, height: 10)
+        textView.textContainerInset = NSSize(width: 10, height: 9)
         textView.drawsBackground = false
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
@@ -78,16 +78,19 @@ struct TerminalAIComposerInputView: NSViewRepresentable {
             return
         }
 
-        if context.coordinator.changeOrigin == .textView {
-            context.coordinator.changeOrigin = .swiftUI
-        } else if context.coordinator.lastSyncedText != text {
+        if context.coordinator.lastSyncedText != text {
             let selectedRange = textView.selectedRange()
             textView.string = text
-            textView.setSelectedRange(selectedRange)
+            let maxLocation = (text as NSString).length
+            let location = min(selectedRange.location, maxLocation)
+            let length = min(selectedRange.length, maxLocation - location)
+            textView.setSelectedRange(NSRange(location: location, length: length))
             context.coordinator.lastSyncedText = text
         }
 
+        context.coordinator.changeOrigin = .swiftUI
         textView.isEditable = isEnabled
+        context.coordinator.onSubmit = onSubmit
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -97,7 +100,7 @@ struct TerminalAIComposerInputView: NSViewRepresentable {
         }
 
         @Binding var text: String
-        let onSubmit: () -> Void
+        var onSubmit: () -> Void
         weak var textView: NSTextView?
         var lastSyncedText: String
         var changeOrigin: ChangeOrigin = .swiftUI

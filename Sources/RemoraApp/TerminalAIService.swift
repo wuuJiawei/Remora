@@ -15,6 +15,7 @@ final class TerminalAIService: @unchecked Sendable {
         to context: TerminalAIRequestContext,
         configuration: TerminalAIServiceConfiguration
     ) async throws -> TerminalAIResponse {
+        try validate(configuration)
         let request = try buildRequest(context: context, configuration: configuration)
         requestObserver?(request)
         let (data, response) = try await session.data(for: request)
@@ -23,7 +24,7 @@ final class TerminalAIService: @unchecked Sendable {
             throw TerminalAIServiceError.invalidResponse
         }
         guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw TerminalAIServiceError.httpError(httpResponse.statusCode)
+            throw TerminalAIServiceError.httpError(httpResponse.statusCode, providerMessage(from: data))
         }
 
         let content: String
@@ -34,7 +35,23 @@ final class TerminalAIService: @unchecked Sendable {
             content = try decodeClaudeContent(from: data)
         }
 
-        return try decodeAssistantPayload(from: content)
+        return decodeAssistantPayload(from: content)
+    }
+
+    private func validate(_ configuration: TerminalAIServiceConfiguration) throws {
+        let baseURL = configuration.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: baseURL),
+              let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              url.host != nil
+        else {
+            throw TerminalAIServiceError.invalidBaseURL
+        }
+        guard !configuration.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw TerminalAIServiceError.invalidConfiguration("The AI model is not configured.")
+        }
+        guard !configuration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw TerminalAIServiceError.invalidConfiguration("The AI API key is not configured.")
+        }
     }
 
     private func buildRequest(
@@ -47,6 +64,7 @@ final class TerminalAIService: @unchecked Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 45
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let prompt = userPrompt(from: context)
@@ -130,7 +148,8 @@ final class TerminalAIService: @unchecked Sendable {
 
     private func decodeOpenAIContent(from data: Data) throws -> String {
         let payload = try decoder.decode(OpenAIResponseBody.self, from: data)
-        guard let content = payload.choices.first?.message.content else {
+        guard let content = payload.choices.first?.message.content.stringValue,
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw TerminalAIServiceError.missingContent
         }
         return content
@@ -144,16 +163,17 @@ final class TerminalAIService: @unchecked Sendable {
         return text
     }
 
-    private func decodeAssistantPayload(from rawContent: String) throws -> TerminalAIResponse {
+    private func decodeAssistantPayload(from rawContent: String) -> TerminalAIResponse {
         let cleaned = cleanedJSONContent(from: rawContent)
-        guard let data = cleaned.data(using: .utf8) else {
-            throw TerminalAIServiceError.undecodablePayload
+        let candidates = [cleaned, jsonObjectSubstring(from: cleaned)].compactMap { $0 }
+        for candidate in candidates {
+            guard let data = candidate.data(using: .utf8),
+                  let response = try? decoder.decode(TerminalAIResponse.self, from: data)
+            else { continue }
+            return response
         }
-        do {
-            return try decoder.decode(TerminalAIResponse.self, from: data)
-        } catch {
-            throw TerminalAIServiceError.undecodablePayload
-        }
+        // ponytail: keep the assistant useful when a provider ignores JSON-only output.
+        return TerminalAIResponse(summary: cleaned, commands: [], warnings: [])
     }
 
     private func cleanedJSONContent(from rawContent: String) -> String {
@@ -168,6 +188,27 @@ final class TerminalAIService: @unchecked Sendable {
             lines.removeLast()
         }
         return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func jsonObjectSubstring(from content: String) -> String? {
+        guard let start = content.firstIndex(of: "{"),
+              let end = content.lastIndex(of: "}"), start < end
+        else { return nil }
+        return String(content[start...end])
+    }
+
+    private func providerMessage(from data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            let text = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : String(text.prefix(240))
+        }
+        if let error = object["error"] as? [String: Any], let message = error["message"] as? String {
+            return String(message.trimmingCharacters(in: .whitespacesAndNewlines).prefix(240))
+        }
+        if let message = object["message"] as? String {
+            return String(message.trimmingCharacters(in: .whitespacesAndNewlines).prefix(240))
+        }
+        return nil
     }
 
     private var systemPrompt: String {
@@ -202,13 +243,37 @@ private struct ClaudeRequestBody: Encodable {
 private struct OpenAIResponseBody: Decodable {
     struct Choice: Decodable {
         struct Message: Decodable {
-            let content: String
+            let content: OpenAIContent
         }
 
         let message: Message
     }
 
     let choices: [Choice]
+}
+
+private enum OpenAIContent: Decodable {
+    case text(String)
+
+    private struct Part: Decodable {
+        let text: String?
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let text = try? container.decode(String.self) {
+            self = .text(text)
+            return
+        }
+        let parts = try container.decode([Part].self)
+        self = .text(parts.compactMap(\.text).joined())
+    }
+
+    var stringValue: String {
+        switch self {
+        case .text(let value): return value
+        }
+    }
 }
 
 private struct ClaudeResponseBody: Decodable {

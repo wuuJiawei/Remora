@@ -26,6 +26,17 @@ struct TerminalAIComposerTests {
     }
 
     @Test
+    func commandEnterSubmitsEvenWhenUsedWithShift() {
+        let action = TerminalAIComposerSubmissionAction.resolve(
+            selector: #selector(NSResponder.insertNewline(_:)),
+            modifiers: [.command, .shift],
+            hasMarkedText: false
+        )
+
+        #expect(action == .submit)
+    }
+
+    @Test
     func markedTextPreventsPrematureSubmitForIME() {
         let action = TerminalAIComposerSubmissionAction.resolve(
             selector: #selector(NSResponder.insertNewline(_:)),

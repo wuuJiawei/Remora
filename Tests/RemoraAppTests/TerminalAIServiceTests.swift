@@ -109,6 +109,90 @@ struct TerminalAIServiceTests {
         #expect(response.summary == "Wrapped payload.")
         #expect(response.commands.isEmpty)
     }
+
+    @Test
+    func responseFallsBackToPlainTextWhenProviderIgnoresJSONInstruction() async throws {
+        let harness = HTTPTestHarness(responseStatusCode: 200) { _ in
+            openAIResponseJSON(content: "The command failed because the directory is not writable.")
+        }
+
+        let response = try await TerminalAIService(session: harness.session).respond(
+            to: TerminalAIRequestContext(userPrompt: "Explain this output."),
+            configuration: TerminalAIServiceConfiguration(
+                baseURL: "https://example.com/v1",
+                apiFormat: .openAICompatible,
+                model: "gpt-4.1-mini",
+                apiKey: "sk-openai"
+            )
+        )
+
+        #expect(response.summary == "The command failed because the directory is not writable.")
+        #expect(response.commands.isEmpty)
+    }
+
+    @Test
+    func responseFindsStructuredPayloadInsideProviderCommentary() async throws {
+        let harness = HTTPTestHarness(responseStatusCode: 200) { _ in
+            openAIResponseJSON(
+                content: "Result:\n{\"summary\":\"Recovered JSON.\",\"commands\":[],\"warnings\":[]}\nDone."
+            )
+        }
+
+        let response = try await TerminalAIService(session: harness.session).respond(
+            to: TerminalAIRequestContext(userPrompt: "Explain this output."),
+            configuration: TerminalAIServiceConfiguration(
+                baseURL: "https://example.com/v1",
+                apiFormat: .openAICompatible,
+                model: "gpt-4.1-mini",
+                apiKey: "sk-openai"
+            )
+        )
+
+        #expect(response.summary == "Recovered JSON.")
+    }
+
+    @Test
+    func httpErrorsExposeProviderMessage() async throws {
+        let harness = HTTPTestHarness(responseStatusCode: 401) { _ in
+            "{\"error\":{\"message\":\"invalid_api_key\"}}"
+        }
+
+        do {
+            _ = try await TerminalAIService(session: harness.session).respond(
+                to: TerminalAIRequestContext(userPrompt: "Explain this output."),
+                configuration: TerminalAIServiceConfiguration(
+                    baseURL: "https://example.com/v1",
+                    apiFormat: .openAICompatible,
+                    model: "gpt-4.1-mini",
+                    apiKey: "sk-openai"
+                )
+            )
+            Issue.record("Expected the request to fail.")
+        } catch let error as TerminalAIServiceError {
+            #expect(error.localizedDescription.contains("invalid_api_key"))
+        }
+    }
+
+    @Test
+    func openAIContentPartsAreJoined() async throws {
+        let harness = HTTPTestHarness(responseStatusCode: 200) { _ in
+            jsonString([
+                "choices": [["message": ["content": [["type": "text", "text": "first"], ["type": "text", "text": " second"]]]]]
+            ])
+        }
+
+        let response = try await TerminalAIService(session: harness.session).respond(
+            to: TerminalAIRequestContext(userPrompt: "Explain this output."),
+            configuration: TerminalAIServiceConfiguration(
+                baseURL: "https://example.com/v1",
+                apiFormat: .openAICompatible,
+                model: "gpt-4.1-mini",
+                apiKey: "sk-openai"
+            )
+        )
+
+        #expect(response.summary == "first second")
+    }
 }
 
 private actor HTTPTestHarness {

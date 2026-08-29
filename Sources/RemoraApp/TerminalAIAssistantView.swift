@@ -150,10 +150,22 @@ struct TerminalAIAssistantView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(tr("Terminal AI"))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(VisualStyle.textPrimary)
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(Color.accentColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tr("Terminal AI"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(VisualStyle.textPrimary)
+                Text(coordinator.isResponding ? tr("Working…") : tr("Ready"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(VisualStyle.textSecondary)
+            }
+            Spacer(minLength: 0)
+            if coordinator.isResponding {
+                ProgressView()
+                    .controlSize(.small)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -165,14 +177,15 @@ struct TerminalAIAssistantView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(VisualStyle.textSecondary)
 
-            HStack(alignment: .center, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .center, spacing: 8) {
                 actionButton(title: tr("Explain Output"), prompt: "Explain the latest terminal output in plain language.")
                 actionButton(title: tr("Suggest Next Command"), prompt: "Suggest the safest next command for this terminal session.")
                 actionButton(
                     title: tr("Fix Last Error"),
                     prompt: coordinator.smartAssist?.prompt ?? "Explain the latest terminal error and suggest the safest next command."
                 )
-                Spacer(minLength: 0)
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -357,7 +370,7 @@ struct TerminalAIAssistantView: View {
                     isEnabled: true,
                     onSubmit: { submit(promptDraft) }
                 )
-                .frame(minHeight: 42, idealHeight: 50, maxHeight: 64)
+                .frame(minHeight: 44, idealHeight: 68, maxHeight: 112)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(VisualStyle.inputFieldBackground)
@@ -371,14 +384,16 @@ struct TerminalAIAssistantView: View {
             }
 
             HStack {
-                Text(tr("Enter to send • Shift+Enter for newline"))
+                Text(promptDraft.isEmpty ? tr("Ask Terminal AI") : "\(promptDraft.count) \(tr("characters"))")
                     .font(.system(size: 11))
                     .foregroundStyle(VisualStyle.textSecondary)
 
                 Spacer()
 
-                Button(tr("Send")) {
+                Button {
                     submit(promptDraft)
+                } label: {
+                    Label(tr("Send"), systemImage: "paperplane.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -442,7 +457,10 @@ struct TerminalAIAssistantView: View {
                 }
             } catch {
                 await MainActor.run {
-                    submissionError = tr("Terminal AI request failed.")
+                    let detail = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                    submissionError = detail.isEmpty
+                        ? tr("Terminal AI request failed.")
+                        : "\(tr("Terminal AI request failed.")) \(detail)"
                 }
             }
         }
