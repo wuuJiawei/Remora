@@ -71,7 +71,8 @@ public struct NativeDirectSessionConnector: Sendable {
                         endpoint: key.route.endpoint,
                         username: key.route.transportUsername,
                         authentication: authentication,
-                        connectTimeout: .seconds(max(1, host.policies.connectTimeoutSeconds))
+                        connectTimeout: .seconds(max(1, host.policies.connectTimeoutSeconds)),
+                        keepAliveSeconds: host.policies.keepAliveSeconds
                     )
                 )
                 let session = RemoteSession(key: key, transport: transport)

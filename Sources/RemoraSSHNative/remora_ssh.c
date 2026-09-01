@@ -569,6 +569,31 @@ bool remora_ssh_context_is_authenticated(const remora_ssh_context *context) {
         libssh2_userauth_authenticated(context->session) != 0;
 }
 
+remora_ssh_error_code remora_ssh_context_configure_keepalive(
+    remora_ssh_context *context,
+    unsigned int interval_seconds,
+    bool want_reply,
+    remora_ssh_error *out_error
+) {
+    if (!remora_ssh_context_valid(context)) {
+        return remora_ssh_invalid_context(out_error);
+    }
+    libssh2_keepalive_config(context->session, want_reply ? 1 : 0, interval_seconds);
+    remora_ssh_error_reset(out_error);
+    return REMORA_SSH_ERROR_NONE;
+}
+
+remora_ssh_error_code remora_ssh_context_keepalive_send(
+    remora_ssh_context *context,
+    remora_ssh_error *out_error
+) {
+    if (!remora_ssh_context_valid(context)) {
+        return remora_ssh_invalid_context(out_error);
+    }
+    int result = libssh2_keepalive_send(context->session, NULL);
+    return remora_ssh_map_result(context, result, "unable to send SSH keepalive", out_error);
+}
+
 remora_ssh_error_code remora_ssh_context_host_key(
     remora_ssh_context *context,
     remora_ssh_host_key *out_host_key,

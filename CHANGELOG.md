@@ -6,6 +6,24 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.19.3] - 2026-09-01
+
+### English
+
+#### Fixed
+
+- Fixed idle SSH sessions being closed after a socket wait timeout, including JumpServer sessions that could repeatedly request MFA verification after the terminal lost focus.
+- Fixed a native SSH concurrency crash during slow large-file uploads by serializing command-channel EOF and exit-status reads with SFTP and other libssh2 operations on the shared session.
+- Enabled the existing per-host SSH keepalive interval for native sessions and continued idle shell polling after keepalive sends.
+
+### 中文
+
+#### 修复
+
+- 修复 SSH 会话空闲等待超时后被错误关闭的问题，避免终端失焦后 JumpServer 会话反复断开并重新要求输入验证码。
+- 修复慢速大文件上传期间的原生 SSH 并发崩溃：命令通道的 EOF 和退出码读取现在与共享会话上的 SFTP 及其他 libssh2 操作严格串行。
+- 让原有的主机级 SSH 保活间隔真正作用于原生会话，并在发送保活包后继续进行终端空闲轮询。
+
 ## [v0.19.2] - 2026-08-11
 
 ### English

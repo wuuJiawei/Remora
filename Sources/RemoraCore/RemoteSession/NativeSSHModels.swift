@@ -26,19 +26,22 @@ public struct NativeSSHConnectionConfiguration: Sendable {
     public let authentication: NativeSSHAuthentication
     public let connectTimeout: Duration
     public let operationTimeout: Duration
+    public let keepAliveSeconds: Int
 
     public init(
         endpoint: RemoteEndpoint,
         username: String,
         authentication: NativeSSHAuthentication,
         connectTimeout: Duration = .seconds(10),
-        operationTimeout: Duration = .seconds(30)
+        operationTimeout: Duration = .seconds(30),
+        keepAliveSeconds: Int = 30
     ) {
         self.endpoint = endpoint
         self.username = username
         self.authentication = authentication
         self.connectTimeout = connectTimeout
         self.operationTimeout = operationTimeout
+        self.keepAliveSeconds = max(0, keepAliveSeconds)
     }
 }
 

@@ -193,7 +193,7 @@ public actor NativeShellChannel: RemoteShellChannelProtocol {
 
                 if stdout.data.isEmpty, stderr.data.isEmpty {
                     let directions = stdout.directions.union(stderr.directions)
-                    try await runtime.waitForSocket(
+                    try await runtime.waitForSocketKeepingAlive(
                         directions: directions.isEmpty ? .inbound : directions
                     )
                 } else {

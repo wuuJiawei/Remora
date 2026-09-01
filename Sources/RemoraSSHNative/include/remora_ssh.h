@@ -134,6 +134,18 @@ remora_ssh_error_code remora_ssh_context_handshake(
 uint32_t remora_ssh_context_block_directions(const remora_ssh_context *context);
 bool remora_ssh_context_is_authenticated(const remora_ssh_context *context);
 
+remora_ssh_error_code remora_ssh_context_configure_keepalive(
+    remora_ssh_context *context,
+    unsigned int interval_seconds,
+    bool want_reply,
+    remora_ssh_error *out_error
+);
+
+remora_ssh_error_code remora_ssh_context_keepalive_send(
+    remora_ssh_context *context,
+    remora_ssh_error *out_error
+);
+
 remora_ssh_error_code remora_ssh_context_host_key(
     remora_ssh_context *context,
     remora_ssh_host_key *out_host_key,

@@ -82,10 +82,15 @@ public actor LibSSH2Transport {
                 context: context,
                 socket: socket,
                 operationTimeout: configuration.operationTimeout,
+                keepAliveSeconds: configuration.keepAliveSeconds,
                 diagnosticLog: diagnosticLog
             )
             pendingRuntime = runtime
             self.runtime = runtime
+
+            try await runtime.perform {
+                try context.configureKeepalive(intervalSeconds: configuration.keepAliveSeconds)
+            }
 
             emit(
                 .handshaking,
@@ -531,6 +536,7 @@ final class NativeSSHRuntime: @unchecked Sendable {
     private let executor: NativeSSHSerialExecutor
     private let socket: NativeSocketHandle
     private let operationTimeout: Duration
+    let keepAliveSeconds: Int
     private let diagnosticLog: NativeSSHDiagnosticLog
     private let lock = NSLock()
     private var closing = false
@@ -541,12 +547,14 @@ final class NativeSSHRuntime: @unchecked Sendable {
         context: NativeSSHContext,
         socket: NativeSocketHandle,
         operationTimeout: Duration,
+        keepAliveSeconds: Int,
         diagnosticLog: NativeSSHDiagnosticLog
     ) {
         self.executor = executor
         self.context = context
         self.socket = socket
         self.operationTimeout = operationTimeout
+        self.keepAliveSeconds = max(0, keepAliveSeconds)
         self.diagnosticLog = diagnosticLog
     }
 
@@ -672,6 +680,20 @@ final class NativeSSHRuntime: @unchecked Sendable {
             directions: directions,
             timeout: timeout ?? operationTimeout
         )
+    }
+
+    func waitForSocketKeepingAlive(directions: NativeSocketDirections) async throws {
+        do {
+            let timeout = keepAliveSeconds > 0
+                ? .seconds(keepAliveSeconds)
+                : operationTimeout
+            try await waitForSocket(directions: directions, timeout: timeout)
+        } catch let error as RemoteOperationError where error.code == "socket_wait_timeout" {
+            guard keepAliveSeconds > 0 else { return }
+            try await run(phase: .ready, operation: "keepalive") {
+                try self.context.keepaliveSend()
+            }
+        }
     }
 
     func beginClosing() {

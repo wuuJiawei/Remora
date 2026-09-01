@@ -59,6 +59,32 @@ final class NativeSSHContext: @unchecked Sendable {
         return try status(result, error: &nativeError, category: .session, code: "handshake_failed")
     }
 
+    func configureKeepalive(intervalSeconds: Int, wantReply: Bool = true) throws {
+        let handle = try requiredHandle()
+        var nativeError = remora_ssh_error()
+        let result = remora_ssh_context_configure_keepalive(
+            handle,
+            UInt32(clamping: max(0, intervalSeconds)),
+            wantReply,
+            &nativeError
+        )
+        guard result == REMORA_SSH_ERROR_NONE else {
+            throw operationError(
+                result,
+                error: &nativeError,
+                category: .network,
+                code: "keepalive_configuration_failed"
+            )
+        }
+    }
+
+    func keepaliveSend() throws -> NativeSSHCallStatus {
+        let handle = try requiredHandle()
+        var nativeError = remora_ssh_error()
+        let result = remora_ssh_context_keepalive_send(handle, &nativeError)
+        return try status(result, error: &nativeError, category: .network, code: "keepalive_send_failed")
+    }
+
     func hostKey() throws -> NativeSSHHostKey {
         let handle = try requiredHandle()
         var nativeError = remora_ssh_error()

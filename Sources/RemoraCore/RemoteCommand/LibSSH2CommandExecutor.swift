@@ -209,8 +209,11 @@ actor NativeCommandExecution: SFTPCommandExecution {
                 let stderr = try await read(stream: REMORA_SSH_CHANNEL_STANDARD_ERROR)
                 if !stdout.data.isEmpty { continuation.yield(.standardOutput(stdout.data)) }
                 if !stderr.data.isEmpty { continuation.yield(.standardError(stderr.data)) }
-                if handle.isEOF {
-                    continuation.yield(.exitStatus(handle.exitStatus))
+                let channelState = try await runtime.perform {
+                    (isEOF: self.handle.isEOF, exitStatus: self.handle.exitStatus)
+                }
+                if channelState.isEOF {
+                    continuation.yield(.exitStatus(channelState.exitStatus))
                     await close(failure: nil, cancelPump: false)
                     return
                 }
