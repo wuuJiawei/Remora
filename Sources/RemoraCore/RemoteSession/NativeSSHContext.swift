@@ -179,6 +179,32 @@ final class NativeSSHContext: @unchecked Sendable {
         return try status(result, error: &nativeError, category: .authentication, code: "private_key_authentication_failed")
     }
 
+    func authenticateEd25519PrivateKey(
+        username: String,
+        privateKey: OpenSSHEd25519PrivateKey
+    ) throws -> NativeSSHCallStatus {
+        let handle = try requiredHandle()
+        var nativeError = remora_ssh_error()
+        let signingContext = NativeEd25519SigningContext(key: privateKey)
+        let opaqueContext = Unmanaged.passRetained(signingContext).toOpaque()
+        defer { Unmanaged<NativeEd25519SigningContext>.fromOpaque(opaqueContext).release() }
+
+        let result = username.withCString { usernamePointer in
+            privateKey.publicKeyBlob.withUnsafeBytes { publicKeyBuffer -> remora_ssh_error_code in
+                remora_ssh_context_authenticate_ed25519_private_key(
+                    handle,
+                    usernamePointer,
+                    publicKeyBuffer.bindMemory(to: UInt8.self).baseAddress,
+                    publicKeyBuffer.count,
+                    nativeEd25519SignCallback,
+                    opaqueContext,
+                    &nativeError
+                )
+            }
+        }
+        return try status(result, error: &nativeError, category: .authentication, code: "private_key_authentication_failed")
+    }
+
     func authenticateAgent(username: String) throws -> NativeSSHCallStatus {
         let handle = try requiredHandle()
         var nativeError = remora_ssh_error()
@@ -376,4 +402,42 @@ private func withOptionalCString<Result>(
 ) rethrows -> Result {
     guard let value else { return try body(nil) }
     return try value.withCString(body)
+}
+
+private final class NativeEd25519SigningContext {
+    let key: OpenSSHEd25519PrivateKey
+
+    init(key: OpenSSHEd25519PrivateKey) {
+        self.key = key
+    }
+}
+
+private func nativeEd25519SignCallback(
+    _ context: UnsafeMutableRawPointer?,
+    _ data: UnsafePointer<UInt8>?,
+    _ dataLength: Int,
+    _ signature: UnsafeMutablePointer<UInt8>?,
+    _ signatureCapacity: Int,
+    _ signatureLength: UnsafeMutablePointer<Int>?
+) -> Int32 {
+    guard let context,
+          let data,
+          let signature,
+          let signatureLength,
+          dataLength >= 0
+    else {
+        return -1
+    }
+    let signingContext = Unmanaged<NativeEd25519SigningContext>
+        .fromOpaque(context)
+        .takeUnretainedValue()
+    let payload = Data(bytes: data, count: dataLength)
+    guard let signedData = signingContext.key.signature(for: payload),
+          signedData.count <= signatureCapacity
+    else {
+        return -1
+    }
+    signedData.copyBytes(to: signature, count: signedData.count)
+    signatureLength.pointee = signedData.count
+    return 0
 }

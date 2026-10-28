@@ -98,7 +98,8 @@ let package = Package(
         ),
         .testTarget(
             name: "RemoraCoreTests",
-            dependencies: ["RemoraCore"]
+            dependencies: ["RemoraCore"],
+            exclude: ["Fixtures"]
         ),
         .testTarget(
             name: "RemoraAppTests",

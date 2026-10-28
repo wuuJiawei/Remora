@@ -15,6 +15,7 @@ public struct NativeSSHPrivateKey: Equatable, Sendable {
 public enum NativeSSHAuthentication: Sendable {
     case password(String)
     case privateKey(NativeSSHPrivateKey)
+    case ed25519PrivateKey(OpenSSHEd25519PrivateKey)
     case agent
     case keyboardInteractive(AuthenticationCoordinator)
     case passwordOrKeyboardInteractive(password: String, coordinator: AuthenticationCoordinator)

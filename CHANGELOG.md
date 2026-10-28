@@ -6,6 +6,18 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+### English
+
+#### Fixed
+
+- Fixed private-key authentication failing for Ed25519 keys with `PK - Invalid key tag or value`. OpenSSH-format Ed25519 private keys are now imported by RemoraCore and signed with CryptoKit, including bcrypt-encrypted keys (`aes*-ctr` and `aes*-cbc`).
+
+### 中文
+
+#### 修复
+
+- 修复 Ed25519 私钥认证失败并报错 `PK - Invalid key tag or value` 的问题：现在由 RemoraCore 解析 OpenSSH 格式的 Ed25519 私钥并用 CryptoKit 完成认证签名，同时支持 bcrypt 加密的 `aes*-ctr` 和 `aes*-cbc` 私钥。
+
 ## [v0.19.3] - 2026-09-01
 
 ### English

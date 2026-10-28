@@ -760,6 +760,112 @@ remora_ssh_error_code remora_ssh_context_authenticate_private_key(
     return remora_ssh_map_result(context, result, "private-key authentication failed", out_error);
 }
 
+typedef struct remora_ssh_ed25519_sign_bridge {
+    remora_ssh_ed25519_sign_handler handler;
+    void *context;
+} remora_ssh_ed25519_sign_bridge;
+
+static int remora_ssh_ed25519_sign_callback(
+    LIBSSH2_SESSION *session,
+    unsigned char **signature,
+    size_t *signature_length,
+    const unsigned char *data,
+    size_t data_length,
+    void **abstract
+) {
+    (void)session;
+    if (signature == NULL || signature_length == NULL ||
+        data == NULL || abstract == NULL || *abstract == NULL) {
+        return -1;
+    }
+    const remora_ssh_ed25519_sign_bridge *bridge =
+        (const remora_ssh_ed25519_sign_bridge *)(*abstract);
+    if (bridge->handler == NULL) {
+        return -1;
+    }
+    /*
+     * libssh2 releases this buffer with LIBSSH2_FREE, which is free() because
+     * the session is created with libssh2_session_init_ex(NULL, NULL, NULL, ...)
+     * and therefore uses the default allocators.
+     */
+    unsigned char *buffer = malloc(REMORA_SSH_ED25519_SIGNATURE_LENGTH);
+    if (buffer == NULL) {
+        return -1;
+    }
+    size_t produced = 0;
+    int handler_result = bridge->handler(
+        bridge->context,
+        data,
+        data_length,
+        buffer,
+        REMORA_SSH_ED25519_SIGNATURE_LENGTH,
+        &produced
+    );
+    if (handler_result != 0 || produced != REMORA_SSH_ED25519_SIGNATURE_LENGTH) {
+        free(buffer);
+        return -1;
+    }
+    *signature = buffer;
+    *signature_length = produced;
+    return 0;
+}
+
+remora_ssh_error_code remora_ssh_context_authenticate_ed25519_private_key(
+    remora_ssh_context *context,
+    const char *username,
+    const uint8_t *public_key_blob,
+    size_t public_key_blob_length,
+    remora_ssh_ed25519_sign_handler sign_handler,
+    void *sign_context,
+    remora_ssh_error *out_error
+) {
+    if (!remora_ssh_context_valid(context)) {
+        return remora_ssh_invalid_context(out_error);
+    }
+    static const char ed25519_method[] = "ssh-ed25519";
+    const size_t ed25519_method_length = sizeof(ed25519_method) - 1;
+    if (username == NULL || public_key_blob == NULL ||
+        public_key_blob_length < 4 + ed25519_method_length ||
+        sign_handler == NULL) {
+        remora_ssh_error_set(
+            out_error,
+            REMORA_SSH_ERROR_INVALID_ARGUMENT,
+            0,
+            "Ed25519 authentication arguments are invalid"
+        );
+        return REMORA_SSH_ERROR_INVALID_ARGUMENT;
+    }
+    const uint32_t method_length =
+        ((uint32_t)public_key_blob[0] << 24) |
+        ((uint32_t)public_key_blob[1] << 16) |
+        ((uint32_t)public_key_blob[2] << 8) |
+        (uint32_t)public_key_blob[3];
+    if (method_length != ed25519_method_length ||
+        memcmp(public_key_blob + 4, ed25519_method, ed25519_method_length) != 0) {
+        remora_ssh_error_set(
+            out_error,
+            REMORA_SSH_ERROR_INVALID_ARGUMENT,
+            0,
+            "Ed25519 public key blob is invalid"
+        );
+        return REMORA_SSH_ERROR_INVALID_ARGUMENT;
+    }
+    const remora_ssh_ed25519_sign_bridge bridge = {
+        .handler = sign_handler,
+        .context = sign_context
+    };
+    void *abstract = (void *)&bridge;
+    int result = libssh2_userauth_publickey(
+        context->session,
+        username,
+        public_key_blob,
+        public_key_blob_length,
+        remora_ssh_ed25519_sign_callback,
+        &abstract
+    );
+    return remora_ssh_map_result(context, result, "Ed25519 private-key authentication failed", out_error);
+}
+
 remora_ssh_error_code remora_ssh_context_authenticate_agent(
     remora_ssh_context *context,
     const char *username,

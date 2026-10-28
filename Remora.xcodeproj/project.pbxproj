@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00F4B070CD81785992A1AAE5735D8EC2 /* base64.c in Sources */ = {isa = PBXBuildFile; fileRef = 8352BF076FBDDE7A858D924161ED04B3 /* base64.c */; };
+		014664CA2A450DC42FB5ACD4B0206391 /* OpenSSHPrivateKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFBB2ADFE47E0D10E260EAC1754A8B38 /* OpenSSHPrivateKey.swift */; };
 		017C3CBC9982B54547432220455AC321 /* packet.c in Sources */ = {isa = PBXBuildFile; fileRef = E937D8DD869D65E15B5D79704F8672BA /* packet.c */; };
 		01B1A457F67AA494716BDFE553294060 /* SessionManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E67A383CBCE2CF3C977C563020A205 /* SessionManagerProtocol.swift */; };
 		023A2CCBB892E839D5273DE1FE040F4E /* NativeDirectSessionConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B6D76CB0DCF7EF82A1B4DC598AC746 /* NativeDirectSessionConnector.swift */; };
@@ -139,6 +140,7 @@
 		65DF16224FAEF7A934535B6E1DCB8D8F /* TerminalSmartAssistNotificationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9275E48FD86480F584F94A713397003 /* TerminalSmartAssistNotificationState.swift */; };
 		6616DA8D142152D3CD8C860B48201890 /* LocalShellSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95EE50F4D44F70A45F55EE10146837D5 /* LocalShellSession.swift */; };
 		669D02585E01C5F46E69E80524E8CCC1 /* bignum_mod.c in Sources */ = {isa = PBXBuildFile; fileRef = E0FFC1E7CF15C5A295CE27E802700474 /* bignum_mod.c */; };
+		66B344259D9133E7C58F7218D8396119 /* remora_openssh_key_crypto.c in Sources */ = {isa = PBXBuildFile; fileRef = B6BA37C74C995FEAC1127F2DC23F68ED /* remora_openssh_key_crypto.c */; };
 		67A1A3D3DE2A637D328F98202E7D8BAB /* ServerMetricsCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B79C27FD4A19804A1F13F7A656E492 /* ServerMetricsCenter.swift */; };
 		67C645D419E23D4FF20BDDED47D8C10A /* bignum_core.c in Sources */ = {isa = PBXBuildFile; fileRef = 8FE97A161A9A58F36574578DE2547A4E /* bignum_core.c */; };
 		6832C0B98F25CFB93D73B3A776ACE31B /* HostConnectionExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744A4F11E665DDE8727DC299D2EB509D /* HostConnectionExporter.swift */; };
@@ -580,6 +582,7 @@
 		B4A6DC0EE4D0DE6292562AECA5B143AA /* AppSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		B55DD1999A275BBAD49D2D63FBD75FE3 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk/System/Library/Frameworks/Security.framework; sourceTree = DEVELOPER_DIR; };
 		B5C1332DA66FEC8F49586DC49767ECD7 /* knownhost.c */ = {isa = PBXFileReference; includeInIndex = 1; name = knownhost.c; path = src/knownhost.c; sourceTree = "<group>"; };
+		B6BA37C74C995FEAC1127F2DC23F68ED /* remora_openssh_key_crypto.c */ = {isa = PBXFileReference; includeInIndex = 1; path = remora_openssh_key_crypto.c; sourceTree = "<group>"; };
 		B777530E18E2B7EF1CD47C2B4B0108FA /* pkparse.c */ = {isa = PBXFileReference; includeInIndex = 1; name = pkparse.c; path = library/pkparse.c; sourceTree = "<group>"; };
 		B78B7EC4A918058B12AC15099C92C151 /* crypt.c */ = {isa = PBXFileReference; includeInIndex = 1; name = crypt.c; path = src/crypt.c; sourceTree = "<group>"; };
 		B7CC7C70D9CFB36B6378250146E47A8F /* RemoteLogViewerViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteLogViewerViewModel.swift; sourceTree = "<group>"; };
@@ -631,6 +634,7 @@
 		DBE58750EF2360742E83CE7A4CB2C75D /* lmots.c */ = {isa = PBXFileReference; includeInIndex = 1; name = lmots.c; path = library/lmots.c; sourceTree = "<group>"; };
 		DD48B879237F44211FBA10A7F6F54409 /* HostCatalogPersistence.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostCatalogPersistence.swift; sourceTree = "<group>"; };
 		DE47737300FF6DCF46416D241CFC446F /* AppLanguage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		DFBB2ADFE47E0D10E260EAC1754A8B38 /* OpenSSHPrivateKey.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OpenSSHPrivateKey.swift; path = Security/OpenSSHPrivateKey.swift; sourceTree = "<group>"; };
 		DFC69BE2A7D6A8803BDF2335139F658B /* NativeSSHChannelHandle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeSSHChannelHandle.swift; path = RemoteSession/NativeSSHChannelHandle.swift; sourceTree = "<group>"; };
 		E097C8ECD91E8C19E4F0C8AA7653736B /* RemoteExtractSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteExtractSheet.swift; sourceTree = "<group>"; };
 		E0F5F5C2FE702668990CDDAB58E1D019 /* NativeDirectTCPIPChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeDirectTCPIPChannel.swift; path = RemoteSession/NativeDirectTCPIPChannel.swift; sourceTree = "<group>"; };
@@ -898,6 +902,7 @@
 		30FFD9C8447E345BE592F1D801B5F4D6 /* RemoraSSHNative */ = {
 			isa = PBXGroup;
 			children = (
+				B6BA37C74C995FEAC1127F2DC23F68ED /* remora_openssh_key_crypto.c */,
 				66401F16BF77AF3A21FAD162618F4765 /* remora_ssh.c */,
 				DD0400BD40FBD2DF95A83F6D66B672CD /* include */,
 			);
@@ -1129,6 +1134,7 @@
 				56137DF68065D8F422723C1A2E5195BA /* RemoteShellIntegrationInstaller.swift */,
 				0C401943046E91FF40253186DCF7B607 /* CredentialStore.swift */,
 				3E1A2DE9F57086457D09A407DF8DA205 /* HostKeyStore.swift */,
+				DFBB2ADFE47E0D10E260EAC1754A8B38 /* OpenSSHPrivateKey.swift */,
 				92C19BBB0FA883E68E9BCDE9D551DA8E /* SessionManager.swift */,
 				329CCC3E1FD4671C58EFBA46B66EE37C /* ZmodemConstants.swift */,
 				19583DCE6320CB7D8C5020BFDBFC1D6B /* ZmodemDetector.swift */,
@@ -1432,6 +1438,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				66B344259D9133E7C58F7218D8396119 /* remora_openssh_key_crypto.c in Sources */,
 				131913E0904EA76BB7A4B2449277826F /* remora_ssh.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1613,6 +1620,7 @@
 				BBBCE2CEA4DC4C6471741174EC161D9A /* RemoteShellIntegrationInstaller.swift in Sources */,
 				592B9996650E813C8155DE203A9724C4 /* CredentialStore.swift in Sources */,
 				578766164222A6A2CC1CBCE9AFA7A6DA /* HostKeyStore.swift in Sources */,
+				014664CA2A450DC42FB5ACD4B0206391 /* OpenSSHPrivateKey.swift in Sources */,
 				06AFE9C58A7D7D83BA8934F9A75682C8 /* SessionManager.swift in Sources */,
 				1EC5DEFA4A8C7970D5BFE086ED72A19F /* ZmodemConstants.swift in Sources */,
 				E476F6243146519587BCD4B140099BB9 /* ZmodemDetector.swift in Sources */,

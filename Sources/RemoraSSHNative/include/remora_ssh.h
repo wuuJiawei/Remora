@@ -177,6 +177,57 @@ remora_ssh_error_code remora_ssh_context_authenticate_private_key(
     remora_ssh_error *out_error
 );
 
+#define REMORA_SSH_ED25519_SIGNATURE_LENGTH 64
+
+/*
+ * Signs the raw user authentication payload with an Ed25519 key supplied by
+ * the caller. The handler must not retain the data buffers and must return 0
+ * only after writing exactly REMORA_SSH_ED25519_SIGNATURE_LENGTH bytes.
+ */
+typedef int (*remora_ssh_ed25519_sign_handler)(
+    void *context,
+    const uint8_t *data,
+    size_t data_length,
+    uint8_t *signature,
+    size_t signature_capacity,
+    size_t *out_signature_length
+);
+
+remora_ssh_error_code remora_ssh_context_authenticate_ed25519_private_key(
+    remora_ssh_context *context,
+    const char *username,
+    const uint8_t *public_key_blob,
+    size_t public_key_blob_length,
+    remora_ssh_ed25519_sign_handler sign_handler,
+    void *sign_context,
+    remora_ssh_error *out_error
+);
+
+/*
+ * OpenSSH private key helpers used by the Swift key importer. They return 0 on
+ * success and -1 on failure without exposing libssh2 or platform types.
+ */
+int32_t remora_ssh_bcrypt_pbkdf(
+    const char *passphrase,
+    size_t passphrase_length,
+    const uint8_t *salt,
+    size_t salt_length,
+    uint8_t *output,
+    size_t output_length,
+    uint32_t rounds
+);
+
+int32_t remora_ssh_openssh_private_key_decrypt(
+    const uint8_t *key,
+    size_t key_length,
+    const uint8_t *iv,
+    size_t iv_length,
+    const uint8_t *input,
+    size_t input_length,
+    uint8_t *output,
+    bool cipher_block_chaining
+);
+
 remora_ssh_error_code remora_ssh_context_authenticate_agent(
     remora_ssh_context *context,
     const char *username,

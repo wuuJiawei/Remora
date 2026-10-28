@@ -367,6 +367,10 @@ public actor LibSSH2Transport {
             try await runtime.run(phase: .authenticating, operation: "private_key_auth", timeout: timeout) {
                 try context.authenticatePrivateKey(username: username, privateKey: privateKey)
             }
+        case .ed25519PrivateKey(let privateKey):
+            try await runtime.run(phase: .authenticating, operation: "private_key_auth", timeout: timeout) {
+                try context.authenticateEd25519PrivateKey(username: username, privateKey: privateKey)
+            }
         case .agent:
             try await runtime.run(phase: .authenticating, operation: "agent_auth", timeout: timeout) {
                 try context.authenticateAgent(username: username)
@@ -823,7 +827,7 @@ private extension NativeSSHAuthentication {
     var advertisedMethod: NativeSSHAuthenticationMethod {
         switch self {
         case .password: .password
-        case .privateKey, .agent: .publicKey
+        case .privateKey, .ed25519PrivateKey, .agent: .publicKey
         case .keyboardInteractive: .keyboardInteractive
         case .passwordOrKeyboardInteractive: .keyboardInteractive
         }
@@ -832,7 +836,7 @@ private extension NativeSSHAuthentication {
     var diagnosticName: String {
         switch self {
         case .password: "password_auth"
-        case .privateKey: "private_key_auth"
+        case .privateKey, .ed25519PrivateKey: "private_key_auth"
         case .agent: "agent_auth"
         case .keyboardInteractive: "keyboard_interactive_auth"
         case .passwordOrKeyboardInteractive: "password_or_keyboard_interactive_auth"

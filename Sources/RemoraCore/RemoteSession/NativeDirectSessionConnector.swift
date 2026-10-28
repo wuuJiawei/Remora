@@ -133,6 +133,18 @@ public struct NativeDirectSessionConnector: Sendable {
             let passphrase = requiresPassphrase
                 ? try await interactionBroker.requestCredential(kind: .privateKeyPassphrase)
                 : nil
+            do {
+                if let ed25519Key = try await Task.detached(priority: .utility, operation: {
+                    try OpenSSHPrivateKeyLoader.loadEd25519(
+                        url: privateKeyURL,
+                        passphrase: passphrase
+                    )
+                }).value {
+                    return .ed25519PrivateKey(ed25519Key)
+                }
+            } catch let error as OpenSSHPrivateKeyError {
+                throw Self.privateKeyImportError(error)
+            }
             return .privateKey(
                 NativeSSHPrivateKey(
                     privateKeyURL: privateKeyURL,
@@ -171,6 +183,47 @@ public struct NativeDirectSessionConnector: Sendable {
             )
         }
         return password
+    }
+
+    private static func privateKeyImportError(_ error: OpenSSHPrivateKeyError) -> RemoteOperationError {
+        switch error {
+        case .passphraseRequired:
+            return RemoteOperationError(
+                category: .authentication,
+                code: "private_key_passphrase_required",
+                safeDiagnosticMessage: "The private key is encrypted and requires a passphrase"
+            )
+        case .invalidPassphrase:
+            return RemoteOperationError(
+                category: .authentication,
+                code: "private_key_passphrase_invalid",
+                safeDiagnosticMessage: "The private key passphrase is invalid or the key file is corrupted"
+            )
+        case .unsupportedCipher(let cipher):
+            return RemoteOperationError(
+                category: .authentication,
+                code: "private_key_unsupported",
+                safeDiagnosticMessage: "The private key is encrypted with an unsupported cipher (\(cipher))"
+            )
+        case .unsupportedKeyDerivation(let derivation):
+            return RemoteOperationError(
+                category: .authentication,
+                code: "private_key_unsupported",
+                safeDiagnosticMessage: "The private key uses an unsupported key derivation (\(derivation))"
+            )
+        case .malformed:
+            return RemoteOperationError(
+                category: .authentication,
+                code: "private_key_invalid",
+                safeDiagnosticMessage: "The OpenSSH private key file is malformed"
+            )
+        case .unreadable:
+            return RemoteOperationError(
+                category: .authentication,
+                code: "private_key_invalid",
+                safeDiagnosticMessage: "The private key file could not be read"
+            )
+        }
     }
 
     private static func sessionKey(
@@ -240,6 +293,7 @@ private enum NativePrivateKeyInspector {
             .split(whereSeparator: \.isNewline)
             .filter { !$0.hasPrefix("-----") }
             .joined()
+            .filter { !$0.isWhitespace }
         guard let decoded = Data(base64Encoded: encoded),
               decoded.starts(with: openSSHMagic),
               let cipher = readSSHString(decoded, offset: openSSHMagic.count)

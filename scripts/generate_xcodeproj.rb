@@ -338,8 +338,10 @@ core_target.add_system_framework('Security')
 terminal_target.add_system_frameworks(['AppKit', 'CoreText', 'QuartzCore'])
 app_target.add_system_frameworks(['SwiftUI', 'AppKit'])
 
-native_source_ref = native_group.new_file('remora_ssh.c')
-native_target.source_build_phase.add_file_reference(native_source_ref, true)
+Dir.glob(ROOT.join('Sources/RemoraSSHNative/*.c')).sort.each do |native_source|
+  native_source_ref = native_group.new_file(Pathname.new(native_source).basename.to_s)
+  native_target.source_build_phase.add_file_reference(native_source_ref, true)
+end
 
 add_file_references(
   mbedcrypto_group,
