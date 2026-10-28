@@ -35,7 +35,7 @@ struct TerminalAIServiceTests {
             configuration: configuration
         )
 
-        let request = try #require(await harness.lastRequest)
+        let request = try #require(await harness.waitForLastRequest())
         let body = try #require(request.httpBody)
         let bodyJSON = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
         let messages = try #require(bodyJSON["messages"] as? [[String: Any]])
@@ -74,7 +74,7 @@ struct TerminalAIServiceTests {
             configuration: configuration
         )
 
-        let request = try #require(await harness.lastRequest)
+        let request = try #require(await harness.waitForLastRequest())
         let body = try #require(request.httpBody)
         let bodyJSON = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
         let messages = try #require(bodyJSON["messages"] as? [[String: Any]])
@@ -226,6 +226,17 @@ private actor HTTPTestHarness {
         get async {
             await recorder.lastRequest
         }
+    }
+
+    func waitForLastRequest(timeout: Duration = .seconds(2)) async -> URLRequest? {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if let request = await recorder.lastRequest {
+                return request
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return await recorder.lastRequest
     }
 }
 
