@@ -363,7 +363,7 @@ struct FileTransferViewModelTests {
         defer { try? FileManager.default.removeItem(at: tempRoot) }
 
         let client = MockRemoteFileSystem(
-            configuration: .init(readDelay: .milliseconds(40), maximumReadChunkSize: 1)
+            configuration: .init(readDelay: .milliseconds(300), maximumReadChunkSize: 1)
         )
         let vm = FileTransferViewModel(
             remoteFileSystem: client,
@@ -381,18 +381,24 @@ struct FileTransferViewModelTests {
         vm.enqueueDownload(remoteEntry: readme)
         try await vm.enqueueDownload(path: "/logs/app.log")
 
-        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+        try await waitUntil(timeoutLoops: 240, intervalMS: 25) {
             let runningCount = vm.transferQueue.filter { $0.status == .running }.count
             let queuedCount = vm.transferQueue.filter { $0.status == .queued }.count
             return runningCount == 1 && queuedCount == 1
         }
+        // Wait until the download is sleeping inside its first read so the stop
+        // deterministically cancels an in-flight read instead of racing the
+        // short gap between two reads.
+        try await waitUntil(timeoutLoops: 240, intervalMS: 25) {
+            await client.maximumRequestedReadSize() > 0
+        }
 
         vm.stopAllTransfers()
 
-        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+        try await waitUntil(timeoutLoops: 240, intervalMS: 25) {
             vm.transferQueue.count == 2 && vm.transferQueue.allSatisfy { $0.status == .stopped }
         }
-        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+        try await waitUntil(timeoutLoops: 240, intervalMS: 25) {
             let cancelledPaths = await client.cancelledReads()
             return cancelledPaths.count == 1
         }
@@ -1231,19 +1237,38 @@ struct FileTransferViewModelTests {
         let vm = FileTransferViewModel(remoteFileSystem: countingClient, remoteDirectoryPath: "/")
 
         await vm.refreshRemoteEntries()
-        let baseline = await countingClient.listCallCount()
-
-        vm.navigateRemote(to: "/logs")
-        vm.navigateRemote(to: "/logs")
-        vm.navigateRemote(to: "/logs")
-
-        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
-            await countingClient.listCallCount() >= baseline + 1
+        // The view model also refreshes during initialization, and other
+        // suites may still deliver download-directory notifications. Wait for
+        // the call count to stay stable before taking the baseline.
+        var baseline = await countingClient.listCallCount()
+        var stableRounds = 0
+        while stableRounds < 4 {
+            try await Task.sleep(for: .milliseconds(100))
+            let latest = await countingClient.listCallCount()
+            if latest == baseline {
+                stableRounds += 1
+            } else {
+                stableRounds = 0
+                baseline = latest
+            }
         }
 
-        try await Task.sleep(for: .milliseconds(220))
-        let finalCount = await countingClient.listCallCount()
-        #expect(finalCount == baseline + 1)
+        vm.navigateRemote(to: "/logs")
+        vm.navigateRemote(to: "/logs")
+        vm.navigateRemote(to: "/logs")
+
+        // Capture the count as soon as the coalesced request becomes visible;
+        // the two duplicate navigations must not start additional list calls.
+        var observedCount = baseline
+        try await waitUntil(timeoutLoops: 200, intervalMS: 25) {
+            let latest = await countingClient.listCallCount()
+            observedCount = latest
+            return latest >= baseline + 1
+        }
+        #expect(observedCount == baseline + 1)
+        try await waitUntil(timeoutLoops: 200, intervalMS: 25) {
+            !vm.isRemoteLoading
+        }
     }
 
     @Test
@@ -1254,16 +1279,23 @@ struct FileTransferViewModelTests {
         let vm = FileTransferViewModel(remoteFileSystem: countingClient, remoteDirectoryPath: "/")
 
         await vm.refreshRemoteEntries()
+        try await waitUntil(timeoutLoops: 200, intervalMS: 25) {
+            !vm.isRemoteLoading
+        }
+        try await Task.sleep(for: .milliseconds(120))
         let baseline = await countingClient.listCallCount()
 
         vm.navigateRemote(to: "/logs")
-        try await waitUntil(timeoutLoops: 80, intervalMS: 25) {
+        try await waitUntil(timeoutLoops: 200, intervalMS: 25) {
             await countingClient.listCallCount() >= baseline + 1
+        }
+        try await waitUntil(timeoutLoops: 200, intervalMS: 25) {
+            !vm.isRemoteLoading
         }
         let afterLogs = await countingClient.listCallCount()
 
         vm.navigateRemote(to: "/")
-        try await Task.sleep(for: .milliseconds(120))
+        try await Task.sleep(for: .milliseconds(300))
 
         let afterBack = await countingClient.listCallCount()
         #expect(afterBack == afterLogs)

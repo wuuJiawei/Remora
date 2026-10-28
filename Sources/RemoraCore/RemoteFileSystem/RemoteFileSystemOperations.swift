@@ -166,11 +166,19 @@ public actor RemoteFileSystemOperations {
     public func download(
         path: String,
         to localURL: URL,
-        progress: TransferProgressHandler?
+        progress: TransferProgressHandler?,
+        expectedSize: Int64? = nil
     ) async throws {
-        let attributes = try? await fileSystem.attributes(path: path, followSymbolicLinks: true)
-        let expectedSize = attributes?.size
-        progress?(.init(bytesTransferred: 0, totalBytes: expectedSize))
+        let resolvedSize: Int64?
+        if let expectedSize {
+            resolvedSize = expectedSize
+        } else {
+            resolvedSize = (try? await fileSystem.attributes(
+                path: path,
+                followSymbolicLinks: true
+            ))?.size
+        }
+        progress?(.init(bytesTransferred: 0, totalBytes: resolvedSize))
 
         let directory = localURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -194,7 +202,7 @@ public actor RemoteFileSystemOperations {
                 if chunk.isEmpty { break }
                 try localHandle?.write(contentsOf: chunk)
                 transferred += Int64(chunk.count)
-                progress?(.init(bytesTransferred: transferred, totalBytes: expectedSize))
+                progress?(.init(bytesTransferred: transferred, totalBytes: resolvedSize))
             }
             try localHandle?.close()
             localHandle = nil
@@ -204,7 +212,7 @@ public actor RemoteFileSystemOperations {
                 try FileManager.default.removeItem(at: localURL)
             }
             try FileManager.default.moveItem(at: temporaryURL, to: localURL)
-            progress?(.init(bytesTransferred: transferred, totalBytes: expectedSize ?? transferred))
+            progress?(.init(bytesTransferred: transferred, totalBytes: resolvedSize ?? transferred))
         } catch {
             try? localHandle?.close()
             await remoteHandle?.close()

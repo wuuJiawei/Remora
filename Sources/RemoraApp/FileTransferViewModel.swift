@@ -1440,7 +1440,12 @@ final class FileTransferViewModel: ObservableObject {
 
         let tempURL = Self.makeTemporaryTextDocumentURL()
         defer { try? FileManager.default.removeItem(at: tempURL) }
-        try await requiredRemoteFileOperations().download(path: normalizedPath, to: tempURL, progress: nil)
+        try await requiredRemoteFileOperations().download(
+            path: normalizedPath,
+            to: tempURL,
+            progress: nil,
+            expectedSize: knownSize
+        )
 
         let payload = try Data(contentsOf: tempURL, options: [.mappedIfSafe])
         if payload.count > maxBytes {
@@ -1952,15 +1957,10 @@ final class FileTransferViewModel: ObservableObject {
         do {
             switch item.direction {
             case .upload:
-                let sourceURL = URL(fileURLWithPath: item.sourcePath)
-                try await requiredRemoteFileOperations().upload(
-                    fileURL: sourceURL,
-                    to: item.destinationPath,
-                    progress: { [weak self] snapshot in
-                        Task { @MainActor in
-                            self?.updateTransferProgress(itemID: itemID, snapshot: snapshot)
-                        }
-                    }
+                try await uploadFile(
+                    sourceURL: URL(fileURLWithPath: item.sourcePath),
+                    destinationPath: item.destinationPath,
+                    itemID: itemID
                 )
 
             case .download:
@@ -2192,17 +2192,55 @@ final class FileTransferViewModel: ObservableObject {
         updateDirectoryTransferProgress(itemID: itemID, completedBytes: completedBytes, totalBytes: totalBytes)
     }
 
+    private func uploadFile(
+        sourceURL: URL,
+        destinationPath: String,
+        itemID: UUID
+    ) async throws {
+        let progress: TransferProgressHandler = { [weak self] snapshot in
+            Task { @MainActor in
+                self?.updateTransferProgress(itemID: itemID, snapshot: snapshot)
+            }
+        }
+        let fileOperations = try requiredRemoteFileOperations()
+        do {
+            try await fileOperations.upload(
+                fileURL: sourceURL,
+                to: destinationPath,
+                progress: progress
+            )
+        } catch let error as RemoteFileSystemOperationError where error.status == .notFound {
+            // Recursive uploads enqueue files before their remote directories
+            // exist. Create the missing parent chain once and retry instead of
+            // paying an extra remote stat for every upload.
+            try await ensureRemoteDirectoryExists(remoteParentDirectory(of: destinationPath))
+            try await fileOperations.upload(
+                fileURL: sourceURL,
+                to: destinationPath,
+                progress: progress
+            )
+        }
+    }
+
+    private func remoteParentDirectory(of path: String) -> String {
+        let normalizedPath = normalizeRemoteDirectoryPath(path)
+        let parent = URL(fileURLWithPath: normalizedPath).deletingLastPathComponent().path
+        return parent.isEmpty ? "/" : normalizeRemoteDirectoryPath(parent)
+    }
+
     private func ensureRemoteDirectoryExists(_ path: String) async throws {
         let normalizedPath = normalizeRemoteDirectoryPath(path)
         guard normalizedPath != "/" else { return }
         guard !(await remotePathExists(normalizedPath)) else { return }
 
-        let parent = URL(fileURLWithPath: normalizedPath).deletingLastPathComponent().path
-        let normalizedParent = parent.isEmpty ? "/" : parent
-        if normalizedParent != normalizedPath {
-            try await ensureRemoteDirectoryExists(normalizedParent)
+        if normalizedPath != remoteParentDirectory(of: normalizedPath) {
+            try await ensureRemoteDirectoryExists(remoteParentDirectory(of: normalizedPath))
         }
-        try await requiredRemoteFileOperations().createDirectory(path: normalizedPath)
+        do {
+            try await requiredRemoteFileOperations().createDirectory(path: normalizedPath)
+        } catch let error as RemoteFileSystemOperationError where error.status == .alreadyExists {
+            // A concurrent upload created the same directory chain first.
+        }
     }
 
     private func enqueueUploadFile(localURL: URL, destinationPath: String) {

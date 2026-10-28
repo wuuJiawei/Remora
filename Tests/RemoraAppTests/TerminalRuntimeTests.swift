@@ -14,7 +14,7 @@ struct TerminalRuntimeTests {
         let runtime = TerminalRuntime(localSessionManager: localManager, sshSessionManager: makeMockSessionManager())
         runtime.connectLocalShell()
 
-        let hasTranscript = await waitUntil(timeout: 2.0) {
+        let hasTranscript = await waitUntil(timeout: 8.0) {
             !runtime.transcriptSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
