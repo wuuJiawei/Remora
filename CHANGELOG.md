@@ -6,13 +6,15 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [v0.19.4] - 2026-10-28
+
 ### English
 
 #### Fixed
 
 - Fixed private-key authentication failing for Ed25519 keys with `PK - Invalid key tag or value`. OpenSSH-format Ed25519 private keys are now imported by RemoraCore and signed with CryptoKit, including bcrypt-encrypted keys (`aes*-ctr` and `aes*-cbc`).
 - Fixed recursive folder uploads failing with “The remote path was not found” when the destination remote directories do not exist yet; the missing directory chain is now created on demand.
-- Fixed Simplified Chinese localization not resolving when the app resource bundle is looked up by an exact-case localization name, and skipped a redundant remote attribute read when opening a text document whose size and modification date are already known.
+- Fixed Simplified Chinese localization not resolving when the localization directory casing differs between build environments, and skipped a redundant remote attribute read when opening a text document whose size and modification date are already known.
 
 ### 中文
 
@@ -20,7 +22,7 @@ This project generally follows [Keep a Changelog](https://keepachangelog.com/en/
 
 - 修复 Ed25519 私钥认证失败并报错 `PK - Invalid key tag or value` 的问题：现在由 RemoraCore 解析 OpenSSH 格式的 Ed25519 私钥并用 CryptoKit 完成认证签名，同时支持 bcrypt 加密的 `aes*-ctr` 和 `aes*-cbc` 私钥。
 - 修复上传文件夹到尚不存在的远端目录时报 “The remote path was not found” 的问题：现在会按需创建缺失的远端目录链。
-- 修复应用资源包按精确大小写查找本地化目录时简体中文无法解析的问题，并在已知文本文件大小和修改时间时跳过多余的远端属性请求。
+- 修复不同构建环境下本地化目录大小写不一致时简体中文无法解析的问题，并在已知文本文件大小和修改时间时跳过多余的远端属性请求。
 
 ## [v0.19.3] - 2026-09-01
 
